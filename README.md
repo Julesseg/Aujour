@@ -2,7 +2,7 @@
 
 A ready-to-dev iOS app skeleton with CI automations baked in, extracted from
 [Quickie](https://github.com/Julesseg/Quickie). Ships with a placeholder
-identity (`MyApp` / `com.example.myapp`) that one script swaps for yours.
+identity (`Aujour` / `com.julesseguin.aujour`) that one script swaps for yours.
 
 **What you get on day one:**
 
@@ -43,7 +43,7 @@ identity (`MyApp` / `com.example.myapp`) that one script swaps for yours.
    ```
 
    This renames the Xcode project, scheme, targets, Core module
-   (`MyAppCore` → `ZenithCore`), bundle ids, and the workflow `env` blocks in
+   (`AujourCore` → `ZenithCore`), bundle ids, and the workflow `env` blocks in
    one pass. Review with `git diff`, then commit.
 3. **Verify the fast loop:** `cd Core && swift test`
 4. **Open `App/<Name>.xcodeproj`** in Xcode and run on a simulator.
@@ -219,17 +219,23 @@ never runs — both stay green.
 1. **Create the `ready-for-agent` label** and write blockers as `- #N` bullets
    under a `## Blocked by` heading in issue bodies — that's what the dispatcher
    scans for.
-2. **Register a self-hosted macOS runner** (repo → Settings → Actions →
+2. **Add an `/implement` skill** at `.claude/skills/implement/` — the dispatch
+   prompt is just `/implement issue #<N>`, so the skill is what tells the
+   session how to work. Not shipped with this template.
+3. **Register a self-hosted macOS runner** (repo → Settings → Actions →
    Runners) on a Mac with the Paseo daemon running and `gh` + `claude` logged
    in.
-3. **Set one repository Actions variable** (*Settings → Secrets and variables →
-   Actions → Variables* — a variable, not a secret):
+4. **Set one required repository Actions variable** (*Settings → Secrets and
+   variables → Actions → Variables* — a variable, not a secret):
 
    | Variable | Value |
    | --- | --- |
    | `PASEO_PROJECT_DIR` | Absolute path of this repo's clone on the runner Mac; agent sessions spawn git worktrees off it |
 
-Full walkthrough, scope rules, and the in-flight cap:
+   Three more are optional: `PASEO_MODEL`, `PASEO_THINKING`, and `PASEO_MODE`
+   override the pinned defaults (Opus 5, high effort, bypass mode).
+
+Full walkthrough, scope rules, the in-flight cap, and the optional variables:
 [`docs/agents/auto-dispatch.md`](docs/agents/auto-dispatch.md).
 
 ## CI details

@@ -1,4 +1,4 @@
-# MyApp
+# Aujour
 
 <!-- One-line description of your app. -->
 
@@ -23,7 +23,7 @@ same types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`,
 
 ### Logic lives in Core, UI stays thin
 
-`MyAppCore` (in `Core/`) is a pure SwiftPM package: all business logic belongs
+`AujourCore` (in `Core/`) is a pure SwiftPM package: all business logic belongs
 there, covered by `cd Core && swift test` — the fast loop that runs on any
 platform. The `App/` target is a thin SwiftUI layer over it, verified by the
 XCUITest suite. When implementing a feature, put the behavior in Core with unit

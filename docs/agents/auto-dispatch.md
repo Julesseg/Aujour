@@ -17,11 +17,12 @@ Two workflows split detection from execution:
    each, it applies the `agent-dispatched` label (the idempotency guard) and
    fires `agent-implement.yml` with the issue number.
 2. **`agent-implement.yml`** (self-hosted Mac runner) runs
-   `paseo run --detach --worktree claude/issue-<N> …` with a prompt telling the
-   session to implement the issue per AGENTS.md, push, and open a PR that
-   closes it. `--detach` means the session runs under the Paseo daemon and
-   outlives the (short) runner job; `--worktree` keeps parallel sessions from
-   clobbering one checkout.
+   `paseo run --detach --worktree claude/issue-<N> … "/implement issue #<N>"`.
+   The `/implement` skill in the repo's Claude config carries the workflow
+   instructions — implement per AGENTS.md, push, open a PR that closes the
+   issue. `--detach` means the session runs under the Paseo daemon and outlives
+   the (short) runner job; `--worktree` keeps parallel sessions from clobbering
+   one checkout.
 
 ### Scope rules
 
@@ -36,11 +37,50 @@ Two workflows split detection from execution:
 - If a session gives up, it removes the issue's `agent-dispatched` label and
   comments — which frees a slot and makes the issue eligible again.
 
+### Model, reasoning effort, and permission mode
+
+Sessions default to **Opus 5 at high reasoning effort, in bypass mode**. Three
+optional repository Actions variables override that without touching the
+workflow (Settings → Secrets and variables → Actions → Variables):
+
+| Variable         | Default              | Passed as    |
+| ---------------- | -------------------- | ------------ |
+| `PASEO_MODEL`    | `claude-opus-5`      | `--model`    |
+| `PASEO_THINKING` | `high`               | `--thinking` |
+| `PASEO_MODE`     | `bypassPermissions`  | `--mode`     |
+
+Leave a variable unset (or set it empty) to fall back to the default — unlike
+`PASEO_PROJECT_DIR`, none of the three are required. The defaults are pinned in
+the workflow rather than inherited from the Paseo daemon, whose own defaults
+move as new models ship.
+
+See the current legal values with `paseo provider models claude` (efforts are
+per-model, currently `low`/`medium`/`high`/`xhigh`/`max`/`ultracode` on the
+Opus and Sonnet lines). Modes come from the provider:
+`plan`/`default`/`acceptEdits`/`auto`/`bypassPermissions`.
+
+`bypassPermissions` is the default because nobody is around to answer a
+permission prompt in a detached CI session — the provider's own default
+(`default`, "Always Ask") would stall the session on its first tool use until
+the daemon times it out.
+
+**The workflow validates the model and effort before spawning**, because
+`paseo run` itself does not: given an unknown `--model` it creates the session
+anyway rather than erroring, which would leave a typo'd variable silently
+running every issue on the wrong model. So the spawn step checks the pair
+against `paseo provider models claude --json` first and fails red — listing the
+valid values — instead of dispatching. `--mode` needs no such check; the CLI
+rejects an unknown one outright.
+
 ## Repo prerequisites
 
 - **Create the `ready-for-agent` label** (repo → Issues → Labels): the
   dispatcher only ever considers issues carrying it. The `agent-dispatched`
   label, by contrast, is created automatically on first dispatch.
+- **Add an `/implement` skill** at `.claude/skills/implement/`. The dispatch
+  prompt is just `/implement issue #<N>`, so the skill is what actually tells
+  the session how to work. This template does not ship one yet — without it a
+  dispatched session receives an unresolvable slash command.
 - **Use the `## Blocked by` convention** in issue bodies. The dispatcher parses
   `- #N` bullets under that exact heading:
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # SessionStart hook: inject environment-specific guidance about where the
-# MyAppUITests XCUITest suite can actually run.
+# AujourUITests XCUITest suite can actually run.
 #
 # The behavioral rule "always implement UI work, never ask, never skip" lives in
 # AGENTS.md because it is environment-independent. This hook owns the orthogonal
@@ -16,20 +16,20 @@ set -euo pipefail
 if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || [ "$(uname -s)" = "Linux" ]; then
   cat <<'EOF'
 ENV=CLOUD (Linux). No iOS simulator/runtime exists here, so the App/ Xcode
-target and the MyAppUITests XCUITest suite CANNOT be built or run on this
+target and the AujourUITests XCUITest suite CANNOT be built or run on this
 machine. Do not attempt it. Exercise the loop's logic with `cd Core && swift
 test`, implement any UI work as normal, and let CI (the "App · XCUITest
 (macOS)" job) verify the UI behaviors on every PR.
 EOF
 else
   cat <<'EOF'
-ENV=LOCAL MAC. Xcode is installed, so you CAN build and run the MyAppUITests
+ENV=LOCAL MAC. Xcode is installed, so you CAN build and run the AujourUITests
 XCUITest suite locally to verify UI changes. It is slow (~7 min) and entirely
 optional — `cd Core && swift test` remains the fast local loop and CI is the
 canonical UI gate. To run the UI suite, mirror ci.yml: pre-boot an iPhone
 simulator first (a cold headless boot can fail with "Timed out waiting for AX
 loaded notification"), then:
-  cd App && xcodebuild test -project MyApp.xcodeproj -scheme MyApp \
+  cd App && xcodebuild test -project Aujour.xcodeproj -scheme Aujour \
     -destination 'platform=iOS Simulator,id=<booted-udid>' CODE_SIGNING_ALLOWED=NO
 EOF
 fi

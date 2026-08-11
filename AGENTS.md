@@ -1,6 +1,9 @@
 # Aujour
 
-<!-- One-line description of your app. -->
+A markdown-file journaling app for iPhone and iPad: one file per day, spawned
+from templates, living in a plain folder that can sit inside an Obsidian
+vault. Vocabulary in `CONTEXT.md`, foundational decisions in `docs/adr/`,
+product decisions in `docs/design/v1-decisions.md`.
 
 ## Agent skills
 

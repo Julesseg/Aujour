@@ -1,5 +1,5 @@
 #!/bin/bash
-# SessionStart hook: install a Swift toolchain so MyAppCore's tests are
+# SessionStart hook: install a Swift toolchain so AujourCore's tests are
 # runnable in fresh Claude Code on the web containers (which ship without Swift).
 #
 # Only the `Core/` package is built/tested here — it depends solely on

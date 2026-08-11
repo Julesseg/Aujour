@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "1A0000000000000000000005"
-               BuildableName = "MyApp.app"
-               BlueprintName = "MyApp"
-               ReferencedContainer = "container:MyApp.xcodeproj">
+               BuildableName = "Aujour.app"
+               BlueprintName = "Aujour"
+               ReferencedContainer = "container:Aujour.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "1A0000000000000000000020"
-               BuildableName = "MyAppUITests.xctest"
-               BlueprintName = "MyAppUITests"
-               ReferencedContainer = "container:MyApp.xcodeproj">
+               BuildableName = "AujourUITests.xctest"
+               BlueprintName = "AujourUITests"
+               ReferencedContainer = "container:Aujour.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1A0000000000000000000005"
-            BuildableName = "MyApp.app"
-            BlueprintName = "MyApp"
-            ReferencedContainer = "container:MyApp.xcodeproj">
+            BuildableName = "Aujour.app"
+            BlueprintName = "Aujour"
+            ReferencedContainer = "container:Aujour.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1A0000000000000000000005"
-            BuildableName = "MyApp.app"
-            BlueprintName = "MyApp"
-            ReferencedContainer = "container:MyApp.xcodeproj">
+            BuildableName = "Aujour.app"
+            BlueprintName = "Aujour"
+            ReferencedContainer = "container:Aujour.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

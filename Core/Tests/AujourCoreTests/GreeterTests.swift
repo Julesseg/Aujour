@@ -1,5 +1,5 @@
 import Testing
-@testable import MyAppCore
+@testable import AujourCore
 
 @Suite("Greeter")
 struct GreeterTests {

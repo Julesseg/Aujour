@@ -2,7 +2,7 @@
 
 A ready-to-dev iOS app skeleton with CI automations baked in, extracted from
 [Quickie](https://github.com/Julesseg/Quickie). Ships with a placeholder
-identity (`MyApp` / `com.example.myapp`) that one script swaps for yours.
+identity (`Aujour` / `com.julesseguin.aujour`) that one script swaps for yours.
 
 **What you get on day one:**
 
@@ -43,7 +43,7 @@ identity (`MyApp` / `com.example.myapp`) that one script swaps for yours.
    ```
 
    This renames the Xcode project, scheme, targets, Core module
-   (`MyAppCore` → `ZenithCore`), bundle ids, and the workflow `env` blocks in
+   (`AujourCore` → `ZenithCore`), bundle ids, and the workflow `env` blocks in
    one pass. Review with `git diff`, then commit.
 3. **Verify the fast loop:** `cd Core && swift test`
 4. **Open `App/<Name>.xcodeproj`** in Xcode and run on a simulator.

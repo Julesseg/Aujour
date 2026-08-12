@@ -177,15 +177,21 @@ struct JournalDayDaylightSavingTests {
         #expect(afterTheGap == JournalDay(year: 2026, month: 3, day: 29))
     }
 
-    @Test("a 23-hour day still rolls over onto the correct previous day")
-    func springForwardNightRollsBackOneDay() {
-        let day = JournalDay.current(
-            at: instant(2026, 3, 29, 3, 30, in: paris),
-            in: paris,
-            rolloverHour: RolloverHour(hour: 4)!
-        )
+    @Test("a 23-hour day rolls over on wall-clock time, not elapsed hours")
+    func springForwardDayRollsOverAtTheRolloverHour() {
+        let rollover = RolloverHour(hour: 4)!
 
-        #expect(day == JournalDay(year: 2026, month: 3, day: 28))
+        // 04:00 on a 23-hour day is only 3 elapsed hours after midnight, so
+        // counting hours backwards from the instant would still say March
+        // 28th. The Rollover Hour is a wall-clock reading: the day has turned.
+        #expect(
+            JournalDay.current(at: instant(2026, 3, 29, 4, in: paris), in: paris, rolloverHour: rollover)
+                == JournalDay(year: 2026, month: 3, day: 29)
+        )
+        #expect(
+            JournalDay.current(at: instant(2026, 3, 29, 3, 30, in: paris), in: paris, rolloverHour: rollover)
+                == JournalDay(year: 2026, month: 3, day: 28)
+        )
     }
 
     @Test("the hour repeated by fall-back never moves the Journal Day backwards")
@@ -208,15 +214,44 @@ struct JournalDayDaylightSavingTests {
         #expect(second == JournalDay(year: 2026, month: 10, day: 25))
     }
 
-    @Test("a 25-hour day still rolls over onto the correct previous day")
-    func fallBackNightRollsBackOneDay() {
-        let day = JournalDay.current(
-            at: instant(2026, 10, 25, 1, 30, in: paris),
-            in: paris,
-            rolloverHour: RolloverHour(hour: 4)!
-        )
+    @Test("a 25-hour day rolls over on wall-clock time, not elapsed hours")
+    func fallBackDayRollsOverAtTheRolloverHour() {
+        let rollover = RolloverHour(hour: 4)!
 
-        #expect(day == JournalDay(year: 2026, month: 10, day: 24))
+        // 03:00 CET, once the repeated hour is spent, is 4 elapsed hours after
+        // midnight — counting hours backwards from the instant would already
+        // call it October 25th. Wall-clock says the 4 AM rollover is still to
+        // come, so the Journal Day is October 24th.
+        #expect(
+            JournalDay.current(at: instant(2026, 10, 25, 2, in: utc), in: paris, rolloverHour: rollover)
+                == JournalDay(year: 2026, month: 10, day: 24)
+        )
+        #expect(
+            JournalDay.current(at: instant(2026, 10, 25, 3, in: utc), in: paris, rolloverHour: rollover)
+                == JournalDay(year: 2026, month: 10, day: 25)
+        )
+    }
+
+    @Test("the day still turns in a zone where DST skips midnight itself")
+    func midnightRolloverSurvivesASkippedMidnight() {
+        // Santiago springs forward at 2026-09-06 00:00 → 01:00: with the
+        // default rollover, the moment the Journal Day advances never happens.
+        let santiago = TimeZone(identifier: "America/Santiago")!
+
+        #expect(
+            JournalDay.current(
+                at: instant(2026, 9, 5, 23, 30, in: santiago),
+                in: santiago,
+                rolloverHour: .midnight
+            ) == JournalDay(year: 2026, month: 9, day: 5)
+        )
+        #expect(
+            JournalDay.current(
+                at: instant(2026, 9, 6, 1, in: santiago),
+                in: santiago,
+                rolloverHour: .midnight
+            ) == JournalDay(year: 2026, month: 9, day: 6)
+        )
     }
 
     @Test("resolution never skips or repeats a Journal Day across a DST week")

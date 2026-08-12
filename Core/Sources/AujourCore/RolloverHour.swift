@@ -19,6 +19,12 @@ public struct RolloverHour: Hashable, Sendable, Codable {
 
     /// The default: the Journal Day is the local calendar date.
     public static let midnight = RolloverHour(hour: 0)!
+
+    /// Whether a local wall-clock hour is at or past the rollover — the whole
+    /// of the "has the Journal Day turned yet?" decision.
+    func hasPassed(byLocalHour localHour: Int) -> Bool {
+        localHour >= hour
+    }
 }
 
 // Coded as a bare hour, and validated on the way in: the setting travels

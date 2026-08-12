@@ -5,7 +5,7 @@ import Foundation
 /// A Journal Day is a plain calendar date — it carries no time zone and no
 /// time of day. Which Journal Day a wall-clock instant belongs to is a
 /// separate question, answered by `current(at:in:rolloverHour:)`.
-public struct JournalDay: Hashable, Comparable, Sendable, Codable, CustomStringConvertible {
+public struct JournalDay: Hashable, Comparable, Sendable, CustomStringConvertible {
     public let year: Int
     public let month: Int
     public let day: Int
@@ -30,14 +30,14 @@ public struct JournalDay: Hashable, Comparable, Sendable, Codable, CustomStringC
         // from the instant, so DST transitions shift when the day rolls over
         // rather than which day an instant lands on.
         let components = calendar.dateComponents([.year, .month, .day, .hour], from: instant)
-        let localDate = JournalDay(
+        let localDay = JournalDay(
             year: components.year!,
             month: components.month!,
             day: components.day!
         )
-        return components.hour! < rolloverHour.hour
-            ? localDate.adding(days: -1)
-            : localDate
+        return rolloverHour.hasPassed(byLocalHour: components.hour!)
+            ? localDay
+            : localDay.adding(days: -1)
     }
 
     /// Where a Journal Day sits relative to a wall-clock instant. Future days

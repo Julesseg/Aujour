@@ -25,8 +25,20 @@ import Foundation
 /// Operations are `async` because the real store waits: on file coordination,
 /// on iCloud materializing a file, on I/O that must stay off the main thread.
 /// They are untyped `throws` because a real store fails for reasons this
-/// module cannot enumerate; `JournalStoreError` covers the failures the domain
-/// acts on, and implementations throw it for those.
+/// module cannot enumerate; `JournalStoreError` covers the failures every store
+/// shares, and implementations throw it for those.
+///
+/// ## The path contract, which every implementation owes
+///
+/// Every path an operation takes is relative to the Journal Root and must be
+/// one `RelativePath` accepts: not empty, not absolute, no empty component, no
+/// `.` or `..` hop. Every operation — `fileExists(at:)` included — rejects
+/// anything else with `JournalStoreError.invalidPath` rather than resolving it,
+/// because a `..` hop resolved against a folder inside someone's Obsidian vault
+/// reads or writes a file the user never pointed Aujour at. An implementation
+/// gets this by making a `RelativePath` from each path it is handed, before it
+/// touches storage; that is what `InMemoryJournalStore` does, and the guarantee
+/// belongs to the seam rather than to the one store that cannot reach a disk.
 public protocol JournalStore: Sendable {
     /// Every file anywhere under the Journal Root, as paths relative to it.
     ///

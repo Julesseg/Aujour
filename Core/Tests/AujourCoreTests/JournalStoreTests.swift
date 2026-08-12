@@ -61,7 +61,9 @@ struct InMemoryJournalStoreTests {
 
     @Test("a move takes the content with it and leaves nothing behind")
     func moveRelocatesTheFile() async throws {
-        let store: any JournalStore = InMemoryJournalStore(["2026-03-01.md": "Walked to the market.\n"])
+        let store: any JournalStore = InMemoryJournalStore([
+            "2026-03-01.md": "Walked to the market.\n"
+        ])
 
         try await store.move(from: "2026-03-01.md", to: "2026/03/2026-03-01.md")
 
@@ -105,7 +107,10 @@ struct InMemoryJournalStoreTests {
 
     @Test("a file cannot be where a folder is, or a folder where a file is")
     func filesAndFoldersCannotOccupyTheSamePath() async throws {
-        let store: any JournalStore = InMemoryJournalStore(["2026/03/2026-03-01.md": "", "notes.md": ""])
+        let store: any JournalStore = InMemoryJournalStore([
+            "2026/03/2026-03-01.md": "",
+            "notes.md": "",
+        ])
 
         // "2026/03" is a folder in this store: something is already under it.
         await #expect(throws: JournalStoreError.pathIsAFolder("2026/03")) {
@@ -153,6 +158,51 @@ struct InMemoryJournalStoreTests {
 
 @Suite("Journal Store paths")
 struct JournalStorePathTests {
+    @Test("a checked path keeps what it was given, and knows the folders it walks")
+    func aCheckedPathExposesItsComponents() throws {
+        let path = try RelativePath("2026/03/2026-03-01.md")
+
+        #expect(path.string == "2026/03/2026-03-01.md")
+        #expect(path.components == ["2026", "03", "2026-03-01.md"])
+        #expect(path.description == "2026/03/2026-03-01.md")
+    }
+
+    @Test("every path a Path Template renders is one a store will take")
+    func renderedEntryPathsAreAlwaysAcceptable() throws {
+        let templates = [
+            PathTemplate.default,
+            try PathTemplate("YYYY-MM-DD"),
+            try PathTemplate("[Daily Notes]/YYYY/[Q]MM/YYYY-MM-DD"),
+        ]
+
+        for template in templates {
+            for day in [
+                JournalDay(year: 2026, month: 1, day: 1),
+                JournalDay(year: 2026, month: 3, day: 1),
+                JournalDay(year: 2026, month: 12, day: 31),
+            ] {
+                #expect(throws: Never.self) { try RelativePath(template.render(day)) }
+            }
+        }
+        let attachmentFolder = AttachmentPathTemplate.default
+            .render(JournalDay(year: 2026, month: 3, day: 1))
+        #expect(throws: Never.self) { try RelativePath(attachmentFolder) }
+    }
+
+    @Test("a folder lasts exactly as long as a file is under it")
+    func aFolderVanishesWhenItsLastFileMovesOut() async throws {
+        let store: any JournalStore = InMemoryJournalStore(["2026/03/2026-03-01.md": "text"])
+
+        try await store.move(from: "2026/03/2026-03-01.md", to: "2026-03-01.md")
+
+        // The documented divergence from a disk, pinned here so that changing
+        // it is a decision rather than an accident: a disk would keep the empty
+        // folder and refuse a file at its path. Nothing in the domain writes
+        // one there — a Path Template's file and folder components cannot swap.
+        try await store.writeText("", at: "2026/03")
+        #expect(try await store.listFiles() == ["2026-03-01.md", "2026/03"])
+    }
+
     @Test("paths that no folder could hold are refused, whichever way they arrive")
     func unusablePathsAreRefused() async throws {
         let store: any JournalStore = InMemoryJournalStore(["day.md": "text"])

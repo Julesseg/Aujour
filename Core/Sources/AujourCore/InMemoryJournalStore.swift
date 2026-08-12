@@ -14,10 +14,15 @@ import Foundation
 /// are made here too. A test that passes against this store is making a claim
 /// about behavior over a folder, not about this class.
 ///
-/// Two things a real folder has are deliberately missing, because the domain
-/// does not decide them: modification dates (divergence is decided by the App
-/// layer from file versions) and case-insensitive path matching (a property of
-/// the volume, not of the journal).
+/// Three things a real folder has are deliberately missing. Two because the
+/// domain does not decide them: modification dates (divergence is decided by
+/// the App layer from file versions) and case-insensitive path matching (a
+/// property of the volume, not of the journal). The third is empty folders —
+/// a folder here exists exactly while a file is under it, so the empty one a
+/// move leaves behind is gone, and writing a *file* at that path succeeds here
+/// where a disk would refuse. Nothing in the domain writes a file at a path
+/// that was a folder: Entry paths come from a Path Template, whose file and
+/// folder components cannot swap places.
 ///
 /// It ships in the library rather than a test-only target so that the App
 /// layer's own tests and SwiftUI previews can journal into it too.

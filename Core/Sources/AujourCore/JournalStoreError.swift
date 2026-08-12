@@ -7,9 +7,14 @@ import Foundation
 /// one a folder could hold. A real store also fails for reasons only it knows
 /// — iCloud not signed in, a stale bookmark, a full disk — and throws its own
 /// errors for those, which is why `JournalStore`'s operations are not typed to
-/// this enum. What is here is what the domain can act on: a collision means
-/// park the incoming file (ADR 0002), a missing file means the day is not
-/// journaled (ADR 0001).
+/// this enum.
+///
+/// Some of these the domain acts on: a collision means park the incoming file
+/// (ADR 0002), a missing file means the day is not journaled (ADR 0001). The
+/// rest are a folder of files refusing a path that could not name one, and
+/// nothing above the seam is expected to handle them — they are here so that a
+/// path assembled wrongly fails where it was assembled, loudly, in the same
+/// way against every store.
 public enum JournalStoreError: Error, Hashable, Sendable, CustomStringConvertible {
     /// Nothing is at this path, so there is nothing to read or move.
     case fileNotFound(String)

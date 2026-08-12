@@ -15,6 +15,16 @@ The folder the Journal lives under. Defaults to a folder Aujour owns (visible
 in the Files app); the user may instead point it anywhere they can pick in the
 Files app — typically inside an Obsidian vault.
 
+### Journal Store
+The Journal Root as everything above the file system sees it: a set of files
+addressed by paths relative to the root, which can be enumerated, read, written
+and moved. The single seam between the domain and storage — the domain asks a
+Journal Store which days are journaled and what an Entry says, and never learns
+whether the answers come from iCloud Drive, a folder in an Obsidian vault, or
+memory. Nothing about a particular file system (bookmarks, file coordination,
+download state) crosses it; the in-memory Journal Store the tests journal into
+is a full-fledged one.
+
 ### Entry
 One markdown file representing one Journal Day. At most one Entry exists per
 Journal Day. An Entry's identity is its date, not its filename — the filename

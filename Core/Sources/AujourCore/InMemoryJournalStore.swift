@@ -37,7 +37,7 @@ public actor InMemoryJournalStore: JournalStore {
         // run, whatever order the dictionary happens to hash into.
         for path in files.keys.sorted() {
             do {
-                try table.write(Data(files[path]!.utf8), at: path)
+                try table.write(Data(files[path]!.utf8), at: RelativePath(path))
             } catch {
                 preconditionFailure("A folder could not hold '\(path)': \(error)")
             }
@@ -54,22 +54,24 @@ public actor InMemoryJournalStore: JournalStore {
     }
 
     public func fileExists(at relativePath: String) throws(JournalStoreError) -> Bool {
-        try files.containsFile(at: relativePath)
+        try files.containsFile(at: RelativePath(relativePath))
     }
 
     public func read(at relativePath: String) throws(JournalStoreError) -> Data {
-        try files.bytes(at: relativePath)
+        try files.bytes(at: RelativePath(relativePath))
     }
 
     public func write(_ contents: Data, at relativePath: String) throws(JournalStoreError) {
-        try files.write(contents, at: relativePath)
+        try files.write(contents, at: RelativePath(relativePath))
     }
 
     public func move(
         from source: String,
         to destination: String
     ) throws(JournalStoreError) {
-        try files.move(from: source, to: destination)
+        // The source first, so a call with two unusable paths says so about
+        // the one the caller is asking about a file at.
+        try files.move(from: RelativePath(source), to: RelativePath(destination))
     }
 }
 
@@ -90,52 +92,51 @@ private struct FileTable {
         contents.keys.sorted()
     }
 
-    func containsFile(at path: String) throws(JournalStoreError) -> Bool {
-        _ = try RelativePath.components(of: path)
-        return contents[path] != nil
+    func containsFile(at path: RelativePath) -> Bool {
+        contents[path.string] != nil
     }
 
-    func bytes(at path: String) throws(JournalStoreError) -> Data {
-        _ = try RelativePath.components(of: path)
-        guard let data = contents[path] else {
-            throw JournalStoreError.fileNotFound(path)
+    func bytes(at path: RelativePath) throws(JournalStoreError) -> Data {
+        guard let data = contents[path.string] else {
+            throw JournalStoreError.fileNotFound(path.string)
         }
         return data
     }
 
-    mutating func write(_ data: Data, at path: String) throws(JournalStoreError) {
+    mutating func write(_ data: Data, at path: RelativePath) throws(JournalStoreError) {
         try checkAFileCanLive(at: path)
-        contents[path] = data
+        contents[path.string] = data
     }
 
-    mutating func move(from source: String, to destination: String) throws(JournalStoreError) {
-        guard try containsFile(at: source) else {
-            throw JournalStoreError.fileNotFound(source)
+    mutating func move(
+        from source: RelativePath,
+        to destination: RelativePath
+    ) throws(JournalStoreError) {
+        guard containsFile(at: source) else {
+            throw JournalStoreError.fileNotFound(source.string)
         }
         // Checked before the destination, so that moving a file onto itself is
         // the no-op it is on a real folder rather than a collision with itself.
         guard source != destination else { return }
 
         try checkAFileCanLive(at: destination)
-        guard contents[destination] == nil else {
-            throw JournalStoreError.fileAlreadyExists(destination)
+        guard contents[destination.string] == nil else {
+            throw JournalStoreError.fileAlreadyExists(destination.string)
         }
 
-        contents[destination] = contents.removeValue(forKey: source)
+        contents[destination.string] = contents.removeValue(forKey: source.string)
     }
 
     /// Whether this path is one a file could occupy: not a folder, and not
     /// inside a file. The two ways a real folder says no to a path that is
     /// otherwise well-formed.
-    private func checkAFileCanLive(at path: String) throws(JournalStoreError) {
-        let components = try RelativePath.components(of: path)
-
-        guard !contents.keys.contains(where: { $0.hasPrefix(path + "/") }) else {
-            throw JournalStoreError.pathIsAFolder(path)
+    private func checkAFileCanLive(at path: RelativePath) throws(JournalStoreError) {
+        guard !contents.keys.contains(where: { $0.hasPrefix(path.string + "/") }) else {
+            throw JournalStoreError.pathIsAFolder(path.string)
         }
 
         var ancestor = ""
-        for component in components.dropLast() {
+        for component in path.components.dropLast() {
             ancestor = ancestor.isEmpty ? component : "\(ancestor)/\(component)"
             guard contents[ancestor] == nil else {
                 throw JournalStoreError.pathIsNotAFolder(ancestor)

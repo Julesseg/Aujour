@@ -94,33 +94,3 @@ extension JournalStore {
         try await write(Data(text.utf8), at: relativePath)
     }
 }
-
-/// A path relative to the Journal Root, checked for the shape any folder could
-/// hold it in.
-///
-/// Path Templates are validated when they are built, so paths the domain
-/// renders arrive here already sound. The check is for paths assembled any
-/// other way — a filename derived from an Entry's, a path read back from
-/// settings — where an empty component or a `..` hop would quietly address
-/// something outside the folder the user pointed Aujour at.
-enum RelativePath {
-    /// The path's components, or a rejection naming the path exactly as it was
-    /// given so the message can be traced back to its source.
-    static func components(of path: String) throws(JournalStoreError) -> [String] {
-        guard !path.trimmingCharacters(in: .whitespaces).isEmpty else {
-            throw JournalStoreError.invalidPath(path)
-        }
-
-        let components = path.split(separator: "/", omittingEmptySubsequences: false)
-        for component in components {
-            // An empty component is a leading, trailing or doubled slash; `.`
-            // and `..` name a folder relative to another one, which a path
-            // this module hands to a file system must never do.
-            guard !component.isEmpty, component != ".", component != ".." else {
-                throw JournalStoreError.invalidPath(path)
-            }
-        }
-
-        return components.map(String.init)
-    }
-}

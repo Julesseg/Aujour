@@ -2,27 +2,6 @@ import Foundation
 import Testing
 @testable import AujourCore
 
-// Instants are written as wall-clock readings in a named zone, because that
-// is how the domain talks about them: "1 AM on March 2nd in Paris".
-private func instant(
-    _ year: Int, _ month: Int, _ day: Int,
-    _ hour: Int, _ minute: Int = 0,
-    in timeZone: TimeZone
-) -> Date {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = timeZone
-    var components = DateComponents()
-    components.year = year
-    components.month = month
-    components.day = day
-    components.hour = hour
-    components.minute = minute
-    return calendar.date(from: components)!
-}
-
-private let paris = TimeZone(identifier: "Europe/Paris")!
-private let utc = TimeZone(secondsFromGMT: 0)!
-
 @Suite("JournalDay resolution")
 struct JournalDayResolutionTests {
     @Test("1 AM with a 4 AM rollover still belongs to the previous day")

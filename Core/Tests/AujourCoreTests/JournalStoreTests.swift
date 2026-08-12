@@ -9,7 +9,7 @@ import Testing
 struct InMemoryJournalStoreTests {
     @Test("a listing shows the seeded files, and their content round-trips")
     func seededFilesAreListedAndReadable() async throws {
-        let store = InMemoryJournalStore([
+        let store: any JournalStore = InMemoryJournalStore([
             "2026/03/2026-03-01.md": "Walked to the market.\n",
             "Inbox/Ideas.md": "- a thought",
         ])
@@ -21,7 +21,7 @@ struct InMemoryJournalStoreTests {
 
     @Test("a written file appears in the listing, folders and all")
     func writesShowUpInListings() async throws {
-        let store = InMemoryJournalStore()
+        let store: any JournalStore = InMemoryJournalStore()
 
         try await store.writeText("Today.", at: "2026/03/2026-03-01.md")
 
@@ -32,7 +32,7 @@ struct InMemoryJournalStoreTests {
 
     @Test("writing again replaces the content, as autosave needs it to")
     func writingOverAnExistingFileReplacesIt() async throws {
-        let store = InMemoryJournalStore(["day.md": "first"])
+        let store: any JournalStore = InMemoryJournalStore(["day.md": "first"])
 
         try await store.writeText("second", at: "day.md")
 
@@ -42,7 +42,7 @@ struct InMemoryJournalStoreTests {
 
     @Test("only files are listed — the folders they sit in are not files")
     func foldersAreNotFiles() async throws {
-        let store = InMemoryJournalStore(["2026/03/2026-03-01.md": ""])
+        let store: any JournalStore = InMemoryJournalStore(["2026/03/2026-03-01.md": ""])
 
         #expect(try await store.listFiles() == ["2026/03/2026-03-01.md"])
         #expect(try await store.fileExists(at: "2026") == false)
@@ -51,7 +51,7 @@ struct InMemoryJournalStoreTests {
 
     @Test("reading a file that is not there fails, rather than reading empty")
     func readingAMissingFileFails() async throws {
-        let store = InMemoryJournalStore(["day.md": "text"])
+        let store: any JournalStore = InMemoryJournalStore(["day.md": "text"])
 
         #expect(try await store.fileExists(at: "missing.md") == false)
         await #expect(throws: JournalStoreError.fileNotFound("missing.md")) {
@@ -61,7 +61,7 @@ struct InMemoryJournalStoreTests {
 
     @Test("a move takes the content with it and leaves nothing behind")
     func moveRelocatesTheFile() async throws {
-        let store = InMemoryJournalStore(["2026-03-01.md": "Walked to the market.\n"])
+        let store: any JournalStore = InMemoryJournalStore(["2026-03-01.md": "Walked to the market.\n"])
 
         try await store.move(from: "2026-03-01.md", to: "2026/03/2026-03-01.md")
 
@@ -72,7 +72,7 @@ struct InMemoryJournalStoreTests {
 
     @Test("a move onto an occupied path is refused, and loses neither version")
     func moveNeverOverwrites() async throws {
-        let store = InMemoryJournalStore([
+        let store: any JournalStore = InMemoryJournalStore([
             "2026-03-01.md": "incoming",
             "2026/03/2026-03-01.md": "already there",
         ])
@@ -87,7 +87,7 @@ struct InMemoryJournalStoreTests {
 
     @Test("moving a file that is not there fails")
     func movingAMissingFileFails() async throws {
-        let store = InMemoryJournalStore()
+        let store: any JournalStore = InMemoryJournalStore()
 
         await #expect(throws: JournalStoreError.fileNotFound("missing.md")) {
             try await store.move(from: "missing.md", to: "day.md")
@@ -96,7 +96,7 @@ struct InMemoryJournalStoreTests {
 
     @Test("a move to where the file already is changes nothing")
     func movingAFileOntoItselfIsANoOp() async throws {
-        let store = InMemoryJournalStore(["day.md": "text"])
+        let store: any JournalStore = InMemoryJournalStore(["day.md": "text"])
 
         try await store.move(from: "day.md", to: "day.md")
 
@@ -105,7 +105,7 @@ struct InMemoryJournalStoreTests {
 
     @Test("a file cannot be where a folder is, or a folder where a file is")
     func filesAndFoldersCannotOccupyTheSamePath() async throws {
-        let store = InMemoryJournalStore(["2026/03/2026-03-01.md": "", "notes.md": ""])
+        let store: any JournalStore = InMemoryJournalStore(["2026/03/2026-03-01.md": "", "notes.md": ""])
 
         // "2026/03" is a folder in this store: something is already under it.
         await #expect(throws: JournalStoreError.pathIsAFolder("2026/03")) {
@@ -122,7 +122,7 @@ struct InMemoryJournalStoreTests {
 
     @Test("attachment bytes survive the round trip untouched")
     func binaryContentRoundTrips() async throws {
-        let store = InMemoryJournalStore()
+        let store: any JournalStore = InMemoryJournalStore()
         let jpegBytes = Data([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10])
 
         try await store.write(jpegBytes, at: "attachments/2026/03/photo.jpg")
@@ -132,7 +132,7 @@ struct InMemoryJournalStoreTests {
 
     @Test("a file whose bytes are not text fails to read as text, with its path named")
     func nonTextContentFailsToReadAsText() async throws {
-        let store = InMemoryJournalStore()
+        let store: any JournalStore = InMemoryJournalStore()
         try await store.write(Data([0xFF, 0xD8, 0xFF]), at: "photo.jpg")
 
         await #expect(throws: JournalStoreError.contentIsNotText("photo.jpg")) {
@@ -142,7 +142,7 @@ struct InMemoryJournalStoreTests {
 
     @Test("text is stored as UTF-8, accents and emoji included")
     func textIsStoredAsUTF8() async throws {
-        let store = InMemoryJournalStore()
+        let store: any JournalStore = InMemoryJournalStore()
 
         try await store.writeText("Café ☕️ — déjà vu", at: "day.md")
 
@@ -155,7 +155,7 @@ struct InMemoryJournalStoreTests {
 struct JournalStorePathTests {
     @Test("paths that no folder could hold are refused, whichever way they arrive")
     func unusablePathsAreRefused() async throws {
-        let store = InMemoryJournalStore(["day.md": "text"])
+        let store: any JournalStore = InMemoryJournalStore(["day.md": "text"])
 
         for path in ["", "   ", "/2026/day.md", "2026//day.md", "2026/day.md/", "."] {
             await #expect(throws: JournalStoreError.invalidPath(path), "writing \(path)") {
@@ -178,7 +178,7 @@ struct JournalStorePathTests {
 
     @Test("a path that hops out of the Journal Root is refused")
     func pathsThatEscapeTheJournalRootAreRefused() async throws {
-        let store = InMemoryJournalStore()
+        let store: any JournalStore = InMemoryJournalStore()
 
         for path in ["../day.md", "2026/../day.md", "2026/./day.md", ".."] {
             await #expect(throws: JournalStoreError.invalidPath(path), "writing \(path)") {
@@ -198,27 +198,9 @@ struct JournalStorePathTests {
     }
 }
 
-// Instants are written as wall-clock readings in a named zone, because that is
-// how the domain talks about them: "1 AM on March 2nd in Paris".
-private func instant(
-    _ year: Int, _ month: Int, _ day: Int, _ hour: Int,
-    in timeZone: TimeZone
-) -> Date {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = timeZone
-    var components = DateComponents()
-    components.year = year
-    components.month = month
-    components.day = day
-    components.hour = hour
-    return calendar.date(from: components)!
-}
-
-private let paris = TimeZone(identifier: "Europe/Paris")!
-
-// The question the calendar asks of a folder, written the way the App layer
-// will hold a store: as `any JournalStore`, so these scenarios exercise the
-// seam rather than the fake's own type.
+// The question the calendar asks of a folder. Stores are held as
+// `any JournalStore` throughout these tests, the way the App layer holds one,
+// so what is exercised is the seam rather than the fake's own signatures.
 private func journaledDays(
     in store: any JournalStore,
     matching template: PathTemplate
@@ -233,7 +215,7 @@ private func journaledDays(
 struct JournalStoreScenarioTests {
     /// A folder as an Obsidian user would actually have it: entries under the
     /// default template, a Parked File, an attachment, and unrelated notes.
-    private func vault() -> InMemoryJournalStore {
+    private func vault() -> any JournalStore {
         InMemoryJournalStore([
             "2026/02/2026-02-28.md": "February's last day.\n",
             "2026/03/2026-03-01.md": "Walked to the market.\n",

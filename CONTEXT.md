@@ -37,6 +37,11 @@ subfolders, literal text goes in `[brackets]`, and `.md` is appended
 automatically. A file is an Entry exactly when its path matches the current
 Path Template for some date (see ADR 0002 for what happens on change).
 
+The supported tokens are `YYYY`, `MM` and `DD` — the zero-padded numeric ones,
+which have fixed widths and so read back unambiguously. Anything else (`MMMM`,
+`ddd`, `D`, `YY`, …) is rejected, and an Entry template must name all three so
+that every path identifies exactly one day.
+
 ### Content Template
 The markdown skeleton a new Entry starts from. Placeholders use Obsidian's
 `{{name}}` / `{{name:FORMAT}}` syntax; the Obsidian core set ({{date}},
@@ -68,7 +73,8 @@ the user notices them in Obsidian or Files.
 
 ### Attachment
 A non-markdown file (typically a photo) referenced by an Entry. Attachments
-live under the Attachment Path Template — a Moment-format folder path relative
-to the Journal Root, default `[attachments]/YYYY/MM` — and are referenced
+live under the Attachment Path Template — the same Moment format restricted to
+folders (no `.md`, and it need not name a day), relative to the Journal Root,
+default `[attachments]/YYYY/MM` — and are referenced
 relatively from Entries. Embeds are written in standard markdown syntax by
 default (Obsidian wiki-style available as a setting); Aujour renders both.

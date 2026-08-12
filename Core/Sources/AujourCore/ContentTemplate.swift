@@ -25,6 +25,7 @@ public struct ContentTemplate: Hashable, Sendable {
 
     private let segments: [Segment]
 
+    /// Parses a template. Never fails — see the type's discussion.
     public init(_ source: String) {
         self.source = source
         self.segments = ContentTemplate.parse(source)
@@ -59,7 +60,9 @@ public struct SpawnContext: Sendable {
     public var instant: Date
     /// The Entry's title — its filename without the `.md` extension.
     public var title: String
+    /// The zone the Entry's wall-clock day and time are read in.
     public var timeZone: TimeZone
+    /// Picks month and weekday names, and where the locale week starts.
     public var locale: Locale
     /// The format bare `{{date}}` renders in. Obsidian uses the daily-note
     /// filename format here, so this tracks the Journal's Path Template.
@@ -67,6 +70,8 @@ public struct SpawnContext: Sendable {
     /// Names that pass through as literal text for the editor to own.
     public var interactivePlaceholders: Set<String>
 
+    /// Defaults describe a spawn on the current device with Obsidian's own
+    /// default date format and the interactive placeholders v1 registers.
     public init(
         day: JournalDay,
         instant: Date,
@@ -92,6 +97,7 @@ public enum InteractivePlaceholder: String, CaseIterable, Sendable {
     case mood
     case location
 
+    /// The set ``SpawnContext/interactivePlaceholders`` defaults to.
     public static let registeredNames: Set<String> = Set(allCases.map(\.rawValue))
 }
 
@@ -101,18 +107,28 @@ extension SpawnContext {
     /// Obsidian's bare `{{time}}` is hard-coded to this format, so ours is too.
     private static let defaultTimeFormat = MomentFormat("HH:mm")
 
+    /// Resolves one placeholder, mirroring the order Obsidian substitutes in.
+    ///
+    /// Obsidian replaces the bare `{{date}}`, `{{time}}`, `{{title}}`,
+    /// `{{yesterday}}` and `{{tomorrow}}` outright, and only then runs a
+    /// pattern that accepts an offset or a `:FORMAT` — and that pattern
+    /// recognises `date` and `time` alone. So a format or offset on any other
+    /// name is not a placeholder at all, and falls through to the
+    /// unknown-renders-empty rule.
     fileprivate func resolve(_ placeholder: ContentTemplate.Placeholder) -> String {
         switch placeholder.name {
-        case "date":
-            return format(placeholder, default: dateFormat, extraDays: 0)
-        case "time":
-            return format(placeholder, default: SpawnContext.defaultTimeFormat, extraDays: 0)
-        case "yesterday":
-            return format(placeholder, default: dateFormat, extraDays: -1)
-        case "tomorrow":
-            return format(placeholder, default: dateFormat, extraDays: 1)
-        case "title":
+        case "date" where placeholder.isBare:
+            return render(dateFormat, at: day.startOfDay(in: timeZone))
+        case "time" where placeholder.isBare:
+            return render(SpawnContext.defaultTimeFormat, at: instant)
+        case "yesterday" where placeholder.isBare:
+            return render(dateFormat, at: day.adding(days: -1).startOfDay(in: timeZone))
+        case "tomorrow" where placeholder.isBare:
+            return render(dateFormat, at: day.adding(days: 1).startOfDay(in: timeZone))
+        case "title" where placeholder.isBare:
             return title
+        case "date", "time":
+            return renderShifted(placeholder)
         case let name where interactivePlaceholders.contains(name):
             return placeholder.raw
         default:
@@ -120,47 +136,28 @@ extension SpawnContext {
         }
     }
 
-    private func format(
-        _ placeholder: ContentTemplate.Placeholder,
-        default fallback: MomentFormat,
-        extraDays: Int
-    ) -> String {
-        var moment = anchor
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
+    /// `{{date±Nunit}}` / `{{date:FORMAT}}` and their `time` twins.
+    private func renderShifted(_ placeholder: ContentTemplate.Placeholder) -> String {
+        // Obsidian measures these from the Entry's day carrying the current
+        // time of day, which is why `{{date:HH:mm}}` reads as a live clock
+        // rather than midnight. For today's Entry it collapses to plain "now".
+        var moment = day.date(atClockTimeOf: instant, in: timeZone)
 
-        if extraDays != 0 {
-            moment = calendar.date(byAdding: .day, value: extraDays, to: moment) ?? moment
-        }
         if let offset = placeholder.offset {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = timeZone
             moment = calendar.date(byAdding: offset.component, value: offset.amount, to: moment)
                 ?? moment
         }
 
-        let format = placeholder.format.map(MomentFormat.init) ?? fallback
-        return format.render(moment, timeZone: timeZone, locale: locale)
+        // Obsidian's fallback here is the *date* format even for `{{time}}`,
+        // so `{{time+1h}}` renders a date. Faithful rather than sensible: a
+        // pasted template has to behave the way its author saw it behave.
+        return render(placeholder.format ?? dateFormat, at: moment)
     }
 
-    /// The moment every date placeholder is measured from: the Entry's Journal
-    /// Day carrying the current time of day. That combination is Obsidian's —
-    /// it is why `{{date:HH:mm}}` reads as a live clock rather than midnight —
-    /// and it collapses to plain "now" for today's Entry, the common case.
-    private var anchor: Date {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-
-        let clock = calendar.dateComponents([.hour, .minute, .second], from: instant)
-        var components = DateComponents()
-        components.year = day.year
-        components.month = day.month
-        components.day = day.day
-        components.hour = clock.hour
-        components.minute = clock.minute
-        components.second = clock.second
-        // Nil only if the wall-clock time does not exist on that date — a
-        // spring-forward gap. Falling back to the spawn instant keeps a
-        // template rendering rather than trapping.
-        return calendar.date(from: components) ?? instant
+    private func render(_ format: MomentFormat, at moment: Date) -> String {
+        format.render(moment, timeZone: timeZone, locale: locale)
     }
 }
 
@@ -177,10 +174,14 @@ extension ContentTemplate {
         /// Lower-cased, because Obsidian matches placeholder names that way.
         let name: String
         let offset: Offset?
-        /// The text after `:`, trimmed — `nil` when the placeholder had none.
-        let format: String?
+        /// The pattern after `:`, parsed once here rather than per render.
+        let format: MomentFormat?
         /// The token exactly as written, for interactive pass-through.
         let raw: String
+
+        /// A placeholder carrying neither an offset nor a format — the only
+        /// shape Obsidian accepts for names other than `date` and `time`.
+        var isBare: Bool { offset == nil && format == nil }
     }
 
     fileprivate struct Offset: Hashable, Sendable {
@@ -279,12 +280,13 @@ extension ContentTemplate {
             skipSpaces()
         }
 
-        var format: String?
+        var format: MomentFormat?
         if index < characters.count, characters[index] == ":" {
             index += 1
             guard let close = closingBraces(characters, from: index) else { return nil }
-            format = String(characters[index..<close])
+            let pattern = String(characters[index..<close])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+            format = MomentFormat(pattern)
             index = close
         }
 

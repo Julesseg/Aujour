@@ -3,45 +3,28 @@ import Foundation
 /// A Moment-format date pattern — the syntax Obsidian uses for daily-note
 /// filenames and for `{{date:FORMAT}}` placeholders.
 ///
-/// A pattern is a mix of *tokens* (`YYYY`, `MM`, `dddd`, `HH`, …) and literal
-/// text. Anything that is not a token renders verbatim, and text wrapped in
-/// `[brackets]` is literal even when it looks like a token — so
-/// `[Week] W` reads as prose. This is the shared engine behind both the
-/// Content Template's date placeholders and the Path Template.
+/// A pattern is a mix of *fields* (`YYYY`, `MM`, `dddd`, `HH`, …) and literal
+/// text. Anything that is not a field renders verbatim, and text wrapped in
+/// `[brackets]` is literal even when it looks like a field — so `[Week] W`
+/// reads as prose. It exists for the Content Template's date placeholders;
+/// the Path Template renders the same syntax and can share it, though the
+/// inverse direction (matching a path back to a date) is its own problem.
 ///
 /// Parsing never fails. A pattern that makes no sense simply renders as text,
 /// which is what Moment does and what keeps a hand-typed setting from
-/// breaking an Entry's content.
-///
-/// ## Supported tokens
-///
-/// | Kind | Tokens |
-/// | --- | --- |
-/// | Year | `YYYY` `YY` |
-/// | Quarter | `Q` `Qo` |
-/// | Month | `MMMM` `MMM` `MM` `Mo` `M` |
-/// | Day of month | `DD` `Do` `D` |
-/// | Day of year | `DDDD` `DDDo` `DDD` |
-/// | Day of week | `dddd` `ddd` `dd` `do` `d` `e` `E` |
-/// | Week of year | `ww` `wo` `w` (locale) `WW` `Wo` `W` (ISO) |
-/// | Week year | `gggg` `gg` (locale) `GGGG` `GG` (ISO) |
-/// | Hour | `HH` `H` `hh` `h` `kk` `k` |
-/// | Minute / second | `mm` `m` `ss` `s` `SSS` `SS` `S` |
-/// | Meridiem | `A` `a` |
-/// | UTC offset | `Z` `ZZ` |
-/// | Unix time | `X` `x` |
-///
-/// Ordinal suffixes (`Do` → `1st`) follow English rules, matching Moment's
-/// default locale — which is what Obsidian ships with.
+/// breaking an Entry's content. The fields understood are the cases of
+/// ``MomentFormat/Field``; ordinal suffixes (`Do` → `1st`) follow English
+/// rules, matching Moment's default locale — which is what Obsidian ships.
 public struct MomentFormat: Hashable, Sendable, CustomStringConvertible {
     /// The pattern as the user wrote it.
     public let pattern: String
 
-    private let tokens: [Token]
+    private let segments: [Segment]
 
+    /// Parses a pattern. Never fails — see the type's discussion.
     public init(_ pattern: String) {
         self.pattern = pattern
-        self.tokens = MomentFormat.parse(pattern)
+        self.segments = MomentFormat.parse(pattern)
     }
 
     /// Renders an instant against this pattern.
@@ -54,16 +37,16 @@ public struct MomentFormat: Hashable, Sendable, CustomStringConvertible {
         locale: Locale = .current
     ) -> String {
         var rendered = ""
-        var fields: Fields?
-        for token in tokens {
-            switch token {
+        var reading: Reading?
+        for segment in segments {
+            switch segment {
             case .literal(let text):
                 rendered += text
             case .field(let field):
                 // Built on first use, so a pattern of pure literal text costs
                 // no calendar work at all.
-                let resolved = fields ?? Fields(date: date, timeZone: timeZone, locale: locale)
-                fields = resolved
+                let resolved = reading ?? Reading(date: date, timeZone: timeZone, locale: locale)
+                reading = resolved
                 rendered += resolved.value(for: field)
             }
         }
@@ -73,35 +56,103 @@ public struct MomentFormat: Hashable, Sendable, CustomStringConvertible {
     public var description: String { pattern }
 }
 
+// MARK: - The field vocabulary
+
+extension MomentFormat {
+    /// Every Moment field this engine understands, spelled as Moment spells it.
+    ///
+    /// This enum is the single source of the vocabulary: the parser matches
+    /// against `allCases`, and `Reading.value(for:)` switches over it
+    /// exhaustively, so a field can never be recognised without also being
+    /// renderable.
+    enum Field: String, CaseIterable, Hashable, Sendable {
+        case year4 = "YYYY"
+        case year2 = "YY"
+
+        case quarter = "Q"
+        case quarterOrdinal = "Qo"
+
+        case monthName = "MMMM"
+        case monthAbbreviation = "MMM"
+        case monthPadded = "MM"
+        case monthOrdinal = "Mo"
+        case month = "M"
+
+        case dayOfYearPadded = "DDDD"
+        case dayOfYearOrdinal = "DDDo"
+        case dayOfYear = "DDD"
+        case dayPadded = "DD"
+        case dayOrdinal = "Do"
+        case day = "D"
+
+        case weekdayName = "dddd"
+        case weekdayAbbreviation = "ddd"
+        case weekdayMinimal = "dd"
+        case weekdayOrdinal = "do"
+        case weekday = "d"
+        case weekdayInLocaleWeek = "e"
+        case weekdayISO = "E"
+
+        case weekPadded = "ww"
+        case weekOrdinal = "wo"
+        case week = "w"
+        case isoWeekPadded = "WW"
+        case isoWeekOrdinal = "Wo"
+        case isoWeek = "W"
+
+        case weekYear4 = "gggg"
+        case weekYear2 = "gg"
+        case isoWeekYear4 = "GGGG"
+        case isoWeekYear2 = "GG"
+
+        case hourPadded = "HH"
+        case hour = "H"
+        case hour12Padded = "hh"
+        case hour12 = "h"
+        case hourFrom1Padded = "kk"
+        case hourFrom1 = "k"
+
+        case minutePadded = "mm"
+        case minute = "m"
+        case secondPadded = "ss"
+        case second = "s"
+        case millisecond = "SSS"
+        case centisecond = "SS"
+        case decisecond = "S"
+
+        case meridiemUppercased = "A"
+        case meridiemLowercased = "a"
+
+        case utcOffsetWithColon = "Z"
+        case utcOffset = "ZZ"
+
+        case unixSeconds = "X"
+        case unixMilliseconds = "x"
+
+        /// Longest first, which is the whole matching rule: `MMMM` is
+        /// preferred over `MMM` over `MM` over `M`.
+        static let byDescendingLength: [Field] =
+            allCases.sorted { $0.rawValue.count > $1.rawValue.count }
+    }
+}
+
 // MARK: - Parsing
 
 extension MomentFormat {
-    fileprivate enum Token: Hashable, Sendable {
+    fileprivate enum Segment: Hashable, Sendable {
         case literal(String)
-        case field(String)
+        case field(Field)
     }
 
-    /// Every token this engine knows, longest first — the order is the
-    /// matching rule, so `MMMM` is preferred over `MMM` over `MM` over `M`.
-    private static let knownTokens: [String] = [
-        "DDDD", "DDDo", "YYYY", "MMMM", "dddd", "gggg", "GGGG",
-        "MMM", "DDD", "ddd", "SSS",
-        "YY", "Qo", "MM", "Mo", "DD", "Do", "dd", "do",
-        "wo", "ww", "Wo", "WW", "gg", "GG",
-        "HH", "hh", "kk", "mm", "ss", "SS", "ZZ",
-        "Q", "M", "D", "d", "e", "E", "w", "W",
-        "H", "h", "k", "m", "s", "S", "A", "a", "Z", "X", "x",
-    ]
-
-    private static func parse(_ pattern: String) -> [Token] {
+    private static func parse(_ pattern: String) -> [Segment] {
         let characters = Array(pattern)
-        var tokens: [Token] = []
+        var segments: [Segment] = []
         var literal = ""
         var index = 0
 
         func flushLiteral() {
             guard !literal.isEmpty else { return }
-            tokens.append(.literal(literal))
+            segments.append(.literal(literal))
             literal = ""
         }
 
@@ -122,10 +173,10 @@ extension MomentFormat {
                 continue
             }
 
-            if let field = matchToken(characters, at: index) {
+            if let field = matchField(characters, at: index) {
                 flushLiteral()
-                tokens.append(.field(field))
-                index += field.count
+                segments.append(.field(field))
+                index += field.rawValue.count
                 continue
             }
 
@@ -134,13 +185,14 @@ extension MomentFormat {
         }
 
         flushLiteral()
-        return tokens
+        return segments
     }
 
-    private static func matchToken(_ characters: [Character], at index: Int) -> String? {
-        for token in knownTokens where index + token.count <= characters.count {
-            if characters[index..<(index + token.count)].elementsEqual(token) {
-                return token
+    private static func matchField(_ characters: [Character], at index: Int) -> Field? {
+        for field in Field.byDescendingLength
+        where index + field.rawValue.count <= characters.count {
+            if characters[index..<(index + field.rawValue.count)].elementsEqual(field.rawValue) {
+                return field
             }
         }
         return nil
@@ -150,13 +202,14 @@ extension MomentFormat {
 // MARK: - Rendering
 
 /// Every calendar reading a pattern could need, resolved once per render.
-private struct Fields {
+private struct Reading {
     private let date: Date
     private let timeZone: TimeZone
     private let locale: Locale
     private let components: DateComponents
     private let isoComponents: DateComponents
     private let dayOfYear: Int
+    private let firstWeekday: Int
     private let symbols: DateFormatter
 
     init(date: Date, timeZone: TimeZone, locale: Locale) {
@@ -172,6 +225,7 @@ private struct Fields {
         let localeCalendar = locale.calendar
         calendar.firstWeekday = localeCalendar.firstWeekday
         calendar.minimumDaysInFirstWeek = localeCalendar.minimumDaysInFirstWeek
+        self.firstWeekday = localeCalendar.firstWeekday
 
         var iso = Calendar(identifier: .iso8601)
         iso.timeZone = timeZone
@@ -193,75 +247,73 @@ private struct Fields {
         self.symbols = formatter
     }
 
-    func value(for token: String) -> String {
-        switch token {
-        case "YYYY": return pad(year, 4)
-        case "YY": return pad(abs(year) % 100, 2)
+    func value(for field: MomentFormat.Field) -> String {
+        switch field {
+        case .year4: return pad(year, 4)
+        case .year2: return pad(abs(year) % 100, 2)
 
-        case "Q": return String(quarter)
-        case "Qo": return ordinal(quarter)
+        case .quarter: return String(quarter)
+        case .quarterOrdinal: return ordinal(quarter)
 
-        case "MMMM": return symbols.monthSymbols[month - 1]
-        case "MMM": return symbols.shortMonthSymbols[month - 1]
-        case "MM": return pad(month, 2)
-        case "Mo": return ordinal(month)
-        case "M": return String(month)
+        case .monthName: return symbols.monthSymbols[month - 1]
+        case .monthAbbreviation: return symbols.shortMonthSymbols[month - 1]
+        case .monthPadded: return pad(month, 2)
+        case .monthOrdinal: return ordinal(month)
+        case .month: return String(month)
 
-        case "DDDD": return pad(dayOfYear, 3)
-        case "DDDo": return ordinal(dayOfYear)
-        case "DDD": return String(dayOfYear)
-        case "DD": return pad(day, 2)
-        case "Do": return ordinal(day)
-        case "D": return String(day)
+        case .dayOfYearPadded: return pad(dayOfYear, 3)
+        case .dayOfYearOrdinal: return ordinal(dayOfYear)
+        case .dayOfYear: return String(dayOfYear)
+        case .dayPadded: return pad(day, 2)
+        case .dayOrdinal: return ordinal(day)
+        case .day: return String(day)
 
-        case "dddd": return symbols.weekdaySymbols[weekdayIndex]
-        case "ddd": return symbols.shortWeekdaySymbols[weekdayIndex]
+        case .weekdayName: return symbols.weekdaySymbols[weekdayIndex]
+        case .weekdayAbbreviation: return symbols.shortWeekdaySymbols[weekdayIndex]
         // Moment's two-letter weekday has no Foundation equivalent; the short
         // name's first two characters is the same answer in every locale we
         // ship ("Sun" → "Su", "dim." → "di").
-        case "dd": return String(symbols.shortWeekdaySymbols[weekdayIndex].prefix(2))
-        case "do": return ordinal(weekdayIndex)
-        case "d": return String(weekdayIndex)
-        case "e": return String((weekdayIndex - (firstWeekday - 1) + 7) % 7)
-        case "E": return String(((weekdayIndex + 6) % 7) + 1)
+        case .weekdayMinimal: return String(symbols.shortWeekdaySymbols[weekdayIndex].prefix(2))
+        case .weekdayOrdinal: return ordinal(weekdayIndex)
+        case .weekday: return String(weekdayIndex)
+        case .weekdayInLocaleWeek: return String((weekdayIndex - (firstWeekday - 1) + 7) % 7)
+        case .weekdayISO: return String(((weekdayIndex + 6) % 7) + 1)
 
-        case "ww": return pad(weekOfYear, 2)
-        case "wo": return ordinal(weekOfYear)
-        case "w": return String(weekOfYear)
-        case "WW": return pad(isoWeekOfYear, 2)
-        case "Wo": return ordinal(isoWeekOfYear)
-        case "W": return String(isoWeekOfYear)
+        case .weekPadded: return pad(weekOfYear, 2)
+        case .weekOrdinal: return ordinal(weekOfYear)
+        case .week: return String(weekOfYear)
+        case .isoWeekPadded: return pad(isoWeekOfYear, 2)
+        case .isoWeekOrdinal: return ordinal(isoWeekOfYear)
+        case .isoWeek: return String(isoWeekOfYear)
 
-        case "gggg": return pad(weekYear, 4)
-        case "gg": return pad(abs(weekYear) % 100, 2)
-        case "GGGG": return pad(isoWeekYear, 4)
-        case "GG": return pad(abs(isoWeekYear) % 100, 2)
+        case .weekYear4: return pad(weekYear, 4)
+        case .weekYear2: return pad(abs(weekYear) % 100, 2)
+        case .isoWeekYear4: return pad(isoWeekYear, 4)
+        case .isoWeekYear2: return pad(abs(isoWeekYear) % 100, 2)
 
-        case "HH": return pad(hour, 2)
-        case "H": return String(hour)
-        case "hh": return pad(hour12, 2)
-        case "h": return String(hour12)
-        case "kk": return pad(hour24From1, 2)
-        case "k": return String(hour24From1)
+        case .hourPadded: return pad(hour, 2)
+        case .hour: return String(hour)
+        case .hour12Padded: return pad(hour12, 2)
+        case .hour12: return String(hour12)
+        case .hourFrom1Padded: return pad(hourFrom1, 2)
+        case .hourFrom1: return String(hourFrom1)
 
-        case "mm": return pad(minute, 2)
-        case "m": return String(minute)
-        case "ss": return pad(second, 2)
-        case "s": return String(second)
-        case "SSS": return pad(millisecond, 3)
-        case "SS": return pad(millisecond / 10, 2)
-        case "S": return String(millisecond / 100)
+        case .minutePadded: return pad(minute, 2)
+        case .minute: return String(minute)
+        case .secondPadded: return pad(second, 2)
+        case .second: return String(second)
+        case .millisecond: return pad(millisecond, 3)
+        case .centisecond: return pad(millisecond / 10, 2)
+        case .decisecond: return String(millisecond / 100)
 
-        case "A": return meridiem.uppercased(with: locale)
-        case "a": return meridiem.lowercased(with: locale)
+        case .meridiemUppercased: return meridiem.uppercased(with: locale)
+        case .meridiemLowercased: return meridiem.lowercased(with: locale)
 
-        case "Z": return utcOffset(separator: ":")
-        case "ZZ": return utcOffset(separator: "")
+        case .utcOffsetWithColon: return utcOffset(separator: ":")
+        case .utcOffset: return utcOffset(separator: "")
 
-        case "X": return String(Int(date.timeIntervalSince1970.rounded(.down)))
-        case "x": return String(Int((date.timeIntervalSince1970 * 1000).rounded(.down)))
-
-        default: return token
+        case .unixSeconds: return String(Int(date.timeIntervalSince1970.rounded(.down)))
+        case .unixMilliseconds: return String(Int((date.timeIntervalSince1970 * 1000).rounded(.down)))
         }
     }
 
@@ -271,7 +323,6 @@ private struct Fields {
     private var quarter: Int { (month - 1) / 3 + 1 }
     /// Moment numbers weekdays from 0 = Sunday; Foundation numbers from 1.
     private var weekdayIndex: Int { (components.weekday ?? 1) - 1 }
-    private var firstWeekday: Int { locale.calendar.firstWeekday }
     private var weekOfYear: Int { components.weekOfYear ?? 1 }
     private var weekYear: Int { components.yearForWeekOfYear ?? year }
     private var isoWeekOfYear: Int { isoComponents.weekOfYear ?? 1 }
@@ -282,7 +333,7 @@ private struct Fields {
     private var millisecond: Int { (components.nanosecond ?? 0) / 1_000_000 }
     private var hour12: Int { hour % 12 == 0 ? 12 : hour % 12 }
     /// Moment's `k` is the 1-24 clock: midnight is hour 24 of the day before.
-    private var hour24From1: Int { hour == 0 ? 24 : hour }
+    private var hourFrom1: Int { hour == 0 ? 24 : hour }
     private var meridiem: String { hour < 12 ? symbols.amSymbol : symbols.pmSymbol }
 
     private func utcOffset(separator: String) -> String {

@@ -39,16 +39,17 @@ Path Template for some date (see ADR 0002 for what happens on change).
 
 ### Content Template
 The markdown skeleton a new Entry starts from. Placeholders use Obsidian's
-`{{name}}` / `{{name:FORMAT}}` syntax; the Obsidian core set ({{date}},
-{{time}}, {{title}}) is supported verbatim so an Obsidian daily-note template
-pastes over unchanged, and Aujour-specific placeholders (e.g. {{photos}},
-{{events}}) extend the same syntax.
+`{{name}}` / `{{name:FORMAT}}` syntax; the Obsidian core set is supported
+verbatim so an Obsidian daily-note template pastes over unchanged, and
+Aujour-specific placeholders (e.g. {{events}}) extend the same syntax.
 
 ### Placeholder
 A `{{name}}` token in the Content Template (or typed directly into an Entry).
 Three kinds:
-- **Core placeholders** ({{date}}, {{time}}, {{title}}) — static text resolved
-  when the Entry is spawned; identical to Obsidian's daily-notes set.
+- **Core placeholders** ({{date}}, {{time}}, {{title}}, plus {{yesterday}} and
+  {{tomorrow}}) — static text resolved when the Entry is spawned; identical to
+  Obsidian's daily-notes set, down to its quirks. {{date}} and {{time}} also
+  take a `±Nunit` offset, as in `{{date-1d:YYYY-MM-DD}}`.
 - **Data placeholders** ({{events}}, {{reminders}}, {{workout}}, …) — resolved
   at spawn from on-device data, formatted per user settings.
 - **Interactive placeholders** ({{mood}}, {{location}}, …) — remain literal

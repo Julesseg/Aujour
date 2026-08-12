@@ -158,4 +158,18 @@ struct MomentFormatLiteralTests {
         // Moment reads `MMMMM` as `MMMM` + `M`, not as five separate `M`s.
         #expect(render("MMMMM") == "March3")
     }
+
+    // The parser matches against Field.allCases and the renderer switches over
+    // it exhaustively, so a field can never be recognised without also being
+    // renderable. This catches the other half: a field the parser refuses to
+    // reach, which would render as its own letters instead.
+    @Test("every field in the vocabulary parses and renders")
+    func theWholeVocabularyIsReachable() {
+        for field in MomentFormat.Field.allCases {
+            let rendered = render(field.rawValue)
+
+            #expect(rendered != field.rawValue, "\(field.rawValue) rendered as itself")
+            #expect(!rendered.isEmpty, "\(field.rawValue) rendered nothing")
+        }
+    }
 }

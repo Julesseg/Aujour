@@ -110,6 +110,15 @@ struct ContentTemplateOffsetTests {
     func offsetWithoutFormat() {
         #expect(render("{{date-1d}}") == "2026-02-28")
     }
+
+    // Obsidian's substitution falls back to the *date* format whenever no
+    // `:FORMAT` is given — even for `{{time}}`, which is only reachable with
+    // an offset since the bare form is replaced earlier. Faithful, not
+    // sensible: a pasted template has to behave as its author saw it behave.
+    @Test("an offset on {{time}} without a format renders a date, as Obsidian does")
+    func offsetTimeWithoutFormatFallsBackToTheDateFormat() {
+        #expect(render("{{time+3h}}") == "2026-03-01")
+    }
 }
 
 @Suite("ContentTemplate placeholder kinds")
@@ -130,6 +139,25 @@ struct ContentTemplatePlaceholderKindTests {
         #expect(render("a{{nonsense}}b") == "ab")
         // Data placeholders have no providers yet, so they are unknown today.
         #expect(render("{{events}}{{reminders}}") == "")
+    }
+
+    // Obsidian only accepts an offset or a `:FORMAT` on `date` and `time`; on
+    // any other name the token is not a placeholder at all. Ours are therefore
+    // unknown, and unknown renders empty.
+    @Test("an offset or format on a name that takes neither renders empty")
+    func formatsOnlyApplyToDateAndTime() {
+        #expect(render("{{title:YYYY}}") == "")
+        #expect(render("{{title+1d}}") == "")
+        #expect(render("{{yesterday:YYYY}}") == "")
+        #expect(render("{{tomorrow+1d}}") == "")
+    }
+
+    // Interactive names are the exception: pass-through is unconditional, so
+    // whatever the user wrote survives for the editor to interpret rather
+    // than being second-guessed here.
+    @Test("an interactive placeholder passes through whatever shape it has")
+    func interactivePassThroughIgnoresShape() {
+        #expect(render("{{mood:happy}}") == "{{mood:happy}}")
     }
 
     @Test("the registered interactive set is what decides pass-through")
@@ -215,5 +243,18 @@ struct ContentTemplateObsidianParityTests {
         context.dateFormat = MomentFormat("DD/MM/YYYY")
 
         #expect(render("{{date}} / {{yesterday}}", in: context) == "01/03/2026 / 28/02/2026")
+    }
+
+    // The bare forms are measured from the start of the Entry's day, while
+    // `{{date:FORMAT}}` carries the current clock time. The two only diverge
+    // when the date format holds time tokens — but they do diverge, and
+    // Obsidian draws the line in exactly this place.
+    @Test("bare {{date}} starts the day, unlike {{date:FORMAT}}")
+    func bareDateIsMeasuredFromMidnight() {
+        var context = spawn
+        context.dateFormat = MomentFormat("YYYY-MM-DD HH:mm")
+
+        #expect(render("{{date}}", in: context) == "2026-03-01 00:00")
+        #expect(render("{{date:YYYY-MM-DD HH:mm}}", in: context) == "2026-03-01 14:05")
     }
 }

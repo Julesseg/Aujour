@@ -6,9 +6,12 @@ import Foundation
 /// A pattern is a mix of *fields* (`YYYY`, `MM`, `dddd`, `HH`, …) and literal
 /// text. Anything that is not a field renders verbatim, and text wrapped in
 /// `[brackets]` is literal even when it looks like a field — so `[Week] W`
-/// reads as prose. It exists for the Content Template's date placeholders;
-/// the Path Template renders the same syntax and can share it, though the
-/// inverse direction (matching a path back to a date) is its own problem.
+/// reads as prose. It exists for the Content Template's date placeholders,
+/// where the whole vocabulary is fair game and nothing has to be read back.
+///
+/// Path Templates render the same syntax through ``PathFormat`` instead,
+/// which supports only the handful of fixed-width numeric fields a path can
+/// be matched back to a date from. See that type for why the two are not one.
 ///
 /// Parsing never fails. A pattern that makes no sense simply renders as text,
 /// which is what Moment does and what keeps a hand-typed setting from

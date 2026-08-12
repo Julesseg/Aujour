@@ -60,18 +60,56 @@ public struct JournalDay: Hashable, Comparable, Sendable, CustomStringConvertibl
         return .current
     }
 
+    /// The first instant of this Journal Day in `timeZone`.
+    public func startOfDay(in timeZone: TimeZone) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        // Noon always exists, even in the zones where DST skips midnight
+        // itself; stepping back from it is how Foundation finds the real
+        // first instant of the day.
+        return calendar.startOfDay(for: noon(in: calendar))
+    }
+
+    /// This Journal Day at the same wall-clock time as `other`.
+    ///
+    /// Spawning a template needs exactly this pairing: a backfilled Entry's
+    /// date placeholders describe the day being written *about*, carrying the
+    /// clock time it is being written *at*.
+    public func date(atClockTimeOf other: Date, in timeZone: TimeZone) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+
+        let clock = calendar.dateComponents([.hour, .minute, .second], from: other)
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = clock.hour
+        components.minute = clock.minute
+        components.second = clock.second
+        // Nil only when that wall-clock time does not exist here — the hour a
+        // spring-forward skips. The day is the part that has to stay right, so
+        // give up the time of day rather than the date.
+        return calendar.date(from: components) ?? startOfDay(in: timeZone)
+    }
+
     /// The Journal Day `days` days later (or earlier, for a negative count).
     public func adding(days: Int) -> JournalDay {
         let calendar = JournalDay.arithmeticCalendar
+        let shifted = calendar.date(byAdding: .day, value: days, to: noon(in: calendar))!
+        let result = calendar.dateComponents([.year, .month, .day], from: shifted)
+        return JournalDay(year: result.year!, month: result.month!, day: result.day!)
+    }
+
+    /// Midday on this Journal Day — the hour furthest from any DST seam, which
+    /// makes it the safe footing for date arithmetic.
+    private func noon(in calendar: Calendar) -> Date {
         var components = DateComponents()
         components.year = year
         components.month = month
         components.day = day
         components.hour = 12
-        let noon = calendar.date(from: components)!
-        let shifted = calendar.date(byAdding: .day, value: days, to: noon)!
-        let result = calendar.dateComponents([.year, .month, .day], from: shifted)
-        return JournalDay(year: result.year!, month: result.month!, day: result.day!)
+        return calendar.date(from: components)!
     }
 
     public static func < (lhs: JournalDay, rhs: JournalDay) -> Bool {

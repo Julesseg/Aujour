@@ -13,11 +13,11 @@ public struct AttachmentPathTemplate: Hashable, Sendable, CustomStringConvertibl
     /// The format string exactly as the user wrote it.
     public let format: String
 
-    private let elements: [MomentFormat.Element]
+    private let elements: [PathFormat.Element]
 
     public init(_ format: String) throws(PathTemplateError) {
-        let elements = try MomentFormat.parse(format)
-        try MomentFormat.validatePathShape(elements)
+        let elements = try PathFormat.parse(format)
+        try PathFormat.validatePathShape(elements)
 
         self.elements = elements
         self.format = format
@@ -30,7 +30,7 @@ public struct AttachmentPathTemplate: Hashable, Sendable, CustomStringConvertibl
     /// The folder this day's Attachments belong in, relative to the Journal
     /// Root. No trailing slash.
     public func render(_ journalDay: JournalDay) -> String {
-        MomentFormat.render(elements, for: journalDay)
+        PathFormat.render(elements, for: journalDay)
     }
 
     public var description: String { format }

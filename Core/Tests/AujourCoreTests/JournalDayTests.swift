@@ -282,3 +282,39 @@ struct JournalDayDaylightSavingTests {
         }
     }
 }
+
+@Suite("JournalDay as an instant")
+struct JournalDayInstantTests {
+    @Test("a Journal Day starts at local midnight")
+    func startOfDayIsLocalMidnight() {
+        let day = JournalDay(year: 2026, month: 3, day: 1)
+
+        #expect(day.startOfDay(in: paris) == instant(2026, 3, 1, 0, in: paris))
+    }
+
+    // Santiago's spring-forward skips midnight itself, so there is no 00:00 to
+    // land on — the day starts an hour later and the answer still has to be
+    // the first instant of that Journal Day.
+    @Test("a Journal Day still starts somewhere when DST skips midnight")
+    func startOfDaySurvivesASkippedMidnight() {
+        let santiago = TimeZone(identifier: "America/Santiago")!
+        let day = JournalDay(year: 2026, month: 9, day: 6)
+
+        let start = day.startOfDay(in: santiago)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = santiago
+        let components = calendar.dateComponents([.year, .month, .day], from: start)
+
+        #expect(JournalDay(year: components.year!, month: components.month!, day: components.day!) == day)
+        #expect(start == calendar.startOfDay(for: start))
+    }
+
+    // Backfilling: the day comes from the Entry, the clock from the writer.
+    @Test("a Journal Day can borrow the clock time of another instant")
+    func clockTimeIsBorrowedButTheDayIsKept() {
+        let day = JournalDay(year: 2026, month: 3, day: 1)
+        let writtenAt = instant(2026, 3, 4, 14, 5, in: paris)
+
+        #expect(day.date(atClockTimeOf: writtenAt, in: paris) == instant(2026, 3, 1, 14, 5, in: paris))
+    }
+}

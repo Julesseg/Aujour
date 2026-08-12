@@ -3,7 +3,7 @@ import Foundation
 /// The rule mapping a Journal Day to an Entry's file path, relative to the
 /// Journal Root — and back again.
 ///
-/// The format is a restricted Moment string (see `MomentFormat`): slashes
+/// The format is a restricted Moment string (see `PathFormat`): slashes
 /// create subfolders, `[bracketed]` text is literal, and `.md` is appended
 /// automatically. An Obsidian daily-notes format inside the subset can be
 /// pasted over verbatim and produce the same files Obsidian would.
@@ -11,7 +11,7 @@ public struct PathTemplate: Hashable, Sendable, CustomStringConvertible {
     /// The format string exactly as the user wrote it.
     public let format: String
 
-    private let elements: [MomentFormat.Element]
+    private let elements: [PathFormat.Element]
 
     public init(_ format: String) throws(PathTemplateError) {
         // Ahead of parsing, because `.md` is four letters the tokenizer would
@@ -21,20 +21,20 @@ public struct PathTemplate: Hashable, Sendable, CustomStringConvertible {
             throw PathTemplateError.redundantMarkdownExtension
         }
 
-        let elements = try MomentFormat.parse(format)
-        try MomentFormat.validatePathShape(elements)
+        let elements = try PathFormat.parse(format)
+        try PathFormat.validatePathShape(elements)
 
         // Without all three fields the template would render the same path
         // for many days, and reading a path back could not name one — Entry
         // identity would stop being a function of the date.
-        let missing = MomentFormat.Field.allCases.filter { !elements.contains(.field($0)) }
+        let missing = PathFormat.Field.allCases.filter { !elements.contains(.field($0)) }
         guard missing.isEmpty else {
             throw PathTemplateError.missingDateTokens(missing.map(\.rawValue))
         }
 
         // The same extension, this time spelled with brackets: `[.md]` parses
         // as a literal, so only the rendering gives it away.
-        let rendering = MomentFormat.render(elements, for: MomentFormat.shapeSample)
+        let rendering = PathFormat.render(elements, for: PathFormat.shapeSample)
         guard !rendering.lowercased().hasSuffix(Self.markdownExtension) else {
             throw PathTemplateError.redundantMarkdownExtension
         }
@@ -56,7 +56,7 @@ public struct PathTemplate: Hashable, Sendable, CustomStringConvertible {
     /// minus — but no such path reads back as an Entry. Nothing in the app
     /// produces one: days come from the calendar, which cannot reach there.
     public func render(_ journalDay: JournalDay) -> String {
-        MomentFormat.render(elements, for: journalDay) + Self.markdownExtension
+        PathFormat.render(elements, for: journalDay) + Self.markdownExtension
     }
 
     /// The Journal Day whose Entry lives at `relativePath`, or `nil` if no day
@@ -75,7 +75,7 @@ public struct PathTemplate: Hashable, Sendable, CustomStringConvertible {
     public func match(_ relativePath: String) -> JournalDay? {
         guard relativePath.hasSuffix(Self.markdownExtension) else { return nil }
         let withoutExtension = relativePath.dropLast(Self.markdownExtension.count)
-        return MomentFormat.match(withoutExtension, against: elements)
+        return PathFormat.match(withoutExtension, against: elements)
     }
 
     public var description: String { format }

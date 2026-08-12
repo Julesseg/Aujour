@@ -7,12 +7,14 @@ product decisions in `docs/design/v1-decisions.md`.
 
 ## Agent skills
 
-### Auto-dispatch of unblocked issues
+### Auto-dispatch of ready issues
 
-When an issue closes as completed, `unblock-dispatch.yml` finds `ready-for-agent`
-issues whose `## Blocked by` list is now fully closed and spawns a Paseo agent
-session for each on the self-hosted Mac runner (capped, guarded by the
-`agent-dispatched` label). See `docs/agents/auto-dispatch.md`.
+When an issue closes as completed (or on a manual re-scan),
+`unblock-dispatch.yml` finds `ready-for-agent` issues that nothing blocks —
+never blocked, or with every `## Blocked by` entry closed — and spawns a Paseo
+agent session for each on the self-hosted Mac runner (capped, guarded by the
+`agent-dispatched` label, umbrella `[Epic]`/`Spec:` issues skipped). See
+`docs/agents/auto-dispatch.md`.
 
 ### Issue tracker
 

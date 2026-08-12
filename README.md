@@ -22,11 +22,11 @@ identity (`Aujour` / `com.julesseguin.aujour`) that one script swaps for yours.
   automatic signing, so there are no provisioning-profile secrets to manage.
   Shares the signing certificate with the PR-build pipeline (see below).
 - **Auto-dispatched agent sessions** (`.github/workflows/unblock-dispatch.yml`
-  + `agent-implement.yml`) — when a merged PR closes an issue, `ready-for-agent`
-  issues whose `## Blocked by` list is now fully closed each get a detached
-  [Paseo](https://paseo.sh) Claude Code session spawned on a self-hosted Mac
-  runner to implement them. Dormant until you set up the runner (see below) —
-  PR and issue events stay green meanwhile.
+  + `agent-implement.yml`) — `ready-for-agent` issues that nothing blocks each
+  get a detached [Paseo](https://paseo.sh) Claude Code session spawned on a
+  self-hosted Mac runner to implement them, re-scanned whenever a merged PR
+  closes an issue or you kick the workflow off by hand. Dormant until you set
+  up the runner (see below) — PR and issue events stay green meanwhile.
 - **Claude Code setup** (`.claude/`) — Conventional Commits enforced by a
   PreToolUse hook, a SessionStart hook that installs a Swift toolchain in web
   containers so `swift test` works there, and per-environment guidance about
@@ -211,14 +211,15 @@ attached to the run as an artifact (7-day retention). A misformatted tag (not
 ## Enabling agent auto-dispatch (one-time)
 
 The auto-dispatch pipeline (`unblock-dispatch.yml` + `agent-implement.yml`)
-spawns a detached [Paseo](https://paseo.sh) Claude Code session per newly
-unblocked issue. Until you complete this setup, `unblock-dispatch.yml` runs on
-issue-close events but finds nothing to dispatch, and `agent-implement.yml`
-never runs — both stay green.
+spawns a detached [Paseo](https://paseo.sh) Claude Code session per ready
+issue. Until you complete this setup, `unblock-dispatch.yml` runs on issue
+events but finds nothing to dispatch, and `agent-implement.yml` never runs —
+both stay green.
 
 1. **Create the `ready-for-agent` label** and write blockers as `- #N` bullets
    under a `## Blocked by` heading in issue bodies — that's what the dispatcher
-   scans for.
+   scans for. An issue with no blockers qualifies too, and starts on the next
+   issue close or a manual run of `unblock-dispatch.yml`.
 2. **Add an `/implement` skill** at `.claude/skills/implement/` — the dispatch
    prompt is just `/implement issue #<N>`, so the skill is what tells the
    session how to work. Not shipped with this template.

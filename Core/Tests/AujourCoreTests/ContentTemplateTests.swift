@@ -111,13 +111,14 @@ struct ContentTemplateOffsetTests {
         #expect(render("{{date-1d}}") == "2026-02-28")
     }
 
-    // Obsidian's substitution falls back to the *date* format whenever no
-    // `:FORMAT` is given — even for `{{time}}`, which is only reachable with
-    // an offset since the bare form is replaced earlier. Faithful, not
-    // sensible: a pasted template has to behave as its author saw it behave.
-    @Test("an offset on {{time}} without a format renders a date, as Obsidian does")
-    func offsetTimeWithoutFormatFallsBackToTheDateFormat() {
-        #expect(render("{{time+3h}}") == "2026-03-01")
+    // The one deliberate divergence from Obsidian, which falls back to the
+    // date format here and renders `{{time+3h}}` as a date. An offset shifts
+    // when a placeholder is measured, never what it is.
+    @Test("an offset on {{time}} keeps rendering a time")
+    func offsetTimeKeepsTheTimeFormat() {
+        #expect(render("{{time+3h}}") == "17:05")
+        #expect(render("{{time-30m}}") == "13:35")
+        #expect(render("{{date+1d}}") == "2026-03-02")
     }
 }
 

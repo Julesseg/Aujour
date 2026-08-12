@@ -47,9 +47,11 @@ Aujour-specific placeholders (e.g. {{events}}) extend the same syntax.
 A `{{name}}` token in the Content Template (or typed directly into an Entry).
 Three kinds:
 - **Core placeholders** ({{date}}, {{time}}, {{title}}, plus {{yesterday}} and
-  {{tomorrow}}) — static text resolved when the Entry is spawned; identical to
-  Obsidian's daily-notes set, down to its quirks. {{date}} and {{time}} also
-  take a `±Nunit` offset, as in `{{date-1d:YYYY-MM-DD}}`.
+  {{tomorrow}}) — static text resolved when the Entry is spawned; the same set
+  Obsidian's daily notes resolve, so a template pastes over unchanged.
+  {{date}} and {{time}} also take a `±Nunit` offset, as in
+  `{{date-1d:YYYY-MM-DD}}`; an offset shifts when a placeholder is measured,
+  never what it renders.
 - **Data placeholders** ({{events}}, {{reminders}}, {{workout}}, …) — resolved
   at spawn from on-device data, formatted per user settings.
 - **Interactive placeholders** ({{mood}}, {{location}}, …) — remain literal

@@ -150,14 +150,21 @@ extension SpawnContext {
                 ?? moment
         }
 
-        // Obsidian's fallback here is the *date* format even for `{{time}}`,
-        // so `{{time+1h}}` renders a date. Faithful rather than sensible: a
-        // pasted template has to behave the way its author saw it behave.
-        return render(placeholder.format ?? dateFormat, at: moment)
+        // A deliberate divergence: Obsidian falls back to the *date* format
+        // here even for `{{time}}`, so `{{time+1h}}` renders a date there. A
+        // time placeholder resolving to a date is an upstream bug, and no
+        // template is written to depend on it — each placeholder keeps its own
+        // default instead.
+        return render(placeholder.format ?? defaultFormat(for: placeholder.name), at: moment)
     }
 
     private func render(_ format: MomentFormat, at moment: Date) -> String {
         format.render(moment, timeZone: timeZone, locale: locale)
+    }
+
+    /// What a placeholder renders in when it carries no `:FORMAT` of its own.
+    private func defaultFormat(for name: String) -> MomentFormat {
+        name == "time" ? SpawnContext.defaultTimeFormat : dateFormat
     }
 }
 

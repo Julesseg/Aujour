@@ -40,14 +40,35 @@ jobs:
       - name: Toolchain versions
         run: xcodebuild -version
 
-      - name: Resolve an available iPhone simulator
+      - name: Resolve and boot an iPhone simulator
         id: sim
         run: |
           set -euo pipefail
-          NAME=$(xcrun simctl list devices available --json \
-            | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; names=[x['name'] for rt in d for x in d[rt] if x['name'].startswith('iPhone')]; print(sorted(names)[-1] if names else 'iPhone 16')")
-          echo "Using simulator: $NAME"
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          # By UDID rather than name, so the device booted below is provably
+          # the one xcodebuild targets.
+          SIM=$(xcrun simctl list devices available --json \
+            | python3 -c "
+          import json, sys
+          runtimes = json.load(sys.stdin)['devices']
+          iphones = [d for runtime in runtimes for d in runtimes[runtime] if d['name'].startswith('iPhone')]
+          if not iphones:
+              sys.exit('::error::no iPhone simulator is available on this runner')
+          chosen = sorted(iphones, key=lambda d: d['name'])[-1]
+          print(f\"{chosen['name']}|{chosen['udid']}\")
+          ")
+          NAME=${SIM%%|*}
+          UDID=${SIM##*|}
+          echo "Using simulator: $NAME ($UDID)"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+          # Boot ahead of xcodebuild instead of letting it boot on demand. A
+          # cold headless boot inside `xcodebuild test` is what fails with
+          # "Timed out waiting for AX loaded notification" or "Timed out while
+          # requesting launch progress" — a flake with no bearing on the code
+          # under test, and indistinguishable from a real failure until you
+          # read the log. `bootstatus -b` boots the device if it is not
+          # already up and blocks until it has finished coming up.
+          xcrun simctl bootstatus "$UDID" -b
 
       - name: Build & run UI tests
         working-directory: App
@@ -56,7 +77,7 @@ jobs:
           xcodebuild test \
             -project "$APP_NAME.xcodeproj" \
             -scheme "$APP_NAME" \
-            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }},OS=latest" \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -resultBundlePath TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO
 

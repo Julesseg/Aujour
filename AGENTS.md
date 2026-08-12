@@ -16,6 +16,18 @@ agent session for each on the self-hosted Mac runner (capped, guarded by the
 `agent-dispatched` label, umbrella `[Epic]`/`Spec:` issues skipped). See
 `docs/agents/auto-dispatch.md`.
 
+### Conflict watch
+
+A pull request that conflicts with its base gets *no* CI checks at all —
+GitHub cannot build the merge commit — so it looks exactly like a PR whose
+CI has not started, and stalls unnoticed. `conflict-watch.yml` sweeps open
+PRs whenever `main` moves (plus daily) and labels the conflicted ones
+`has-conflicts` with a comment explaining the silence. It cannot run on
+`pull_request`, since that is the trigger that does not fire.
+
+With several agents in flight at once this is routine, so `/implement`
+merges `origin/main` in before opening a PR rather than waiting to be told.
+
 ### Issue tracker
 
 Issues live in GitHub Issues (`gh` CLI); external PRs are not a triage

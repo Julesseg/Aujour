@@ -50,14 +50,18 @@ public struct EditorFont: Equatable, Sendable {
     /// Point size, clamped to `EditorFont.sizeRange`, so any font that exists
     /// is one the editor can actually render.
     public var size: Double {
-        didSet { size = EditorFont.sizeRange.clamped(size) }
+        didSet { size = EditorFont.clamped(size) }
     }
 
     public static let sizeRange: ClosedRange<Double> = 11...28
 
     public init(family: Family, size: Double) {
         self.family = family
-        self.size = EditorFont.sizeRange.clamped(size)
+        self.size = EditorFont.clamped(size)
+    }
+
+    private static func clamped(_ size: Double) -> Double {
+        min(max(size, sizeRange.lowerBound), sizeRange.upperBound)
     }
 
     public static let `default` = EditorFont(family: .system, size: 17)
@@ -160,11 +164,5 @@ extension DeviceSettings: SettingsGroup {
             changes.append((DeviceSettingsKey.dailyReminder, dailyReminder?.description))
         }
         return changes
-    }
-}
-
-extension ClosedRange where Bound: Comparable {
-    func clamped(_ value: Bound) -> Bound {
-        Swift.min(Swift.max(value, lowerBound), upperBound)
     }
 }

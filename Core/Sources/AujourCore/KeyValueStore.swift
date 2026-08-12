@@ -18,8 +18,8 @@ public protocol KeyValueStore: AnyObject {
 /// moment, which is what `observeExternalChanges` reports.
 @MainActor
 public protocol SyncedKeyValueStore: KeyValueStore {
-    /// Registers the handler called when values arrive from another device.
-    /// One handler per store: the settings store that owns the seam.
+    /// Registers a handler called when values arrive from another device.
+    /// Handlers accumulate: registering one never silences an earlier one.
     func observeExternalChanges(_ handler: @escaping () -> Void)
 }
 
@@ -29,74 +29,51 @@ public protocol SyncedKeyValueStore: KeyValueStore {
 @MainActor
 public protocol LocalKeyValueStore: KeyValueStore {}
 
-/// The storage half of the in-memory fakes: a dictionary that remembers the
-/// order in which keys were written.
+/// An in-memory stand-in for real storage, for tests and previews. Use one of
+/// the two subclasses, which are what say whether values travel or not.
 @MainActor
-struct RecordingKeyValueStorage {
+public class InMemoryKeyValueStore: KeyValueStore {
     private var values: [String: String] = [:]
-    private(set) var writtenKeys: [String] = []
 
-    func string(forKey key: String) -> String? {
+    /// The keys written through this store, oldest first — so a test can say
+    /// what did *not* travel as precisely as what did.
+    public private(set) var writtenKeys: [String] = []
+
+    public init() {}
+
+    public func string(forKey key: String) -> String? {
         values[key]
     }
 
-    mutating func setString(_ value: String?, forKey key: String) {
+    public func setString(_ value: String?, forKey key: String) {
         values[key] = value
         writtenKeys.append(key)
     }
 
-    mutating func merge(_ incoming: [String: String]) {
+    /// Puts values in place without recording a write, for storage that was
+    /// already populated when the app found it.
+    fileprivate func adoptWithoutRecording(_ incoming: [String: String]) {
         values.merge(incoming) { _, new in new }
     }
 }
 
-/// An in-memory stand-in for iCloud key-value storage, for tests and previews.
+/// An in-memory stand-in for iCloud key-value storage.
 @MainActor
-public final class InMemorySyncedKeyValueStore: SyncedKeyValueStore {
-    private var storage = RecordingKeyValueStorage()
-    private var externalChangeHandler: (() -> Void)?
-
-    public init() {}
-
-    /// The keys written through this store, oldest first — so a test can say
-    /// what did *not* travel as precisely as what did.
-    public var writtenKeys: [String] { storage.writtenKeys }
-
-    public func string(forKey key: String) -> String? {
-        storage.string(forKey: key)
-    }
-
-    public func setString(_ value: String?, forKey key: String) {
-        storage.setString(value, forKey: key)
-    }
+public final class InMemorySyncedKeyValueStore: InMemoryKeyValueStore, SyncedKeyValueStore {
+    private var externalChangeHandlers: [() -> Void] = []
 
     public func observeExternalChanges(_ handler: @escaping () -> Void) {
-        externalChangeHandler = handler
+        externalChangeHandlers.append(handler)
     }
 
     /// Plays another device's write into the seam: the values land, then the
     /// change is announced, exactly as iCloud does it.
     public func receiveFromAnotherDevice(_ values: [String: String]) {
-        storage.merge(values)
-        externalChangeHandler?()
+        adoptWithoutRecording(values)
+        for handler in externalChangeHandlers { handler() }
     }
 }
 
-/// An in-memory stand-in for on-device storage, for tests and previews.
+/// An in-memory stand-in for on-device storage.
 @MainActor
-public final class InMemoryLocalKeyValueStore: LocalKeyValueStore {
-    private var storage = RecordingKeyValueStorage()
-
-    public init() {}
-
-    /// The keys written through this store, oldest first.
-    public var writtenKeys: [String] { storage.writtenKeys }
-
-    public func string(forKey key: String) -> String? {
-        storage.string(forKey: key)
-    }
-
-    public func setString(_ value: String?, forKey key: String) {
-        storage.setString(value, forKey: key)
-    }
-}
+public final class InMemoryLocalKeyValueStore: InMemoryKeyValueStore, LocalKeyValueStore {}

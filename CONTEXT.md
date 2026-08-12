@@ -81,3 +81,17 @@ folders (no `.md`, and it need not name a day), relative to the Journal Root,
 default `[attachments]/YYYY/MM` — and are referenced
 relatively from Entries. Embeds are written in standard markdown syntax by
 default (Obsidian wiki-style available as a setting); Aujour renders both.
+
+### Journal Settings
+The settings that shape the Journal itself: Path Template, Content Template,
+Attachment Path Template, embed syntax, and Rollover Hour. Two devices may
+not disagree about these — different Path Templates would write the same
+Journal Day to two paths — so they travel between the user's devices through
+iCloud key-value storage (ADR 0003). No settings are ever written into the
+Journal Root.
+
+### Device Settings
+The settings that belong to one device: theme, editor font, and the time of
+the daily reminder. Nothing here shapes what is written into the Journal, so
+a dark-themed iPhone and a light-themed iPad are not in disagreement. Device
+Settings stay on the device that set them and never reach the synced seam.

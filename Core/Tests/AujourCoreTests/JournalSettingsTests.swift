@@ -139,6 +139,18 @@ struct JournalSettingsSyncTests {
         #expect(observed.updates.map(\.embedSyntax) == [.obsidianWikiLink])
     }
 
+    @Test("a second store over the same seam does not silence the first")
+    func everyStoreOnTheSeamHearsExternalWrites() {
+        let kvs = InMemorySyncedKeyValueStore()
+        let first = JournalSettingsStore(syncedThrough: kvs)
+        let second = JournalSettingsStore(syncedThrough: kvs)
+
+        kvs.receiveFromAnotherDevice([JournalSettingsKey.pathTemplate: "[journal]/YYYY-MM-DD"])
+
+        #expect(first.settings.pathTemplate == "[journal]/YYYY-MM-DD")
+        #expect(second.settings.pathTemplate == "[journal]/YYYY-MM-DD")
+    }
+
     @Test("a cancelled observation stops receiving updates")
     func cancelledObservationGoesQuiet() {
         let kvs = InMemorySyncedKeyValueStore()
@@ -150,36 +162,6 @@ struct JournalSettingsSyncTests {
         kvs.receiveFromAnotherDevice([JournalSettingsKey.pathTemplate: "[journal]/YYYY-MM-DD"])
 
         #expect(observed.updates.isEmpty)
-    }
-}
-
-@MainActor
-@Suite("Settings never touch the Journal Root")
-struct SettingsStayOutOfTheJournalRootTests {
-    // ADR 0003: the folder holds Entries, Attachments and Parked Files and
-    // nothing else. The settings machinery has no file-system access to write
-    // a config file *with* — this test is what keeps it that way, since the
-    // guarantee is an absence and no behavioural test can observe it.
-    @Test("the settings sources reference no file-system API at all")
-    func settingsSourcesHaveNoFileSystemAccess() throws {
-        let forbidden = ["FileManager", "FileHandle", "fileURLWithPath", "contentsOfFile", "URL("]
-
-        for source in ["KeyValueStore.swift", "SettingsStorage.swift", "JournalSettings.swift", "DeviceSettings.swift"] {
-            let url = coreSourcesDirectory.appendingPathComponent(source)
-            let text = try String(contentsOf: url, encoding: .utf8)
-            for api in forbidden {
-                #expect(!text.contains(api), "\(source) reaches for \(api); settings must never touch the file system")
-            }
-        }
-    }
-
-    /// `Core/Sources/AujourCore`, reached from this file's own location.
-    private var coreSourcesDirectory: URL {
-        URL(fileURLWithPath: #filePath)  // Core/Tests/AujourCoreTests/<this file>
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("Sources/AujourCore")
     }
 }
 

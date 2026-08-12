@@ -5,7 +5,7 @@ import Foundation
 /// Templates are typed by the user (or pasted over from Obsidian's
 /// daily-notes settings), so every rejection carries a sentence that can be
 /// shown as-is next to the text field.
-public enum PathTemplateError: Error, Hashable, Sendable, CustomStringConvertible {
+public enum PathTemplateError: LocalizedError, Hashable, Sendable, CustomStringConvertible {
     /// The format string was empty or only whitespace.
     case emptyFormat
 
@@ -59,5 +59,7 @@ public enum PathTemplateError: Error, Hashable, Sendable, CustomStringConvertibl
         }
     }
 
-    public var localizedDescription: String { description }
+    /// The same sentence, through the channel `localizedDescription` reads
+    /// once the error has been erased to `any Error`.
+    public var errorDescription: String? { description }
 }

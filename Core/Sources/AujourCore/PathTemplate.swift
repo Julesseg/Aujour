@@ -51,8 +51,10 @@ public struct PathTemplate: Hashable, Sendable, CustomStringConvertible {
     /// Journal Root.
     ///
     /// `YYYY` is four digits, so years 0 through 9999 are what a path can
-    /// address — the range a calendar the user navigates can reach many times
-    /// over.
+    /// address, and `match` inverts `render` exactly over that range. A
+    /// Journal Day outside it still renders — five digits, or a leading
+    /// minus — but no such path reads back as an Entry. Nothing in the app
+    /// produces one: days come from the calendar, which cannot reach there.
     public func render(_ journalDay: JournalDay) -> String {
         MomentFormat.render(elements, for: journalDay) + Self.markdownExtension
     }
@@ -64,6 +66,12 @@ public struct PathTemplate: Hashable, Sendable, CustomStringConvertible {
     /// Journal Root is what this template renders for some day (ADR 0002).
     /// Everything else in the vault — other notes, Parked Files, attachments,
     /// files left behind by a declined migration — answers `nil`.
+    ///
+    /// The comparison is exact, case included. iOS volumes are usually
+    /// case-insensitive, so a folder the user already had as `Journal/` holds
+    /// the file a `[journal]/…` template addressed; deciding whether to fold
+    /// case belongs to the layer that enumerates the Journal Root and knows
+    /// the volume, not to this rule.
     public func match(_ relativePath: String) -> JournalDay? {
         guard relativePath.hasSuffix(Self.markdownExtension) else { return nil }
         let withoutExtension = relativePath.dropLast(Self.markdownExtension.count)
@@ -73,25 +81,4 @@ public struct PathTemplate: Hashable, Sendable, CustomStringConvertible {
     public var description: String { format }
 
     static let markdownExtension = ".md"
-}
-
-// Coded as the bare format string, and re-validated on the way in: the
-// template travels through iCloud key-value storage (ADR 0003), so a value
-// written by a hand or an older build is refused rather than quietly
-// deciding which files count as Entries.
-extension PathTemplate: Codable {
-    public init(from decoder: any Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let format = try container.decode(String.self)
-        do {
-            try self.init(format)
-        } catch {
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "\(error)")
-        }
-    }
-
-    public func encode(to encoder: any Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(format)
-    }
 }

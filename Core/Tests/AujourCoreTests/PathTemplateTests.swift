@@ -9,7 +9,7 @@ extension JournalDay {
 @Suite("Path Template rendering")
 struct PathTemplateRenderingTests {
     @Test("the default template nests the Entry in year and month folders")
-    func defaultTemplateRendersTheDocumentedPath() throws {
+    func defaultTemplateRendersTheDocumentedPath() {
         let template = PathTemplate.default
 
         #expect(template.render(JournalDay(year: 2026, month: 3, day: 1)) == "2026/03/2026-03-01.md")
@@ -51,57 +51,32 @@ struct PathTemplateRenderingTests {
 }
 
 @Suite("Attachment Path Template")
-struct FolderPathTemplateTests {
+struct AttachmentPathTemplateTests {
     @Test("the default attachment folder is the documented one")
     func attachmentDefaultRendersTheDocumentedFolder() {
-        let template = FolderPathTemplate.attachmentDefault
+        let template = AttachmentPathTemplate.default
 
         #expect(template.render(JournalDay(year: 2026, month: 3, day: 1)) == "attachments/2026/03")
     }
 
-    @Test("a folder template needs no day, and never gets an extension")
-    func folderTemplatesAddressFoldersNotFiles() throws {
+    @Test("an attachment folder needs no day, and never gets an extension")
+    func attachmentTemplatesAddressFoldersNotFiles() throws {
         // `[attachments]` alone — everything in one folder — is a legitimate
         // choice, and so is a folder that does name the day.
-        #expect(try FolderPathTemplate("[attachments]").render(.marchFirst) == "attachments")
-        #expect(try FolderPathTemplate("YYYY/MM/DD").render(.marchFirst) == "2026/03/01")
+        #expect(try AttachmentPathTemplate("[attachments]").render(.marchFirst) == "attachments")
+        #expect(try AttachmentPathTemplate("YYYY/MM/DD").render(.marchFirst) == "2026/03/01")
     }
 
-    @Test("folder templates are held to the same subset and the same path rules")
-    func folderTemplatesShareTheEngineSValidation() {
+    @Test("attachment folders are held to the same subset and the same path rules")
+    func attachmentTemplatesShareTheSameValidation() {
         #expect(throws: PathTemplateError.unsupportedToken("MMMM")) {
-            try FolderPathTemplate("[attachments]/MMMM")
+            try AttachmentPathTemplate("[attachments]/MMMM")
         }
         #expect(throws: PathTemplateError.relativePathComponent("..")) {
-            try FolderPathTemplate("../[attachments]")
+            try AttachmentPathTemplate("../[attachments]")
         }
         #expect(throws: PathTemplateError.emptyFormat) {
-            try FolderPathTemplate("")
-        }
-    }
-}
-
-@Suite("Path Templates as a synced setting")
-struct PathTemplateCodingTests {
-    @Test("a Path Template travels as its format string")
-    func templatesEncodeAsTheirFormat() throws {
-        let encoded = try JSONEncoder().encode(PathTemplate.default)
-
-        #expect(try JSONDecoder().decode(String.self, from: encoded) == "YYYY/MM/YYYY-MM-DD")
-        #expect(try JSONDecoder().decode(PathTemplate.self, from: encoded) == .default)
-    }
-
-    @Test("a template that arrives corrupt is refused, not silently used")
-    func decodingValidates() throws {
-        // Settings sync through iCloud key-value storage (ADR 0003), where a
-        // value can be hand-edited or written by an older build.
-        let corrupt = Data("\"YYYY/MMMM\"".utf8)
-
-        #expect(throws: DecodingError.self) {
-            try JSONDecoder().decode(PathTemplate.self, from: corrupt)
-        }
-        #expect(throws: DecodingError.self) {
-            try JSONDecoder().decode(FolderPathTemplate.self, from: Data("\"../[x]\"".utf8))
+            try AttachmentPathTemplate("")
         }
     }
 }
@@ -233,14 +208,14 @@ struct PathTemplateMatchingTests {
     }
 
     @Test("a Parked File beside an Entry is not itself an Entry")
-    func parkedFilesNeverMatch() throws {
+    func parkedFilesNeverMatch() {
         let template = PathTemplate.default
 
         #expect(template.match("2026/03/2026-03-01_1.md") == nil)
     }
 
     @Test("ordinary vault notes are never misread as Entries")
-    func nonEntryVaultFilesNeverMatch() throws {
+    func nonEntryVaultFilesNeverMatch() {
         let template = PathTemplate.default
 
         for path in [
@@ -258,7 +233,7 @@ struct PathTemplateMatchingTests {
     }
 
     @Test("a path whose repeated tokens disagree is not an Entry")
-    func inconsistentDatesNeverMatch() throws {
+    func inconsistentDatesNeverMatch() {
         let template = PathTemplate.default
 
         // The month folder says March, the filename says April: no single day
@@ -267,7 +242,7 @@ struct PathTemplateMatchingTests {
     }
 
     @Test("a path spelling a day that never existed is not an Entry")
-    func impossibleDatesNeverMatch() throws {
+    func impossibleDatesNeverMatch() {
         let template = PathTemplate.default
 
         #expect(template.match("2026/02/2026-02-30.md") == nil)

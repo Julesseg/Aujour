@@ -131,7 +131,7 @@ enum MomentFormat {
     /// that is not a rendering of the template: leftover characters, a
     /// mismatched literal, repeated tokens that disagree (a March folder
     /// holding an April filename), or a date that never existed.
-    static func match(_ path: some StringProtocol, against elements: [Element]) -> JournalDay? {
+    static func match(_ path: Substring, against elements: [Element]) -> JournalDay? {
         var values: [Field: Int] = [:]
         var cursor = path.startIndex
 

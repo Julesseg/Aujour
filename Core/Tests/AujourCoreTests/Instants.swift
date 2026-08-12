@@ -4,7 +4,7 @@ import Foundation
 // is how the domain talks about them: "1 AM on March 2nd in Paris".
 func instant(
     _ year: Int, _ month: Int, _ day: Int,
-    _ hour: Int, _ minute: Int = 0,
+    _ hour: Int, _ minute: Int = 0, _ second: Int = 0,
     in timeZone: TimeZone
 ) -> Date {
     var calendar = Calendar(identifier: .gregorian)
@@ -15,6 +15,7 @@ func instant(
     components.day = day
     components.hour = hour
     components.minute = minute
+    components.second = second
     return calendar.date(from: components)!
 }
 

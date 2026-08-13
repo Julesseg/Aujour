@@ -102,24 +102,17 @@ struct ContentView: View {
         }
         .task { await journal.open() }
         .onChange(of: scenePhase) { _, phase in
-            guard let today = journal.today else { return }
             switch phase {
             case .inactive, .background:
                 // The last chance to write: there is no next second to save in
                 // once the app is out of the way, and the debounce the editor
                 // is holding would be spent in it.
-                Task { await today.save() }
+                Task { await journal.today?.save() }
             case .active:
-                Task {
-                    // An app left running overnight comes back to a different
-                    // day.
-                    await today.reopenIfTheDayTurned()
-                    // And to a folder that may have moved on without it: an
-                    // app in the background is not being told about Obsidian's
-                    // saves or about what iCloud brought down, so coming back
-                    // to the front is its own moment to catch up.
-                    await journal.catchUpWithTheFolder()
-                }
+                // What coming back to the front means for a journal that is
+                // files in a folder — a new day, and a folder that moved on
+                // while nothing was listening — is the Journal's to say.
+                Task { await journal.cameBackToTheFront() }
             @unknown default:
                 break
             }

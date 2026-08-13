@@ -30,6 +30,14 @@ private final class EditorSession {
     /// re-read underneath the editor.
     var typingWhileReading: [String] = []
 
+    /// Set to leave the editor's waits open, so that what has been typed stays
+    /// in the editor and out of the folder for as long as the test needs.
+    ///
+    /// The state a debounce is in between a keystroke and the save it will
+    /// become — and a state a test cannot otherwise stand still in, because
+    /// these waits are instant.
+    var holdsTheSaveOpen = false
+
     private(set) var editor: EntryEditor!
 
     init(
@@ -81,6 +89,12 @@ private final class EditorSession {
         pauses.append(duration)
         if !typingWhileWaiting.isEmpty {
             editor.content = typingWhileWaiting.removeFirst()
+        }
+        while holdsTheSaveOpen {
+            // Until the test says otherwise, or until it is cancelled — which
+            // is what `save()` does, and the one way words held here ever
+            // reach the folder.
+            try await Task.sleep(for: .milliseconds(1))
         }
     }
 }
@@ -461,6 +475,7 @@ struct EntryEditorExternalChangeTests {
         await session.open()
         // Typed and not yet saved: the debounce is still running, so these
         // words exist nowhere but on screen.
+        session.holdsTheSaveOpen = true
         session.editor.content = "Walked to the market, and met"
 
         try await session.store.somebodyElseWrites(
@@ -470,6 +485,19 @@ struct EntryEditorExternalChangeTests {
         await session.editor.reloadIfClean()
 
         #expect(session.editor.content == "Walked to the market, and met")
+        // Still unsaved, and still the newest version of the day anybody has:
+        // taking the file's would have lost the sentence being typed, and two
+        // versions that have both been written is the Parked File's job.
+        #expect(session.store.writes.isEmpty)
+
+        // And the words go where they were always going, once the typing has
+        // stopped for long enough.
+        session.holdsTheSaveOpen = false
+        await session.editor.save()
+        #expect(
+            try await session.store.readText(at: "2026/03/2026-03-01.md")
+                == "Walked to the market, and met"
+        )
     }
 
     @Test("a keystroke that lands while the file is being read is not overwritten")
@@ -507,8 +535,8 @@ struct EntryEditorExternalChangeTests {
         #expect(session.store.writes.isEmpty)
     }
 
-    @Test("a day whose file was taken away goes back to being unwritten")
-    func aDeletedEntryReturnsToTheTemplate() async throws {
+    @Test("a day whose file went away is left on screen, not emptied")
+    func anEntryWhoseFileVanishedStaysOnScreen() async throws {
         let session = EditorSession(
             files: ["2026/03/2026-03-01.md": "Walked to the market.\n"],
             settings: JournalSettings(contentTemplate: "# {{title}}\n")
@@ -518,14 +546,18 @@ struct EntryEditorExternalChangeTests {
         try await session.store.somebodyElseTakesAway("2026/03/2026-03-01.md")
         await session.editor.reloadIfClean()
 
-        // The folder is the journal: with no file there, this is a day that
-        // has not been written on, and it is the template that says so
-        // (ADR 0001).
-        #expect(session.editor.content == "# 2026-03-01\n")
-        // And it stays that way — the spawned text is not a file, so nothing
-        // puts the day back until somebody types.
+        // A day taken off the screen because its file was missing for a
+        // moment is the app losing the day — and a file is missing for a
+        // moment every time something replaces it by deleting first. The
+        // words stay, and the next keystroke puts them back on disk.
+        #expect(session.editor.content == "Walked to the market.\n")
         #expect(session.store.writes.isEmpty)
-        #expect(try await session.store.listFiles() == ["Archive/moved-away.md"])
+
+        await session.type("Walked to the market, and the file came back.")
+        #expect(
+            try await session.store.readText(at: "2026/03/2026-03-01.md")
+                == "Walked to the market, and the file came back."
+        )
     }
 
     @Test("an Entry that could not be opened is opened when the folder answers")

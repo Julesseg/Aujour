@@ -134,6 +134,33 @@ struct JournalStorageTests {
         }
     }
 
+    @Test("coming back to the front catches up with what happened while away")
+    func comingBackToTheFrontReadsTheFolderAgain() async throws {
+        try await withTemporaryFolder { folders in
+            let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
+            let today = JournalDay.current(at: .now, in: .current, rolloverHour: .midnight)
+            let earlier = today.adding(days: -2)
+            try iCloud.seed("Walked to the market.\n", at: PathTemplate.default.render(today))
+            let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders))
+            await journal.open()
+            let calendar = try #require(journal.calendar)
+            await calendar.scan()
+
+            // Written while Aujour was in the background, which is where it is
+            // told nothing at all: today's Entry edited, and an older day
+            // filled in from the iPad.
+            try iCloud.seed("Walked to the market, and back the long way.\n",
+                at: PathTemplate.default.render(today))
+            try iCloud.seed("Rain all day.\n", at: PathTemplate.default.render(earlier))
+
+            await journal.cameBackToTheFront()
+
+            #expect(journal.today?.content == "Walked to the market, and back the long way.\n")
+            if earlier.month != today.month { calendar.showPreviousMonth() }
+            #expect(calendar.month.days.filter(\.isJournaled).map(\.day).contains(earlier))
+        }
+    }
+
     @Test("a folder Aujour cannot reach becomes something to say, not an empty page")
     func anUnreachableFolderIsPresented() async throws {
         try await withTemporaryFolder { folders in

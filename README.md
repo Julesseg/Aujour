@@ -173,7 +173,10 @@ build time, so — unlike the ad-hoc pipeline — there are **no `.mobileprovisi
 secrets** to manage. Add app extensions later and their profiles are resolved
 the same way, no workflow change. It reuses the same Apple Distribution
 certificate (`APPLE_CERTIFICATE_P12` / `_PASSWORD`) and `APPLE_TEAM_ID` you
-already set for the PR builds.
+already set for the PR builds. Automatic signing resolves the iCloud
+entitlement on its own, but only once the App ID carries the **iCloud**
+capability and the `iCloud.com.julesseguin.aujour` container exists — the same
+prerequisite as the ad-hoc pipeline above.
 
 ### Step 1 — App Store Connect
 

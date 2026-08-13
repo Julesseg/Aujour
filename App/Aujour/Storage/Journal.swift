@@ -125,6 +125,7 @@ final class Journal {
     /// files the Path Template names are Entries at all (ADR 0002).
     func use(_ folder: URL) async {
         folderProblem = nil
+        guard await saveWhatBelongsToTheFolderBeingLeft() else { return }
         do {
             try locator.chosenFolder.choose(folder)
         } catch {
@@ -143,8 +144,27 @@ final class Journal {
     /// in Obsidian (ADR 0001).
     func useAujoursOwnFolder() async {
         folderProblem = nil
+        guard await saveWhatBelongsToTheFolderBeingLeft() else { return }
         locator.chosenFolder.forget()
         await open()
+    }
+
+    /// Writes what is on screen to the folder it belongs to, before that
+    /// folder stops being the journal — and answers whether the move may go
+    /// ahead.
+    ///
+    /// Today's Entry belongs to the folder being left, and this is the last
+    /// moment it can be written there: after the switch its file is not one
+    /// Aujour is looking at any more, and the editor holding those words is
+    /// replaced. So a save that will not go stops the move, exactly as it
+    /// stops the day turning under the editor — no words are ever silently
+    /// discarded (`v1-decisions.md`).
+    private func saveWhatBelongsToTheFolderBeingLeft() async -> Bool {
+        guard let today else { return true }
+        await today.save()
+        guard let unsaved = today.saveProblem else { return true }
+        folderProblem = StorageProblem(unsaved)
+        return false
     }
 
     /// Re-reads how much is in the folder.

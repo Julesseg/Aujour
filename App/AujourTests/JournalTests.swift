@@ -229,12 +229,14 @@ struct JournalStorageTests {
 /// Polled, because what is being waited for is the system telling a file
 /// presenter about somebody else's write, and then a folder being read — the
 /// one thing in these tests that happens on its own schedule rather than on
-/// the test's.
+/// the test's. The deadline is generous for the same reason it is over in
+/// `CoordinatedJournalRootTests`: it is there so that "never" is not
+/// "forever", and says nothing about how fast a change ought to arrive.
 @MainActor
 private func expect(
     _ editor: EntryEditor,
     toShow text: String,
-    within seconds: Double = 5,
+    within seconds: Double = 20,
     sourceLocation: SourceLocation = #_sourceLocation
 ) async {
     let deadline = Date().addingTimeInterval(seconds)

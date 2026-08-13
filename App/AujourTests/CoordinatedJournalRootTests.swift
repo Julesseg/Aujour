@@ -57,7 +57,7 @@ struct CoordinatedJournalRootTests {
             // The floor every other claim here stands on: presenting a folder
             // is not itself news about it, or "somebody else wrote" would mean
             // nothing.
-            let reported = await changeReported(by: folder, within: 1)
+            let reported = await changeReported(by: folder, within: 2)
             #expect(reported == nil, "a folder nobody wrote in reported \(reported as Any)")
         }
     }
@@ -79,7 +79,7 @@ struct CoordinatedJournalRootTests {
             // Told about it, the editor would re-read the file it had just
             // written and the calendar would walk the whole folder — and there
             // is one of these every time the typing pauses.
-            let reported = await changeReported(by: folder, within: 1)
+            let reported = await changeReported(by: folder, within: 2)
             #expect(reported == nil, "Aujour's own write came back as \(reported as Any)")
         }
     }
@@ -97,7 +97,7 @@ struct CoordinatedJournalRootTests {
             folder.stopWatching()
             try root.somebodyElseWrites("Written after the move.\n", at: "2026/03/2026-03-01.md")
 
-            #expect(await changeReported(by: folder, within: 1) == nil)
+            #expect(await changeReported(by: folder, within: 2) == nil)
         }
     }
 }
@@ -106,19 +106,25 @@ struct CoordinatedJournalRootTests {
 ///
 /// A deadline, because these are the only tests in the repo whose subject is
 /// something the system decides when to do: a presenter is told about another
-/// app's write when the system gets round to telling it. A change that has not
-/// arrived in five seconds is one that is not coming.
+/// app's write when the system gets round to telling it.
+///
+/// Generous, because the deadline is only there so that "never" is not
+/// "forever" — nothing here is a claim about how *fast* a change is reported,
+/// and a loaded CI runner has been seen taking six times as long over
+/// everything, including its own sleeps. The app does not lean on the speed
+/// either: coming back to the front catches up with the folder whatever the
+/// presenter did or did not say while it was away.
 ///
 /// What it reports and not merely that it did, so that a folder heard from
-/// when it should have been quiet says which file it was about — the
-/// difference between somebody else's Entry and Aujour's own write on its way
-/// through a temporary file.
+/// when it should have been quiet says which file it was about — which is what
+/// told this branch that an autosave comes back as a change to the Entry
+/// itself, and not, as it had assumed, to something beside it.
 ///
 /// Once per folder: giving up on the wait cancels the read of `changes`, and a
 /// cancelled read of an `AsyncStream` ends the stream for good.
 private func changeReported(
     by folder: CoordinatedJournalRoot,
-    within seconds: Double = 5
+    within seconds: Double = 20
 ) async -> JournalRootChange? {
     await withTaskGroup(of: JournalRootChange?.self) { group in
         group.addTask {

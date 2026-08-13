@@ -15,6 +15,12 @@ The folder the Journal lives under. Defaults to a folder Aujour owns (visible
 in the Files app); the user may instead point it anywhere they can pick in the
 Files app — typically inside an Obsidian vault.
 
+The default is Aujour's own iCloud Drive folder, and on a device where iCloud
+Drive is off it is the app's folder under "On My iPhone" instead. Which one a
+journal uses is decided on first launch and then never changes on its own — a
+journal that moved between the two behind the user's back would be a journal
+with holes in it (ADR 0004).
+
 ### Journal Store
 The Journal Root as everything above the file system sees it: a set of files
 addressed by paths relative to the root, which can be enumerated, read, written

@@ -30,4 +30,34 @@ extension URL {
         )
         try Data(text.utf8).write(to: file)
     }
+
+    /// The same write, made the way another app makes it: coordinated, and on
+    /// behalf of nobody Aujour is presenting the folder for.
+    ///
+    /// This is Obsidian saving the same daily note, or iCloud Drive putting
+    /// another device's version down — and it is coordination, not the writing
+    /// itself, that is how a file presenter comes to hear about either.
+    func somebodyElseWrites(_ text: String, at relativePath: String) throws {
+        let file = appending(path: relativePath)
+        try FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        var written: (any Error)?
+        var refused: NSError?
+        NSFileCoordinator(filePresenter: nil).coordinate(
+            writingItemAt: file,
+            options: .forReplacing,
+            error: &refused
+        ) { file in
+            do {
+                try Data(text.utf8).write(to: file, options: .atomic)
+            } catch {
+                written = error
+            }
+        }
+        if let refused { throw refused }
+        if let written { throw written }
+    }
 }

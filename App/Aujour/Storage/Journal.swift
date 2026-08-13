@@ -83,6 +83,17 @@ final class Journal {
     private let locator: JournalRootLocator
     private let settings: JournalSettings
 
+    /// The open folder, presented: what Aujour's reads and writes take their
+    /// turn through, and what says when somebody else has had theirs.
+    ///
+    /// Kept because presenting a folder is something held rather than done —
+    /// letting go of it is what stops it, and a journal that has moved to
+    /// another folder must not still be listening to the one it left.
+    private var folder: CoordinatedJournalRoot?
+
+    /// The reading of `folder.changes` that is currently running.
+    private var keepingUpWithTheFolder: Task<Void, Never>?
+
     /// - Parameter settings: the journal-shaping settings today's Entry is
     ///   spawned and saved by. The defaults until the settings screen lands;
     ///   they arrive through iCloud key-value storage then (ADR 0003).
@@ -95,19 +106,67 @@ final class Journal {
         state = .opening
         today = nil
         calendar = nil
+        // Before anything is opened, whatever folder was open stops being
+        // presented: a change arriving from the folder being left would be
+        // answered by re-reading a file in a journal that is no longer this
+        // one.
+        stopKeepingUpWithTheFolder()
         do {
             let opened = try await Self.openJournal(using: locator, settings: settings)
             let editor = EntryEditor(store: opened.store, settings: settings)
             store = opened.store
             today = editor
             calendar = JournalCalendar(store: opened.store, settings: settings)
+            folder = opened.folder
             state = .open(opened.root, entryCount: opened.entryCount)
             await editor.open()
+            keepUpWith(opened.folder.changes)
         } catch {
             store = nil
             calendar = nil
             state = .unavailable(StorageProblem(error))
         }
+    }
+
+    // MARK: - Keeping up with the folder
+
+    /// Follows what other apps write in the folder, for as long as it is the
+    /// open one.
+    ///
+    /// Today's Entry is what this catches up: it is the screen the app lives
+    /// on, and the one that is still open while Obsidian is writing the same
+    /// file on the other side of the multitasking split. A day reached from
+    /// the calendar is a step away and reads its file each time it is opened,
+    /// so it does not need telling.
+    ///
+    /// Takes the changes and not the folder they come from, deliberately: a
+    /// task waiting on a stream is kept alive by the runtime, so holding the
+    /// folder here would be holding a presenter registered for a journal
+    /// nobody has open any more. This way, letting go of the Journal ends the
+    /// presenting, which ends the stream, which ends this.
+    private func keepUpWith(_ changes: AsyncStream<Void>) {
+        keepingUpWithTheFolder = Task { [weak self] in
+            for await _ in changes {
+                await self?.catchUpWithTheFolder()
+            }
+        }
+    }
+
+    /// Shows what the folder says now, where nothing is waiting to be written
+    /// to it.
+    ///
+    /// Also the app's way back in from the background, where nothing was
+    /// listening: a day written on the iPad over lunch is on screen when the
+    /// iPhone comes back to the front, without the user asking.
+    func catchUpWithTheFolder() async {
+        await today?.reloadIfClean()
+    }
+
+    private func stopKeepingUpWithTheFolder() {
+        keepingUpWithTheFolder?.cancel()
+        keepingUpWithTheFolder = nil
+        folder?.stopWatching()
+        folder = nil
     }
 
     /// Whether the Journal is pointed at a folder the user picked.
@@ -188,13 +247,22 @@ final class Journal {
     private nonisolated static func openJournal(
         using locator: JournalRootLocator,
         settings: JournalSettings
-    ) async throws -> (root: JournalRoot, store: FileJournalStore, entryCount: Int?) {
+    ) async throws -> (
+        root: JournalRoot,
+        store: FileJournalStore,
+        folder: CoordinatedJournalRoot,
+        entryCount: Int?
+    ) {
         let root = try locator.locate()
-        let store = FileJournalStore(root: root.url)
+        // Presented from the first read on: the store takes its turns with the
+        // other apps in the folder on behalf of this, and it is what leaves
+        // Aujour's own writes out of what the folder reports back.
+        let folder = CoordinatedJournalRoot(root: root.url)
+        let store = FileJournalStore(root: root.url, coordinatedBy: folder)
         // Reading the folder once here is what makes "it works" a fact rather
         // than a hope: a root that cannot be listed is not one to journal into.
         let files = try await store.listFiles()
-        return (root, store, entryCount(among: files, by: settings))
+        return (root, store, folder, entryCount(among: files, by: settings))
     }
 
     /// How many of a folder's files are Entries — which is how much journal

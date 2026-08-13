@@ -18,24 +18,61 @@ import AujourCore
 /// silence: the folder can be gone, and iCloud may not have brought a file's
 /// content down yet.
 ///
-/// Not here yet, and deliberately: file coordination, external-change
-/// notification, version-based divergence handling, and *waiting* for iCloud
-/// to bring a file down — this store asks for the download and refuses the
-/// operation, rather than blocking on it. That is right while Aujour owns the
-/// folder it writes to, and wrong the moment Obsidian is editing the same
-/// file: the seam is where M2 adds all four, without the domain above
-/// noticing.
+/// Every file it touches, it touches through file coordination: the folder is
+/// shared with Obsidian and with iCloud Drive, and two writers meeting in one
+/// file is how a day ends up half of each. What that coordination is *for* on
+/// the other side — hearing about somebody else's write — belongs to
+/// ``CoordinatedJournalRoot``, which is also what a store is given so that
+/// Aujour's own writes are not reported back to Aujour as news.
+///
+/// Not here yet, and deliberately: version-based divergence handling, and
+/// *waiting* for iCloud to bring a file down — this store asks for the
+/// download and refuses the operation, rather than blocking on it.
 struct FileJournalStore: JournalStore {
     /// The folder every path in this store is relative to.
     let root: URL
 
-    init(root: URL) {
+    /// The folder as Aujour presents it, if it is being presented — what
+    /// every coordinator here is made on behalf of.
+    ///
+    /// Optional because coordination is a property of the folder and watching
+    /// it is not: a store made for one question, and the fakes' own tests,
+    /// coordinate with nobody to be left out of.
+    private let presenter: CoordinatedJournalRoot?
+
+    init(root: URL, coordinatedBy presenter: CoordinatedJournalRoot? = nil) {
         self.root = root.standardizedFileURL
+        self.presenter = presenter
+    }
+
+    /// A fresh coordinator per operation, as the class is meant to be used —
+    /// and on behalf of Aujour's presenter, so that this store's own writes
+    /// never come back to the app as changes somebody else made.
+    private var coordinator: NSFileCoordinator {
+        presenter?.coordinator ?? NSFileCoordinator(filePresenter: nil)
     }
 
     func listFiles() async throws -> [String] {
         try checkTheRootIsThere()
 
+        // Coordinated, so that the walk happens between other apps' writes
+        // rather than during one: this listing is the calendar, and a vault
+        // mid-sync is exactly when it would otherwise be read short.
+        //
+        // Metadata only — a listing asks which files are there and never what
+        // is in them, and pulling a year of another device's Entries down from
+        // iCloud to answer that would be a download the user did not ask for.
+        return try coordinatedRead(of: root, options: .immediatelyAvailableMetadataOnly) { root in
+            try self.filesInFolder(at: root)
+        }
+    }
+
+    /// Every file under a folder, as paths relative to it.
+    ///
+    /// Takes the folder rather than reading `root`, because coordination hands
+    /// back the URL the read is to be made through, and that is the one the
+    /// paths have to come out relative to.
+    private func filesInFolder(at root: URL) throws -> [String] {
         // A folder that could not be read all the way through gives a *short*
         // listing, which is the same shape as an answer and a different fact:
         // it would show as days the user never journaled. So the first subtree
@@ -76,7 +113,8 @@ struct FileJournalStore: JournalStore {
                     // calendar that the file system does not have.
                     paths.insert(
                         relativePath(
-                            of: url.deletingLastPathComponent().appending(path: evicted)
+                            of: url.deletingLastPathComponent().appending(path: evicted),
+                            under: root
                         )
                     )
                 }
@@ -84,12 +122,12 @@ struct FileJournalStore: JournalStore {
             }
 
             if isDirectory { continue }
-            paths.insert(relativePath(of: url))
+            paths.insert(relativePath(of: url, under: root))
         }
 
         if let failure = unreadable.failure {
             throw JournalRootError.readFailed(
-                path: relativePath(of: failure.url),
+                path: relativePath(of: failure.url, under: root),
                 reason: failure.error.localizedDescription
             )
         }
@@ -98,6 +136,11 @@ struct FileJournalStore: JournalStore {
         return paths.sorted()
     }
 
+    /// Uncoordinated, alone among the operations here, and deliberately: this
+    /// reads no bytes, so there is no half-written file for it to catch. What
+    /// it would buy is waiting — for another app's save, or for iCloud — to
+    /// answer a question the calendar asks of every day of a month, and whose
+    /// answer the presenter reports the moment it changes anyway.
     func fileExists(at relativePath: String) async throws -> Bool {
         let path = try RelativePath(relativePath)
         try checkTheRootIsThere()
@@ -117,7 +160,10 @@ struct FileJournalStore: JournalStore {
         }
 
         do {
-            return try Data(contentsOf: url)
+            // Behind whatever write is in flight: an Entry read while Obsidian
+            // is saving it is a day that is half of one version and half of
+            // another, and the user reads it as words they never wrote.
+            return try coordinatedRead(of: url) { try Data(contentsOf: $0) }
         } catch {
             throw JournalRootError.readFailed(
                 path: path.string,
@@ -138,13 +184,18 @@ struct FileJournalStore: JournalStore {
         try askICloudFor(url, at: path)
 
         do {
-            try FileManager.default.createDirectory(
-                at: url.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            // Atomically, so an autosave interrupted mid-write leaves the
-            // previous Entry intact rather than half of two.
-            try contents.write(to: url, options: .atomic)
+            // Coordinated for replacing, which is what an autosave is: the
+            // other side is told the file is about to change and stops reading
+            // it, instead of finding it changed underneath.
+            try coordinatedWrite(of: url, options: .forReplacing) { url in
+                try FileManager.default.createDirectory(
+                    at: url.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                // Atomically, so an autosave interrupted mid-write leaves the
+                // previous Entry intact rather than half of two.
+                try contents.write(to: url, options: .atomic)
+            }
         } catch {
             throw JournalRootError.writeFailed(
                 path: path.string,
@@ -178,11 +229,16 @@ struct FileJournalStore: JournalStore {
         }
 
         do {
-            try FileManager.default.createDirectory(
-                at: toURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            try FileManager.default.moveItem(at: fromURL, to: toURL)
+            // Both ends held at once, which is what a move is: the file leaves
+            // one path and arrives at another, and no other app may be reading
+            // either of them in between.
+            try coordinatedMove(from: fromURL, to: toURL) { fromURL, toURL in
+                try FileManager.default.createDirectory(
+                    at: toURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                try FileManager.default.moveItem(at: fromURL, to: toURL)
+            }
         } catch {
             throw JournalRootError.moveFailed(
                 source: from.string,
@@ -192,15 +248,84 @@ struct FileJournalStore: JournalStore {
         }
     }
 
+    // MARK: - Taking turns with the other apps in the folder
+
+    // Three shapes of the same thing: ask for the access, do the work on the
+    // URL that comes back rather than on the one that went in, and let a
+    // refusal or a failure inside come out as one thrown error. The callers
+    // wrap whatever comes out in the `JournalRootError` for what they were
+    // doing, so file coordination adds no vocabulary of its own to the seam.
+
+    private func coordinatedRead<T>(
+        of url: URL,
+        options: NSFileCoordinator.ReadingOptions = [],
+        _ read: @escaping (URL) throws -> T
+    ) throws -> T {
+        var outcome: Result<T, any Error>?
+        var refused: NSError?
+        coordinator.coordinate(readingItemAt: url, options: options, error: &refused) { url in
+            outcome = Result { try read(url) }
+        }
+        if let outcome { return try outcome.get() }
+        if let refused { throw refused }
+        throw CocoaError(.fileReadUnknown)
+    }
+
+    private func coordinatedWrite(
+        of url: URL,
+        options: NSFileCoordinator.WritingOptions = [],
+        _ write: @escaping (URL) throws -> Void
+    ) throws {
+        var outcome: Result<Void, any Error>?
+        var refused: NSError?
+        coordinator.coordinate(writingItemAt: url, options: options, error: &refused) { url in
+            outcome = Result { try write(url) }
+        }
+        if let outcome { return try outcome.get() }
+        if let refused { throw refused }
+        throw CocoaError(.fileWriteUnknown)
+    }
+
+    private func coordinatedMove(
+        from source: URL,
+        to destination: URL,
+        _ move: @escaping (URL, URL) throws -> Void
+    ) throws {
+        var outcome: Result<Void, any Error>?
+        var refused: NSError?
+        // A fresh coordinator, held onto: a move has to be announced to the
+        // other presenters afterwards, and that is a message to the same
+        // coordinator that arranged it.
+        let coordinator = self.coordinator
+        coordinator.coordinate(
+            writingItemAt: source,
+            options: .forMoving,
+            writingItemAt: destination,
+            options: .forReplacing,
+            error: &refused
+        ) { source, destination in
+            outcome = Result { try move(source, destination) }
+        }
+        guard let outcome else {
+            if let refused { throw refused }
+            throw CocoaError(.fileWriteUnknown)
+        }
+        try outcome.get()
+        // Only once it actually moved: this is what tells everything else
+        // presenting the folder that the file at one path is the file now at
+        // the other, rather than one deleted and one appeared.
+        coordinator.item(at: source, didMoveTo: destination)
+    }
+
     // MARK: - The folder underneath
 
     private func url(for path: RelativePath) -> URL {
         path.components.reduce(root) { $0.appending(path: $1) }
     }
 
-    private func relativePath(of url: URL) -> String {
+    private func relativePath(of url: URL, under base: URL) -> String {
         url.standardizedFileURL.pathComponents
-            .dropFirst(root.pathComponents.count)
+            .dropFirst(base.standardizedFileURL.pathComponents.count)
             .joined(separator: "/")
     }
 
@@ -238,7 +363,7 @@ struct FileJournalStore: JournalStore {
             ancestor = ancestor.appending(path: component)
             if isRegularFile(at: ancestor) {
                 throw JournalStoreError.pathIsNotAFolder(
-                    relativePath(of: ancestor)
+                    relativePath(of: ancestor, under: root)
                 )
             }
         }

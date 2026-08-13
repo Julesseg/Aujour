@@ -1,16 +1,17 @@
 import SwiftUI
 import AujourCore
 
-/// The walking skeleton's one screen: where the journal is, and whether Aujour
-/// can reach it.
+/// The app's one screen: today's Entry, over the folder the journal lives in.
 ///
-/// It is deliberately plain — the today view and the editor land on top of
-/// this storage in the next issues. What it has to prove now is the promise
-/// the app is built on: a fresh install found a real folder without asking
-/// anyone anything, and if it could not, it says so instead of showing an
-/// empty page.
+/// Two things have to be true before there is anything to type into, and they
+/// are the two states around the editor here — Aujour has found a folder, and
+/// it has read what that folder holds for today. Neither is ever shown as an
+/// empty page: an empty editor over a folder that could not be read is
+/// indistinguishable from a day nobody wrote on (ADR 0001).
 struct ContentView: View {
     @State private var journal: Journal
+    @State private var showingJournalFolder = false
+    @Environment(\.scenePhase) private var scenePhase
 
     init(journal: Journal = Journal()) {
         _journal = State(wrappedValue: journal)
@@ -25,64 +26,110 @@ struct ContentView: View {
                         .accessibilityIdentifier("openingJournal")
 
                 case .open(let root, let fileCount):
-                    JournalRootSummary(root: root, fileCount: fileCount)
+                    if let today = journal.today {
+                        TodayEntryView(editor: today)
+                            .navigationTitle(today.day.spelledOut())
+                            .navigationBarTitleDisplayMode(.inline)
+                            .toolbar {
+                                ToolbarItem(placement: .topBarTrailing) {
+                                    Button("Journal folder", systemImage: "folder") {
+                                        showingJournalFolder = true
+                                    }
+                                    .accessibilityIdentifier("journalFolderInfo")
+                                }
+                            }
+                            .sheet(isPresented: $showingJournalFolder) {
+                                JournalFolderSheet(root: root, fileCount: fileCount)
+                            }
+                    }
 
                 case .unavailable(let problem):
                     StorageProblemNotice(problem: problem) {
                         await journal.open()
                     }
+                    .navigationTitle("Aujour")
                 }
             }
-            .navigationTitle("Aujour")
         }
         .task { await journal.open() }
+        .onChange(of: scenePhase) { _, phase in
+            guard let today = journal.today else { return }
+            switch phase {
+            case .inactive, .background:
+                // The last chance to write: there is no next second to save in
+                // once the app is out of the way, and the debounce the editor
+                // is holding would be spent in it.
+                Task { await today.save() }
+            case .active:
+                // An app left running overnight comes back to a different day.
+                Task { await today.reopenIfTheDayTurned() }
+            @unknown default:
+                break
+            }
+        }
     }
 }
 
 /// Where the journal lives, said the way the user would find it in the Files
 /// app.
-private struct JournalRootSummary: View {
+///
+/// Behind a button rather than on the screen: it is the promise the app is
+/// built on — these are your files, and here is where they are — and it is
+/// also not what anyone opens a journal to read.
+private struct JournalFolderSheet: View {
     let root: JournalRoot
     let fileCount: Int
+
+    @Environment(\.dismiss) private var dismiss
 
     /// "iPhone" or "iPad" — the app runs on both, and the Files app names the
     /// on-device folder after whichever one this is.
     private var device: String { UIDevice.current.model }
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: root.location.symbolName(onDevice: device))
-                .font(.system(size: 44))
-                .foregroundStyle(.tint)
+        NavigationStack {
+            VStack(spacing: 16) {
+                Image(systemName: root.location.symbolName(onDevice: device))
+                    .font(.system(size: 44))
+                    .foregroundStyle(.tint)
 
-            Text(root.location.name(onDevice: device))
-                .font(.title3.weight(.semibold))
-                .accessibilityIdentifier("journalRootLocation")
+                Text(root.location.name(onDevice: device))
+                    .font(.title3.weight(.semibold))
+                    .accessibilityIdentifier("journalRootLocation")
 
-            Text(root.location.promise(onDevice: device))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+                Text(root.location.promise(onDevice: device))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
 
-            Text(fileCount == 1 ? "1 file" : "\(fileCount) files")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("journalFileCount")
+                Text(fileCount == 1 ? "1 file" : "\(fileCount) files")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("journalFileCount")
 
-            Text(root.url.path(percentEncoded: false))
-                .font(.caption2.monospaced())
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
-                .textSelection(.enabled)
-                .accessibilityIdentifier("journalRootPath")
+                Text(root.url.path(percentEncoded: false))
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("journalRootPath")
+            }
+            .padding()
+            .navigationTitle("Your journal folder")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
-        .padding()
+        .presentationDetents([.medium])
     }
 }
 
-/// The folder could not be reached. Says what happened and what to do, and
+/// A folder that could not be reached. Says what happened and what to do, and
 /// offers the retry — never a blank page that reads as a lost journal.
-private struct StorageProblemNotice: View {
+struct StorageProblemNotice: View {
     let problem: StorageProblem
     let retry: () async -> Void
 

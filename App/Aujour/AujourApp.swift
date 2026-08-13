@@ -4,7 +4,9 @@ import SwiftUI
 struct AujourApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            // A UI test journals into a folder of its own; everyone else
+            // journals into theirs (`UITestingJournal`).
+            ContentView(journal: UITestingJournal.fromLaunchEnvironment() ?? Journal())
         }
     }
 }

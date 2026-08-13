@@ -14,16 +14,33 @@ Two workflows split detection from execution:
    is closed as *completed*, or on a manual `workflow_dispatch`. It scans open
    `ready-for-agent` issues, parses each body's `## Blocked by` section (`- #N`
    bullets), and keeps the ones that are ready to work — never blocked, or with
-   every blocker now closed. For each, it applies the `agent-dispatched` label
-   (the idempotency guard) and fires `agent-implement.yml` with the issue
-   number.
+   every blocker now closed. For each, it fires `agent-implement.yml` with the
+   issue number and comments on the issue.
 2. **`agent-implement.yml`** (self-hosted Mac runner) runs
    `paseo run --detach --worktree claude/issue-<N> … "/implement issue #<N>"`.
    The `/implement` skill in the repo's Claude config carries the workflow
-   instructions — implement per AGENTS.md, push, open a PR that closes the
-   issue. `--detach` means the session runs under the Paseo daemon and outlives
-   the (short) runner job; `--worktree` keeps parallel sessions from clobbering
-   one checkout.
+   instructions — claim the issue with the `agent-dispatched` label, implement
+   per AGENTS.md, push, open a PR that closes the issue. `--detach` means the
+   session runs under the Paseo daemon and outlives the (short) runner job;
+   `--worktree` keeps parallel sessions from clobbering one checkout.
+
+### Who applies `agent-dispatched`
+
+The session does, as its first act — never the dispatcher. The label therefore
+means *a session really started on this issue*, not *a session was asked for*.
+That distinction matters when the Mac runner is offline: `agent-implement.yml`
+then sits queued for up to 24 h and may never run at all. A label applied at
+dispatch time would leave that issue looking claimed forever, holding an
+in-flight slot with nothing working it.
+
+Between dispatch and the session's first move nothing is labeled, so the
+dispatcher reads the spawn runs themselves to fill the gap. A run of
+`agent-implement.yml` holds its issue while it is queued or in progress, and
+for a 30-minute grace period after it succeeds — long enough for the session to
+boot and label the issue. A run that failed, was cancelled, or expired unclaimed
+in the queue holds nothing, so the issue goes back in the pool and is dispatched
+again on the next run. (Because the runs list is the guard, the dispatcher waits
+for each run it fires to become visible before moving on.)
 
 ### Scope rules
 
@@ -33,9 +50,12 @@ Two workflows split detection from execution:
 - **Umbrella issues are always skipped**: epics (`[Epic]` title prefix) and
   specs (`Spec:` title prefix). A human slices these into per-milestone child
   issues; a single agent session should never attempt one.
-- At most **3** issues carry the `agent-dispatched` label at once. Ready issues
-  beyond the cap are deferred; because every dispatcher run re-scans every open
-  `ready-for-agent` issue, they're picked up automatically on the next run.
+- At most **3** issues are in flight at once — counting both issues that carry
+  the `agent-dispatched` label and issues whose spawn run is still live. Ready
+  issues beyond the cap are deferred; because every dispatcher run re-scans
+  every open `ready-for-agent` issue, they're picked up automatically on the
+  next run. While the Mac is offline the cap applies to the queue, so at most
+  3 sessions pile up waiting for it.
 - If a session gives up, it removes the issue's `agent-dispatched` label and
   comments — which frees a slot and makes the issue eligible again.
 
@@ -78,11 +98,13 @@ rejects an unknown one outright.
 
 - **Create the `ready-for-agent` label** (repo → Issues → Labels): the
   dispatcher only ever considers issues carrying it. The `agent-dispatched`
-  label, by contrast, is created automatically on first dispatch.
-- **Add an `/implement` skill** at `.claude/skills/implement/`. The dispatch
+  label, by contrast, is created automatically on first dispatch — the
+  dispatcher creates it ahead of the session that will apply it.
+- **Keep the `/implement` skill** at `.claude/skills/implement/`. The dispatch
   prompt is just `/implement issue #<N>`, so the skill is what actually tells
-  the session how to work. This template does not ship one yet — without it a
-  dispatched session receives an unresolvable slash command.
+  the session how to work — including claiming the issue with the
+  `agent-dispatched` label. Without it a dispatched session receives an
+  unresolvable slash command.
 - **Use the `## Blocked by` convention** in issue bodies. The dispatcher parses
   `- #N` bullets under that exact heading:
 
@@ -125,5 +147,6 @@ after raising the in-flight cap or fixing a `## Blocked by` list.
 
 `agent-implement.yml` also accepts a manual run with any issue number, which
 bypasses the scope rules entirely — the escape hatch for an umbrella issue or
-one you haven't labeled `ready-for-agent`. Add the `agent-dispatched` label
-yourself if you want it counted against the in-flight cap.
+one you haven't labeled `ready-for-agent`. It still counts against the in-flight
+cap: the run holds the issue while it is live, and the session it spawns labels
+the issue like any other.

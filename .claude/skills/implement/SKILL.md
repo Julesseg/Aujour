@@ -6,7 +6,24 @@ disable-model-invocation: true
 
 Implement the work described by the user in the spec or tickets.
 
-First, if the work is a GitHub issue, add the `agent-dispatched` label: `gh issue edit <number> --add-label "agent-dispatched"`.
+**Before anything else**, if the work is a GitHub issue, claim it:
+
+```sh
+gh issue edit <number> --add-label "agent-dispatched"
+```
+
+This session is the only thing that applies that label — the auto-dispatcher
+deliberately does not, so the label always means a session really started and
+never that one was merely asked for (see `docs/agents/auto-dispatch.md`). Claim
+the issue first, before any other work: until you do, the dispatcher is holding
+the issue on a grace period that runs out.
+
+If the label does not exist yet, create it and retry: `gh label create
+agent-dispatched --color 1d76db --description "An agent session has been
+dispatched for this issue"`.
+
+If you give up on the issue, remove the label and comment saying why — that
+hands it back to the dispatcher and frees an in-flight slot.
 
 Use /tdd where possible, at pre-agreed seams.
 

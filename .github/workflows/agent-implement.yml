@@ -75,8 +75,8 @@ jobs:
           # --detach: the session runs under the Paseo daemon, so it outlives
           # this job; progress is visible in the Paseo apps. The prompt invokes
           # the /implement skill, which carries the full workflow instructions —
-          # this template does not ship it yet, so add `.claude/skills/implement/`
-          # before the first dispatch (see docs/agents/auto-dispatch.md).
+          # starting with claiming the issue with the `agent-dispatched` label,
+          # which nothing else applies (see docs/agents/auto-dispatch.md).
           paseo run --detach \
             --provider claude \
             --model "$MODEL" \

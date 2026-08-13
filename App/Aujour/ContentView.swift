@@ -11,6 +11,7 @@ import AujourCore
 struct ContentView: View {
     @State private var journal: Journal
     @State private var showingJournalFolder = false
+    @State private var showingCalendar = false
     @Environment(\.scenePhase) private var scenePhase
 
     init(journal: Journal = Journal()) {
@@ -31,15 +32,30 @@ struct ContentView: View {
                     // — but a blank page is the one thing this screen must
                     // never be, so the unreachable case is the spinner.
                     if let today = journal.today {
-                        TodayEntryView(editor: today)
+                        EntryView(editor: today)
                             .navigationTitle(today.day.spelledOut())
                             .navigationBarTitleDisplayMode(.inline)
                             .toolbar {
+                                ToolbarItem(placement: .topBarLeading) {
+                                    Button("Calendar", systemImage: "calendar") {
+                                        showingCalendar = true
+                                    }
+                                    .accessibilityIdentifier("openCalendar")
+                                }
                                 ToolbarItem(placement: .topBarTrailing) {
                                     Button("Journal folder", systemImage: "folder") {
                                         showingJournalFolder = true
                                     }
                                     .accessibilityIdentifier("journalFolderInfo")
+                                }
+                            }
+                            .navigationDestination(isPresented: $showingCalendar) {
+                                // Today's Entry is what the app is for, so the
+                                // history is a step away from it and back —
+                                // and coming back is what re-reads the folder
+                                // for a day just filled in.
+                                if let history = journal.history {
+                                    JournalCalendarView(calendar: history)
                                 }
                             }
                             .sheet(isPresented: $showingJournalFolder) {

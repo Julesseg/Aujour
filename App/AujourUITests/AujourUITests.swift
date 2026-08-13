@@ -91,6 +91,72 @@ final class AujourUITests: XCTestCase {
         XCTAssertEqual(fileCountAfterOpeningTheFolderSheet(app), "1 file")
     }
 
+    func testAPastDayIsFilledInFromTheCalendar() throws {
+        let app = launchApp(contentTemplate: "# {{title}}\n")
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        openCalendar(app, showingTheMonthOf: yesterday)
+
+        // A day nobody has written on, which is the whole premise of
+        // backfilling it.
+        let cell = app.buttons["day-\(entryName(for: yesterday))"]
+        XCTAssertTrue(cell.waitForExistence(timeout: 10), "yesterday was not on the calendar")
+        XCTAssertEqual(cell.value as? String, "Not written")
+        cell.tap()
+
+        // Spawned from the template with *that* day's date, not today's.
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), "yesterday's entry never opened")
+        XCTAssertEqual(editor.value as? String, "# \(entryName(for: yesterday))\n")
+
+        editor.tap()
+        editor.typeText("Filled in the next morning.")
+        goBack(app)
+
+        // The indicator follows the file: the day was written on, so it is
+        // marked, and it was marked by re-reading the folder.
+        expect(cell, toHaveValue: "Written")
+
+        // And it is all in a file — which the next launch, with nothing kept
+        // from this one, is what proves.
+        relaunch(app)
+        openCalendar(app, showingTheMonthOf: yesterday)
+        XCTAssertTrue(cell.waitForExistence(timeout: 30), "yesterday was not on the calendar")
+        expect(cell, toHaveValue: "Written")
+        cell.tap()
+
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), "yesterday's entry never reopened")
+        let written = try XCTUnwrap(editor.value as? String)
+        XCTAssertTrue(
+            written.contains("Filled in the next morning."),
+            "expected yesterday's words to have been written to its file, got: \(written)"
+        )
+    }
+
+    func testAFutureDayIsOnTheCalendarAndCannotBeWrittenIn() throws {
+        let app = launchApp()
+        let tomorrow = try XCTUnwrap(dayAfterToday())
+        openCalendar(app, showingTheMonthOf: tomorrow)
+
+        let cell = app.buttons["day-\(entryName(for: tomorrow))"]
+        XCTAssertTrue(cell.waitForExistence(timeout: 10), "tomorrow was not on the calendar")
+        XCTAssertFalse(cell.isEnabled, "a day that has not arrived cannot be written in")
+
+        // Tapped anyway: a locked day is one that does nothing, not one that
+        // opens an editor nobody can save from. Guarded because a tap at a
+        // place the app will not accept one is a failure about the tap, and
+        // this test is not about taps.
+        if cell.isHittable { cell.tap() }
+        XCTAssertFalse(
+            app.textViews["entryEditor"].waitForExistence(timeout: 3),
+            "tomorrow was opened for editing"
+        )
+    }
+
     // MARK: - Driving the app
 
     /// Launches the app onto a journal folder of this test's own.
@@ -122,11 +188,72 @@ final class AujourUITests: XCTestCase {
         return fileCount.label
     }
 
-    /// The name today's Entry file carries under the default Path Template —
-    /// what `{{title}}` resolves to.
-    private func todaysEntryName() -> String {
+    /// Opens the calendar and steps to the month a day is in.
+    ///
+    /// One step at most, because the days these tests are about are either
+    /// side of today — and the step is needed at all only on the 1st and the
+    /// last of a month, which is exactly when a calendar gets it wrong.
+    private func openCalendar(_ app: XCUIApplication, showingTheMonthOf day: Date) {
+        let calendar = app.buttons["openCalendar"]
+        XCTAssertTrue(calendar.waitForExistence(timeout: 30), "the journal never opened")
+        calendar.tap()
+        XCTAssertTrue(
+            app.staticTexts["calendarMonth"].waitForExistence(timeout: 10),
+            "the calendar never appeared"
+        )
+
+        let months = Calendar.current.dateComponents(
+            [.month],
+            from: startOfMonth(Date()),
+            to: startOfMonth(day)
+        ).month ?? 0
+        if months < 0 { app.buttons["previousMonth"].tap() }
+        if months > 0 { app.buttons["nextMonth"].tap() }
+    }
+
+    /// Back up one screen — the way out of a day, and out of the calendar.
+    private func goBack(_ app: XCUIApplication) {
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+    }
+
+    /// Waits for an element to say something. The folder is read after the
+    /// words are saved, so an indicator arrives a moment after the day it
+    /// belongs to has been written in.
+    private func expect(
+        _ element: XCUIElement,
+        toHaveValue value: String,
+        timeout: TimeInterval = 10
+    ) {
+        expectation(
+            for: NSPredicate(format: "value == %@", value),
+            evaluatedWith: element
+        )
+        waitForExpectations(timeout: timeout)
+    }
+
+    private func dayBeforeToday() -> Date? {
+        Calendar.current.date(byAdding: .day, value: -1, to: Date())
+    }
+
+    private func dayAfterToday() -> Date? {
+        Calendar.current.date(byAdding: .day, value: 1, to: Date())
+    }
+
+    private func startOfMonth(_ date: Date) -> Date {
+        Calendar.current.date(
+            from: Calendar.current.dateComponents([.year, .month], from: date)
+        )!
+    }
+
+    /// The name a day's Entry file carries under the default Path Template —
+    /// what `{{title}}` resolves to, and what the calendar names its cells by.
+    private func entryName(for date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: Date())
+        return formatter.string(from: date)
+    }
+
+    private func todaysEntryName() -> String {
+        entryName(for: Date())
     }
 }

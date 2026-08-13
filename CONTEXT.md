@@ -71,6 +71,16 @@ is not yet a file — nothing is written until the first edit, so a day that was
 opened and not written on leaves nothing behind, and "there is a file at the
 Entry's path" goes on meaning "that day is journaled".
 
+### Backfill
+Writing a past Journal Day after the fact: opening a day whose Entry does not
+exist and spawning it for *that* day, so a Monday nobody wrote on is not a
+permanent hole in the Journal. Reached from the calendar, where every day up
+to today can be opened; days that have not arrived are shown and locked, since
+there is no Entry to write before the day exists. A backfilled day is spawned
+and saved exactly like today's — the file appears at the first edit — and the
+Content Template's dates describe the day being written about, carrying the
+clock time it is being written at.
+
 ### Placeholder
 A `{{name}}` token in the Content Template (or typed directly into an Entry).
 Three kinds:

@@ -46,6 +46,12 @@ public struct JournalDay: Hashable, Comparable, Sendable, CustomStringConvertibl
         case past
         case current
         case future
+
+        /// Whether a day this far along can be written in — every day up to
+        /// today. A past day with no Entry is backfilled from the calendar,
+        /// and a future one is visible there but locked: there is no Entry to
+        /// write before the day has arrived (`v1-decisions.md`).
+        public var allowsWriting: Bool { self != .future }
     }
 
     /// Classifies this Journal Day against the one current at `instant`.

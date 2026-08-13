@@ -46,8 +46,9 @@ struct FileJournalStore: JournalStore {
     }
 
     /// A fresh coordinator per operation, as the class is meant to be used —
-    /// and on behalf of Aujour's presenter, so that this store's own writes
-    /// never come back to the app as changes somebody else made.
+    /// and on behalf of Aujour's presenter, which is part of what keeps this
+    /// store's own writes from coming back to the app as changes somebody else
+    /// made. The rest of that is `aujourWrote`, said as each write lands.
     private var coordinator: NSFileCoordinator {
         presenter?.coordinator ?? NSFileCoordinator(filePresenter: nil)
     }
@@ -187,14 +188,18 @@ struct FileJournalStore: JournalStore {
             // Coordinated for replacing, which is what an autosave is: the
             // other side is told the file is about to change and stops reading
             // it, instead of finding it changed underneath.
-            try coordinatedWrite(of: url, options: .forReplacing) { url in
+            try coordinatedWrite(of: url, options: .forReplacing) { writingTo in
                 try FileManager.default.createDirectory(
-                    at: url.deletingLastPathComponent(),
+                    at: writingTo.deletingLastPathComponent(),
                     withIntermediateDirectories: true
                 )
                 // Atomically, so an autosave interrupted mid-write leaves the
                 // previous Entry intact rather than half of two.
-                try contents.write(to: url, options: .atomic)
+                try contents.write(to: writingTo, options: .atomic)
+                // Said from inside the access, so that it is said before the
+                // folder can report the write — otherwise Aujour's own
+                // autosave races its way back to Aujour as news.
+                presenter?.aujourWrote(url)
             }
         } catch {
             throw JournalRootError.writeFailed(
@@ -232,12 +237,17 @@ struct FileJournalStore: JournalStore {
             // Both ends held at once, which is what a move is: the file leaves
             // one path and arrives at another, and no other app may be reading
             // either of them in between.
-            try coordinatedMove(from: fromURL, to: toURL) { fromURL, toURL in
+            try coordinatedMove(from: fromURL, to: toURL) { movingFrom, movingTo in
                 try FileManager.default.createDirectory(
-                    at: toURL.deletingLastPathComponent(),
+                    at: movingTo.deletingLastPathComponent(),
                     withIntermediateDirectories: true
                 )
-                try FileManager.default.moveItem(at: fromURL, to: toURL)
+                try FileManager.default.moveItem(at: movingFrom, to: movingTo)
+                // The file at its new path is Aujour's own doing, the same way
+                // a write is. The path it left is news in its own right —
+                // something that was there is not any more — so that end is
+                // left to be reported.
+                presenter?.aujourWrote(toURL)
             }
         } catch {
             throw JournalRootError.moveFailed(

@@ -71,9 +71,9 @@ struct CoordinatedJournalRootTests {
             let store = FileJournalStore(root: root, coordinatedBy: folder)
 
             // An autosave, from the app's own editor. Coordinated on behalf
-            // of the presenter, and — the part that is not free — written
-            // atomically, which puts a hidden temporary file beside the Entry
-            // on its way to replacing it.
+            // of the presenter, which is not by itself enough to go unheard:
+            // that exclusion is for the presenter of the file being written,
+            // and this one presents the folder the file sits in.
             try await store.writeText("Walked to the market, and", at: "2026/03/2026-03-01.md")
 
             // Told about it, the editor would re-read the file it had just

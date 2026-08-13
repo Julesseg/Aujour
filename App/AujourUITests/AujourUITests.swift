@@ -137,7 +137,11 @@ final class AujourUITests: XCTestCase {
         expect(cell, toHaveValue: "Written")
         cell.tap()
 
-        XCTAssertTrue(editor.waitForExistence(timeout: 10), "yesterday's entry never reopened")
+        XCTAssertTrue(
+            editor.waitForExistence(timeout: 10),
+            "yesterday's entry never reopened — the screen is showing: "
+                + app.staticTexts.allElementsBoundByIndex.map { $0.label }.joined(separator: " / ")
+        )
         let written = try XCTUnwrap(editor.value as? String)
         XCTAssertTrue(
             written.contains("Filled in the next morning."),

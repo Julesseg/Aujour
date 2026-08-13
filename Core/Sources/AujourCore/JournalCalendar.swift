@@ -67,7 +67,18 @@ public final class JournalCalendar {
 
         /// Every day of the month, in order and without the padding.
         public var days: [Day] {
-            weeks.flatMap { $0 }.compactMap { $0 }
+            cells.compactMap { $0 }
+        }
+
+        /// The whole grid in reading order: the weeks laid end to end, blanks
+        /// and all.
+        ///
+        /// What a grid actually draws, and what it should draw *from* — a cell
+        /// is identified by its place in this one sequence. Drawing weeks of
+        /// seven within a grid instead gives seven identities repeated once
+        /// per row, and cells that swap what they do when one of them changes.
+        public var cells: [Day?] {
+            weeks.flatMap { $0 }
         }
     }
 

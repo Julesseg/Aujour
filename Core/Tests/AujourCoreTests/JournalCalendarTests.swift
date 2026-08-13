@@ -105,6 +105,10 @@ struct JournalCalendarMonthTests {
 
         #expect(month.weekdayNames == ["S", "M", "T", "W", "T", "F", "S"])
         #expect(month.weeks.allSatisfy { $0.count == 7 })
+        // The grid a screen draws: the same cells, in one sequence, so that
+        // each has a place of its own to be identified by.
+        #expect(month.cells.count == month.weeks.count * 7)
+        #expect(month.cells.compactMap { $0 } == month.days)
         #expect(month.weeks.first?.prefix(3).allSatisfy { $0 == nil } == true)
         #expect(month.weeks.first?[3]?.day == JournalDay(year: 2026, month: 4, day: 1))
         // Thirty days after three blanks fill five rows, with the last two

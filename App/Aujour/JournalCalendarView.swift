@@ -105,15 +105,17 @@ struct JournalCalendarView: View {
 
     private var grid: some View {
         LazyVGrid(columns: Self.columns, spacing: 2) {
-            ForEach(Array(calendar.month.weeks.enumerated()), id: \.offset) { _, week in
-                // The padding a month starts and ends with keeps a column one
-                // weekday all the way down, so the blanks are cells too.
-                ForEach(Array(week.enumerated()), id: \.offset) { _, day in
-                    if let day {
-                        DayCell(day: day) { open(day.day) }
-                    } else {
-                        Color.clear.frame(height: 44)
-                    }
+            // One sequence rather than a row of seven per week: a cell is
+            // identified by its place in the grid, and seven identities
+            // repeated once per row would let cells swap what they do the
+            // moment a scan changes one of them. The padding a month starts
+            // and ends with is part of the sequence, which is what keeps a
+            // column one weekday all the way down.
+            ForEach(Array(calendar.month.cells.enumerated()), id: \.offset) { _, day in
+                if let day {
+                    DayCell(day: day) { open(day.day) }
+                } else {
+                    Color.clear.frame(height: 44)
                 }
             }
         }

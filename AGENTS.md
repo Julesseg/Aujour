@@ -67,8 +67,9 @@ the user's real folder, iCloud, file coordination. That code gets unit tests in
 `xcodebuild test` CI job as the XCUITest suite): fast, headless, and against
 real temporary folders. Reach for it whenever the alternative is an
 acceptance-level UI test proving something about a non-UI seam. It is not a
-licence to move logic out of Core — if a test there needs neither a file system
-nor a system framework, it belongs in Core.
+licence to move logic out of Core — the test target follows its subject, so
+anything that would need neither a file system nor a system framework to test
+should not have been written in `App/` in the first place.
 
 ### Always implement the UI part of an issue — never ask
 

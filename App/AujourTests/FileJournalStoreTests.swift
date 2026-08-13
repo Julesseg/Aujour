@@ -248,10 +248,10 @@ struct FileJournalStoreRealFolderTests {
 
             // An empty listing would tell the calendar the user never wrote
             // anything — the one answer that must never be a guess.
-            await #expect(throws: JournalStorageError.journalRootUnavailable) {
+            await #expect(throws: JournalRootError.journalRootUnavailable) {
                 try await store.listFiles()
             }
-            await #expect(throws: JournalStorageError.journalRootUnavailable) {
+            await #expect(throws: JournalRootError.journalRootUnavailable) {
                 try await store.writeText("Today.", at: "day.md")
             }
         }
@@ -286,20 +286,47 @@ struct FileJournalStoreRealFolderTests {
 
             // But its words are not here yet, and the placeholder's own bytes
             // are not the user's Entry.
-            await #expect(throws: JournalStorageError.notDownloaded("2026/03/2026-03-01.md")) {
+            await #expect(throws: JournalRootError.notDownloaded("2026/03/2026-03-01.md")) {
                 try await store.readText(at: "2026/03/2026-03-01.md")
             }
             // Writing would replace a version of the day this device has
             // never seen.
-            await #expect(throws: JournalStorageError.notDownloaded("2026/03/2026-03-01.md")) {
+            await #expect(throws: JournalRootError.notDownloaded("2026/03/2026-03-01.md")) {
                 try await store.writeText("clobbered", at: "2026/03/2026-03-01.md")
             }
         }
     }
 
+    @Test("a folder that cannot be read through is an error, not a shorter journal")
+    func aFolderThatCannotBeReadThroughFailsRatherThanListingLess() async throws {
+        try await withTemporaryFolder { root in
+            try root.seed("Walked to the market.\n", at: "2026/03/2026-03-01.md")
+            try root.seed("February's last day.\n", at: "2026/02/2026-02-28.md")
+            let closed = root.appending(path: "2026/02")
+            try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: closed.path)
+            defer {
+                try? FileManager.default.setAttributes(
+                    [.posixPermissions: 0o755],
+                    ofItemAtPath: closed.path
+                )
+            }
+            let store: any JournalStore = FileJournalStore(root: root)
+
+            // Returning just March would say February was never written.
+            let failure = await #expect(throws: JournalRootError.self) {
+                try await store.listFiles()
+            }
+            guard case .readFailed(let path, _) = failure else {
+                Issue.record("expected the unreadable folder to be named, got \(String(describing: failure))")
+                return
+            }
+            #expect(path == "2026/02")
+        }
+    }
+
     @Test("every storage failure has a sentence to show the user")
     func storageFailuresArePresentable() {
-        let failures: [JournalStorageError] = [
+        let failures: [JournalRootError] = [
             .journalRootUnavailable,
             .notDownloaded("2026/03/2026-03-01.md"),
             .readFailed(path: "day.md", reason: "permission denied"),

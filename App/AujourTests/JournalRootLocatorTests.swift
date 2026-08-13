@@ -91,7 +91,7 @@ struct JournalRootLocatorTests {
 
             // Signed out of iCloud, today's entry would go somewhere the rest
             // of the journal is not. Better to say so.
-            #expect(throws: JournalStorageError.journalRootUnavailable) {
+            #expect(throws: JournalRootError.journalRootUnavailable) {
                 try locator.locate()
             }
         }
@@ -148,7 +148,7 @@ struct JournalRootLocatorTests {
                 rememberLocation: { _ in }
             )
 
-            #expect(throws: JournalStorageError.journalRootUnavailable) {
+            #expect(throws: JournalRootError.journalRootUnavailable) {
                 try locator.locate()
             }
         }

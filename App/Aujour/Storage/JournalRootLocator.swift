@@ -47,38 +47,35 @@ struct JournalRootLocator: Sendable {
     var rememberLocation: @Sendable (JournalRoot.Location) -> Void
 
     func locate() throws -> JournalRoot {
-        switch lastUsedLocation() {
-        case .iCloudDrive:
-            guard let url = usableFolder(at: iCloudDocuments()) else {
-                throw JournalStorageError.journalRootUnavailable
+        // Where this journal already lives is the whole answer; the only
+        // question left is whether it is reachable, and if not that is a
+        // failure rather than a different folder.
+        if let settled = lastUsedLocation() {
+            guard let url = folder(for: settled) else {
+                throw JournalRootError.journalRootUnavailable
             }
-            return JournalRoot(url: url, location: .iCloudDrive)
-
-        case .onThisDevice:
-            guard let url = usableFolder(at: onThisDeviceDocuments()) else {
-                throw JournalStorageError.journalRootUnavailable
-            }
-            return JournalRoot(url: url, location: .onThisDevice)
-
-        case nil:
-            let root =
-                usableFolder(at: iCloudDocuments()).map {
-                    JournalRoot(url: $0, location: .iCloudDrive)
-                }
-                ?? usableFolder(at: onThisDeviceDocuments()).map {
-                    JournalRoot(url: $0, location: .onThisDevice)
-                }
-            guard let root else { throw JournalStorageError.journalRootUnavailable }
-
-            rememberLocation(root.location)
-            return root
+            return JournalRoot(url: url, location: settled)
         }
+
+        // Nothing settled yet, so this is a first launch: iCloud Drive if it
+        // will have us, the device if not.
+        for location in [JournalRoot.Location.iCloudDrive, .onThisDevice] {
+            guard let url = folder(for: location) else { continue }
+            rememberLocation(location)
+            return JournalRoot(url: url, location: location)
+        }
+        throw JournalRootError.journalRootUnavailable
     }
 
-    /// The folder, made if it is not there yet — and `nil` if it cannot be one,
-    /// which for the iCloud container means iCloud Drive is off or has not
+    /// The folder for a location, made if it is not there yet — and `nil` if
+    /// it cannot be one, which for iCloud Drive means it is off or has not
     /// arrived on this device yet.
-    private func usableFolder(at url: URL?) -> URL? {
+    private func folder(for location: JournalRoot.Location) -> URL? {
+        let url =
+            switch location {
+            case .iCloudDrive: iCloudDocuments()
+            case .onThisDevice: onThisDeviceDocuments()
+            }
         guard let url else { return nil }
         do {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -90,10 +87,14 @@ struct JournalRootLocator: Sendable {
 }
 
 extension JournalRootLocator {
-    /// Aujour's iCloud container, named the way Apple requires and derived
-    /// rather than written down a third time — the entitlements and the
-    /// `NSUbiquitousContainers` Info.plist entry are the other two, and all
-    /// three have to agree.
+    /// Aujour's iCloud container, named the way Apple requires: `iCloud.` and
+    /// the app's own bundle identifier.
+    ///
+    /// The entitlements and the `NSUbiquitousContainers` Info.plist entry
+    /// spell the same identifier out — Apple's tooling reads both as literals,
+    /// so they cannot derive it. All three have to agree or the folder never
+    /// appears, silently, which is why a test holds them to it
+    /// (`FilesAppVisibilityTests`).
     static var iCloudContainerIdentifier: String {
         "iCloud.\(Bundle.main.bundleIdentifier ?? "")"
     }

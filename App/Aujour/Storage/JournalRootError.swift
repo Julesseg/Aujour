@@ -1,16 +1,18 @@
 import Foundation
 
-/// Why the folder on this device refused, in words the user can be shown.
+/// Why the real folder behind the Journal Root refused, in words the user can
+/// be shown.
 ///
 /// `JournalStoreError` covers the refusals every Journal Store shares, and
 /// says so diagnostically: they are paths that could not name a file, which
 /// is a bug rather than a sentence anyone wants to read. These are the other
-/// half — the ways a *real* folder fails, none of which the user caused and
-/// all of which they have to be told about, because the alternative to saying
-/// "iCloud has not sent this day down yet" is showing an empty page where
-/// their words should be (ADR 0001: the files are the journal, so a folder
-/// Aujour cannot reach is a journal it must not pretend to have read).
-enum JournalStorageError: Error, Equatable, LocalizedError {
+/// half — the ways a folder *on a device* fails, none of which the user
+/// caused and all of which they have to be told about, because the
+/// alternative to saying "iCloud has not sent this day down yet" is showing
+/// an empty page where their words should be (ADR 0001: the files are the
+/// journal, so a folder Aujour cannot reach is a journal it must not pretend
+/// to have read).
+enum JournalRootError: Error, Equatable, LocalizedError {
     /// The Journal Root is not there: iCloud Drive is signed out or still
     /// arriving, or the folder was moved or deleted from under the app.
     case journalRootUnavailable
@@ -47,18 +49,6 @@ enum JournalStorageError: Error, Equatable, LocalizedError {
             "Aujour has asked iCloud for it — this usually takes a moment. Nothing has been changed."
         case .readFailed, .writeFailed, .moveFailed:
             "Nothing has been changed. Try again in a moment; if it keeps happening, check that the folder is still where you left it."
-        }
-    }
-
-    /// What went wrong underneath, for a log rather than a person.
-    var failureReason: String? {
-        switch self {
-        case .journalRootUnavailable, .notDownloaded:
-            nil
-        case .readFailed(_, let reason), .writeFailed(_, let reason):
-            reason
-        case .moveFailed(_, let destination, let reason):
-            "moving to \(destination): \(reason)"
         }
     }
 }

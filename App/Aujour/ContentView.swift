@@ -10,12 +10,16 @@ import AujourCore
 /// anyone anything, and if it could not, it says so instead of showing an
 /// empty page.
 struct ContentView: View {
-    @State private var storage = JournalStorage()
+    @State private var journal: Journal
+
+    init(journal: Journal = Journal()) {
+        _journal = State(wrappedValue: journal)
+    }
 
     var body: some View {
         NavigationStack {
             Group {
-                switch storage.state {
+                switch journal.state {
                 case .opening:
                     ProgressView("Opening your journal")
                         .accessibilityIdentifier("openingJournal")
@@ -25,13 +29,13 @@ struct ContentView: View {
 
                 case .unavailable(let problem):
                     StorageProblemNotice(problem: problem) {
-                        await storage.open()
+                        await journal.open()
                     }
                 }
             }
             .navigationTitle("Aujour")
         }
-        .task { await storage.open() }
+        .task { await journal.open() }
     }
 }
 
@@ -41,17 +45,21 @@ private struct JournalRootSummary: View {
     let root: JournalRoot
     let fileCount: Int
 
+    /// "iPhone" or "iPad" — the app runs on both, and the Files app names the
+    /// on-device folder after whichever one this is.
+    private var device: String { UIDevice.current.model }
+
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: root.location == .iCloudDrive ? "icloud" : "iphone")
+            Image(systemName: root.location.symbolName(onDevice: device))
                 .font(.system(size: 44))
                 .foregroundStyle(.tint)
 
-            Text(root.location.name)
+            Text(root.location.name(onDevice: device))
                 .font(.title3.weight(.semibold))
                 .accessibilityIdentifier("journalRootLocation")
 
-            Text(root.location.promise)
+            Text(root.location.promise(onDevice: device))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -93,6 +101,31 @@ private struct StorageProblemNotice: View {
     }
 }
 
-#Preview("In iCloud Drive") {
-    ContentView()
+// Previews journal into a scratch folder rather than into whatever this Mac's
+// iCloud Drive holds, so each one shows the state it is named after.
+#Preview("Journaling into iCloud Drive") {
+    ContentView(journal: Journal(locator: .preview(.iCloudDrive)))
+}
+
+#Preview("Journaling on the device") {
+    ContentView(journal: Journal(locator: .preview(.onThisDevice)))
+}
+
+#Preview("Nowhere to journal") {
+    ContentView(journal: Journal(locator: .preview(nil)))
+}
+
+extension JournalRootLocator {
+    /// A locator over a scratch folder, pinned to one location — or to none,
+    /// for the failure the user would see with iCloud Drive off and the app's
+    /// own folder unreachable.
+    fileprivate static func preview(_ location: JournalRoot.Location?) -> JournalRootLocator {
+        let folder = URL.temporaryDirectory.appending(path: "AujourPreview/\(location?.rawValue ?? "none")")
+        return JournalRootLocator(
+            iCloudDocuments: { location == .iCloudDrive ? folder : nil },
+            onThisDeviceDocuments: { location == .onThisDevice ? folder : URL(filePath: "/dev/null/nowhere") },
+            lastUsedLocation: { nil },
+            rememberLocation: { _ in }
+        )
+    }
 }

@@ -22,16 +22,18 @@ struct StorageProblem: Equatable, Sendable {
     }
 }
 
-/// The app's live connection to the journal folder: finds the Journal Root on
-/// launch, opens a Journal Store over it, and holds whichever of the two
-/// answers came back for the UI to render.
+/// The user's Journal, as this installation has it: the folder found on
+/// launch, a Journal Store over it, and whichever of the two answers came
+/// back for the screen to render.
 ///
-/// This is the whole of "a fresh install just works" as the screen sees it.
-/// Nothing above here knows about iCloud or `URL`s — the rest of the app takes
-/// the `store` and asks a folder of files questions (ADR 0001).
+/// There is exactly one per app installation, which is what the glossary
+/// means by a Journal — the app holds no journal content of its own, only the
+/// way in to the files. This is the whole of "a fresh install just works" as
+/// the screen sees it; nothing above here knows about iCloud or `URL`s
+/// (ADR 0001).
 @MainActor
 @Observable
-final class JournalStorage {
+final class Journal {
     enum State: Equatable {
         /// Finding the folder. Asking iCloud for the container is slow the
         /// first time on a device, so this is a state and not a blink.
@@ -80,21 +82,31 @@ final class JournalStorage {
 
 extension JournalRoot.Location {
     /// Where the user would go looking for their journal in the Files app.
-    var name: String {
+    ///
+    /// The device's own name for itself, because "On My iPhone" on an iPad
+    /// names a place that is not there — the app runs on both.
+    func name(onDevice device: String) -> String {
         switch self {
         case .iCloudDrive: "iCloud Drive › Aujour"
-        case .onThisDevice: "On My iPhone › Aujour"
+        case .onThisDevice: "On My \(device) › Aujour"
         }
     }
 
     /// What being in this place means for their words — the part that decides
     /// whether deleting the app costs them anything.
-    var promise: String {
+    func promise(onDevice device: String) -> String {
         switch self {
         case .iCloudDrive:
             "Your entries are markdown files here. They sync to your other devices, and they stay in iCloud Drive even if you delete Aujour."
         case .onThisDevice:
-            "iCloud Drive is off, so your entries are markdown files on this iPhone only. Turn on iCloud Drive to sync them and keep them if you delete Aujour."
+            "iCloud Drive is off, so your entries are markdown files on this \(device) only. Turn on iCloud Drive to sync them and keep them if you delete Aujour."
+        }
+    }
+
+    func symbolName(onDevice device: String) -> String {
+        switch self {
+        case .iCloudDrive: "icloud"
+        case .onThisDevice: device.lowercased() == "ipad" ? "ipad" : "iphone"
         }
     }
 }

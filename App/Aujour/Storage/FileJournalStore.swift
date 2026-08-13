@@ -14,15 +14,17 @@ import AujourCore
 /// touched.
 ///
 /// What it adds is what only a real folder can go wrong at, and each of those
-/// is a `JournalStorageError` with a sentence for the user rather than a
+/// is a `JournalRootError` with a sentence for the user rather than a
 /// silence: the folder can be gone, and iCloud may not have brought a file's
 /// content down yet.
 ///
 /// Not here yet, and deliberately: file coordination, external-change
-/// notification, and version-based divergence handling. This store writes and
-/// reads on its own, which is right while Aujour owns the folder it writes to
-/// and wrong the moment Obsidian is editing the same file — the seam is where
-/// M2 adds coordination, without the domain above noticing.
+/// notification, version-based divergence handling, and *waiting* for iCloud
+/// to bring a file down — this store asks for the download and refuses the
+/// operation, rather than blocking on it. That is right while Aujour owns the
+/// folder it writes to, and wrong the moment Obsidian is editing the same
+/// file: the seam is where M2 adds all four, without the domain above
+/// noticing.
 struct FileJournalStore: JournalStore {
     /// The folder every path in this store is relative to.
     let root: URL
@@ -34,14 +36,23 @@ struct FileJournalStore: JournalStore {
     func listFiles() async throws -> [String] {
         try checkTheRootIsThere()
 
+        // A folder that could not be read all the way through gives a *short*
+        // listing, which is the same shape as an answer and a different fact:
+        // it would show as days the user never journaled. So the first subtree
+        // that refuses stops the walk and becomes the error.
+        let unreadable = UnreadableFolder()
         guard
             let enumerator = FileManager.default.enumerator(
                 at: root,
                 includingPropertiesForKeys: [.isDirectoryKey],
-                options: []
+                options: [],
+                errorHandler: { url, error in
+                    unreadable.record(url: url, error: error)
+                    return false
+                }
             )
         else {
-            throw JournalStorageError.journalRootUnavailable
+            throw JournalRootError.journalRootUnavailable
         }
 
         // A set because a file and the placeholder standing in for it can
@@ -75,6 +86,13 @@ struct FileJournalStore: JournalStore {
             if isDirectory { continue }
             paths.insert(relativePath(of: url))
         }
+
+        if let failure = unreadable.failure {
+            throw JournalRootError.readFailed(
+                path: relativePath(of: failure.url),
+                reason: failure.error.localizedDescription
+            )
+        }
         // Sorted only so that the same folder reads back the same way twice;
         // `JournalStore` promises no order, and callers sort by Journal Day.
         return paths.sorted()
@@ -101,7 +119,7 @@ struct FileJournalStore: JournalStore {
         do {
             return try Data(contentsOf: url)
         } catch {
-            throw JournalStorageError.readFailed(
+            throw JournalRootError.readFailed(
                 path: path.string,
                 reason: error.localizedDescription
             )
@@ -128,7 +146,7 @@ struct FileJournalStore: JournalStore {
             // previous Entry intact rather than half of two.
             try contents.write(to: url, options: .atomic)
         } catch {
-            throw JournalStorageError.writeFailed(
+            throw JournalRootError.writeFailed(
                 path: path.string,
                 reason: error.localizedDescription
             )
@@ -143,13 +161,15 @@ struct FileJournalStore: JournalStore {
         try checkTheRootIsThere()
 
         let fromURL = url(for: from)
-        try askICloudFor(fromURL, at: from)
-        guard isRegularFile(at: fromURL) else {
+        guard isRegularFile(at: fromURL) || isEvicted(at: fromURL) else {
             throw JournalStoreError.fileNotFound(from.string)
         }
-        // Checked before the destination, so that moving a file onto itself is
-        // the no-op it is on a real folder rather than a collision with itself.
+        // Checked before anything about the destination, so that moving a file
+        // onto itself is the no-op it is on a real folder rather than a
+        // collision with itself — or, for a file iCloud has not sent down, a
+        // wait for a download that the move would not have needed.
         guard from != to else { return }
+        try askICloudFor(fromURL, at: from)
 
         let toURL = url(for: to)
         try checkAFileCanLive(at: to)
@@ -164,7 +184,7 @@ struct FileJournalStore: JournalStore {
             )
             try FileManager.default.moveItem(at: fromURL, to: toURL)
         } catch {
-            throw JournalStorageError.moveFailed(
+            throw JournalRootError.moveFailed(
                 source: from.string,
                 destination: to.string,
                 reason: error.localizedDescription
@@ -192,7 +212,7 @@ struct FileJournalStore: JournalStore {
         var isDirectory: ObjCBool = false
         let exists = FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory)
         guard exists, isDirectory.boolValue else {
-            throw JournalStorageError.journalRootUnavailable
+            throw JournalRootError.journalRootUnavailable
         }
     }
 
@@ -268,6 +288,21 @@ struct FileJournalStore: JournalStore {
             FileManager.default.fileExists(atPath: placeholder.path) ? placeholder : url
         try? FileManager.default.startDownloadingUbiquitousItem(at: toDownload)
 
-        throw JournalStorageError.notDownloaded(path.string)
+        throw JournalRootError.notDownloaded(path.string)
+    }
+}
+
+/// The first subtree a folder walk could not read, kept so the walk can end
+/// as an error instead of a short answer.
+///
+/// A reference because `FileManager`'s error handler is a closure the
+/// enumerator holds; unchecked because the enumeration it belongs to runs on
+/// one task, start to finish.
+private final class UnreadableFolder: @unchecked Sendable {
+    private(set) var failure: (url: URL, error: any Error)?
+
+    func record(url: URL, error: any Error) {
+        guard failure == nil else { return }
+        failure = (url, error)
     }
 }

@@ -39,7 +39,9 @@ struct JournalCalendarView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $opened) { opened in
             EntryView(editor: opened.editor)
-                .navigationTitle(opened.day.spelledOut())
+                // With its year: a day reached from the calendar can be years
+                // back, and every February has a 14th.
+                .navigationTitle(opened.day.spelledOut(withYear: true))
                 .navigationBarTitleDisplayMode(.inline)
         }
         // Read on the way in rather than remembered: the indicators are a
@@ -118,10 +120,10 @@ struct JournalCalendarView: View {
     }
 
     private func open(_ day: JournalDay) {
-        // Today's Entry is the screen this calendar was opened from, and it
-        // is already being written into. Opening a second editor over the
-        // same file would have two of them autosaving one day, so today is a
-        // way back rather than a way in.
+        // Today is not somewhere to go: it is the screen this calendar was
+        // opened from, so tapping it goes back rather than forward. Which is
+        // also what keeps the app to one editor per Entry — the one already
+        // open over today's file, not a second autosaving over it.
         guard day != calendar.today else {
             dismiss()
             return
@@ -181,7 +183,7 @@ private struct DayCell: View {
         // no Entry to write before it has arrived.
         .disabled(!day.isOpenable)
         .accessibilityIdentifier("day-\(day.day)")
-        .accessibilityLabel(day.day.spelledOut())
+        .accessibilityLabel(day.day.spelledOut(withYear: true))
         .accessibilityValue(day.isJournaled ? "Written" : "Not written")
     }
 }

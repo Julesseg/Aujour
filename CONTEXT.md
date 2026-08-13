@@ -71,6 +71,15 @@ is not yet a file — nothing is written until the first edit, so a day that was
 opened and not written on leaves nothing behind, and "there is a file at the
 Entry's path" goes on meaning "that day is journaled".
 
+### Calendar
+The Journal seen a month at a time: every Journal Day of a month, marked where
+its Entry file exists. The marks are a scan of the Journal Root against the
+current Path Template and are kept nowhere else — a disposable cache in ADR
+0001's sense, where deleting it loses nothing and rebuilding it *is* reading
+the journal. The Calendar is also the way into a day: every day up to today
+can be opened (see Backfill), and days that have not arrived are shown and
+locked.
+
 ### Backfill
 Writing a past Journal Day after the fact: opening a day whose Entry does not
 exist and spawning it for *that* day, so a Monday nobody wrote on is not a

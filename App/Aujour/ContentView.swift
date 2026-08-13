@@ -49,15 +49,6 @@ struct ContentView: View {
                                     .accessibilityIdentifier("journalFolderInfo")
                                 }
                             }
-                            .navigationDestination(isPresented: $showingCalendar) {
-                                // Today's Entry is what the app is for, so the
-                                // history is a step away from it and back —
-                                // and coming back is what re-reads the folder
-                                // for a day just filled in.
-                                if let history = journal.history {
-                                    JournalCalendarView(calendar: history)
-                                }
-                            }
                             .sheet(isPresented: $showingJournalFolder) {
                                 JournalFolderSheet(root: root, fileCount: fileCount)
                                     // Counted again on the way in: the number
@@ -75,6 +66,18 @@ struct ContentView: View {
                         await journal.open()
                     }
                     .navigationTitle("Aujour")
+                }
+            }
+            // Declared outside the states rather than beside the button that
+            // opens it: a destination registered only while one branch of a
+            // switch is on screen is one the stack can find itself without.
+            //
+            // Today's Entry is what the app is for, so the calendar is a step
+            // away from it and back — and coming back is what re-reads the
+            // folder for a day just filled in.
+            .navigationDestination(isPresented: $showingCalendar) {
+                if let calendar = journal.calendar {
+                    JournalCalendarView(calendar: calendar)
                 }
             }
         }

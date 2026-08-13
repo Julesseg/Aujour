@@ -56,13 +56,13 @@ final class Journal {
     /// so instead of showing an empty page (ADR 0001).
     private(set) var today: EntryEditor?
 
-    /// The Journal's history, over the same folder: which days were written
-    /// on, and the way back into any of them.
+    /// The Journal a month at a time, over the same folder: which days were
+    /// written on, and the way back into any of them.
     ///
     /// Made once and kept, so that a month browsed to is still the month on
     /// screen the next time the calendar is opened. What it holds is only a
     /// scan of the folder, and throwing it away costs nothing (ADR 0001).
-    private(set) var history: JournalCalendar?
+    private(set) var calendar: JournalCalendar?
 
     private let locator: JournalRootLocator
     private let settings: JournalSettings
@@ -78,18 +78,18 @@ final class Journal {
     func open() async {
         state = .opening
         today = nil
-        history = nil
+        calendar = nil
         do {
             let opened = try await Self.openJournal(using: locator)
             let editor = EntryEditor(store: opened.store, settings: settings)
             store = opened.store
             today = editor
-            history = JournalCalendar(store: opened.store, settings: settings)
+            calendar = JournalCalendar(store: opened.store, settings: settings)
             state = .open(opened.root, fileCount: opened.fileCount)
             await editor.open()
         } catch {
             store = nil
-            history = nil
+            calendar = nil
             state = .unavailable(StorageProblem(error))
         }
     }

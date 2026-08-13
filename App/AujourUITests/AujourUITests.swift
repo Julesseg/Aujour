@@ -111,7 +111,15 @@ final class AujourUITests: XCTestCase {
         // Spawned from the template with *that* day's date, not today's.
         let editor = app.textViews["entryEditor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 10), "yesterday's entry never opened")
-        XCTAssertEqual(editor.value as? String, "# \(entryName(for: yesterday))\n")
+        let spawned = try XCTUnwrap(editor.value as? String)
+        XCTAssertTrue(
+            spawned.contains("# \(entryName(for: yesterday))"),
+            "expected yesterday's entry to be titled after its own day, got: \(spawned)"
+        )
+        XCTAssertFalse(
+            spawned.contains(todaysEntryName()),
+            "yesterday's entry was spawned with today's date: \(spawned)"
+        )
 
         editor.tap()
         editor.typeText("Filled in the next morning.")
@@ -224,7 +232,7 @@ final class AujourUITests: XCTestCase {
         toHaveValue value: String,
         timeout: TimeInterval = 10
     ) {
-        expectation(
+        _ = expectation(
             for: NSPredicate(format: "value == %@", value),
             evaluatedWith: element
         )

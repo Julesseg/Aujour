@@ -312,6 +312,17 @@ struct JournalDaySpellingTests {
         #expect(!spelled.contains("2026"))
     }
 
+    @Test("a day reached from the calendar says which year it belongs to")
+    func spelledOutWithTheYearNamesIt() {
+        // Every February has a 14th, and the calendar can reach all of them.
+        let spelled = JournalDay(year: 2026, month: 3, day: 1)
+            .spelledOut(withYear: true, in: paris, locale: Locale(identifier: "en_US_POSIX"))
+
+        #expect(spelled.contains("Sunday"))
+        #expect(spelled.contains("March"))
+        #expect(spelled.contains("2026"))
+    }
+
     @Test("the ISO-8601 form is what paths are made of, whoever is reading")
     func descriptionStaysISO() {
         #expect(JournalDay(year: 2026, month: 3, day: 1).description == "2026-03-01")

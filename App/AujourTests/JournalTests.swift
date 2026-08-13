@@ -61,8 +61,8 @@ struct JournalStorageTests {
         }
     }
 
-    @Test("the journal's history marks the days the folder actually holds")
-    func theHistoryIsScannedFromTheSameFolder() async throws {
+    @Test("the journal's calendar marks the days the folder actually holds")
+    func theCalendarIsScannedFromTheSameFolder() async throws {
         try await withTemporaryFolder { folders in
             let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
             let today = JournalDay.current(at: .now, in: .current, rolloverHour: .midnight)
@@ -75,17 +75,17 @@ struct JournalStorageTests {
             let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders))
 
             await journal.open()
-            let history = try #require(journal.history)
-            await history.scan()
+            let calendar = try #require(journal.calendar)
+            await calendar.scan()
             // The month that day is in — a step back when the last two days
             // crossed the turn of a month.
-            if earlier.month != today.month { history.showPreviousMonth() }
+            if earlier.month != today.month { calendar.showPreviousMonth() }
 
-            #expect(history.problem == nil)
-            #expect(history.month.days.filter(\.isJournaled).map(\.day) == [earlier])
+            #expect(calendar.problem == nil)
+            #expect(calendar.month.days.filter(\.isJournaled).map(\.day) == [earlier])
             // And it is the way in to that day: what the calendar opens is
             // the Entry the folder holds.
-            let editor = try #require(history.editor(for: earlier))
+            let editor = try #require(calendar.editor(for: earlier))
             await editor.open()
             #expect(editor.content == "Rain all day.\n")
         }
@@ -137,7 +137,7 @@ struct JournalStorageTests {
             // calendar over it would mark no days at all, which is what an
             // empty journal looks like.
             #expect(journal.today == nil)
-            #expect(journal.history == nil)
+            #expect(journal.calendar == nil)
         }
     }
 

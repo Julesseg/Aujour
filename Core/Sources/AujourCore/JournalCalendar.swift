@@ -122,8 +122,9 @@ public final class JournalCalendar {
 
         let today = JournalDay.current(at: now(), in: timeZone, rolloverHour: settings.rolloverHour)
         self.visible = (today.year, today.month)
-        // Laid out before anything has been read: the grid is on screen from
-        // the first frame, and the indicators arrive when the folder answers.
+        // Empty for the one line it takes to lay the month out properly:
+        // `month` is a stored property, so it has to hold something before
+        // any method of this object can fill it in. Nothing ever reads this.
         self.month = Month(
             year: today.year,
             month: today.month,
@@ -131,6 +132,8 @@ public final class JournalCalendar {
             weekdayNames: [],
             weeks: []
         )
+        // The grid is on screen from the first frame, with no indicators on
+        // it yet: those arrive when the folder answers a `scan()`.
         layOutTheMonth()
     }
 
@@ -205,7 +208,11 @@ public final class JournalCalendar {
     /// tapped.
     ///
     /// A fresh editor each time, pinned to the day asked for. It is the
-    /// caller's to open and to keep for as long as that day is on screen.
+    /// caller's to open and to keep for as long as that day is on screen —
+    /// and to ask for only once per day at a time: two editors over one Entry
+    /// would autosave that day's file over each other. Today's Entry is
+    /// usually already open elsewhere in an app, which is why this answers
+    /// for it too rather than deciding whose editor that is.
     public func editor(for day: JournalDay) -> EntryEditor? {
         guard relation(of: day).allowsWriting else { return nil }
         return EntryEditor(

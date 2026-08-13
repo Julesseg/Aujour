@@ -130,16 +130,24 @@ public struct JournalDay: Hashable, Comparable, Sendable, CustomStringConvertibl
     /// The day as someone would say it out loud — "Sunday, March 1" — for a
     /// screen showing one day at a time.
     ///
-    /// No year in it: a journal is read a day at a time, and the year is in
-    /// the Entry's own file name for anyone who wants it. Localized, because
-    /// this is the one place a Journal Day is read rather than matched — the
-    /// paths it renders to are `description`'s business and stay ISO-8601
-    /// wherever the user is.
-    public func spelledOut(in timeZone: TimeZone = .current, locale: Locale = .current) -> String {
-        let style = Date.FormatStyle(locale: locale, timeZone: timeZone)
+    /// No year in it by default: the days a journal is opened on are today's
+    /// and the ones either side of it, and the year is in the Entry's own file
+    /// name for anyone who wants it. A day reached from the calendar asks for
+    /// one, because that day can be years back and every February has a 14th.
+    ///
+    /// Localized, because this is the one place a Journal Day is read rather
+    /// than matched — the paths it renders to are `description`'s business and
+    /// stay ISO-8601 wherever the user is.
+    public func spelledOut(
+        withYear: Bool = false,
+        in timeZone: TimeZone = .current,
+        locale: Locale = .current
+    ) -> String {
+        var style = Date.FormatStyle(locale: locale, timeZone: timeZone)
             .weekday(.wide)
             .day()
             .month(.wide)
+        if withYear { style = style.year() }
         return startOfDay(in: timeZone).formatted(style)
     }
 

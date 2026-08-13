@@ -245,6 +245,22 @@ struct JournalCalendarIndicatorTests {
         #expect(session.calendar.month.cell(14)?.isJournaled == true)
     }
 
+    @Test("a scan that failed leaves the last reading of the folder standing")
+    func aFailedScanKeepsWhatWasLastRead() async {
+        let session = CalendarSession(files: Self.folder)
+        await session.calendar.scan()
+
+        session.store.refuseListing = JournalStoreError.fileNotFound("2026")
+        await session.calendar.scan()
+
+        // The days that were there are still there — the folder did not
+        // answer, and unmarking them would say the opposite of what is known.
+        // What has changed is that the calendar can no longer promise the
+        // reading is current, and says so.
+        #expect(session.calendar.month.days.filter(\.isJournaled).map(\.day.day) == [1, 14])
+        #expect(session.calendar.problem != nil)
+    }
+
     @Test("a Path Template that cannot name a day is reported, not guessed at")
     func anUnusablePathTemplateIsReported() async {
         let session = CalendarSession(

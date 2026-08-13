@@ -48,16 +48,17 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
     ///
     /// One stream with one reader, which is the `Journal`: it is the only
     /// thing that knows which Entry is on screen and therefore what a change
-    /// means. Nothing says *what* changed, deliberately — an Entry's file is
-    /// one path, and whoever holds it can ask about it far more cheaply than
-    /// this can guess.
+    /// means. What each change *says* is only ever which file it was about,
+    /// and only so that a change can be recognised — for deciding what to do
+    /// about one, whoever holds the Entry can ask the folder far more cheaply
+    /// than this can guess.
     ///
     /// The newest element only. A folder in a vault changes in bursts (iCloud
     /// arriving with an evening's worth of another device's notes), and
     /// catching up once with the folder as it now is answers all of them.
-    let changes: AsyncStream<Void>
+    let changes: AsyncStream<JournalRootChange>
 
-    private let announce: AsyncStream<Void>.Continuation
+    private let announce: AsyncStream<JournalRootChange>.Continuation
 
     private let registration = NSLock()
     private var registered = false
@@ -72,7 +73,7 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
         queue.maxConcurrentOperationCount = 1
         presentedItemOperationQueue = queue
 
-        let (stream, continuation) = AsyncStream<Void>.makeStream(
+        let (stream, continuation) = AsyncStream<JournalRootChange>.makeStream(
             bufferingPolicy: .bufferingNewest(1)
         )
         changes = stream
@@ -117,23 +118,28 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
 
     /// The folder itself changed — a file added or removed directly under it.
     func presentedItemDidChange() {
-        announce.yield(())
+        announce.yield(.theFolder)
     }
 
     /// A file somewhere under the folder was written to.
     func presentedSubitemDidChange(at url: URL) {
-        announce.yield(())
+        report(url)
     }
 
     /// A file appeared under the folder: another device's day, arriving.
     func presentedSubitemDidAppear(at url: URL) {
-        announce.yield(())
+        report(url)
     }
 
     /// A file under the folder was renamed or moved — which, for an Entry's
     /// path, is a day appearing or disappearing.
+    ///
+    /// Either end can be the news, so the one that is not hidden is what this
+    /// is about: a note dragged into a folder of its own arrives at a new
+    /// path, and one deleted in Obsidian leaves its own for the vault's
+    /// hidden `.trash`.
     func presentedSubitem(at oldURL: URL, didMoveTo newURL: URL) {
-        announce.yield(())
+        report(isHidden(newURL) ? oldURL : newURL)
     }
 
     /// Somebody is about to delete a file under the folder. Aujour holds
@@ -145,7 +151,7 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
         completionHandler: @escaping ((any Error)?) -> Void
     ) {
         completionHandler(nil)
-        announce.yield(())
+        report(url)
     }
 
     /// Somebody is about to delete the Journal Root itself. Agreed to for the
@@ -155,6 +161,62 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
         completionHandler: @escaping ((any Error)?) -> Void
     ) {
         completionHandler(nil)
-        announce.yield(())
+        announce.yield(.theFolder)
+    }
+
+    /// Reports a change to one file — unless it is to a file that could not be
+    /// part of the journal, which is most of what a folder in a vault does all
+    /// day.
+    ///
+    /// Hidden files are none of Aujour's business, exactly as they are none of
+    /// its business in a listing: `.obsidian/workspace.json` is rewritten
+    /// every time somebody moves a pane, `.DS_Store` every time a folder is
+    /// looked at, and — the one that matters here — a `.dat.nosync` beside an
+    /// Entry is Aujour's *own* atomic write on its way to being renamed into
+    /// place. Answering that would have every autosave come back as news.
+    ///
+    /// The exception is the same one a listing makes: the placeholder standing
+    /// in for a file iCloud has not sent down is hidden, and a day arriving
+    /// from another device is the very thing worth hearing about.
+    private func report(_ url: URL) {
+        guard !isHidden(url) else { return }
+        announce.yield(.file(url))
+    }
+
+    /// Whether anything between the Journal Root and this file is hidden.
+    ///
+    /// The whole path below the root, not just the name: a change to
+    /// `.obsidian/plugins/daily-notes/data.json` is a change to a file with an
+    /// ordinary name, under a folder that is somebody else's business.
+    private func isHidden(_ url: URL) -> Bool {
+        let root = presentedItemURL?.standardizedFileURL.pathComponents ?? []
+        let components = url.standardizedFileURL.pathComponents.dropFirst(root.count)
+        return components.contains { component in
+            component.hasPrefix(".") && !isAnEvictionPlaceholder(component)
+        }
+    }
+
+    /// Where iCloud leaves a marker for a file whose content is not on this
+    /// device: hidden, beside where the file belongs, named after it.
+    private func isAnEvictionPlaceholder(_ name: String) -> Bool {
+        name.hasPrefix(".") && name.hasSuffix(".icloud")
+    }
+}
+
+/// What a folder reported: the file it was about, or — where the system did
+/// not say — the folder itself.
+///
+/// Carried so that a change can be told from another one. Nothing decides
+/// what to *do* from this: an Entry is one path, and the editor over it asks
+/// the folder rather than reading anything into which file was named.
+enum JournalRootChange: Equatable, Sendable, CustomStringConvertible {
+    case file(URL)
+    case theFolder
+
+    var description: String {
+        switch self {
+        case .file(let url): "a change to \(url.lastPathComponent)"
+        case .theFolder: "a change to the folder itself"
+        }
     }
 }

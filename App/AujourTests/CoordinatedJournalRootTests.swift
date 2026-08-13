@@ -29,7 +29,7 @@ struct CoordinatedJournalRootTests {
                 at: "2026/03/2026-03-01.md"
             )
 
-            #expect(await changeIsReported(by: folder))
+            #expect(await changeReported(by: folder) != nil)
         }
     }
 
@@ -43,7 +43,22 @@ struct CoordinatedJournalRootTests {
             // yesterday's Entry down from the iPad looks like from here.
             try root.somebodyElseWrites("Rain all day.\n", at: "2026/02/2026-02-28.md")
 
-            #expect(await changeIsReported(by: folder))
+            #expect(await changeReported(by: folder) != nil)
+        }
+    }
+
+    @Test("a folder nobody has touched reports nothing")
+    func aQuietFolderIsQuiet() async throws {
+        try await withTemporaryFolder { root in
+            try root.seed("Walked to the market.\n", at: "2026/03/2026-03-01.md")
+            let folder = CoordinatedJournalRoot(root: root)
+            defer { folder.stopWatching() }
+
+            // The floor every other claim here stands on: presenting a folder
+            // is not itself news about it, or "somebody else wrote" would mean
+            // nothing.
+            let reported = await changeReported(by: folder, within: 1)
+            #expect(reported == nil, "a folder nobody wrote in reported \(reported as Any)")
         }
     }
 
@@ -55,12 +70,17 @@ struct CoordinatedJournalRootTests {
             defer { folder.stopWatching() }
             let store = FileJournalStore(root: root, coordinatedBy: folder)
 
-            // An autosave, from the app's own editor.
+            // An autosave, from the app's own editor. Coordinated on behalf
+            // of the presenter, and — the part that is not free — written
+            // atomically, which puts a hidden temporary file beside the Entry
+            // on its way to replacing it.
             try await store.writeText("Walked to the market, and", at: "2026/03/2026-03-01.md")
 
             // Told about it, the editor would re-read the file it had just
-            // written — and there is one of these every time the typing pauses.
-            #expect(await changeIsReported(by: folder, within: 1) == false)
+            // written and the calendar would walk the whole folder — and there
+            // is one of these every time the typing pauses.
+            let reported = await changeReported(by: folder, within: 1)
+            #expect(reported == nil, "Aujour's own write came back as \(reported as Any)")
         }
     }
 
@@ -77,36 +97,41 @@ struct CoordinatedJournalRootTests {
             folder.stopWatching()
             try root.somebodyElseWrites("Written after the move.\n", at: "2026/03/2026-03-01.md")
 
-            #expect(await changeIsReported(by: folder, within: 1) == false)
+            #expect(await changeReported(by: folder, within: 1) == nil)
         }
     }
 }
 
-/// Whether the folder reports a change within a deadline.
+/// The change the folder reports within a deadline, or `nil` for none.
 ///
 /// A deadline, because these are the only tests in the repo whose subject is
 /// something the system decides when to do: a presenter is told about another
 /// app's write when the system gets round to telling it. A change that has not
 /// arrived in five seconds is one that is not coming.
 ///
+/// What it reports and not merely that it did, so that a folder heard from
+/// when it should have been quiet says which file it was about — the
+/// difference between somebody else's Entry and Aujour's own write on its way
+/// through a temporary file.
+///
 /// Once per folder: giving up on the wait cancels the read of `changes`, and a
 /// cancelled read of an `AsyncStream` ends the stream for good.
-private func changeIsReported(
+private func changeReported(
     by folder: CoordinatedJournalRoot,
     within seconds: Double = 5
-) async -> Bool {
-    await withTaskGroup(of: Bool.self) { group in
+) async -> JournalRootChange? {
+    await withTaskGroup(of: JournalRootChange?.self) { group in
         group.addTask {
-            for await _ in folder.changes { return true }
+            for await change in folder.changes { return change }
             // The stream ended without one: the folder stopped being
             // presented, which is an answer too.
-            return false
+            return nil
         }
         group.addTask {
             try? await Task.sleep(for: .seconds(seconds))
-            return false
+            return nil
         }
-        let reported = await group.next() ?? false
+        let reported = await group.next() ?? nil
         group.cancelAll()
         return reported
     }

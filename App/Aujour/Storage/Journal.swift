@@ -144,7 +144,7 @@ final class Journal {
     /// folder here would be one more thing keeping a presenter alive for a
     /// journal nobody has open. What ends both is `stopKeepingUpWithTheFolder`
     /// — the stream ends when the presenting does, and this ends with it.
-    private func keepUpWith(_ changes: AsyncStream<Void>) {
+    private func keepUpWith(_ changes: AsyncStream<JournalRootChange>) {
         keepingUpWithTheFolder = Task { [weak self] in
             for await _ in changes {
                 await self?.catchUpWithTheFolder()

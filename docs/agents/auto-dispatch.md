@@ -16,8 +16,8 @@ Two workflows split detection from execution:
    bullets), and keeps the ones that are ready to work — never blocked, or with
    every blocker now closed. For each, it fires `agent-implement.yml` with the
    issue number and comments on the issue.
-2. **`agent-implement.yml`** (self-hosted Mac runner) runs
-   `paseo run --detach --worktree claude/issue-<N> … "/implement issue #<N>"`.
+2. **`agent-implement.yml`** (self-hosted Mac runner) re-checks the issue, then
+   runs `paseo run --detach --worktree claude/issue-<N> … "/implement issue #<N>"`.
    The `/implement` skill in the repo's Claude config carries the workflow
    instructions — claim the issue with the `agent-dispatched` label, implement
    per AGENTS.md, push, open a PR that closes the issue. `--detach` means the
@@ -41,6 +41,22 @@ boot and label the issue. A run that failed, was cancelled, or expired unclaimed
 in the queue holds nothing, so the issue goes back in the pool and is dispatched
 again on the next run. (Because the runs list is the guard, the dispatcher waits
 for each run it fires to become visible before moving on.)
+
+### The spawn-time re-check
+
+A spawn job can sit queued for hours, so what was true when the dispatcher
+fired it may not be true when the Mac finally picks it up. Before spawning
+anything, `agent-implement.yml` fetches the issue again and does nothing if:
+
+- **the issue is closed** — you finished it by hand while the Mac was asleep,
+  and a session for it now would redo settled work; or
+- **the issue already carries `agent-dispatched`** — a session is already on
+  it, so this run is a duplicate that queued behind the first.
+
+Both leave a notice on the run rather than failing it: nothing went wrong, the
+work simply no longer needs doing. A manual run can override either check by
+ticking **force**, which is how you re-dispatch an issue whose session died
+holding the label.
 
 ### Scope rules
 
@@ -149,4 +165,5 @@ after raising the in-flight cap or fixing a `## Blocked by` list.
 bypasses the scope rules entirely — the escape hatch for an umbrella issue or
 one you haven't labeled `ready-for-agent`. It still counts against the in-flight
 cap: the run holds the issue while it is live, and the session it spawns labels
-the issue like any other.
+the issue like any other. The spawn-time re-check still applies — a closed or
+already-claimed issue needs **force** ticked.

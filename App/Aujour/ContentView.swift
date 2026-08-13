@@ -24,6 +24,7 @@ struct ContentView: View {
                 case .opening:
                     ProgressView("Opening your journal")
                         .accessibilityIdentifier("openingJournal")
+                        .navigationTitle("Aujour")
 
                 case .open(let root, let fileCount):
                     if let today = journal.today {

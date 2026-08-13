@@ -16,11 +16,16 @@ import Foundation
 /// what to do about one is for whoever is reading that — the folder does not
 /// know what is on screen.
 ///
-/// Aujour's own writes are deliberately *not* among them: the coordinators
-/// this hands out are made on behalf of this presenter, and a presenter is
-/// never told about the writes it made itself. Without that, every autosave
-/// would come back as news and the editor would re-read the file it had just
-/// written, forever.
+/// Aujour's own writes are deliberately *not* among them. Without that, every
+/// autosave would come back as news: the editor would re-read the file it had
+/// just written, and the calendar would walk the whole folder, once per pause
+/// in the typing. It takes two things, because the obvious one is not enough —
+/// the coordinators this hands out are made on behalf of this presenter, which
+/// leaves it out of what its own writes report, but only as the presenter *of
+/// the file written*. This one presents the folder that file is in, so the
+/// change comes back anyway, as a change to something inside what it presents.
+/// What settles it is the file itself: one still exactly as Aujour left it is
+/// Aujour's own write coming back.
 ///
 /// Registration is global: a presenter goes on being one until it says
 /// otherwise, wherever the object holding it has got to. So `stopWatching()`
@@ -62,6 +67,15 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
 
     private let registration = NSLock()
     private var registered = false
+
+    private let ownWrites = NSLock()
+    /// When each file Aujour has written was last modified, as Aujour left it.
+    ///
+    /// Kept for the whole time a folder is presented, and that is the right
+    /// length: it is one date per file Aujour has written this session, and
+    /// the day a stale one is asked about is the day that file changed — which
+    /// is exactly when the answer stops being "ours" anyway.
+    private var asAujourLeftThem: [String: Date] = [:]
 
     init(root: URL) {
         presentedItemURL = root.standardizedFileURL
@@ -106,10 +120,40 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
         announce.finish()
     }
 
+    /// Told by the store when a write of Aujour's own has landed, from inside
+    /// the coordinated access that made it — before the folder can report it,
+    /// which is the only ordering that makes the answer below reliable.
+    func aujourWrote(_ url: URL) {
+        let path = url.standardizedFileURL.path
+        let modified = modificationDate(of: url)
+        ownWrites.lock()
+        asAujourLeftThem[path] = modified
+        ownWrites.unlock()
+    }
+
+    /// Whether this file is still exactly as Aujour left it — which makes a
+    /// change reported for it Aujour's own, coming back.
+    private func isAsAujourLeftIt(_ url: URL) -> Bool {
+        let path = url.standardizedFileURL.path
+        ownWrites.lock()
+        let asWeLeftIt = asAujourLeftThem[path]
+        ownWrites.unlock()
+
+        guard let asWeLeftIt else { return false }
+        return modificationDate(of: url) == asWeLeftIt
+    }
+
+    /// Asked of the file system every time rather than of the `URL`, which
+    /// keeps the answer it was first given.
+    private func modificationDate(of url: URL) -> Date? {
+        try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date
+    }
+
     /// A coordinator for Aujour's own reads and writes of this folder.
     ///
-    /// Made on behalf of this presenter, which is what keeps Aujour's own
-    /// writes from coming back to it as somebody else's changes.
+    /// Made on behalf of this presenter, which is half of what keeps Aujour's
+    /// own writes from coming back to it as somebody else's — `aujourWrote` is
+    /// the other half, and the half that actually settles it.
     var coordinator: NSFileCoordinator {
         NSFileCoordinator(filePresenter: self)
     }
@@ -179,7 +223,7 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
     /// in for a file iCloud has not sent down is hidden, and a day arriving
     /// from another device is the very thing worth hearing about.
     private func report(_ url: URL) {
-        guard !isHidden(url) else { return }
+        guard !isHidden(url), !isAsAujourLeftIt(url) else { return }
         announce.yield(.file(url))
     }
 

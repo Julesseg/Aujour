@@ -261,6 +261,10 @@ Full walkthrough, scope rules, the in-flight cap, and the optional variables:
   — on `macos-15` with the latest stable Xcode against the newest available
   iPhone simulator, unsigned (`CODE_SIGNING_ALLOWED=NO`). The `.xcresult`
   bundle is uploaded as an artifact on every run.
+- **Triggered on `pull_request` only.** A PR run tests `main` with the branch
+  merged in, so re-running on the push to `main` only re-tested the same tree
+  and doubled every check on the merged PR. Require branches to be up to date
+  before merging, so the PR run covers the commit that lands.
 - **Deployment target** is iOS 26.0 (`IPHONEOS_DEPLOYMENT_TARGET` in the
   pbxproj) with Swift 6 — adjust to your needs.
 - Workflows read the app identity from one `env:` block each (`APP_NAME`,

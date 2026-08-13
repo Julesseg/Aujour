@@ -27,7 +27,7 @@
     ]
   },
   "permissions": {
-    "defaultMode": "acceptEdits",
+    "defaultMode": "bypassPermissions",
     "allow": [
       "Bash",
       "Edit",
@@ -40,11 +40,8 @@
       "mcp__github",
       "mcp__Claude_Code_Remote",
       "mcp__bf7c680d-5fdc-5ef4-b4a0-abadb619bf0a",
-      "mcp__claude-code-remote",
       "mcp__e1431d5d-6f20-448a-8ae4-ccb678f9fe58",
-      "mcp__145e4840-d0e0-4a79-9015-077eb2938067",
-      "mcp__Figma",
-      "mcp__Google_Calendar"
+      "mcp__145e4840-d0e0-4a79-9015-077eb2938067"
     ]
   }
 }

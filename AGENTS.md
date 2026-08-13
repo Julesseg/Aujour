@@ -45,6 +45,26 @@ ready-for-agent, ready-for-human, wontfix). See `docs/agents/triage-labels.md`.
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See
 `docs/agents/domain.md`.
 
+### Permission prompts — don't "fix" them by editing the allow list
+
+`.claude/settings.json` is loaded and its `defaultMode` takes effect, but the
+`allow` list does **not** stop the prompts that scheduled check-ins produce.
+Each `send_later` trigger bakes a `session_context.allowed_tools` snapshot at
+creation time, and that snapshot contains **no MCP tools at all** — so a woken
+check-in has neither `mcp__github__*` (to read CI) nor `send_later` (to re-arm)
+pre-approved, and asks the human every time. Nothing written in this repo
+changes that snapshot.
+
+Four commits were spent adding tool names, server names, and guessed server
+names to `allow` before this was understood. `defaultMode` is the only lever
+here; it is set to `bypassPermissions`. If prompts return, fix the trigger's
+`allowed_tools`, or stop arming check-ins — do not add another `allow` entry.
+
+Note on MCP rule names: connector servers are keyed by **UUID**, not display
+name, so `mcp__Figma` and `mcp__Google_Calendar` never matched anything and
+have been removed. Check `mcpServers` in the session's MCP config for the real
+key before writing any `mcp__…` rule.
+
 ## Conventions
 
 ### Conventional Commits — commit subjects *and* PR titles

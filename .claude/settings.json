@@ -32,6 +32,16 @@
       "mcp__github__unsubscribe_pr_activity",
       "mcp__Claude_Code_Remote__subscribe_pr_activity",
       "mcp__Claude_Code_Remote__unsubscribe_pr_activity",
+      "mcp__Claude_Code_Remote__send_later",
+      "mcp__Claude_Code_Remote__list_triggers",
+      "mcp__Claude_Code_Remote__update_trigger",
+      "mcp__Claude_Code_Remote__delete_trigger",
+      "mcp__github__get_me",
+      "mcp__github__issue_read",
+      "mcp__github__issue_write",
+      "mcp__github__list_issues",
+      "mcp__github__search_issues",
+      "mcp__github__get_label",
       "mcp__github__actions_list",
       "mcp__github__actions_get",
       "mcp__github__actions_run_trigger",
@@ -66,7 +76,12 @@
       "Bash(git rebase*)",
       "Bash(git add*)",
       "Bash(git commit*)",
-      "Bash(git push*)"
+      "Bash(git push*)",
+      "Bash(swift test*)",
+      "Bash(swift build*)",
+      "Bash(cd Core && swift test*)",
+      "Bash(cd Core && swift build*)",
+      "Bash(swiftc -parse*)"
     ]
   }
 }

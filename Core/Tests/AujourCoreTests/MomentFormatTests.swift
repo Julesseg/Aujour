@@ -6,7 +6,6 @@ import Testing
 // in Paris (CET, UTC+1). Chosen because it exercises the awkward tokens —
 // a Sunday (weekday index 0 in Moment, 7 in ISO), day-of-year 60, and a week
 // number that differs between the locale week (10) and the ISO week (9).
-private let paris = TimeZone(identifier: "Europe/Paris")!
 private let english = Locale(identifier: "en_US_POSIX")
 
 private let reference: Date = {

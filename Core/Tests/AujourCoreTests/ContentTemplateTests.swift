@@ -2,31 +2,14 @@ import Foundation
 import Testing
 @testable import AujourCore
 
-private let paris = TimeZone(identifier: "Europe/Paris")!
 private let english = Locale(identifier: "en_US_POSIX")
-
-private func instant(
-    _ year: Int, _ month: Int, _ day: Int,
-    _ hour: Int, _ minute: Int = 0, _ second: Int = 0
-) -> Date {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = paris
-    var components = DateComponents()
-    components.year = year
-    components.month = month
-    components.day = day
-    components.hour = hour
-    components.minute = minute
-    components.second = second
-    return calendar.date(from: components)!
-}
 
 // A backfill: the Entry is Sunday 1 March, but it is being written on
 // Wednesday 4 March at 14:05. Every test uses this split so that "which
 // moment does this placeholder describe?" is always an answerable question.
 private let spawn = SpawnContext(
     day: JournalDay(year: 2026, month: 3, day: 1),
-    instant: instant(2026, 3, 4, 14, 5, 9),
+    instant: instant(2026, 3, 4, 14, 5, 9, in: paris),
     title: "2026-03-01",
     timeZone: paris,
     locale: english

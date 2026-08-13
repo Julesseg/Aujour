@@ -11,6 +11,7 @@ import AujourCore
 struct ContentView: View {
     @State private var journal: Journal
     @State private var showingJournalFolder = false
+    @State private var showingCalendar = false
     @Environment(\.scenePhase) private var scenePhase
 
     init(journal: Journal = Journal()) {
@@ -31,10 +32,16 @@ struct ContentView: View {
                     // — but a blank page is the one thing this screen must
                     // never be, so the unreachable case is the spinner.
                     if let today = journal.today {
-                        TodayEntryView(editor: today)
+                        EntryView(editor: today)
                             .navigationTitle(today.day.spelledOut())
                             .navigationBarTitleDisplayMode(.inline)
                             .toolbar {
+                                ToolbarItem(placement: .topBarLeading) {
+                                    Button("Calendar", systemImage: "calendar") {
+                                        showingCalendar = true
+                                    }
+                                    .accessibilityIdentifier("openCalendar")
+                                }
                                 ToolbarItem(placement: .topBarTrailing) {
                                     Button("Journal folder", systemImage: "folder") {
                                         showingJournalFolder = true
@@ -59,6 +66,18 @@ struct ContentView: View {
                         await journal.open()
                     }
                     .navigationTitle("Aujour")
+                }
+            }
+            // Declared outside the states rather than beside the button that
+            // opens it: a destination registered only while one branch of a
+            // switch is on screen is one the stack can find itself without.
+            //
+            // Today's Entry is what the app is for, so the calendar is a step
+            // away from it and back — and coming back is what re-reads the
+            // folder for a day just filled in.
+            .navigationDestination(isPresented: $showingCalendar) {
+                if let calendar = journal.calendar {
+                    JournalCalendarView(calendar: calendar)
                 }
             }
         }

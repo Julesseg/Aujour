@@ -1,25 +1,29 @@
 import SwiftUI
 import AujourCore
 
-/// Today's Entry, in the plainest editor that could possibly work.
+/// One day's Entry, in the plainest editor that could possibly work.
 ///
 /// Deliberately a bare `TextEditor`: the live-preview editor is M3's whole
 /// milestone, and putting a real one here first would mean writing it twice.
 /// What this proves is the loop underneath — a day opens, what is typed is
 /// written, and it is still there next launch.
 ///
+/// The same screen for today's Entry and for a day filled in from the
+/// calendar, because they are the same thing: an Entry is its date, and
+/// nothing about writing in one changes with which date that is.
+///
 /// The view holds no rules. Which day this is, what an unwritten day starts
 /// as, whether a keystroke belongs on disk yet and when it goes there are all
 /// ``EntryEditor``'s, which is why they are unit-tested on Linux rather than
 /// in a simulator.
-struct TodayEntryView: View {
+struct EntryView: View {
     @Bindable var editor: EntryEditor
 
     var body: some View {
         Group {
             switch editor.state {
             case .opening:
-                ProgressView("Opening today's entry")
+                ProgressView("Opening \(editor.day.spelledOut())")
                     .accessibilityIdentifier("openingEntry")
 
             case .editing:
@@ -31,7 +35,7 @@ struct TodayEntryView: View {
                     .scrollContentBackground(.hidden)
                     .padding(.horizontal, 12)
                     .accessibilityIdentifier("entryEditor")
-                    .accessibilityLabel("Today's entry")
+                    .accessibilityLabel("Entry for \(editor.day.spelledOut())")
 
             case .unavailable(let error):
                 StorageProblemNotice(problem: StorageProblem(error)) {
@@ -87,7 +91,7 @@ private struct UnsavedWordsNotice: View {
     )
 
     NavigationStack {
-        TodayEntryView(editor: editor)
+        EntryView(editor: editor)
             .navigationTitle(today.spelledOut())
             .navigationBarTitleDisplayMode(.inline)
     }
@@ -103,7 +107,7 @@ private struct UnsavedWordsNotice: View {
     )
 
     NavigationStack {
-        TodayEntryView(editor: editor)
+        EntryView(editor: editor)
             .navigationTitle(today.spelledOut())
             .navigationBarTitleDisplayMode(.inline)
     }

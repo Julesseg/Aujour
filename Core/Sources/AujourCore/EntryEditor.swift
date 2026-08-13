@@ -88,6 +88,8 @@ public final class EntryEditor {
     @ObservationIgnored private let settings: JournalSettings
     @ObservationIgnored private let timeZone: TimeZone
     @ObservationIgnored private let locale: Locale
+    /// The day this editor stays on, if it was made for a particular one.
+    @ObservationIgnored private let pinnedDay: JournalDay?
     @ObservationIgnored private let timing: AutosaveTiming
     @ObservationIgnored private let now: @MainActor () -> Date
     @ObservationIgnored private let wait: @MainActor (Duration) async throws -> Void
@@ -120,6 +122,11 @@ public final class EntryEditor {
     ///   - timeZone: the zone the Journal Day and the template's dates are
     ///     read in.
     ///   - locale: picks month and weekday names in the Content Template.
+    ///   - day: the one Journal Day this editor is over, or `nil` for
+    ///     whichever day it is now. Today's Entry follows the clock — the app
+    ///     left open overnight moves on — while a day opened from the
+    ///     calendar is the day it was opened on and stays it. Which days may
+    ///     be opened at all is ``JournalCalendar``'s to decide.
     ///   - timing: how long typing may go unsaved.
     ///   - now: the wall clock. Read again on every open, so an app left
     ///     running overnight is not still holding yesterday.
@@ -130,6 +137,7 @@ public final class EntryEditor {
         settings: JournalSettings = .default,
         timeZone: TimeZone = .current,
         locale: Locale = .current,
+        day pinnedDay: JournalDay? = nil,
         autosave timing: AutosaveTiming = .default,
         now: @escaping @MainActor () -> Date = { Date() },
         wait: @escaping @MainActor (Duration) async throws -> Void = {
@@ -140,26 +148,31 @@ public final class EntryEditor {
         self.settings = settings
         self.timeZone = timeZone
         self.locale = locale
+        self.pinnedDay = pinnedDay
         self.timing = timing
         self.now = now
         self.wait = wait
         // Before anything has been read: the screen can say which day it is
         // opening while the folder is still answering.
-        self.day = JournalDay.current(at: now(), in: timeZone, rolloverHour: settings.rolloverHour)
+        self.day =
+            pinnedDay
+            ?? JournalDay.current(at: now(), in: timeZone, rolloverHour: settings.rolloverHour)
     }
 
     // MARK: - Opening
 
-    /// Opens the current Journal Day's Entry: its file if it has one, the
-    /// rendered Content Template if it does not.
+    /// Opens this editor's Journal Day: its file if it has one, the rendered
+    /// Content Template if it does not.
     public func open() async {
         await open(currentDay)
     }
 
-    /// The Journal Day it is right now — asked again every time, because the
-    /// answer changes under a running app.
+    /// The Journal Day this editor is for: the day it was pinned to, or — for
+    /// today's Entry, which is pinned to nothing — the day it is right now,
+    /// asked again every time because the answer changes under a running app.
     private var currentDay: JournalDay {
-        JournalDay.current(at: now(), in: timeZone, rolloverHour: settings.rolloverHour)
+        pinnedDay
+            ?? JournalDay.current(at: now(), in: timeZone, rolloverHour: settings.rolloverHour)
     }
 
     /// Saves, and moves to the new day if the Journal Day has turned since
@@ -168,6 +181,9 @@ public final class EntryEditor {
     /// For the app that was left open overnight and comes back to the front
     /// in the morning: today's Entry is a different file by then, and going on
     /// writing into yesterday's would put today's words in the wrong day.
+    ///
+    /// A day opened from the calendar has no such morning: it is pinned, so
+    /// the day it is over never turns and this does nothing to it.
     public func reopenIfTheDayTurned() async {
         guard state.isEditing else { return }
 

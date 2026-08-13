@@ -17,7 +17,7 @@ struct JournalStorageTests {
 
             await journal.open()
 
-            #expect(journal.state == .open(JournalRoot(url: iCloud.standardizedFileURL, location: .iCloudDrive), fileCount: 0))
+            #expect(journal.state == .open(JournalRoot(url: iCloud.standardizedFileURL, location: .aujoursOwn(.iCloudDrive)), fileCount: 0))
             #expect(journal.store != nil)
 
             // And it is a folder the app can actually journal into.
@@ -40,7 +40,7 @@ struct JournalStorageTests {
 
             await journal.open()
 
-            #expect(journal.state == .open(JournalRoot(url: iCloud.standardizedFileURL, location: .iCloudDrive), fileCount: 2))
+            #expect(journal.state == .open(JournalRoot(url: iCloud.standardizedFileURL, location: .aujoursOwn(.iCloudDrive)), fileCount: 2))
         }
     }
 
@@ -95,7 +95,7 @@ struct JournalStorageTests {
     func recountingSeesWhatWasWrittenSince() async throws {
         try await withTemporaryFolder { folders in
             let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
-            let root = JournalRoot(url: iCloud.standardizedFileURL, location: .iCloudDrive)
+            let root = JournalRoot(url: iCloud.standardizedFileURL, location: .aujoursOwn(.iCloudDrive))
             let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders))
             await journal.open()
             #expect(journal.state == .open(root, fileCount: 0))
@@ -141,15 +141,15 @@ struct JournalStorageTests {
         }
     }
 
-    @Test("both places the journal can live are described to the user")
+    @Test("every place the journal can live is described to the user")
     func everyLocationSaysWhatItMeansForTheirWords() {
-        for location in [JournalRoot.Location.iCloudDrive, .onThisDevice] {
+        for location in [JournalRoot.Location.aujoursOwn(.iCloudDrive), .aujoursOwn(.onThisDevice), .customFolder(name: "Journal")] {
             #expect(location.name(onDevice: "iPhone").isEmpty == false)
             #expect(location.promise(onDevice: "iPhone").isEmpty == false)
             #expect(location.symbolName(onDevice: "iPhone").isEmpty == false)
         }
         // The one thing the on-device story has to be honest about.
-        #expect(JournalRoot.Location.onThisDevice.promise(onDevice: "iPhone").contains("iCloud Drive"))
+        #expect(JournalRoot.Location.aujoursOwn(.onThisDevice).promise(onDevice: "iPhone").contains("iCloud Drive"))
     }
 
     @Test("the on-device folder is named after the device the app is actually on")
@@ -157,7 +157,7 @@ struct JournalStorageTests {
         // Aujour runs on iPhone and iPad, and the Files app calls the folder
         // "On My iPad" there — pointing an iPad user at "On My iPhone" sends
         // them somewhere that does not exist.
-        let onIPad = JournalRoot.Location.onThisDevice
+        let onIPad = JournalRoot.Location.aujoursOwn(.onThisDevice)
         #expect(onIPad.name(onDevice: "iPad") == "On My iPad › Aujour")
         #expect(onIPad.promise(onDevice: "iPad").contains("this iPad"))
         #expect(onIPad.symbolName(onDevice: "iPad") == "ipad")
@@ -165,8 +165,8 @@ struct JournalStorageTests {
 
         // iCloud Drive is the same folder wherever you are looking from.
         #expect(
-            JournalRoot.Location.iCloudDrive.name(onDevice: "iPad")
-                == JournalRoot.Location.iCloudDrive.name(onDevice: "iPhone")
+            JournalRoot.Location.aujoursOwn(.iCloudDrive).name(onDevice: "iPad")
+                == JournalRoot.Location.aujoursOwn(.iCloudDrive).name(onDevice: "iPhone")
         )
     }
 }

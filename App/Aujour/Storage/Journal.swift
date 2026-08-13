@@ -22,9 +22,14 @@ struct StorageProblem: Equatable, Sendable {
     }
 }
 
-/// The user's Journal, as this installation has it: the folder found on
-/// launch, a Journal Store over it, and whichever of the two answers came
-/// back for the screen to render.
+/// The user's Journal, as this installation has it: the folder opened on
+/// launch — the one they pointed Aujour at, or the one it found for itself —
+/// a Journal Store over it, and whichever of the two answers came back for
+/// the screen to render.
+///
+/// Moving it is here too, because a Journal is the folder it is over: pointing
+/// Aujour at a folder in an Obsidian vault closes this journal and opens the
+/// one that folder already is, entries, calendar and all.
 ///
 /// There is exactly one per app installation, which is what the glossary
 /// means by a Journal — the app holds no journal content of its own, only the
@@ -64,6 +69,14 @@ final class Journal {
     /// scan of the folder, and throwing it away costs nothing (ADR 0001).
     private(set) var calendar: JournalCalendar?
 
+    /// What went wrong the last time the user pointed Aujour at a folder, if
+    /// it did.
+    ///
+    /// Beside the journal rather than in place of it: a folder that could not
+    /// be taken on is a request that did not happen, and the journal the user
+    /// already had is still open and still theirs to write in.
+    private(set) var folderProblem: StorageProblem?
+
     private let locator: JournalRootLocator
     private let settings: JournalSettings
 
@@ -92,6 +105,46 @@ final class Journal {
             calendar = nil
             state = .unavailable(StorageProblem(error))
         }
+    }
+
+    /// Whether the Journal is pointed at a folder the user picked.
+    ///
+    /// Asked of what the device remembers rather than of the state, so that
+    /// it is still true when the chosen folder is the reason there is no
+    /// journal open — which is exactly when the way back has to be offered.
+    var hasAChosenFolder: Bool { locator.chosenFolder.hasBeenChosen }
+
+    /// Points the Journal at a folder the user picked in the Files app, and
+    /// opens it.
+    ///
+    /// The Journal *becomes* whatever Entries are already in that folder —
+    /// nothing is written into it, and nothing is carried over from where the
+    /// journal was before. That is the point of picking a folder inside an
+    /// Obsidian vault: the daily notes that are already there are the journal
+    /// from now on, and the rest of the vault is untouched, because only
+    /// files the Path Template names are Entries at all (ADR 0002).
+    func use(_ folder: URL) async {
+        folderProblem = nil
+        do {
+            try locator.chosenFolder.choose(folder)
+        } catch {
+            // Nothing was changed, so nothing is closed: the journal that was
+            // open stays open, with a sentence beside it.
+            folderProblem = StorageProblem(error)
+            return
+        }
+        await open()
+    }
+
+    /// Back to the folder Aujour finds for itself, and open it.
+    ///
+    /// The chosen folder is forgotten and never touched — the Entries written
+    /// into it stay where the user can still find them in the Files app and
+    /// in Obsidian (ADR 0001).
+    func useAujoursOwnFolder() async {
+        folderProblem = nil
+        locator.chosenFolder.forget()
+        await open()
     }
 
     /// Re-reads how much is in the folder.
@@ -128,8 +181,11 @@ extension JournalRoot.Location {
     /// names a place that is not there — the app runs on both.
     func name(onDevice device: String) -> String {
         switch self {
-        case .iCloudDrive: "iCloud Drive › Aujour"
-        case .onThisDevice: "On My \(device) › Aujour"
+        case .aujoursOwn(.iCloudDrive): "iCloud Drive › Aujour"
+        case .aujoursOwn(.onThisDevice): "On My \(device) › Aujour"
+        // Their own name for their own folder, which is what they picked it
+        // by and the only part of where it sits that Aujour can be sure of.
+        case .customFolder(let name): name
         }
     }
 
@@ -137,17 +193,29 @@ extension JournalRoot.Location {
     /// whether deleting the app costs them anything.
     func promise(onDevice device: String) -> String {
         switch self {
-        case .iCloudDrive:
+        case .aujoursOwn(.iCloudDrive):
             "Your entries are markdown files here. They sync to your other devices, and they stay in iCloud Drive even if you delete Aujour."
-        case .onThisDevice:
+        case .aujoursOwn(.onThisDevice):
             "iCloud Drive is off, so your entries are markdown files on this \(device) only. Turn on iCloud Drive to sync them and keep them if you delete Aujour."
+        case .customFolder:
+            // The sentence the whole milestone is for: a vault is thousands
+            // of files that are none of Aujour's business, and this says
+            // which ones are.
+            "Your entries are markdown files in the folder you chose, and they sync however that folder does. Aujour only ever reads and writes the files your entry path names — everything else in the folder is left alone."
         }
     }
 
     func symbolName(onDevice device: String) -> String {
         switch self {
-        case .iCloudDrive: "icloud"
-        case .onThisDevice: device.lowercased() == "ipad" ? "ipad" : "iphone"
+        case .aujoursOwn(.iCloudDrive): "icloud"
+        case .aujoursOwn(.onThisDevice): device.lowercased() == "ipad" ? "ipad" : "iphone"
+        case .customFolder: "folder"
         }
+    }
+
+    /// Whether this is a folder the user pointed Aujour at.
+    var isCustomFolder: Bool {
+        if case .customFolder = self { return true }
+        return false
     }
 }

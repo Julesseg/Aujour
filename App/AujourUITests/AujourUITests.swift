@@ -169,20 +169,99 @@ final class AujourUITests: XCTestCase {
         )
     }
 
+    func testTheJournalMovesToAPickedFolderAndStaysThere() throws {
+        // The folder that stands in for one picked in the Files app. Driving
+        // the picker itself would be a test of another process's screen; what
+        // is under test here is everything after the tap — the folder becomes
+        // the journal, it is still the journal next launch, and the user can
+        // come back.
+        let vault = UUID().uuidString
+        let app = launchApp(folderToPick: vault)
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        editor.tap()
+        editor.typeText("Written in Aujour's own folder.")
+        Thread.sleep(forTimeInterval: 4)
+
+        // Where a journal nobody has moved lives.
+        openFolderSheet(app)
+        XCTAssertEqual(app.staticTexts["journalRootLocation"].label, "On My iPhone › Aujour")
+        XCTAssertEqual(app.staticTexts["journalFileCount"].label, "1 file")
+
+        // Pointed at a folder of the user's own: the journal is that folder
+        // from now on, and it is empty because that folder is.
+        app.buttons["chooseCustomFolder"].tap()
+        expect(app.staticTexts["journalRootLocation"], toHaveLabel: vault)
+        XCTAssertEqual(app.staticTexts["journalFileCount"].label, "0 files")
+        app.buttons["Done"].tap()
+
+        // Today is a day nobody has written on there, and writing in it
+        // writes into that folder.
+        let inTheVault = app.textViews["entryEditor"]
+        XCTAssertTrue(inTheVault.waitForExistence(timeout: 10), "today never reopened")
+        XCTAssertEqual(inTheVault.value as? String, "")
+        inTheVault.tap()
+        inTheVault.typeText("Written in the folder I picked.")
+        Thread.sleep(forTimeInterval: 4)
+
+        // Still that folder after a relaunch — which is the bookmark, since
+        // nothing else about the choice outlives the launch.
+        relaunch(app)
+        let reopened = app.textViews["entryEditor"]
+        XCTAssertTrue(reopened.waitForExistence(timeout: 30))
+        XCTAssertEqual(reopened.value as? String, "Written in the folder I picked.")
+        openFolderSheet(app)
+        XCTAssertEqual(app.staticTexts["journalRootLocation"].label, vault)
+        XCTAssertEqual(app.staticTexts["journalFileCount"].label, "1 file")
+
+        // And the way back: Aujour's own folder, with everything that was
+        // written there still in it.
+        app.buttons["useAujoursOwnFolder"].tap()
+        expect(app.staticTexts["journalRootLocation"], toHaveLabel: "On My iPhone › Aujour")
+        XCTAssertEqual(app.staticTexts["journalFileCount"].label, "1 file")
+        app.buttons["Done"].tap()
+
+        let backHome = app.textViews["entryEditor"]
+        XCTAssertTrue(backHome.waitForExistence(timeout: 10), "today never reopened")
+        XCTAssertEqual(backHome.value as? String, "Written in Aujour's own folder.")
+    }
+
     // MARK: - Driving the app
 
     /// Launches the app onto a journal folder of this test's own.
     ///
-    /// The two keys are spelled out rather than shared: the app and the UI
-    /// suite are separate targets, and this suite deliberately imports
-    /// nothing from the app it is driving. Their other half is
-    /// `UITestingJournal`, which is where they are read.
-    private func launchApp(contentTemplate: String = "") -> XCUIApplication {
+    /// The keys are spelled out rather than shared: the app and the UI suite
+    /// are separate targets, and this suite deliberately imports nothing from
+    /// the app it is driving. Their other half is `UITestingJournal`, which is
+    /// where they are read.
+    ///
+    /// - Parameter folderToPick: the folder "Use a custom folder…" picks, in
+    ///   place of the Files picker.
+    private func launchApp(
+        contentTemplate: String = "",
+        folderToPick: String? = nil
+    ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["AUJOUR_UITEST_JOURNAL_FOLDER"] = journalFolder
         app.launchEnvironment["AUJOUR_UITEST_CONTENT_TEMPLATE"] = contentTemplate
+        if let folderToPick {
+            app.launchEnvironment["AUJOUR_UITEST_FOLDER_TO_PICK"] = folderToPick
+        }
         app.launch()
         return app
+    }
+
+    /// Opens the sheet that says where the journal is kept and offers to move
+    /// it.
+    private func openFolderSheet(_ app: XCUIApplication) {
+        let folderInfo = app.buttons["journalFolderInfo"]
+        XCTAssertTrue(folderInfo.waitForExistence(timeout: 30), "the journal never opened")
+        folderInfo.tap()
+        XCTAssertTrue(
+            app.staticTexts["journalRootLocation"].waitForExistence(timeout: 10),
+            "the folder sheet never appeared"
+        )
     }
 
     private func relaunch(_ app: XCUIApplication) {
@@ -245,6 +324,21 @@ final class AujourUITests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.25)
         }
         XCTAssertEqual(element.value as? String, value)
+    }
+
+    /// Waits for an element to be labelled something. What a screen that is
+    /// being rebuilt says while it is: the journal folder's name is absent
+    /// for as long as the folder it names is being opened.
+    private func expect(
+        _ element: XCUIElement,
+        toHaveLabel label: String,
+        timeout: TimeInterval = 15
+    ) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline, element.label != label {
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        XCTAssertEqual(element.label, label)
     }
 
     private func dayBeforeToday() -> Date? {

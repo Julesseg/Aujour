@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import AujourCore
 
 /// The app's one screen: today's Entry, over the folder the journal lives in.
@@ -18,6 +19,17 @@ struct ContentView: View {
         _journal = State(wrappedValue: journal)
     }
 
+    /// The way out of a folder that has gone: the user's Entries are still in
+    /// it, and Aujour's own folder is somewhere to write in the meantime.
+    ///
+    /// Offered only when the folder that failed is one they chose — for
+    /// Aujour's own folder there is nowhere else to go, and a button that
+    /// does nothing is worse than no button.
+    private var wayBackToAujoursOwnFolder: (() async -> Void)? {
+        guard journal.hasAChosenFolder else { return nil }
+        return { await journal.useAujoursOwnFolder() }
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -27,7 +39,7 @@ struct ContentView: View {
                         .accessibilityIdentifier("openingJournal")
                         .navigationTitle("Aujour")
 
-                case .open(let root, let fileCount):
+                case .open:
                     // There is no open journal without today's Entry over it
                     // — but a blank page is the one thing this screen must
                     // never be, so the unreachable case is the spinner.
@@ -49,24 +61,31 @@ struct ContentView: View {
                                     .accessibilityIdentifier("journalFolderInfo")
                                 }
                             }
-                            .sheet(isPresented: $showingJournalFolder) {
-                                JournalFolderSheet(root: root, fileCount: fileCount)
-                                    // Counted again on the way in: the number
-                                    // from launch is one edit out of date the
-                                    // moment today's Entry is created.
-                                    .task { await journal.recount() }
-                            }
                     } else {
                         ProgressView("Opening today's entry")
                             .accessibilityIdentifier("openingEntry")
                     }
 
                 case .unavailable(let problem):
-                    StorageProblemNotice(problem: problem) {
+                    StorageProblemNotice(
+                        problem: problem,
+                        useAujoursOwnFolder: wayBackToAujoursOwnFolder
+                    ) {
                         await journal.open()
                     }
                     .navigationTitle("Aujour")
                 }
+            }
+            // Outside the states, like the calendar below and for the same
+            // reason: choosing a folder closes the journal it was opened from
+            // and opens another, and a sheet that lives inside one state is a
+            // sheet that vanishes mid-decision.
+            .sheet(isPresented: $showingJournalFolder) {
+                JournalFolderSheet(journal: journal)
+                    // Counted again on the way in: the number from launch is
+                    // one edit out of date the moment today's Entry is
+                    // created.
+                    .task { await journal.recount() }
             }
             // Declared outside the states rather than beside the button that
             // opens it: a destination registered only while one branch of a
@@ -101,14 +120,21 @@ struct ContentView: View {
 }
 
 /// Where the journal lives, said the way the user would find it in the Files
-/// app.
+/// app — and the way to put it somewhere else.
 ///
 /// Behind a button rather than on the screen: it is the promise the app is
 /// built on — these are your files, and here is where they are — and it is
 /// also not what anyone opens a journal to read.
+///
+/// It takes the whole Journal rather than the folder it is currently over,
+/// because choosing a folder closes one journal and opens another: the sheet
+/// has to still be there, and still be saying something true, while that
+/// happens.
 private struct JournalFolderSheet: View {
-    let root: JournalRoot
-    let fileCount: Int
+    let journal: Journal
+
+    /// Whether the Files picker is up.
+    @State private var picking = false
 
     @Environment(\.dismiss) private var dismiss
 
@@ -119,30 +145,20 @@ private struct JournalFolderSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
-                Image(systemName: root.location.symbolName(onDevice: device))
-                    .font(.system(size: 44))
-                    .foregroundStyle(.tint)
-
-                Text(root.location.name(onDevice: device))
-                    .font(.title3.weight(.semibold))
-                    .accessibilityIdentifier("journalRootLocation")
-
-                Text(root.location.promise(onDevice: device))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-
-                Text(fileCount == 1 ? "1 file" : "\(fileCount) files")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("journalFileCount")
-
-                Text(root.url.path(percentEncoded: false))
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.tertiary)
-                    .multilineTextAlignment(.center)
-                    .textSelection(.enabled)
-                    .accessibilityIdentifier("journalRootPath")
+                // Scrolled, so that the two buttons stay where they are and
+                // reachable however long the folder's path runs — a sheet
+                // that has pushed its own actions off the bottom is a folder
+                // the user cannot change.
+                ScrollView {
+                    VStack(spacing: 16) {
+                        whereTheJournalIs
+                        if let problem = journal.folderProblem {
+                            FolderProblemNotice(problem: problem, identifier: "folderProblem")
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                waysToPointItSomewhereElse
             }
             .padding()
             .navigationTitle("Your journal folder")
@@ -153,7 +169,108 @@ private struct JournalFolderSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+    }
+
+    @ViewBuilder
+    private var whereTheJournalIs: some View {
+        switch journal.state {
+        case .opening:
+            ProgressView("Opening your journal")
+
+        case .open(let root, let fileCount):
+            Image(systemName: root.location.symbolName(onDevice: device))
+                .font(.system(size: 44))
+                .foregroundStyle(.tint)
+
+            Text(root.location.name(onDevice: device))
+                .font(.title3.weight(.semibold))
+                .multilineTextAlignment(.center)
+                .accessibilityIdentifier("journalRootLocation")
+
+            Text(root.location.promise(onDevice: device))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            Text(fileCount == 1 ? "1 file" : "\(fileCount) files")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("journalFileCount")
+
+            Text(root.url.path(percentEncoded: false))
+                .font(.caption2.monospaced())
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .textSelection(.enabled)
+                .accessibilityIdentifier("journalRootPath")
+
+        case .unavailable(let problem):
+            // The same two sentences the screen behind is showing. Said here
+            // too, because this is where the folder can be changed, and a
+            // folder that cannot be reached is the likeliest reason to.
+            FolderProblemNotice(problem: problem, identifier: "journalRootProblem")
+        }
+    }
+
+    private var waysToPointItSomewhereElse: some View {
+        VStack(spacing: 12) {
+            Button("Use a custom folder…", systemImage: "folder.badge.plus") {
+                chooseAFolder()
+            }
+            .accessibilityIdentifier("chooseCustomFolder")
+
+            if journal.hasAChosenFolder {
+                Button("Use Aujour's own folder", systemImage: "arrow.uturn.backward") {
+                    Task { await journal.useAujoursOwnFolder() }
+                }
+                .accessibilityIdentifier("useAujoursOwnFolder")
+            }
+        }
+        .buttonStyle(.bordered)
+        .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
+            // Only a folder that was picked is news: the other outcome is
+            // mostly the user tapping Cancel, and an error notice for a mind
+            // changed is worse than nothing.
+            guard case .success(let folder) = result else { return }
+            Task { await journal.use(folder) }
+        }
+    }
+
+    private func chooseAFolder() {
+        // The Files picker is another process's screen, and driving it is the
+        // one part of choosing a folder that a UI test cannot do without
+        // becoming a test of that screen. So the UI suite says which folder it
+        // means at launch, and it goes in through the same door the picker's
+        // would — everything after this point is the app's own code.
+        if let folder = UITestingJournal.folderToPick() {
+            Task { await journal.use(folder) }
+            return
+        }
+        picking = true
+    }
+}
+
+/// Something that went wrong with a folder, in the two sentences it takes to
+/// say what and what to do — the compact form, for beside the thing it is
+/// about.
+private struct FolderProblemNotice: View {
+    let problem: StorageProblem
+
+    /// What a test would find it by — the sheet can show two of these at
+    /// once, about two different folders.
+    let identifier: String
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(problem.message)
+                .font(.callout.weight(.semibold))
+                .accessibilityIdentifier(identifier)
+            Text(problem.suggestion)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .multilineTextAlignment(.center)
     }
 }
 
@@ -161,6 +278,15 @@ private struct JournalFolderSheet: View {
 /// offers the retry — never a blank page that reads as a lost journal.
 struct StorageProblemNotice: View {
     let problem: StorageProblem
+
+    /// The way back to the folder Aujour finds for itself, offered only when
+    /// the folder that failed is one the user chose.
+    ///
+    /// Without it, a vault folder renamed on another device is a journal the
+    /// user cannot get out of: retrying a folder that is gone will go on
+    /// failing, and their words are somewhere Aujour can no longer be pointed.
+    var useAujoursOwnFolder: (() async -> Void)? = nil
+
     let retry: () async -> Void
 
     var body: some View {
@@ -174,6 +300,15 @@ struct StorageProblemNotice: View {
                 Task { await retry() }
             }
             .accessibilityIdentifier("retryOpeningJournal")
+
+            if let useAujoursOwnFolder {
+                Button("Use Aujour's Own Folder") {
+                    Task { await useAujoursOwnFolder() }
+                }
+                // Not the sheet's button of the same words: a journal that
+                // could not be opened can have both on screen at once.
+                .accessibilityIdentifier("recoverWithAujoursOwnFolder")
+            }
         }
     }
 }
@@ -188,21 +323,44 @@ struct StorageProblemNotice: View {
     ContentView(journal: Journal(locator: .preview(.onThisDevice)))
 }
 
+#Preview("Journaling into a folder of the user's own") {
+    ContentView(journal: Journal(locator: .previewCustomFolder))
+}
+
 #Preview("Nowhere to journal") {
     ContentView(journal: Journal(locator: .preview(nil)))
 }
 
 extension JournalRootLocator {
-    /// A locator over a scratch folder, pinned to one location — or to none,
-    /// for the failure the user would see with iCloud Drive off and the app's
-    /// own folder unreachable.
-    fileprivate static func preview(_ location: JournalRoot.Location?) -> JournalRootLocator {
+    /// A locator over a scratch folder, pinned to one of Aujour's own
+    /// locations — or to none, for the failure the user would see with iCloud
+    /// Drive off and the app's own folder unreachable.
+    fileprivate static func preview(_ location: JournalRoot.DefaultFolder?) -> JournalRootLocator {
         let folder = URL.temporaryDirectory.appending(path: "AujourPreview/\(location?.rawValue ?? "none")")
         return JournalRootLocator(
             iCloudDocuments: { location == .iCloudDrive ? folder : nil },
             onThisDeviceDocuments: { location == .onThisDevice ? folder : URL(filePath: "/dev/null/nowhere") },
             lastUsedLocation: { nil },
             rememberLocation: { _ in }
+        )
+    }
+
+    /// A locator already pointed at a folder of the user's own, so the sheet
+    /// shows what someone journaling inside an Obsidian vault sees.
+    fileprivate static var previewCustomFolder: JournalRootLocator {
+        let vault = URL.temporaryDirectory.appending(path: "AujourPreview/Vault/Journal")
+        try? FileManager.default.createDirectory(at: vault, withIntermediateDirectories: true)
+        // Straight to a bookmark: a preview has no picker to tap.
+        let bookmark = try? vault.bookmarkData()
+        return JournalRootLocator(
+            iCloudDocuments: { nil },
+            onThisDeviceDocuments: { URL(filePath: "/dev/null/nowhere") },
+            lastUsedLocation: { nil },
+            rememberLocation: { _ in },
+            chosenFolder: ChosenJournalFolder(
+                storedBookmark: { bookmark },
+                rememberBookmark: { _ in }
+            )
         )
     }
 }

@@ -61,6 +61,16 @@ platform. The `App/` target is a thin SwiftUI layer over it, verified by the
 XCUITest suite. When implementing a feature, put the behavior in Core with unit
 tests first, then wire the UI on top.
 
+Some of the app layer is not UI and cannot live in Core either — the store over
+the user's real folder, iCloud, file coordination. That code gets unit tests in
+`App/AujourTests` (Swift Testing, hosted by the app, run by the same
+`xcodebuild test` CI job as the XCUITest suite): fast, headless, and against
+real temporary folders. Reach for it whenever the alternative is an
+acceptance-level UI test proving something about a non-UI seam. It is not a
+licence to move logic out of Core — the test target follows its subject, so
+anything that would need neither a file system nor a system framework to test
+should not have been written in `App/` in the first place.
+
 ### Always implement the UI part of an issue — never ask
 
 **If an issue requires UI work, implement it. Do not ask whether you should,

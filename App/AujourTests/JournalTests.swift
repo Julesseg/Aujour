@@ -1,0 +1,114 @@
+import Foundation
+import Testing
+import AujourCore
+@testable import Aujour
+
+// What the app does before it shows anybody anything: find the folder, open a
+// store over it, and end up in one of exactly two states — journaling, or
+// saying why not.
+@MainActor
+@Suite("Opening the Journal on launch")
+struct JournalStorageTests {
+    @Test("a fresh install opens onto a real folder, with no configuration anywhere")
+    func aFreshInstallOpensOntoARealFolder() async throws {
+        try await withTemporaryFolder { folders in
+            let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
+            let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders))
+
+            await journal.open()
+
+            #expect(journal.state == .open(JournalRoot(url: iCloud.standardizedFileURL, location: .iCloudDrive), fileCount: 0))
+            #expect(journal.store != nil)
+
+            // And it is a folder the app can actually journal into.
+            try await #require(journal.store).writeText("First words.\n", at: "2026/03/2026-03-01.md")
+            let onDisk = try String(
+                contentsOf: iCloud.appending(path: "2026/03/2026-03-01.md"),
+                encoding: .utf8
+            )
+            #expect(onDisk == "First words.\n")
+        }
+    }
+
+    @Test("a folder that already holds a journal opens with it, not over it")
+    func anExistingJournalIsFoundWhereItWasLeft() async throws {
+        try await withTemporaryFolder { folders in
+            let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
+            try iCloud.seed("Walked to the market.\n", at: "2026/03/2026-03-01.md")
+            try iCloud.seed("February's last day.\n", at: "2026/02/2026-02-28.md")
+            let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders))
+
+            await journal.open()
+
+            #expect(journal.state == .open(JournalRoot(url: iCloud.standardizedFileURL, location: .iCloudDrive), fileCount: 2))
+        }
+    }
+
+    @Test("a folder Aujour cannot reach becomes something to say, not an empty page")
+    func anUnreachableFolderIsPresented() async throws {
+        try await withTemporaryFolder { folders in
+            try folders.seed("in the way", at: "Device")
+            let journal = Journal(
+                locator: JournalRootLocator(
+                    iCloudDocuments: { nil },
+                    onThisDeviceDocuments: { folders.appending(path: "Device/Documents") },
+                    lastUsedLocation: { nil },
+                    rememberLocation: { _ in }
+                )
+            )
+
+            await journal.open()
+
+            guard case .unavailable(let problem) = journal.state else {
+                Issue.record("expected an unavailable journal, got \(journal.state)")
+                return
+            }
+            #expect(problem.message.isEmpty == false)
+            #expect(problem.suggestion.isEmpty == false)
+            // Nothing to journal through: better than a store that silently
+            // writes somewhere the rest of the journal is not.
+            #expect(journal.store == nil)
+        }
+    }
+
+    @Test("both places the journal can live are described to the user")
+    func everyLocationSaysWhatItMeansForTheirWords() {
+        for location in [JournalRoot.Location.iCloudDrive, .onThisDevice] {
+            #expect(location.name(onDevice: "iPhone").isEmpty == false)
+            #expect(location.promise(onDevice: "iPhone").isEmpty == false)
+            #expect(location.symbolName(onDevice: "iPhone").isEmpty == false)
+        }
+        // The one thing the on-device story has to be honest about.
+        #expect(JournalRoot.Location.onThisDevice.promise(onDevice: "iPhone").contains("iCloud Drive"))
+    }
+
+    @Test("the on-device folder is named after the device the app is actually on")
+    func theOnDeviceFolderIsNamedAfterThisDevice() {
+        // Aujour runs on iPhone and iPad, and the Files app calls the folder
+        // "On My iPad" there — pointing an iPad user at "On My iPhone" sends
+        // them somewhere that does not exist.
+        let onIPad = JournalRoot.Location.onThisDevice
+        #expect(onIPad.name(onDevice: "iPad") == "On My iPad › Aujour")
+        #expect(onIPad.promise(onDevice: "iPad").contains("this iPad"))
+        #expect(onIPad.symbolName(onDevice: "iPad") == "ipad")
+        #expect(onIPad.symbolName(onDevice: "iPhone") == "iphone")
+
+        // iCloud Drive is the same folder wherever you are looking from.
+        #expect(
+            JournalRoot.Location.iCloudDrive.name(onDevice: "iPad")
+                == JournalRoot.Location.iCloudDrive.name(onDevice: "iPhone")
+        )
+    }
+}
+
+extension JournalRootLocator {
+    /// A locator over folders a test owns, starting from nothing remembered.
+    static func test(iCloudDocuments: URL, folders: URL) -> JournalRootLocator {
+        JournalRootLocator(
+            iCloudDocuments: { iCloudDocuments },
+            onThisDeviceDocuments: { folders.appending(path: "Device/Documents") },
+            lastUsedLocation: { nil },
+            rememberLocation: { _ in }
+        )
+    }
+}

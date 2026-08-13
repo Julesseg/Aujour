@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The rest of this app's Info.plist is generated from the
+	     INFOPLIST_KEY_* build settings. What lives here is the three keys
+	     that make the journal a folder the user owns rather than app storage
+	     they cannot see — together they are what "the files are the journal"
+	     (ADR 0001) looks like from the Files app.
+
+	     The pair below publishes the app's own Documents folder under "On My
+	     iPhone", which is where a journal starts when iCloud Drive is off
+	     (ADR 0004). They are written out here rather than as build settings
+	     because `INFOPLIST_KEY_UIFileSharingEnabled` is silently ignored —
+	     not every Info.plist key has a build setting behind it, and a missing
+	     one shows up as a folder nobody can find rather than as a build
+	     error. -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+
+	<!-- And this one publishes Aujour's iCloud Drive folder, the default
+	     Journal Root: IsDocumentScopePublic puts the container's Documents
+	     folder in the Files app under iCloud Drive › Aujour, and
+	     SupportedFolderLevels = Any lets the Path Template nest entries in
+	     YYYY/MM subfolders there.
+
+	     Apple only re-reads this when the app's version changes, so a change
+	     here needs MARKETING_VERSION or CURRENT_PROJECT_VERSION bumped with
+	     it, or the folder keeps its old visibility. -->
+	<key>NSUbiquitousContainers</key>
+	<dict>
+		<key>iCloud.com.julesseguin.aujour</key>
+		<dict>
+			<key>NSUbiquitousContainerIsDocumentScopePublic</key>
+			<true/>
+			<key>NSUbiquitousContainerName</key>
+			<string>Aujour</string>
+			<key>NSUbiquitousContainerSupportedFolderLevels</key>
+			<string>Any</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

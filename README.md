@@ -55,6 +55,7 @@ identity (`Aujour` / `com.julesseguin.aujour`) that one script swaps for yours.
 ```
 Core/                 SwiftPM package — ALL business logic + unit tests (Swift Testing)
 App/<Name>/           SwiftUI app target (thin UI layer over Core)
+App/<Name>Tests/      Unit tests for the app layer — the platform code Core can't hold
 App/<Name>UITests/    XCUITest acceptance suite (runs in CI on every PR)
 .github/workflows/    ci.yml (tests) + release.yml (installable PR builds)
                       + release-appstore.yml (App Store / TestFlight on vX.X.X tags)
@@ -89,8 +90,18 @@ under **Certificates, Identifiers & Profiles**.
 2. **Create the App ID** — *Identifiers → + → App IDs → App*. Set the explicit
    bundle id to exactly what you passed to `rename.sh` (e.g.
    `com.acme.zenith`). Enable any capabilities your app uses (App Groups,
-   Push, etc.) — the template's entitlements file starts empty, so none are
-   required at first.
+   Push, etc.).
+
+   > **Aujour needs iCloud.** The journal's default home is the app's own
+   > iCloud Drive folder (ADR 0004), so `App/Aujour/Aujour.entitlements` names
+   > an iCloud container. Enable **iCloud** (iCloud Documents) on the App ID
+   > and create the container `iCloud.com.julesseguin.aujour` (*Identifiers →
+   > iCloud Containers → +*), then **regenerate the ad-hoc profile** — a
+   > profile issued before the capability was added cannot sign the app, and
+   > the `Release` workflow fails at the signing step. `ci.yml` builds
+   > unsigned (`CODE_SIGNING_ALLOWED=NO`) and is unaffected. Without the
+   > entitlement the app still runs: it journals into "On My iPhone › Aujour"
+   > and says so.
 3. **Create a Distribution certificate** — *Certificates → + → Apple
    Distribution*. Upload a CSR generated on your Mac (Keychain Access →
    Certificate Assistant → Request a Certificate From a Certificate
@@ -162,7 +173,10 @@ build time, so — unlike the ad-hoc pipeline — there are **no `.mobileprovisi
 secrets** to manage. Add app extensions later and their profiles are resolved
 the same way, no workflow change. It reuses the same Apple Distribution
 certificate (`APPLE_CERTIFICATE_P12` / `_PASSWORD`) and `APPLE_TEAM_ID` you
-already set for the PR builds.
+already set for the PR builds. Automatic signing resolves the iCloud
+entitlement on its own, but only once the App ID carries the **iCloud**
+capability and the `iCloud.com.julesseguin.aujour` container exists — the same
+prerequisite as the ad-hoc pipeline above.
 
 ### Step 1 — App Store Connect
 
@@ -242,10 +256,11 @@ Full walkthrough, scope rules, the in-flight cap, and the optional variables:
 ## CI details
 
 - **`ci.yml`** — `core-tests` runs `swift test` in a `swift:6.0.3` Linux
-  container; `app-ui-tests` builds and runs the XCUITest suite on `macos-15`
-  with the latest stable Xcode against the newest available iPhone simulator,
-  unsigned (`CODE_SIGNING_ALLOWED=NO`). The `.xcresult` bundle is uploaded as
-  an artifact on every run.
+  container; `app-ui-tests` builds and runs both of the app's test targets —
+  the `App/<Name>Tests` unit suite and the `App/<Name>UITests` XCUITest suite
+  — on `macos-15` with the latest stable Xcode against the newest available
+  iPhone simulator, unsigned (`CODE_SIGNING_ALLOWED=NO`). The `.xcresult`
+  bundle is uploaded as an artifact on every run.
 - **Deployment target** is iOS 26.0 (`IPHONEOS_DEPLOYMENT_TARGET` in the
   pbxproj) with Swift 6 — adjust to your needs.
 - Workflows read the app identity from one `env:` block each (`APP_NAME`,

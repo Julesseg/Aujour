@@ -1,5 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict/>
+<dict>
+	<!-- Aujour's own iCloud Drive folder: the default Journal Root. The
+	     container's Documents folder is what the user sees in the Files app,
+	     what syncs between their devices, and what is still there after the
+	     app is deleted (ADR 0001). The same identifier appears in
+	     Info.plist's NSUbiquitousContainers and is derived at runtime in
+	     JournalRootLocator. -->
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.com.julesseguin.aujour</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudDocuments</string>
+	</array>
+	<key>com.apple.developer.ubiquity-container-identifiers</key>
+	<array>
+		<string>iCloud.com.julesseguin.aujour</string>
+	</array>
+</dict>
 </plist>

@@ -291,8 +291,8 @@ struct FileJournalStore: JournalStore {
         var outcome: Result<Void, any Error>?
         var refused: NSError?
         // A fresh coordinator, held onto: a move has to be announced to the
-        // other presenters afterwards, and that is a message to the same
-        // coordinator that arranged it.
+        // other presenters, and that is a message to the same coordinator that
+        // arranged it.
         let coordinator = self.coordinator
         coordinator.coordinate(
             writingItemAt: source,
@@ -300,14 +300,23 @@ struct FileJournalStore: JournalStore {
             writingItemAt: destination,
             options: .forReplacing,
             error: &refused
-        ) { source, destination in
-            outcome = Result { try move(source, destination) }
+        ) { movingFrom, movingTo in
+            outcome = Result {
+                try move(movingFrom, movingTo)
+                // Inside the block, which is the only place it may be said —
+                // saying it afterwards raises, and an `NSException` in Swift
+                // is the app gone. And only once the file has actually moved:
+                // this is what tells everything else presenting the folder
+                // that the file at one path is the file now at the other,
+                // rather than one deleted and one appeared.
+                //
+                // With the paths that went in rather than the ones the
+                // coordinator handed back, which is the pair it knows the move
+                // by.
+                coordinator.item(at: source, didMoveTo: destination)
+            }
         }
         try whatHappened(outcome, refused, .fileWriteUnknown)
-        // Only once it actually moved: this is what tells everything else
-        // presenting the folder that the file at one path is the file now at
-        // the other, rather than one deleted and one appeared.
-        coordinator.item(at: source, didMoveTo: destination)
     }
 
     /// What the work returned, or why it never ran: the coordinator's refusal

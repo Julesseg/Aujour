@@ -24,6 +24,12 @@ private final class EditorSession {
     /// single real second passing.
     var typingWhileWaiting: [String] = []
 
+    /// What the user types while the folder is answering a read — one line
+    /// per read. The other half of the same trick: a read is a wait too, and
+    /// it is the wait a keystroke has to survive when the file is being
+    /// re-read underneath the editor.
+    var typingWhileReading: [String] = []
+
     private(set) var editor: EntryEditor!
 
     init(
@@ -46,6 +52,14 @@ private final class EditorSession {
             now: { self.now },
             wait: { duration in try await self.wait(duration) }
         )
+        // Set after the editor exists, because that is what it types into.
+        // The folder reads off the main actor, so this comes back to it.
+        store.whileReading = { [self] in
+            await MainActor.run {
+                guard !typingWhileReading.isEmpty else { return }
+                editor.content = typingWhileReading.removeFirst()
+            }
+        }
     }
 
     /// Opens the editor and lets any save it starts run to the end.
@@ -88,6 +102,14 @@ private final class TallyingJournalStore: JournalStore, @unchecked Sendable {
     /// or an iCloud file that has not come down would.
     var refuseWrites: (any Error)?
 
+    /// Set to make the folder refuse to be read, as a file iCloud has not
+    /// brought down would.
+    var refuseReads: (any Error)?
+
+    /// What happens while the folder is answering a read — the test's way of
+    /// putting a keystroke in the middle of one.
+    var whileReading: (@Sendable () async -> Void)?
+
     init(_ files: [String: String] = [:]) {
         folder = InMemoryJournalStore(files)
     }
@@ -95,11 +117,14 @@ private final class TallyingJournalStore: JournalStore, @unchecked Sendable {
     func listFiles() async throws -> [String] { try await folder.listFiles() }
 
     func fileExists(at relativePath: String) async throws -> Bool {
-        try await folder.fileExists(at: relativePath)
+        if let refuseReads { throw refuseReads }
+        return try await folder.fileExists(at: relativePath)
     }
 
     func read(at relativePath: String) async throws -> Data {
-        try await folder.read(at: relativePath)
+        if let refuseReads { throw refuseReads }
+        await whileReading?()
+        return try await folder.read(at: relativePath)
     }
 
     func write(_ contents: Data, at relativePath: String) async throws {
@@ -110,6 +135,21 @@ private final class TallyingJournalStore: JournalStore, @unchecked Sendable {
 
     func move(from source: String, to destination: String) async throws {
         try await folder.move(from: source, to: destination)
+    }
+
+    /// A write nobody in Aujour made: Obsidian saving the same file, or iCloud
+    /// bringing another device's version down. Untallied, because the tally is
+    /// what Aujour itself wrote.
+    func somebodyElseWrites(_ text: String, at path: String) async throws {
+        try await folder.writeText(text, at: path)
+    }
+
+    /// The same, for a file that stops being at the Entry's path — a daily
+    /// note dragged into a folder of its own in Obsidian. The seam has no
+    /// delete (nothing in v1 removes a file), so this is a move out of the
+    /// way, which is what the Entry's path sees either way.
+    func somebodyElseTakesAway(_ path: String) async throws {
+        try await folder.move(from: path, to: "Archive/moved-away.md")
     }
 }
 
@@ -390,6 +430,132 @@ struct EntryEditorDayTurningTests {
 
         #expect(session.editor.day == JournalDay(year: 2026, month: 3, day: 1))
         #expect(session.editor.content == "Mid-sentence")
+    }
+}
+
+@Suite("The Entry's file changing outside Aujour")
+@MainActor
+struct EntryEditorExternalChangeTests {
+    @Test("an edit made elsewhere reaches the screen, and nothing is written back")
+    func aCleanEditorTakesTheFilesVersion() async throws {
+        let session = EditorSession(files: ["2026/03/2026-03-01.md": "Walked to the market.\n"])
+        await session.open()
+
+        try await session.store.somebodyElseWrites(
+            "Walked to the market, and back the long way.\n",
+            at: "2026/03/2026-03-01.md"
+        )
+        await session.editor.reloadIfClean()
+
+        #expect(session.editor.content == "Walked to the market, and back the long way.\n")
+        // A refresh is a read: the day is not written back over itself, and
+        // the words that just arrived are not now waiting to be saved.
+        #expect(session.store.writes.isEmpty)
+        await session.editor.save()
+        #expect(session.store.writes.isEmpty)
+    }
+
+    @Test("words that have not been saved yet are never replaced by the file")
+    func anEditorWithUnsavedWordsKeepsThem() async throws {
+        let session = EditorSession(files: ["2026/03/2026-03-01.md": "Walked to the market.\n"])
+        await session.open()
+        // Typed and not yet saved: the debounce is still running, so these
+        // words exist nowhere but on screen.
+        session.editor.content = "Walked to the market, and met"
+
+        try await session.store.somebodyElseWrites(
+            "Written on the iPad.\n",
+            at: "2026/03/2026-03-01.md"
+        )
+        await session.editor.reloadIfClean()
+
+        #expect(session.editor.content == "Walked to the market, and met")
+    }
+
+    @Test("a keystroke that lands while the file is being read is not overwritten")
+    func typingDuringTheReadWins() async throws {
+        let session = EditorSession(files: ["2026/03/2026-03-01.md": "Walked to the market.\n"])
+        await session.open()
+
+        try await session.store.somebodyElseWrites(
+            "Written on the iPad.\n",
+            at: "2026/03/2026-03-01.md"
+        )
+        // The user starts a sentence in the moment between the folder being
+        // asked and the folder answering.
+        session.typingWhileReading = ["Walked to the market, and met"]
+        await session.editor.reloadIfClean()
+
+        #expect(session.editor.content == "Walked to the market, and met")
+    }
+
+    @Test("a day nobody has written on is left as it was spawned")
+    func anUnwrittenDayIsNotSpawnedAgain() async throws {
+        let session = EditorSession(
+            settings: JournalSettings(contentTemplate: "# {{title}}\n\nWritten at {{time}}.\n")
+        )
+        await session.open()
+        let spawned = session.editor.content
+
+        // Somebody else's file, somewhere else in the folder — and an hour
+        // gone by, which a second spawn would put in the text.
+        try await session.store.somebodyElseWrites("- a thought\n", at: "Inbox/Ideas.md")
+        session.now = instant(2026, 3, 1, 10, 30, in: paris)
+        await session.editor.reloadIfClean()
+
+        #expect(session.editor.content == spawned)
+        #expect(session.store.writes.isEmpty)
+    }
+
+    @Test("a day whose file was taken away goes back to being unwritten")
+    func aDeletedEntryReturnsToTheTemplate() async throws {
+        let session = EditorSession(
+            files: ["2026/03/2026-03-01.md": "Walked to the market.\n"],
+            settings: JournalSettings(contentTemplate: "# {{title}}\n")
+        )
+        await session.open()
+
+        try await session.store.somebodyElseTakesAway("2026/03/2026-03-01.md")
+        await session.editor.reloadIfClean()
+
+        // The folder is the journal: with no file there, this is a day that
+        // has not been written on, and it is the template that says so
+        // (ADR 0001).
+        #expect(session.editor.content == "# 2026-03-01\n")
+        // And it stays that way — the spawned text is not a file, so nothing
+        // puts the day back until somebody types.
+        #expect(session.store.writes.isEmpty)
+        #expect(try await session.store.listFiles() == ["Archive/moved-away.md"])
+    }
+
+    @Test("an Entry that could not be opened is opened when the folder answers")
+    func anUnavailableEntryTriesAgain() async throws {
+        let session = EditorSession(files: ["2026/03/2026-03-01.md": "Walked to the market.\n"])
+        // What a file iCloud has not brought down yet does to an open.
+        session.store.refuseReads = JournalStoreError.fileNotFound("2026/03/2026-03-01.md")
+        await session.open()
+        #expect(session.editor.state.isEditing == false)
+
+        session.store.refuseReads = nil
+        await session.editor.reloadIfClean()
+
+        #expect(session.editor.state.isEditing)
+        #expect(session.editor.content == "Walked to the market.\n")
+    }
+
+    @Test("a folder that will not answer leaves what is on screen alone")
+    func aFailedReloadKeepsTheEntryOnScreen() async throws {
+        let session = EditorSession(files: ["2026/03/2026-03-01.md": "Walked to the market.\n"])
+        await session.open()
+
+        session.store.refuseReads = JournalStoreError.contentIsNotText("2026/03/2026-03-01.md")
+        await session.editor.reloadIfClean()
+
+        // Nobody asked for this read, so its failure is not news: the last
+        // thing the file said is still true and still on screen.
+        #expect(session.editor.state.isEditing)
+        #expect(session.editor.content == "Walked to the market.\n")
+        #expect(session.editor.saveProblem == nil)
     }
 }
 

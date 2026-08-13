@@ -19,6 +19,11 @@ import Observation
 ///   meaning "that day is journaled" (ADR 0001). From the first edit on, the
 ///   words are written continuously: shortly after the typing stops, at the
 ///   ceiling if it does not stop, and at once when the app goes away.
+/// - **When to take the file's version instead.** The folder is shared with
+///   Obsidian and with the user's other devices, so the file can move on
+///   without Aujour. While nothing is waiting to be saved, the Entry follows
+///   it; while something is, the words on screen are the newest anybody has
+///   and nothing may replace them.
 ///
 /// It reaches the world through three seams and nothing else — a Journal
 /// Store, a clock, and a way of waiting — so all of the above is tested
@@ -101,6 +106,14 @@ public final class EntryEditor {
     /// before there is a file — the text the template spawned, which is
     /// exactly the text that must never be written on its own.
     @ObservationIgnored private var savedContent: String?
+
+    /// Whether this day's Entry was a file the last time the folder answered.
+    ///
+    /// What tells a day unwritten *outside* Aujour from one that was never
+    /// written: with no file at the Entry's path, the first has just gone back
+    /// to being an unwritten day and the second has been one all along —
+    /// already showing the template it would be spawned from again.
+    @ObservationIgnored private var dayIsJournaled = false
 
     /// Whether anything has been typed that the running autosave has not yet
     /// taken account of. Reset each time the loop looks, so that "the typing
@@ -222,6 +235,7 @@ public final class EntryEditor {
 
             self.day = day
             entryPath = path
+            dayIsJournaled = journaled
             show(text)
             // Either way this is the text that needs no saving: what the file
             // says, or what the template spawned and the user has not touched.
@@ -244,6 +258,69 @@ public final class EntryEditor {
                 dateFormat: template.entryNameFormat
             )
         )
+    }
+
+    // MARK: - The file changing underneath
+
+    /// Shows what this day's file says now, unless there are words on screen
+    /// that are not in it yet.
+    ///
+    /// The folder is shared. Obsidian writes the same file, and iCloud brings
+    /// down what another device wrote, so the Entry on screen can fall behind
+    /// its own file while nobody is typing — a day written on the iPad at
+    /// lunchtime, opened on the iPhone that still has the morning's version.
+    /// This is what catches it up, so that the two apps agree without the user
+    /// thinking about it (`v1-decisions.md`).
+    ///
+    /// Only while nothing is unsaved, and that is the whole policy. Words in
+    /// the editor that have not reached the file are the newest anybody has,
+    /// and taking the file's version over them would lose the sentence being
+    /// typed. Two versions that have *both* been written is a real divergence,
+    /// and setting the loser aside as a Parked File is its own job; this is
+    /// the far commoner case, where nothing has diverged and the only question
+    /// is whether the screen is current.
+    ///
+    /// Silent when the folder will not answer. Nobody asked for this read, the
+    /// Entry on screen is still the last thing the file said, and a notice
+    /// about a refresh that did not happen would be a notice in front of
+    /// somebody who is writing.
+    public func reloadIfClean() async {
+        guard state.isEditing else {
+            // An Entry that could not be opened has nothing on screen to lose
+            // and everything to gain from another look: a file arriving from
+            // iCloud is exactly the change that makes the last failure stale.
+            if case .unavailable = state { await open() }
+            return
+        }
+        // Everything below is about *this* day's file, and the answers come
+        // back after a wait — during which the day can turn under the editor.
+        guard !needsSaving, let path = entryPath else { return }
+        let reloading = day
+
+        do {
+            let template = try PathTemplate(settings.pathTemplate)
+            let journaled = try await store.fileExists(at: path)
+            // Nothing to catch up with: the day had no file and still has
+            // none, so the template it was spawned from is what it says. A
+            // second spawn would only re-resolve {{time}} under the user.
+            guard journaled || dayIsJournaled else { return }
+            let text =
+                journaled
+                ? try await store.readText(at: path)
+                : spawn(reloading, from: template)
+
+            // The wait is where a keystroke lands, and where the morning
+            // arrives for an app left open overnight. Either way what came
+            // back is about a day that is no longer the one to put on screen.
+            guard state.isEditing, day == reloading, entryPath == path else { return }
+            guard !needsSaving, text != typedContent else { return }
+
+            show(text)
+            savedContent = text
+            dayIsJournaled = journaled
+        } catch {
+            // Left as it was, deliberately — see above.
+        }
     }
 
     // MARK: - Typing

@@ -43,7 +43,7 @@ final class AujourUITests: XCTestCase {
         XCTAssertTrue(path.label.hasPrefix("/"), "expected a folder path, got \(path.label)")
 
         // A folder it could not read would have been a problem notice instead.
-        XCTAssertTrue(app.staticTexts["journalFileCount"].exists)
+        XCTAssertTrue(app.staticTexts["journalEntryCount"].exists)
         XCTAssertFalse(app.staticTexts["storageProblem"].exists)
     }
 
@@ -68,7 +68,7 @@ final class AujourUITests: XCTestCase {
         // And none of it is a file: a day nobody wrote on leaves no husk
         // behind, which the next launch is what proves.
         relaunch(app)
-        XCTAssertEqual(fileCountAfterOpeningTheFolderSheet(app), "0 files")
+        XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "0 entries")
     }
 
     func testWhatIsTypedIsStillThereAfterARelaunch() throws {
@@ -88,7 +88,7 @@ final class AujourUITests: XCTestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, "Walked to the market.")
-        XCTAssertEqual(fileCountAfterOpeningTheFolderSheet(app), "1 file")
+        XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
     }
 
     func testAPastDayIsFilledInFromTheCalendar() throws {
@@ -187,13 +187,13 @@ final class AujourUITests: XCTestCase {
         // Where a journal nobody has moved lives.
         openFolderSheet(app)
         XCTAssertEqual(app.staticTexts["journalRootLocation"].label, "On My iPhone › Aujour")
-        XCTAssertEqual(app.staticTexts["journalFileCount"].label, "1 file")
+        XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
 
         // Pointed at a folder of the user's own: the journal is that folder
         // from now on, and it is empty because that folder is.
         app.buttons["chooseCustomFolder"].tap()
         expect(app.staticTexts["journalRootLocation"], toHaveLabel: vault)
-        XCTAssertEqual(app.staticTexts["journalFileCount"].label, "0 files")
+        XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "0 entries")
         app.buttons["Done"].tap()
 
         // Today is a day nobody has written on there, and writing in it
@@ -213,13 +213,13 @@ final class AujourUITests: XCTestCase {
         XCTAssertEqual(reopened.value as? String, "Written in the folder I picked.")
         openFolderSheet(app)
         XCTAssertEqual(app.staticTexts["journalRootLocation"].label, vault)
-        XCTAssertEqual(app.staticTexts["journalFileCount"].label, "1 file")
+        XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
 
         // And the way back: Aujour's own folder, with everything that was
         // written there still in it.
         app.buttons["useAujoursOwnFolder"].tap()
         expect(app.staticTexts["journalRootLocation"], toHaveLabel: "On My iPhone › Aujour")
-        XCTAssertEqual(app.staticTexts["journalFileCount"].label, "1 file")
+        XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
         app.buttons["Done"].tap()
 
         let backHome = app.textViews["entryEditor"]
@@ -269,14 +269,14 @@ final class AujourUITests: XCTestCase {
         app.launch()
     }
 
-    private func fileCountAfterOpeningTheFolderSheet(_ app: XCUIApplication) -> String {
+    private func entryCountAfterOpeningTheFolderSheet(_ app: XCUIApplication) -> String {
         let folderInfo = app.buttons["journalFolderInfo"]
         guard folderInfo.waitForExistence(timeout: 30) else { return "the journal never opened" }
         folderInfo.tap()
 
-        let fileCount = app.staticTexts["journalFileCount"]
-        guard fileCount.waitForExistence(timeout: 5) else { return "no file count was shown" }
-        return fileCount.label
+        let entryCount = app.staticTexts["journalEntryCount"]
+        guard entryCount.waitForExistence(timeout: 5) else { return "no entry count was shown" }
+        return entryCount.label
     }
 
     /// Opens the calendar and steps to the month a day is in.

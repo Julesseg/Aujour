@@ -43,7 +43,10 @@ final class Journal {
         /// Finding the folder. Asking iCloud for the container is slow the
         /// first time on a device, so this is a state and not a blink.
         case opening
-        case open(JournalRoot, fileCount: Int)
+        /// Journaling, into a folder holding this many Entries — or `nil` for
+        /// a Path Template that cannot say which files are Entries, where the
+        /// honest number is no number.
+        case open(JournalRoot, entryCount: Int?)
         case unavailable(StorageProblem)
     }
 
@@ -93,12 +96,12 @@ final class Journal {
         today = nil
         calendar = nil
         do {
-            let opened = try await Self.openJournal(using: locator)
+            let opened = try await Self.openJournal(using: locator, settings: settings)
             let editor = EntryEditor(store: opened.store, settings: settings)
             store = opened.store
             today = editor
             calendar = JournalCalendar(store: opened.store, settings: settings)
-            state = .open(opened.root, fileCount: opened.fileCount)
+            state = .open(opened.root, entryCount: opened.entryCount)
             await editor.open()
         } catch {
             store = nil
@@ -112,7 +115,7 @@ final class Journal {
     /// Asked of what the device remembers rather than of the state, so that
     /// it is still true when the chosen folder is the reason there is no
     /// journal open — which is exactly when the way back has to be offered.
-    var hasAChosenFolder: Bool { locator.chosenFolder.hasBeenChosen }
+    var hasACustomFolder: Bool { locator.customRoot.hasBeenChosen }
 
     /// Points the Journal at a folder the user picked in the Files app, and
     /// opens it.
@@ -127,7 +130,7 @@ final class Journal {
         folderProblem = nil
         guard await saveWhatBelongsToTheFolderBeingLeft() else { return }
         do {
-            try locator.chosenFolder.choose(folder)
+            try locator.customRoot.choose(folder)
         } catch {
             // Nothing was changed, so nothing is closed: the journal that was
             // open stays open, with a sentence beside it.
@@ -145,7 +148,7 @@ final class Journal {
     func useAujoursOwnFolder() async {
         folderProblem = nil
         guard await saveWhatBelongsToTheFolderBeingLeft() else { return }
-        locator.chosenFolder.forget()
+        locator.customRoot.forget()
         await open()
     }
 
@@ -167,7 +170,7 @@ final class Journal {
         return false
     }
 
-    /// Re-reads how much is in the folder.
+    /// Counts the Entries in the folder again.
     ///
     /// The count comes from a single listing at launch, which stops being
     /// true the moment today's first edit creates a file — so whatever shows
@@ -177,20 +180,39 @@ final class Journal {
     func recount() async {
         guard case .open(let root, _) = state, let store else { return }
         guard let files = try? await store.listFiles() else { return }
-        state = .open(root, fileCount: files.count)
+        state = .open(root, entryCount: Self.entryCount(among: files, by: settings))
     }
 
     /// Off the main actor deliberately: asking for the iCloud container blocks,
     /// and so does reading the folder.
     private nonisolated static func openJournal(
-        using locator: JournalRootLocator
-    ) async throws -> (root: JournalRoot, store: FileJournalStore, fileCount: Int) {
+        using locator: JournalRootLocator,
+        settings: JournalSettings
+    ) async throws -> (root: JournalRoot, store: FileJournalStore, entryCount: Int?) {
         let root = try locator.locate()
         let store = FileJournalStore(root: root.url)
         // Reading the folder once here is what makes "it works" a fact rather
         // than a hope: a root that cannot be listed is not one to journal into.
         let files = try await store.listFiles()
-        return (root, store, files.count)
+        return (root, store, entryCount(among: files, by: settings))
+    }
+
+    /// How many of a folder's files are Entries — which is how much journal
+    /// is in it.
+    ///
+    /// Entries and not files, because the folder may be somebody's Obsidian
+    /// vault: "4,312 files" as the size of their journal would be counting
+    /// thousands of notes that are none of Aujour's business, on the same
+    /// screen that promises it leaves them alone. A file is an Entry exactly
+    /// when the current Path Template renders its path for some day
+    /// (ADR 0002), and a template that cannot say gets no number rather than
+    /// a wrong one.
+    private nonisolated static func entryCount(
+        among files: [String],
+        by settings: JournalSettings
+    ) -> Int? {
+        guard let template = try? PathTemplate(settings.pathTemplate) else { return nil }
+        return files.filter { template.match($0) != nil }.count
     }
 }
 
@@ -231,11 +253,5 @@ extension JournalRoot.Location {
         case .aujoursOwn(.onThisDevice): device.lowercased() == "ipad" ? "ipad" : "iphone"
         case .customFolder: "folder"
         }
-    }
-
-    /// Whether this is a folder the user pointed Aujour at.
-    var isCustomFolder: Bool {
-        if case .customFolder = self { return true }
-        return false
     }
 }

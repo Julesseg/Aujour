@@ -56,7 +56,7 @@ enum UITestingJournal {
                 // this test's own: a folder chosen by one test must never be
                 // the next test's journal, and "it survived the relaunch" is
                 // the claim being made.
-                chosenFolder: .stored(key: "\(ChosenJournalFolder.bookmarkKey).\(folder)")
+                customRoot: .stored(key: "\(CustomJournalRoot.bookmarkKey).\(folder)")
             ),
             settings: settings
         )

@@ -75,12 +75,12 @@ struct JournalRootLocator: Sendable {
 
     /// The folder the user pointed Aujour at, if they have — and the way they
     /// point it somewhere else or come back.
-    var chosenFolder: ChosenJournalFolder = .unchosen
+    var customRoot: CustomJournalRoot = .unchosen
 
     func locate() throws -> JournalRoot {
         // A journal that has been pointed somewhere is not one to go looking
         // for, so this answers on its own — including by failing.
-        if let chosen = try chosenFolder.resolve() {
+        if let chosen = try customRoot.resolve() {
             return JournalRoot(
                 url: chosen,
                 location: .customFolder(name: chosen.lastPathComponent)
@@ -167,7 +167,7 @@ extension JournalRootLocator {
             rememberLocation: { location in
                 UserDefaults.standard.set(location.rawValue, forKey: lastUsedLocationKey)
             },
-            chosenFolder: .stored()
+            customRoot: .stored()
         )
     }
 }

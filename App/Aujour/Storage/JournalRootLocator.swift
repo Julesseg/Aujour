@@ -10,7 +10,27 @@ struct JournalRoot: Equatable, Sendable {
     let url: URL
     let location: Location
 
-    enum Location: String, Equatable, Sendable {
+    enum Location: Equatable, Sendable {
+        /// A folder Aujour found for itself, which is the whole of "a fresh
+        /// install just works" (ADR 0004).
+        case aujoursOwn(DefaultFolder)
+
+        /// A folder the user pointed Aujour at in the Files app — typically
+        /// inside an Obsidian vault, so that daily notes and Entries are the
+        /// same files.
+        ///
+        /// Named rather than pathed, because the name is what the user picked
+        /// and what they would recognize; where it sits in the Files app is
+        /// not something a security-scoped folder can be asked.
+        case customFolder(name: String)
+    }
+
+    /// Which of the two folders Aujour can find on its own a journal lives in.
+    ///
+    /// Settled on the first launch and then remembered on the device, because
+    /// a journal that moved between them on its own would be a journal with
+    /// holes in it (ADR 0004).
+    enum DefaultFolder: String, Equatable, Sendable {
         /// Aujour's own folder in iCloud Drive: visible in the Files app,
         /// synced between the user's devices, and still there after the app
         /// is deleted.
@@ -24,8 +44,9 @@ struct JournalRoot: Equatable, Sendable {
     }
 }
 
-/// Finds the folder to journal into when the user has not pointed Aujour
-/// anywhere — the whole of "a fresh install just works".
+/// Finds the folder to journal into: the one the user pointed Aujour at, or —
+/// until they point it anywhere — the one Aujour finds for itself, which is
+/// the whole of "a fresh install just works".
 ///
 /// It has one rule beyond preferring iCloud Drive: **a journal does not move
 /// on its own.** The first launch settles the question and the answer is
@@ -37,16 +58,35 @@ struct JournalRoot: Equatable, Sendable {
 /// user (ADR 0001 — the folder is the journal, and the app does not get to
 /// substitute a different one).
 ///
-/// The four ways it reaches the world are injected so that both branches, and
-/// both failures, are tested against real folders rather than against the
-/// device this test happens to run on.
+/// A chosen folder is held to the same rule, and it is the reason the rule is
+/// stated once here rather than at each branch: a vault folder that has been
+/// renamed away is a failure the user is shown, never a quiet return to
+/// Aujour's own folder, where the Entries they can see in Obsidian would
+/// simply not be.
+///
+/// The ways it reaches the world are injected so that every branch, and every
+/// failure, is tested against real folders rather than against the device the
+/// test happens to run on.
 struct JournalRootLocator: Sendable {
     var iCloudDocuments: @Sendable () -> URL?
     var onThisDeviceDocuments: @Sendable () -> URL
-    var lastUsedLocation: @Sendable () -> JournalRoot.Location?
-    var rememberLocation: @Sendable (JournalRoot.Location) -> Void
+    var lastUsedLocation: @Sendable () -> JournalRoot.DefaultFolder?
+    var rememberLocation: @Sendable (JournalRoot.DefaultFolder) -> Void
+
+    /// The folder the user pointed Aujour at, if they have — and the way they
+    /// point it somewhere else or come back.
+    var chosenFolder: ChosenJournalFolder = .unchosen
 
     func locate() throws -> JournalRoot {
+        // A journal that has been pointed somewhere is not one to go looking
+        // for, so this answers on its own — including by failing.
+        if let chosen = try chosenFolder.resolve() {
+            return JournalRoot(
+                url: chosen,
+                location: .customFolder(name: chosen.lastPathComponent)
+            )
+        }
+
         // Where this journal already lives is the whole answer; the only
         // question left is whether it is reachable, and if not that is a
         // failure rather than a different folder.
@@ -54,23 +94,23 @@ struct JournalRootLocator: Sendable {
             guard let url = folder(for: settled) else {
                 throw JournalRootError.journalRootUnavailable
             }
-            return JournalRoot(url: url, location: settled)
+            return JournalRoot(url: url, location: .aujoursOwn(settled))
         }
 
         // Nothing settled yet, so this is a first launch: iCloud Drive if it
         // will have us, the device if not.
-        for location in [JournalRoot.Location.iCloudDrive, .onThisDevice] {
+        for location in [JournalRoot.DefaultFolder.iCloudDrive, .onThisDevice] {
             guard let url = folder(for: location) else { continue }
             rememberLocation(location)
-            return JournalRoot(url: url, location: location)
+            return JournalRoot(url: url, location: .aujoursOwn(location))
         }
         throw JournalRootError.journalRootUnavailable
     }
 
-    /// The folder for a location, made if it is not there yet — and `nil` if
-    /// it cannot be one, which for iCloud Drive means it is off or has not
-    /// arrived on this device yet.
-    private func folder(for location: JournalRoot.Location) -> URL? {
+    /// The folder for one of Aujour's own locations, made if it is not there
+    /// yet — and `nil` if it cannot be one, which for iCloud Drive means it is
+    /// off or has not arrived on this device yet.
+    private func folder(for location: JournalRoot.DefaultFolder) -> URL? {
         let url =
             switch location {
             case .iCloudDrive: iCloudDocuments()
@@ -122,11 +162,12 @@ extension JournalRootLocator {
             },
             lastUsedLocation: {
                 UserDefaults.standard.string(forKey: lastUsedLocationKey)
-                    .flatMap(JournalRoot.Location.init(rawValue:))
+                    .flatMap(JournalRoot.DefaultFolder.init(rawValue:))
             },
             rememberLocation: { location in
                 UserDefaults.standard.set(location.rawValue, forKey: lastUsedLocationKey)
-            }
+            },
+            chosenFolder: .stored()
         )
     }
 }

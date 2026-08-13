@@ -13,7 +13,7 @@ struct JournalRootLocatorTests {
     /// `@Sendable` closure can write to it; unchecked because `locate()` is
     /// synchronous and nothing here is concurrent.
     final class Remembered: @unchecked Sendable {
-        var location: JournalRoot.Location?
+        var location: JournalRoot.DefaultFolder?
     }
 
     @Test("a fresh install lands in iCloud Drive, and the folder is made for it")
@@ -30,7 +30,7 @@ struct JournalRootLocatorTests {
 
             let root = try locator.locate()
 
-            #expect(root.location == .iCloudDrive)
+            #expect(root.location == .aujoursOwn(.iCloudDrive))
             #expect(root.url == iCloud.standardizedFileURL)
             #expect(FileManager.default.fileExists(atPath: iCloud.path))
             #expect(remembered.location == .iCloudDrive)
@@ -51,7 +51,7 @@ struct JournalRootLocatorTests {
 
             let root = try locator.locate()
 
-            #expect(root.location == .onThisDevice)
+            #expect(root.location == .aujoursOwn(.onThisDevice))
             #expect(root.url == device.standardizedFileURL)
             #expect(FileManager.default.fileExists(atPath: device.path))
             #expect(remembered.location == .onThisDevice)
@@ -74,7 +74,7 @@ struct JournalRootLocatorTests {
             let root = try locator.locate()
 
             // Switching would leave every entry written so far invisible.
-            #expect(root.location == .onThisDevice)
+            #expect(root.location == .aujoursOwn(.onThisDevice))
             #expect(root.url == device.standardizedFileURL)
         }
     }
@@ -132,7 +132,7 @@ struct JournalRootLocatorTests {
 
             let root = try locator.locate()
 
-            #expect(root.location == .onThisDevice)
+            #expect(root.location == .aujoursOwn(.onThisDevice))
             #expect(FileManager.default.fileExists(atPath: device.path))
         }
     }

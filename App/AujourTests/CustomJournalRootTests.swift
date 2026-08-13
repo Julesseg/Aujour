@@ -15,7 +15,7 @@ import AujourCore
 // relaunch, a rename, and the user changing their mind.
 
 /// Where a bookmark is kept between launches. `UserDefaults` in the app;
-/// here, a box a test can hand to a second `ChosenJournalFolder` — which is
+/// here, a box a test can hand to a second `CustomJournalRoot` — which is
 /// what a relaunch is.
 ///
 /// Unchecked because the box is behind a lock; the closures it hands out are
@@ -26,8 +26,8 @@ private final class RememberedBookmark: @unchecked Sendable {
 
     /// A chosen folder over this storage — a new one every time, because that
     /// is what a relaunch hands the app: nothing but the bookmark.
-    func chosenFolder() -> ChosenJournalFolder {
-        ChosenJournalFolder(
+    func customRoot() -> CustomJournalRoot {
+        CustomJournalRoot(
             storedBookmark: {
                 self.lock.lock()
                 defer { self.lock.unlock() }
@@ -49,14 +49,14 @@ private final class RememberedBookmark: @unchecked Sendable {
 }
 
 @Suite("The folder the user pointed Aujour at")
-struct ChosenJournalFolderTests {
+struct CustomJournalRootBookmarkTests {
     @Test("with nothing chosen, the journal is the one Aujour found for itself")
     func nothingChosenLeavesAujoursOwnFolderInCharge() async throws {
         try await withTemporaryFolder { folders in
             let remembered = RememberedBookmark()
             let device = folders.appending(path: "Device/Documents", directoryHint: .isDirectory)
 
-            let root = try locator(device: device, chosen: remembered.chosenFolder()).locate()
+            let root = try locator(device: device, chosen: remembered.customRoot()).locate()
 
             #expect(root.location == .aujoursOwn(.onThisDevice))
             #expect(root.url == device.standardizedFileURL)
@@ -70,10 +70,10 @@ struct ChosenJournalFolderTests {
             try vault.seed("Walked to the market.\n", at: "2026/03/2026-03-01.md")
             let remembered = RememberedBookmark()
 
-            try remembered.chosenFolder().choose(vault)
+            try remembered.customRoot().choose(vault)
             let root = try locator(
                 device: folders.appending(path: "Device"),
-                chosen: remembered.chosenFolder()
+                chosen: remembered.customRoot()
             ).locate()
 
             #expect(root.location == .customFolder(name: "Journal"))
@@ -91,13 +91,13 @@ struct ChosenJournalFolderTests {
             let vault = folders.appending(path: "Obsidian/Journal", directoryHint: .isDirectory)
             try FileManager.default.createDirectory(at: vault, withIntermediateDirectories: true)
             let remembered = RememberedBookmark()
-            try remembered.chosenFolder().choose(vault)
+            try remembered.customRoot().choose(vault)
 
             // Nothing carried over from the launch that chose it but the
             // bookmark, which is all a relaunch or a reboot leaves.
             let afterRelaunch = try locator(
                 device: folders.appending(path: "Device"),
-                chosen: remembered.chosenFolder()
+                chosen: remembered.customRoot()
             ).locate()
 
             #expect(afterRelaunch.location == .customFolder(name: "Journal"))
@@ -111,7 +111,7 @@ struct ChosenJournalFolderTests {
             let vault = folders.appending(path: "Obsidian/Journal", directoryHint: .isDirectory)
             try vault.seed("Walked to the market.\n", at: "2026/03/2026-03-01.md")
             let remembered = RememberedBookmark()
-            try remembered.chosenFolder().choose(vault)
+            try remembered.customRoot().choose(vault)
 
             // A bookmark names the folder itself and not the path to it,
             // which is most of why a bookmark is what gets kept.
@@ -120,7 +120,7 @@ struct ChosenJournalFolderTests {
 
             let root = try locator(
                 device: folders.appending(path: "Device"),
-                chosen: remembered.chosenFolder()
+                chosen: remembered.customRoot()
             ).locate()
 
             #expect(root.url == renamed.standardizedFileURL)
@@ -134,16 +134,16 @@ struct ChosenJournalFolderTests {
             let vault = folders.appending(path: "Obsidian/Journal", directoryHint: .isDirectory)
             try FileManager.default.createDirectory(at: vault, withIntermediateDirectories: true)
             let remembered = RememberedBookmark()
-            try remembered.chosenFolder().choose(vault)
+            try remembered.customRoot().choose(vault)
             try FileManager.default.removeItem(at: vault)
 
             // Journaling into Aujour's own folder instead would leave the
             // user looking at an empty journal while their Entries sit in the
             // vault, and nothing said about it (ADR 0004).
-            #expect(throws: JournalRootError.chosenFolderUnavailable) {
+            #expect(throws: JournalRootError.customRootUnavailable) {
                 try locator(
                     device: folders.appending(path: "Device"),
-                    chosen: remembered.chosenFolder()
+                    chosen: remembered.customRoot()
                 ).locate()
             }
         }
@@ -156,7 +156,7 @@ struct ChosenJournalFolderTests {
             try vault.seed("Walked to the market.\n", at: "2026/03/2026-03-01.md")
             let device = folders.appending(path: "Device/Documents", directoryHint: .isDirectory)
             let remembered = RememberedBookmark()
-            let chosen = remembered.chosenFolder()
+            let chosen = remembered.customRoot()
             try chosen.choose(vault)
 
             chosen.forget()
@@ -177,14 +177,14 @@ struct ChosenJournalFolderTests {
             try folders.seed("Not a folder.\n", at: "note.md")
             let remembered = RememberedBookmark()
 
-            #expect(throws: JournalRootError.chosenFolderUnavailable) {
-                try remembered.chosenFolder().choose(folders.appending(path: "note.md"))
+            #expect(throws: JournalRootError.customRootUnavailable) {
+                try remembered.customRoot().choose(folders.appending(path: "note.md"))
             }
             #expect(remembered.isEmpty)
         }
     }
 
-    private func locator(device: URL, chosen: ChosenJournalFolder) -> JournalRootLocator {
+    private func locator(device: URL, chosen: CustomJournalRoot) -> JournalRootLocator {
         JournalRootLocator(
             // No iCloud, so that what a chosen folder is being preferred over
             // is unambiguous.
@@ -192,7 +192,7 @@ struct ChosenJournalFolderTests {
             onThisDeviceDocuments: { device },
             lastUsedLocation: { .onThisDevice },
             rememberLocation: { _ in },
-            chosenFolder: chosen
+            customRoot: chosen
         )
     }
 }
@@ -209,7 +209,7 @@ struct CustomJournalRootTests {
             await session.journal.use(vault)
 
             #expect(session.root?.location == .customFolder(name: "Journal"))
-            #expect(session.journal.hasAChosenFolder)
+            #expect(session.journal.hasACustomFolder)
             #expect(session.journal.folderProblem == nil)
 
             // Read from there: today's Entry is whatever that folder holds
@@ -290,7 +290,7 @@ struct CustomJournalRootTests {
             await session.journal.useAujoursOwnFolder()
 
             #expect(session.root?.location == .aujoursOwn(.onThisDevice))
-            #expect(!session.journal.hasAChosenFolder)
+            #expect(!session.journal.hasACustomFolder)
             // Today is a day to be written from scratch again, because the
             // folder Aujour is back in has never been written in.
             #expect(session.journal.today?.content == "")
@@ -350,7 +350,7 @@ struct CustomJournalRootTests {
             #expect(session.root?.location == .aujoursOwn(.onThisDevice))
             #expect(session.journal.today?.content == "Words that cannot land.")
             #expect(session.journal.folderProblem != nil)
-            #expect(!session.journal.hasAChosenFolder)
+            #expect(!session.journal.hasACustomFolder)
         }
     }
 
@@ -367,7 +367,7 @@ struct CustomJournalRootTests {
             #expect(session.journal.today != nil)
             // Said rather than swallowed: the request did not happen.
             #expect(session.journal.folderProblem != nil)
-            #expect(!session.journal.hasAChosenFolder)
+            #expect(!session.journal.hasACustomFolder)
         }
     }
 
@@ -392,6 +392,12 @@ struct CustomJournalRootTests {
             let today = try #require(session.journal.today)
             today.content = "Walked to the market.\n"
             await today.save()
+            await session.journal.recount()
+
+            // How much journal is in the folder is its Entries, not its files:
+            // a vault's other notes are not the size of anybody's journal, and
+            // counting them would contradict the promise on the same screen.
+            #expect(session.entryCount == 1)
 
             // Exactly one file arrived, at the path the Path Template names.
             let store: any JournalStore = FileJournalStore(root: vault)
@@ -450,6 +456,13 @@ private final class Session {
         return root
     }
 
+    /// How much journal the open folder holds, as the folder sheet would say
+    /// it. `nil` when there is no open journal to have counted.
+    var entryCount: Int? {
+        guard case .open(_, let entryCount) = journal.state else { return nil }
+        return entryCount
+    }
+
     /// The app again, with nothing kept but what the device remembers.
     func relaunch() {
         journal = makeJournal()
@@ -465,7 +478,7 @@ private final class Session {
                 onThisDeviceDocuments: { folder },
                 lastUsedLocation: { .onThisDevice },
                 rememberLocation: { _ in },
-                chosenFolder: remembered.chosenFolder()
+                customRoot: remembered.customRoot()
             )
         )
     }

@@ -23,7 +23,7 @@ import Foundation
 ///
 /// Unchecked because that one piece of state is behind a lock; everything
 /// else here is a closure the caller supplied.
-final class ChosenJournalFolder: @unchecked Sendable {
+final class CustomJournalRoot: @unchecked Sendable {
     private let storedBookmark: @Sendable () -> Data?
     private let rememberBookmark: @Sendable (Data?) -> Void
 
@@ -66,7 +66,7 @@ final class ChosenJournalFolder: @unchecked Sendable {
             )
         else {
             stopReaching()
-            throw JournalRootError.chosenFolderUnavailable
+            throw JournalRootError.customRootUnavailable
         }
 
         // Before asking whether the folder is there: without the right to
@@ -75,7 +75,7 @@ final class ChosenJournalFolder: @unchecked Sendable {
 
         guard isFolder(url) else {
             stopReaching()
-            throw JournalRootError.chosenFolderUnavailable
+            throw JournalRootError.customRootUnavailable
         }
 
         // A stale bookmark still resolves — it is the warning that it may not
@@ -100,7 +100,7 @@ final class ChosenJournalFolder: @unchecked Sendable {
         defer { if scoped { folder.stopAccessingSecurityScopedResource() } }
 
         guard isFolder(folder) else {
-            throw JournalRootError.chosenFolderUnavailable
+            throw JournalRootError.customRootUnavailable
         }
 
         let bookmark: Data
@@ -159,7 +159,7 @@ final class ChosenJournalFolder: @unchecked Sendable {
     }
 }
 
-extension ChosenJournalFolder {
+extension CustomJournalRoot {
     static let bookmarkKey = "JournalRootBookmark"
 
     /// The folder this device's journal was pointed at, kept in local storage
@@ -169,8 +169,8 @@ extension ChosenJournalFolder {
     /// - Parameter key: where the bookmark is kept. Spelled out only by the
     ///   UI suite, which gives each of its journals a key of its own so that
     ///   one test's chosen folder is never the next test's.
-    static func stored(key: String = ChosenJournalFolder.bookmarkKey) -> ChosenJournalFolder {
-        ChosenJournalFolder(
+    static func stored(key: String = CustomJournalRoot.bookmarkKey) -> CustomJournalRoot {
+        CustomJournalRoot(
             storedBookmark: { UserDefaults.standard.data(forKey: key) },
             rememberBookmark: { bookmark in
                 if let bookmark {
@@ -184,7 +184,7 @@ extension ChosenJournalFolder {
 
     /// A folder nobody has chosen and nothing remembers — for previews, and
     /// for anything that journals somewhere of its own choosing.
-    static var unchosen: ChosenJournalFolder {
-        ChosenJournalFolder(storedBookmark: { nil }, rememberBookmark: { _ in })
+    static var unchosen: CustomJournalRoot {
+        CustomJournalRoot(storedBookmark: { nil }, rememberBookmark: { _ in })
     }
 }

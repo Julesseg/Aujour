@@ -26,7 +26,7 @@ struct ContentView: View {
     /// Aujour's own folder there is nowhere else to go, and a button that
     /// does nothing is worse than no button.
     private var wayBackToAujoursOwnFolder: (() async -> Void)? {
-        guard journal.hasAChosenFolder else { return nil }
+        guard journal.hasACustomFolder else { return nil }
         return { await journal.useAujoursOwnFolder() }
     }
 
@@ -178,7 +178,7 @@ private struct JournalFolderSheet: View {
         case .opening:
             ProgressView("Opening your journal")
 
-        case .open(let root, let fileCount):
+        case .open(let root, let entryCount):
             Image(systemName: root.location.symbolName(onDevice: device))
                 .font(.system(size: 44))
                 .foregroundStyle(.tint)
@@ -193,10 +193,12 @@ private struct JournalFolderSheet: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            Text(fileCount == 1 ? "1 file" : "\(fileCount) files")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("journalFileCount")
+            if let entryCount {
+                Text(entryCount == 1 ? "1 entry" : "\(entryCount) entries")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("journalEntryCount")
+            }
 
             Text(root.url.path(percentEncoded: false))
                 .font(.caption2.monospaced())
@@ -220,7 +222,7 @@ private struct JournalFolderSheet: View {
             }
             .accessibilityIdentifier("chooseCustomFolder")
 
-            if journal.hasAChosenFolder {
+            if journal.hasACustomFolder {
                 Button("Use Aujour's own folder", systemImage: "arrow.uturn.backward") {
                     Task { await journal.useAujoursOwnFolder() }
                 }
@@ -357,7 +359,7 @@ extension JournalRootLocator {
             onThisDeviceDocuments: { URL(filePath: "/dev/null/nowhere") },
             lastUsedLocation: { nil },
             rememberLocation: { _ in },
-            chosenFolder: ChosenJournalFolder(
+            customRoot: CustomJournalRoot(
                 storedBookmark: { bookmark },
                 rememberBookmark: { _ in }
             )

@@ -17,7 +17,7 @@ struct JournalStorageTests {
 
             await journal.open()
 
-            #expect(journal.state == .open(JournalRoot(url: iCloud.standardizedFileURL, location: .aujoursOwn(.iCloudDrive)), fileCount: 0))
+            #expect(journal.state == .open(JournalRoot(url: iCloud.standardizedFileURL, location: .aujoursOwn(.iCloudDrive)), entryCount: 0))
             #expect(journal.store != nil)
 
             // And it is a folder the app can actually journal into.
@@ -40,7 +40,7 @@ struct JournalStorageTests {
 
             await journal.open()
 
-            #expect(journal.state == .open(JournalRoot(url: iCloud.standardizedFileURL, location: .aujoursOwn(.iCloudDrive)), fileCount: 2))
+            #expect(journal.state == .open(JournalRoot(url: iCloud.standardizedFileURL, location: .aujoursOwn(.iCloudDrive)), entryCount: 2))
         }
     }
 
@@ -98,13 +98,13 @@ struct JournalStorageTests {
             let root = JournalRoot(url: iCloud.standardizedFileURL, location: .aujoursOwn(.iCloudDrive))
             let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders))
             await journal.open()
-            #expect(journal.state == .open(root, fileCount: 0))
+            #expect(journal.state == .open(root, entryCount: 0))
 
             // What today's first edit does, from the outside.
             try await #require(journal.store).writeText("First words.\n", at: "2026/03/2026-03-01.md")
             await journal.recount()
 
-            #expect(journal.state == .open(root, fileCount: 1))
+            #expect(journal.state == .open(root, entryCount: 1))
         }
     }
 

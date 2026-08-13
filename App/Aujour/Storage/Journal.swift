@@ -48,22 +48,52 @@ final class Journal {
     /// to journal into.
     private(set) var store: (any JournalStore)?
 
-    private let locator: JournalRootLocator
+    /// Today's Entry, over that folder — the screen the app opens on.
+    ///
+    /// Made here rather than by the view, because it is the folder that
+    /// decides whether there is an Entry to edit at all: until one has been
+    /// found there is nothing for an editor to be over, and the screen says
+    /// so instead of showing an empty page (ADR 0001).
+    private(set) var today: EntryEditor?
 
-    init(locator: JournalRootLocator = .system) {
+    private let locator: JournalRootLocator
+    private let settings: JournalSettings
+
+    /// - Parameter settings: the journal-shaping settings today's Entry is
+    ///   spawned and saved by. The defaults until the settings screen lands;
+    ///   they arrive through iCloud key-value storage then (ADR 0003).
+    init(locator: JournalRootLocator = .system, settings: JournalSettings = .default) {
         self.locator = locator
+        self.settings = settings
     }
 
     func open() async {
         state = .opening
+        today = nil
         do {
             let opened = try await Self.openJournal(using: locator)
+            let editor = EntryEditor(store: opened.store, settings: settings)
             store = opened.store
+            today = editor
             state = .open(opened.root, fileCount: opened.fileCount)
+            await editor.open()
         } catch {
             store = nil
             state = .unavailable(StorageProblem(error))
         }
+    }
+
+    /// Re-reads how much is in the folder.
+    ///
+    /// The count comes from a single listing at launch, which stops being
+    /// true the moment today's first edit creates a file — so whatever shows
+    /// it asks again rather than repeating what the app was told once. A
+    /// folder that will not answer keeps the old count: this is a number
+    /// beside the journal, not the journal.
+    func recount() async {
+        guard case .open(let root, _) = state, let store else { return }
+        guard let files = try? await store.listFiles() else { return }
+        state = .open(root, fileCount: files.count)
     }
 
     /// Off the main actor deliberately: asking for the iCloud container blocks,

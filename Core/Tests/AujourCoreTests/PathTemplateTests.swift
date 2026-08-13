@@ -259,3 +259,32 @@ struct PathTemplateMatchingTests {
         #expect(template.match("٢٠٢٦-٠٣-٠١.md") == nil)
     }
 }
+
+@Suite("The Entry's own name")
+struct PathTemplateEntryNameTests {
+    @Test("an Entry's name is its file name — no folders, no extension")
+    func entryNameIsTheFileNameAlone() throws {
+        #expect(PathTemplate.default.entryName(for: .marchFirst) == "2026-03-01")
+        #expect(
+            try PathTemplate("[Journal]/YYYY/[Q]MM/DD-MM-YYYY").entryName(for: .marchFirst)
+                == "01-03-2026"
+        )
+        #expect(try PathTemplate("YYYY-MM-DD").entryName(for: .marchFirst) == "2026-03-01")
+    }
+
+    @Test("a bare {{date}} renders in the format the Entry's file name uses")
+    func entryNameFormatIsTheFileNamesOwnFormat() throws {
+        let noon = instant(2026, 3, 1, 12, in: utc)
+        func rendered(_ format: String) throws -> String {
+            try PathTemplate(format).entryNameFormat
+                .render(noon, timeZone: utc, locale: Locale(identifier: "en_US_POSIX"))
+        }
+
+        #expect(try rendered("YYYY/MM/YYYY-MM-DD") == "2026-03-01")
+        #expect(try rendered("YYYY/MM/DD-MM-YYYY") == "01-03-2026")
+        // The literal parts of the file name come through as literals rather
+        // than as Moment fields — `day` is three letters that would otherwise
+        // render as a date of their own.
+        #expect(try rendered("[Journal]/YYYY/[day ]DD-MM-YYYY") == "day 01-03-2026")
+    }
+}

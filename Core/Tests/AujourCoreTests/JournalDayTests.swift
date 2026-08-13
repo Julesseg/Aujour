@@ -297,3 +297,23 @@ struct JournalDayInstantTests {
         #expect(day.date(atClockTimeOf: writtenAt, in: paris) == instant(2026, 3, 1, 14, 5, in: paris))
     }
 }
+
+@Suite("Saying a Journal Day out loud")
+struct JournalDaySpellingTests {
+    @Test("a Journal Day names its weekday, day and month — and not its year")
+    func spelledOutNamesTheDayWithoutTheYear() {
+        let spelled = JournalDay(year: 2026, month: 3, day: 1)
+            .spelledOut(in: paris, locale: Locale(identifier: "en_US_POSIX"))
+
+        #expect(spelled.contains("Sunday"))
+        #expect(spelled.contains("March"))
+        #expect(spelled.contains("1"))
+        // The year lives in the Entry's file name, not in the day's title.
+        #expect(!spelled.contains("2026"))
+    }
+
+    @Test("the ISO-8601 form is what paths are made of, whoever is reading")
+    func descriptionStaysISO() {
+        #expect(JournalDay(year: 2026, month: 3, day: 1).description == "2026-03-01")
+    }
+}

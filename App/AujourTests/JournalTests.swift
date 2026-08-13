@@ -44,6 +44,40 @@ struct JournalStorageTests {
         }
     }
 
+    @Test("opening the journal leaves today's Entry on screen, ready to type into")
+    func openingLeavesTodaysEntryReady() async throws {
+        try await withTemporaryFolder { folders in
+            let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
+            let today = JournalDay.current(at: .now, in: .current, rolloverHour: .midnight)
+            try iCloud.seed("Walked to the market.\n", at: PathTemplate.default.render(today))
+            let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders))
+
+            await journal.open()
+
+            let editor = try #require(journal.today)
+            #expect(editor.day == today)
+            #expect(editor.content == "Walked to the market.\n")
+            #expect(editor.state.isEditing)
+        }
+    }
+
+    @Test("how much is in the folder is asked again, not remembered from launch")
+    func recountingSeesWhatWasWrittenSince() async throws {
+        try await withTemporaryFolder { folders in
+            let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
+            let root = JournalRoot(url: iCloud.standardizedFileURL, location: .iCloudDrive)
+            let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders))
+            await journal.open()
+            #expect(journal.state == .open(root, fileCount: 0))
+
+            // What today's first edit does, from the outside.
+            try await #require(journal.store).writeText("First words.\n", at: "2026/03/2026-03-01.md")
+            await journal.recount()
+
+            #expect(journal.state == .open(root, fileCount: 1))
+        }
+    }
+
     @Test("a folder Aujour cannot reach becomes something to say, not an empty page")
     func anUnreachableFolderIsPresented() async throws {
         try await withTemporaryFolder { folders in
@@ -68,6 +102,9 @@ struct JournalStorageTests {
             // Nothing to journal through: better than a store that silently
             // writes somewhere the rest of the journal is not.
             #expect(journal.store == nil)
+            // And nothing to type into either — an editor over a folder that
+            // is not there would take words it could never save.
+            #expect(journal.today == nil)
         }
     }
 

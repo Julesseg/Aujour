@@ -108,6 +108,32 @@ struct JournalStorageTests {
         }
     }
 
+    @Test("a day edited outside Aujour turns up on screen, without anybody asking")
+    func anEditMadeElsewhereReachesTodaysEntry() async throws {
+        try await withTemporaryFolder { folders in
+            let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
+            let today = JournalDay.current(at: .now, in: .current, rolloverHour: .midnight)
+            let entry = PathTemplate.default.render(today)
+            try iCloud.seed("Walked to the market.\n", at: entry)
+            let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders))
+
+            await journal.open()
+            let editor = try #require(journal.today)
+            #expect(editor.content == "Walked to the market.\n")
+
+            // Obsidian, saving today's note in the other half of the split
+            // screen. Nothing in Aujour asks for this — the folder says so,
+            // and the Entry on screen catches up because nothing is waiting to
+            // be written to it.
+            try iCloud.somebodyElseWrites(
+                "Walked to the market, and back the long way.\n",
+                at: entry
+            )
+
+            await expect(editor, toShow: "Walked to the market, and back the long way.\n")
+        }
+    }
+
     @Test("a folder Aujour cannot reach becomes something to say, not an empty page")
     func anUnreachableFolderIsPresented() async throws {
         try await withTemporaryFolder { folders in
@@ -169,6 +195,26 @@ struct JournalStorageTests {
                 == JournalRoot.Location.aujoursOwn(.iCloudDrive).name(onDevice: "iPhone")
         )
     }
+}
+
+/// Waits for the Entry on screen to say something, up to a deadline.
+///
+/// Polled, because what is being waited for is the system telling a file
+/// presenter about somebody else's write, and then a folder being read — the
+/// one thing in these tests that happens on its own schedule rather than on
+/// the test's.
+@MainActor
+private func expect(
+    _ editor: EntryEditor,
+    toShow text: String,
+    within seconds: Double = 5,
+    sourceLocation: SourceLocation = #_sourceLocation
+) async {
+    let deadline = Date().addingTimeInterval(seconds)
+    while Date() < deadline, editor.content != text {
+        try? await Task.sleep(for: .milliseconds(50))
+    }
+    #expect(editor.content == text, sourceLocation: sourceLocation)
 }
 
 extension JournalRootLocator {

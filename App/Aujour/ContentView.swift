@@ -110,8 +110,16 @@ struct ContentView: View {
                 // is holding would be spent in it.
                 Task { await today.save() }
             case .active:
-                // An app left running overnight comes back to a different day.
-                Task { await today.reopenIfTheDayTurned() }
+                Task {
+                    // An app left running overnight comes back to a different
+                    // day.
+                    await today.reopenIfTheDayTurned()
+                    // And to a folder that may have moved on without it: an
+                    // app in the background is not being told about Obsidian's
+                    // saves or about what iCloud brought down, so coming back
+                    // to the front is its own moment to catch up.
+                    await journal.catchUpWithTheFolder()
+                }
             @unknown default:
                 break
             }

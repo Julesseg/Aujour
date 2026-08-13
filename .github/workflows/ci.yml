@@ -1,8 +1,16 @@
 name: CI
 
+# Pull requests only. A `pull_request` run already builds `main` with the
+# branch merged into it, so a `push: branches: [main]` trigger re-tested that
+# same tree the moment the PR landed — every merged PR ended up showing two of
+# every check, one `(pull_request)` and one `(push)`, and paid twice for the
+# macOS XCUITest job.
+#
+# What that trigger did buy was cover for a stale merge base: `main` moving
+# between the run and the merge leaves a tree nobody tested. That belongs to
+# branch protection — require the branch to be up to date before merging, and
+# the PR run *is* the run for the commit that lands.
 on:
-  push:
-    branches: [main]
   pull_request:
 
 # The one project-specific value in this workflow. Must match the name of the

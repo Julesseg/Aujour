@@ -307,6 +307,53 @@ struct CustomJournalRootTests {
         }
     }
 
+    @Test("words still in the editor go to the folder they were written in, before it is left")
+    func unsavedWordsLandBeforeTheFolderChanges() async throws {
+        try await withTemporaryFolder { folders in
+            let vault = try vaultFolder(in: folders)
+            let session = Session(folders: folders)
+            await session.journal.open()
+            let today = try #require(session.journal.today)
+            // Typed and not waited out: the autosave is still holding these
+            // words, so nothing is on disk yet — and the editor holding them
+            // is about to be replaced.
+            today.content = "Written in Aujour's own folder."
+
+            await session.journal.use(vault)
+
+            #expect(session.root?.location == .customFolder(name: "Journal"))
+            #expect(
+                try String(
+                    contentsOf: session.defaultFolder.appending(path: todaysEntryPath),
+                    encoding: .utf8
+                ) == "Written in Aujour's own folder."
+            )
+        }
+    }
+
+    @Test("a folder change waits rather than leaving words that could not be written")
+    func aSaveThatWillNotGoStopsTheMove() async throws {
+        try await withTemporaryFolder { folders in
+            let vault = try vaultFolder(in: folders)
+            let session = Session(folders: folders)
+            await session.journal.open()
+            let today = try #require(session.journal.today)
+            today.content = "Words that cannot land."
+            // The folder goes out from under the editor, so those words exist
+            // nowhere but on screen.
+            try FileManager.default.removeItem(at: session.defaultFolder)
+
+            await session.journal.use(vault)
+
+            // Moving would have thrown them away with the editor holding them
+            // (v1-decisions: no words are ever silently discarded).
+            #expect(session.root?.location == .aujoursOwn(.onThisDevice))
+            #expect(session.journal.today?.content == "Words that cannot land.")
+            #expect(session.journal.folderProblem != nil)
+            #expect(!session.journal.hasAChosenFolder)
+        }
+    }
+
     @Test("a folder that cannot be taken on leaves the journal that is open alone")
     func aFailedPickLeavesTheOpenJournalAlone() async throws {
         try await withTemporaryFolder { folders in

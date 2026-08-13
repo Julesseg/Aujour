@@ -12,9 +12,11 @@ product decisions in `docs/design/v1-decisions.md`.
 When an issue closes as completed (or on a manual re-scan),
 `unblock-dispatch.yml` finds `ready-for-agent` issues that nothing blocks —
 never blocked, or with every `## Blocked by` entry closed — and spawns a Paseo
-agent session for each on the self-hosted Mac runner (capped, guarded by the
-`agent-dispatched` label, umbrella `[Epic]`/`Spec:` issues skipped). See
-`docs/agents/auto-dispatch.md`.
+agent session for each on the self-hosted Mac runner (capped, umbrella
+`[Epic]`/`Spec:` issues skipped). The session claims its issue with the
+`agent-dispatched` label as its first act — the dispatcher never applies it, so
+the label cannot mark an issue as claimed when the runner was down and no
+session ever started. See `docs/agents/auto-dispatch.md`.
 
 ### Conflict watch
 

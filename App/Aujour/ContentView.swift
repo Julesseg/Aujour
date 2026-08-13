@@ -27,6 +27,9 @@ struct ContentView: View {
                         .navigationTitle("Aujour")
 
                 case .open(let root, let fileCount):
+                    // There is no open journal without today's Entry over it
+                    // — but a blank page is the one thing this screen must
+                    // never be, so the unreachable case is the spinner.
                     if let today = journal.today {
                         TodayEntryView(editor: today)
                             .navigationTitle(today.day.spelledOut())
@@ -41,7 +44,14 @@ struct ContentView: View {
                             }
                             .sheet(isPresented: $showingJournalFolder) {
                                 JournalFolderSheet(root: root, fileCount: fileCount)
+                                    // Counted again on the way in: the number
+                                    // from launch is one edit out of date the
+                                    // moment today's Entry is created.
+                                    .task { await journal.recount() }
                             }
+                    } else {
+                        ProgressView("Opening today's entry")
+                            .accessibilityIdentifier("openingEntry")
                     }
 
                 case .unavailable(let problem):

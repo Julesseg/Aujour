@@ -77,20 +77,6 @@ private struct UnsavedWordsNotice: View {
     }
 }
 
-extension JournalDay {
-    /// The day as someone would say it out loud — the Today view's title.
-    ///
-    /// No year: a journal is read a day at a time, and the year is in the
-    /// Entry's own file name for anyone who needs it.
-    func spelledOut(in timeZone: TimeZone = .current, locale: Locale = .current) -> String {
-        let style = Date.FormatStyle(locale: locale, timeZone: timeZone)
-            .weekday(.wide)
-            .day()
-            .month(.wide)
-        return startOfDay(in: timeZone).formatted(style)
-    }
-}
-
 // Previews journal into memory, so the day on screen is the one the preview
 // is named after rather than whatever this Mac's journal folder holds.
 #Preview("An unwritten day") {

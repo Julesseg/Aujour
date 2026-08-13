@@ -61,6 +61,23 @@ struct JournalStorageTests {
         }
     }
 
+    @Test("how much is in the folder is asked again, not remembered from launch")
+    func recountingSeesWhatWasWrittenSince() async throws {
+        try await withTemporaryFolder { folders in
+            let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
+            let root = JournalRoot(url: iCloud.standardizedFileURL, location: .iCloudDrive)
+            let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders))
+            await journal.open()
+            #expect(journal.state == .open(root, fileCount: 0))
+
+            // What today's first edit does, from the outside.
+            try await #require(journal.store).writeText("First words.\n", at: "2026/03/2026-03-01.md")
+            await journal.recount()
+
+            #expect(journal.state == .open(root, fileCount: 1))
+        }
+    }
+
     @Test("a folder Aujour cannot reach becomes something to say, not an empty page")
     func anUnreachableFolderIsPresented() async throws {
         try await withTemporaryFolder { folders in

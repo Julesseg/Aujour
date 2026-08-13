@@ -83,6 +83,19 @@ final class Journal {
         }
     }
 
+    /// Re-reads how much is in the folder.
+    ///
+    /// The count comes from a single listing at launch, which stops being
+    /// true the moment today's first edit creates a file — so whatever shows
+    /// it asks again rather than repeating what the app was told once. A
+    /// folder that will not answer keeps the old count: this is a number
+    /// beside the journal, not the journal.
+    func recount() async {
+        guard case .open(let root, _) = state, let store else { return }
+        guard let files = try? await store.listFiles() else { return }
+        state = .open(root, fileCount: files.count)
+    }
+
     /// Off the main actor deliberately: asking for the iCloud container blocks,
     /// and so does reading the folder.
     private nonisolated static func openJournal(

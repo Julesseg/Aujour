@@ -94,6 +94,11 @@ final class AujourUITests: XCTestCase {
     // MARK: - Driving the app
 
     /// Launches the app onto a journal folder of this test's own.
+    ///
+    /// The two keys are spelled out rather than shared: the app and the UI
+    /// suite are separate targets, and this suite deliberately imports
+    /// nothing from the app it is driving. Their other half is
+    /// `UITestingJournal`, which is where they are read.
     private func launchApp(contentTemplate: String = "") -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["AUJOUR_UITEST_JOURNAL_FOLDER"] = journalFolder

@@ -109,6 +109,10 @@ public final class EntryEditor {
     /// can wait for what the app never waits for.
     @ObservationIgnored private(set) var autosave: Task<Void, Never>?
 
+    /// The write going on right now, if one is — what the next write queues
+    /// behind.
+    @ObservationIgnored private var writing: Task<Void, Never>?
+
     /// - Parameters:
     ///   - store: the folder this Journal lives in.
     ///   - settings: the Path Template, Content Template and Rollover Hour
@@ -139,11 +143,9 @@ public final class EntryEditor {
         self.timing = timing
         self.now = now
         self.wait = wait
-        self.day = JournalDay.current(
-            at: now(),
-            in: timeZone,
-            rolloverHour: settings.rolloverHour
-        )
+        // Before anything has been read: the screen can say which day it is
+        // opening while the folder is still answering.
+        self.day = JournalDay.current(at: now(), in: timeZone, rolloverHour: settings.rolloverHour)
     }
 
     // MARK: - Opening
@@ -151,7 +153,13 @@ public final class EntryEditor {
     /// Opens the current Journal Day's Entry: its file if it has one, the
     /// rendered Content Template if it does not.
     public func open() async {
-        await open(JournalDay.current(at: now(), in: timeZone, rolloverHour: settings.rolloverHour))
+        await open(currentDay)
+    }
+
+    /// The Journal Day it is right now — asked again every time, because the
+    /// answer changes under a running app.
+    private var currentDay: JournalDay {
+        JournalDay.current(at: now(), in: timeZone, rolloverHour: settings.rolloverHour)
     }
 
     /// Saves, and moves to the new day if the Journal Day has turned since
@@ -163,7 +171,7 @@ public final class EntryEditor {
     public func reopenIfTheDayTurned() async {
         guard state.isEditing else { return }
 
-        let today = JournalDay.current(at: now(), in: timeZone, rolloverHour: settings.rolloverHour)
+        let today = currentDay
         guard today != day else { return }
         await open(today)
     }
@@ -173,6 +181,11 @@ public final class EntryEditor {
         // last moment it can be written to that day's file. Nothing to save on
         // a first open, and nothing to lose on any other.
         await save()
+        // Unless it would not go: words that could not be written are not
+        // words to leave behind. The day stays on screen, with what went
+        // wrong with it, until they land (v1-decisions: no words are ever
+        // silently discarded).
+        guard !needsSaving else { return }
 
         state = .opening
         saveProblem = nil
@@ -278,7 +291,24 @@ public final class EntryEditor {
         await write()
     }
 
+    /// Writes, behind whatever write is already going on.
+    ///
+    /// Queued rather than concurrent because saving is asked for from more
+    /// than one direction — the autosave loop, and the app on its way out,
+    /// which SwiftUI announces twice. Two writes of one Entry in flight
+    /// together would leave the day saying whichever the folder happened to
+    /// finish last.
     private func write() async {
+        let precedingWrite = writing
+        let thisWrite = Task {
+            await precedingWrite?.value
+            await writeWhatIsOnScreen()
+        }
+        writing = thisWrite
+        await thisWrite.value
+    }
+
+    private func writeWhatIsOnScreen() async {
         guard needsSaving, let entryPath else { return }
 
         // Held onto, because the user goes on typing while the folder is

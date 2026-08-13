@@ -302,6 +302,21 @@ struct EntryEditorAutosaveTests {
         #expect(session.store.writes.isEmpty)
     }
 
+    @Test("two saves at once write the day once, not over each other")
+    func concurrentSavesDoNotRaceEachOther() async throws {
+        let session = EditorSession()
+        await session.open()
+        session.editor.content = "Half a thought"
+
+        // What backgrounding does: SwiftUI reports inactive and then
+        // background, and both of them mean save.
+        async let first: Void = session.editor.save()
+        async let second: Void = session.editor.save()
+        _ = await (first, second)
+
+        #expect(session.store.writes.count == 1)
+    }
+
     @Test("a save that fails is reported, and the words stay on screen")
     func aFailedSaveIsReportedAndKeepsTheWords() async throws {
         let session = EditorSession()
@@ -345,6 +360,23 @@ struct EntryEditorDayTurningTests {
             try await session.store.readText(at: "2026/03/2026-03-01.md")
                 == "The last of March 1st."
         )
+    }
+
+    @Test("words that could not be saved are not left behind by the new day")
+    func aDayThatCouldNotBeSavedIsNotAbandoned() async throws {
+        let session = EditorSession(now: instant(2026, 3, 1, 23, 55, in: paris))
+        await session.open()
+        session.store.refuseWrites = JournalStoreError.pathIsAFolder("2026/03/2026-03-01.md")
+        await session.type("The last of March 1st.")
+
+        session.now = instant(2026, 3, 2, 8, 0, in: paris)
+        await session.editor.reopenIfTheDayTurned()
+
+        // Moving on would put March 1st's words nowhere: the day stays up,
+        // with what went wrong, until they land.
+        #expect(session.editor.day == JournalDay(year: 2026, month: 3, day: 1))
+        #expect(session.editor.content == "The last of March 1st.")
+        #expect(session.editor.saveProblem != nil)
     }
 
     @Test("coming back on the same day leaves what is on screen alone")

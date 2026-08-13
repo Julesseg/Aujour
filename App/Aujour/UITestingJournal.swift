@@ -20,11 +20,15 @@ import AujourCore
 /// here — the app has no other back door into where the journal lives.
 enum UITestingJournal {
     /// The name of a folder under the app's Documents to journal into.
+    ///
+    /// Spelled out again in `AujourUITests.launchApp`, which sets it: the UI
+    /// suite drives the app from another target and imports nothing from it.
     static let folderKey = "AUJOUR_UITEST_JOURNAL_FOLDER"
 
     /// The Content Template new Entries are spawned from.
     static let contentTemplateKey = "AUJOUR_UITEST_CONTENT_TEMPLATE"
 
+    @MainActor
     static func fromLaunchEnvironment(
         _ environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> Journal? {

@@ -107,14 +107,6 @@ public final class EntryEditor {
     /// exactly the text that must never be written on its own.
     @ObservationIgnored private var savedContent: String?
 
-    /// Whether this day's Entry was a file the last time the folder answered.
-    ///
-    /// What tells a day unwritten *outside* Aujour from one that was never
-    /// written: with no file at the Entry's path, the first has just gone back
-    /// to being an unwritten day and the second has been one all along —
-    /// already showing the template it would be spawned from again.
-    @ObservationIgnored private var dayIsJournaled = false
-
     /// Whether anything has been typed that the running autosave has not yet
     /// taken account of. Reset each time the loop looks, so that "the typing
     /// has stopped" is a fact about the last wait rather than a guess.
@@ -235,7 +227,6 @@ public final class EntryEditor {
 
             self.day = day
             entryPath = path
-            dayIsJournaled = journaled
             show(text)
             // Either way this is the text that needs no saving: what the file
             // says, or what the template spawned and the user has not touched.
@@ -280,6 +271,13 @@ public final class EntryEditor {
     /// the far commoner case, where nothing has diverged and the only question
     /// is whether the screen is current.
     ///
+    /// A file that is *not* there is left alone, deliberately. An Entry on
+    /// screen is on screen because somebody wrote it, and emptying it back to
+    /// the template because its file went missing for a moment — a sync
+    /// replacing it, an app that saves by deleting first — is the app losing
+    /// the day, whatever the folder is doing. The words stay, and the next
+    /// keystroke writes them back where they were.
+    ///
     /// Silent when the folder will not answer. Nobody asked for this read, the
     /// Entry on screen is still the last thing the file said, and a notice
     /// about a refresh that did not happen would be a notice in front of
@@ -298,16 +296,8 @@ public final class EntryEditor {
         let reloading = day
 
         do {
-            let template = try PathTemplate(settings.pathTemplate)
-            let journaled = try await store.fileExists(at: path)
-            // Nothing to catch up with: the day had no file and still has
-            // none, so the template it was spawned from is what it says. A
-            // second spawn would only re-resolve {{time}} under the user.
-            guard journaled || dayIsJournaled else { return }
-            let text =
-                journaled
-                ? try await store.readText(at: path)
-                : spawn(reloading, from: template)
+            guard try await store.fileExists(at: path) else { return }
+            let text = try await store.readText(at: path)
 
             // The wait is where a keystroke lands, and where the morning
             // arrives for an app left open overnight. Either way what came
@@ -317,7 +307,6 @@ public final class EntryEditor {
 
             show(text)
             savedContent = text
-            dayIsJournaled = journaled
         } catch {
             // Left as it was, deliberately — see above.
         }

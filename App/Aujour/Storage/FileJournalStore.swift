@@ -251,10 +251,11 @@ struct FileJournalStore: JournalStore {
     // MARK: - Taking turns with the other apps in the folder
 
     // Three shapes of the same thing: ask for the access, do the work on the
-    // URL that comes back rather than on the one that went in, and let a
-    // refusal or a failure inside come out as one thrown error. The callers
-    // wrap whatever comes out in the `JournalRootError` for what they were
-    // doing, so file coordination adds no vocabulary of its own to the seam.
+    // URL that comes back rather than on the one that went in, and end up
+    // either with what the work returned or with one error saying why it never
+    // happened. The callers wrap that error in the `JournalRootError` for what
+    // they were doing, so file coordination adds no vocabulary of its own to
+    // the seam.
 
     private func coordinatedRead<T>(
         of url: URL,
@@ -266,9 +267,7 @@ struct FileJournalStore: JournalStore {
         coordinator.coordinate(readingItemAt: url, options: options, error: &refused) { url in
             outcome = Result { try read(url) }
         }
-        if let outcome { return try outcome.get() }
-        if let refused { throw refused }
-        throw CocoaError(.fileReadUnknown)
+        return try whatHappened(outcome, refused, .fileReadUnknown)
     }
 
     private func coordinatedWrite(
@@ -281,9 +280,7 @@ struct FileJournalStore: JournalStore {
         coordinator.coordinate(writingItemAt: url, options: options, error: &refused) { url in
             outcome = Result { try write(url) }
         }
-        if let outcome { return try outcome.get() }
-        if let refused { throw refused }
-        throw CocoaError(.fileWriteUnknown)
+        try whatHappened(outcome, refused, .fileWriteUnknown)
     }
 
     private func coordinatedMove(
@@ -306,15 +303,26 @@ struct FileJournalStore: JournalStore {
         ) { source, destination in
             outcome = Result { try move(source, destination) }
         }
-        guard let outcome else {
-            if let refused { throw refused }
-            throw CocoaError(.fileWriteUnknown)
-        }
-        try outcome.get()
+        try whatHappened(outcome, refused, .fileWriteUnknown)
         // Only once it actually moved: this is what tells everything else
         // presenting the folder that the file at one path is the file now at
         // the other, rather than one deleted and one appeared.
         coordinator.item(at: source, didMoveTo: destination)
+    }
+
+    /// What the work returned, or why it never ran: the coordinator's refusal
+    /// if it gave one, and otherwise the bare fact that it did not run — which
+    /// is not supposed to be possible, and is still not somewhere to crash
+    /// somebody's journal.
+    @discardableResult
+    private func whatHappened<T>(
+        _ outcome: Result<T, any Error>?,
+        _ refused: NSError?,
+        _ otherwise: CocoaError.Code
+    ) throws -> T {
+        if let outcome { return try outcome.get() }
+        if let refused { throw refused }
+        throw CocoaError(otherwise)
     }
 
     // MARK: - The folder underneath

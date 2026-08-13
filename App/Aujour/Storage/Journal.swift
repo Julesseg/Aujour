@@ -141,9 +141,9 @@ final class Journal {
     ///
     /// Takes the changes and not the folder they come from, deliberately: a
     /// task waiting on a stream is kept alive by the runtime, so holding the
-    /// folder here would be holding a presenter registered for a journal
-    /// nobody has open any more. This way, letting go of the Journal ends the
-    /// presenting, which ends the stream, which ends this.
+    /// folder here would be one more thing keeping a presenter alive for a
+    /// journal nobody has open. What ends both is `stopKeepingUpWithTheFolder`
+    /// — the stream ends when the presenting does, and this ends with it.
     private func keepUpWith(_ changes: AsyncStream<Void>) {
         keepingUpWithTheFolder = Task { [weak self] in
             for await _ in changes {
@@ -152,14 +152,33 @@ final class Journal {
         }
     }
 
-    /// Shows what the folder says now, where nothing is waiting to be written
-    /// to it.
+    /// Shows what the folder says now: today's Entry catches up with its file
+    /// where nothing is waiting to be written to it, and the calendar's
+    /// indicators are read again.
     ///
-    /// Also the app's way back in from the background, where nothing was
-    /// listening: a day written on the iPad over lunch is on screen when the
-    /// iPhone comes back to the front, without the user asking.
-    func catchUpWithTheFolder() async {
+    /// The indicators are only ever a scan of the folder (ADR 0001), so this
+    /// is the same reading the calendar does on the way in, done at the moment
+    /// there is something new to read. One at a time, because that is what a
+    /// stream of changes read one at a time gives: a folder in the middle of a
+    /// sync is walked once per catch-up and not once per file.
+    private func catchUpWithTheFolder() async {
         await today?.reloadIfClean()
+        await calendar?.scan()
+    }
+
+    /// The app coming back to the front.
+    ///
+    /// Two things in the order they have to happen. An app left running
+    /// overnight comes back to a different Journal Day, and moving to it is
+    /// what decides *which* file the catch-up below is about — the other way
+    /// round, yesterday's Entry would be caught up with, and then left.
+    ///
+    /// Both are needed because an app in the background is told nothing: no
+    /// presenter callback arrives for the day Obsidian wrote while Aujour was
+    /// away, and no clock ticks over for it either.
+    func cameBackToTheFront() async {
+        await today?.reopenIfTheDayTurned()
+        await catchUpWithTheFolder()
     }
 
     private func stopKeepingUpWithTheFolder() {

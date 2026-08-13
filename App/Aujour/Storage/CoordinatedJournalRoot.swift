@@ -22,8 +22,13 @@ import Foundation
 /// would come back as news and the editor would re-read the file it had just
 /// written, forever.
 ///
-/// Registration is global and outlives the object, so a Journal that stops
-/// being the open one has to say so — `stopWatching()`, or by letting go of it.
+/// Registration is global: a presenter goes on being one until it says
+/// otherwise, wherever the object holding it has got to. So `stopWatching()`
+/// is what ends it, and whoever opened a folder is who calls it when that
+/// folder stops being the journal. `deinit` says it too, for the case where
+/// the last reference goes without anybody having said it — a backstop, and
+/// not something to rely on, since a registered presenter may well be held by
+/// the registration itself.
 ///
 /// Unchecked because the only mutable state is behind a lock: the callbacks
 /// arrive on the presenter's own queue, and the stream is read from wherever
@@ -86,8 +91,9 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
     /// Stops presenting the folder: no more changes, and nothing left
     /// registered against a journal that is no longer open.
     ///
-    /// Idempotent, because it is called both when a Journal moves to another
-    /// folder and when the last reference to this one goes away.
+    /// Idempotent, because it is said from both ends — by the Journal that has
+    /// moved to another folder, and by `deinit` for the one nobody said it
+    /// for.
     func stopWatching() {
         registration.lock()
         let wasRegistered = registered

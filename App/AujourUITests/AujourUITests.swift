@@ -227,16 +227,20 @@ final class AujourUITests: XCTestCase {
     /// Waits for an element to say something. The folder is read after the
     /// words are saved, so an indicator arrives a moment after the day it
     /// belongs to has been written in.
+    ///
+    /// Polled rather than awaited on an `XCTestExpectation`: waiting on one
+    /// hands the test case itself to the main actor, and a test case is not
+    /// `Sendable`.
     private func expect(
         _ element: XCUIElement,
         toHaveValue value: String,
         timeout: TimeInterval = 10
     ) {
-        _ = expectation(
-            for: NSPredicate(format: "value == %@", value),
-            evaluatedWith: element
-        )
-        waitForExpectations(timeout: timeout)
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline, element.value as? String != value {
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        XCTAssertEqual(element.value as? String, value)
     }
 
     private func dayBeforeToday() -> Date? {

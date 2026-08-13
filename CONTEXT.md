@@ -64,6 +64,13 @@ The markdown skeleton a new Entry starts from. Placeholders use Obsidian's
 verbatim so an Obsidian daily-note template pastes over unchanged, and
 Aujour-specific placeholders (e.g. {{events}}) extend the same syntax.
 
+### Spawn
+Starting a Journal Day's Entry from the Content Template: the template
+rendered for that day, put in front of the user to write into. A spawned Entry
+is not yet a file — nothing is written until the first edit, so a day that was
+opened and not written on leaves nothing behind, and "there is a file at the
+Entry's path" goes on meaning "that day is journaled".
+
 ### Placeholder
 A `{{name}}` token in the Content Template (or typed directly into an Entry).
 Three kinds:

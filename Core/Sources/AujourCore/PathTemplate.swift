@@ -78,6 +78,59 @@ public struct PathTemplate: Hashable, Sendable, CustomStringConvertible {
         return PathFormat.match(withoutExtension, against: elements)
     }
 
+    /// The name the Entry's own file carries — the last component of its
+    /// path, without the `.md`, and so the Entry's title.
+    ///
+    /// This is what `{{title}}` resolves to when a template is spawned:
+    /// Obsidian's daily notes title themselves after their filename, and a
+    /// template pasted over from there has to mean the same thing here.
+    public func entryName(for journalDay: JournalDay) -> String {
+        let path = PathFormat.render(elements, for: journalDay)
+        return String(path.split(separator: "/").last ?? Substring(path))
+    }
+
+    /// The Moment format the Entry's file name is written in.
+    ///
+    /// A bare `{{date}}` renders in this format, because that is what Obsidian
+    /// does: its daily-note "date format" *is* the filename format, and the
+    /// folder is a separate setting. Aujour spells both in one Path Template,
+    /// so the equivalent is the part of it after the last folder.
+    ///
+    /// The file name's literal text stays literal on the way across —
+    /// bracketed, because ``MomentFormat`` reads bare letters as fields and
+    /// would turn a `[day ]DD` template's own prose into a second date.
+    public var entryNameFormat: MomentFormat {
+        MomentFormat(
+            PathTemplate.fileNameElements(elements)
+                .map { element in
+                    switch element {
+                    case .field(let field): field.rawValue
+                    case .literal(let text):
+                        text.contains(where: \.isLetter) ? "[\(text)]" : text
+                    }
+                }
+                .joined()
+        )
+    }
+
+    /// The elements that render the last path component — everything after
+    /// the last `/` any of them produces.
+    private static func fileNameElements(_ elements: [PathFormat.Element]) -> [PathFormat.Element] {
+        var fileName: [PathFormat.Element] = []
+        for element in elements.reversed() {
+            guard case .literal(let text) = element, let slash = text.lastIndex(of: "/") else {
+                fileName.insert(element, at: 0)
+                continue
+            }
+            let afterTheSlash = String(text[text.index(after: slash)...])
+            if !afterTheSlash.isEmpty {
+                fileName.insert(.literal(afterTheSlash), at: 0)
+            }
+            return fileName
+        }
+        return fileName
+    }
+
     public var description: String { format }
 
     static let markdownExtension = ".md"

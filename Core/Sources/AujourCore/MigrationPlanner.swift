@@ -86,6 +86,23 @@ public struct MigrationPlan: Hashable, Sendable {
     public var isEmpty: Bool { moves.isEmpty }
 }
 
+extension MigrationPlan.Move {
+    /// What the file will be called once this move is made — the name the
+    /// user would go looking for it under in Obsidian or in the Files app,
+    /// which is the only part of a path worth putting in a sentence.
+    public var name: String { fileName(of: to) }
+}
+
+/// The file's own name: the last component of a path relative to the Journal
+/// Root, extension and all.
+///
+/// A path this is asked about has always come from somewhere that already
+/// checked it — a `PathTemplate`'s rendering, or a name derived from one — so
+/// a path with no components at all answers itself rather than trapping.
+func fileName(of path: String) -> String {
+    path.split(separator: "/").last.map(String.init) ?? path
+}
+
 /// Works out what changing the Path Template would do to a folder of files.
 ///
 /// Pure, and deliberately: a template change is the one operation in Aujour

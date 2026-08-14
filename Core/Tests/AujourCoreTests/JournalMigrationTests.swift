@@ -79,7 +79,7 @@ struct JournalMigrationTests {
         #expect(outcome.moved.isEmpty)
         #expect(
             outcome.parked == [
-                MigrationOutcome.ParkedEntry(
+                MigrationOutcome.ParkedFile(
                     day: JournalDay(year: 2026, month: 3, day: 1),
                     path: "Journal/2026-03-01_1.md"
                 )

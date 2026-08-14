@@ -60,7 +60,7 @@ public struct JournalMigration: Sendable {
     /// about a file that is not the one the user needs telling about.
     public func carryOut(_ plan: MigrationPlan) async -> MigrationOutcome {
         var moved: [JournalDay] = []
-        var parked: [MigrationOutcome.ParkedEntry] = []
+        var parked: [MigrationOutcome.ParkedFile] = []
         var leftBehind: [MigrationOutcome.LeftBehind] = []
         var givenUpOn: Set<JournalDay> = []
 
@@ -73,7 +73,7 @@ public struct JournalMigration: Sendable {
                     moved.append(move.day)
                 case .besideTheFileAlreadyThere:
                     parked.append(
-                        MigrationOutcome.ParkedEntry(day: move.day, path: move.to)
+                        MigrationOutcome.ParkedFile(day: move.day, path: move.to)
                     )
                 case .asideWhileThePathClears:
                     // Not there yet: the move that brings it the rest of the
@@ -99,8 +99,12 @@ public struct JournalMigration: Sendable {
 /// rarely all of one. What matters to the user is which of their days are
 /// where, and every day in the plan is in exactly one of these.
 public struct MigrationOutcome: Sendable {
-    /// An Entry kept beside the file that already held its day's new path.
-    public struct ParkedEntry: Hashable, Sendable {
+    /// A version kept beside the file that already held its day's new path —
+    /// a Parked File, and so not an Entry, whatever it was before the
+    /// template changed (ADR 0002).
+    public struct ParkedFile: Hashable, Sendable {
+        /// The Journal Day it is a version of, under the template that has
+        /// just stopped being in force.
         public let day: JournalDay
 
         /// Where it is now, relative to the Journal Root.
@@ -113,9 +117,7 @@ public struct MigrationOutcome: Sendable {
 
         /// What the user will see the file called in Obsidian or in the Files
         /// app — which is the whole reason it was put beside the Entry.
-        public var name: String {
-            path.split(separator: "/").last.map(String.init) ?? path
-        }
+        public var name: String { fileName(of: path) }
     }
 
     /// A day the folder would not move, and where its file still is.
@@ -139,7 +141,7 @@ public struct MigrationOutcome: Sendable {
     public let moved: [JournalDay]
 
     /// The days whose new path was already taken, and where each was kept.
-    public let parked: [ParkedEntry]
+    public let parked: [ParkedFile]
 
     /// The days that could not be moved. Nothing about them was lost — their
     /// files are untouched, and changing the template again, or trying again,
@@ -148,7 +150,7 @@ public struct MigrationOutcome: Sendable {
 
     public init(
         moved: [JournalDay],
-        parked: [ParkedEntry],
+        parked: [ParkedFile],
         leftBehind: [LeftBehind]
     ) {
         self.moved = moved

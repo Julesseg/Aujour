@@ -68,10 +68,10 @@ user manages in Files or Obsidian, and which Aujour keeps no list of
 
 A migration is planned before any of it happens, because the plan is what the
 offer is made of: which file goes where, and which days already have a file
-sitting at the path they would move to. Those are collisions, and the user is
-asked about them by name before a single file moves — the file that is there
-stays as that day's Entry, and the incoming one is kept beside it as a Parked
-File. Nothing is ever overwritten, and nothing is ever deleted.
+sitting at the path they would move to. Those are collisions, and the user
+confirms them — the file that is there stays as that day's Entry, and the
+incoming one is kept beside it as a Parked File. Nothing is ever overwritten,
+and nothing is ever deleted.
 
 ### Content Template
 The markdown skeleton a new Entry starts from. Placeholders use Obsidian's

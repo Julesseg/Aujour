@@ -73,6 +73,22 @@ public protocol JournalStore: Sendable {
     /// operation that refuses to clobber.
     func write(_ contents: Data, at relativePath: String) async throws
 
+    /// Writes bytes to a path nothing occupies, creating any folders the path
+    /// names along the way — and refusing, rather than replacing, if something
+    /// is already there.
+    ///
+    /// Throws `JournalStoreError.fileAlreadyExists` for an occupied path. This
+    /// is what a Parked File is written by: parking exists to keep a version
+    /// nobody has merged, and a parked version written over a `_1` left by an
+    /// earlier divergence would lose exactly the words it was setting aside.
+    /// So the refusal is the seam's, like a move's, rather than a check each
+    /// caller remembers to make first — a check made first is a check with a
+    /// gap after it.
+    ///
+    /// Only new files, so there is nothing here for a half-finished write to
+    /// damage; `write(_:at:)` is what replaces, and what an autosave uses.
+    func create(_ contents: Data, at relativePath: String) async throws
+
     /// Moves the file at `source` to `destination`, creating any folders the
     /// destination names.
     ///
@@ -104,5 +120,11 @@ extension JournalStore {
     /// semantics as `write(_:at:)`.
     public func writeText(_ text: String, at relativePath: String) async throws {
         try await write(Data(text.utf8), at: relativePath)
+    }
+
+    /// Writes text to a path nothing occupies, as UTF-8 — the refusing form,
+    /// with the same semantics as `create(_:at:)`.
+    public func createText(_ text: String, at relativePath: String) async throws {
+        try await create(Data(text.utf8), at: relativePath)
     }
 }

@@ -31,6 +31,17 @@ extension URL {
         try Data(text.utf8).write(to: file)
     }
 
+    /// The same, for a file whose age matters: divergence is decided by which
+    /// version was written last, so a test that is about that has to say when
+    /// each of them was.
+    func seed(_ text: String, at relativePath: String, writtenAt: Date) throws {
+        try seed(text, at: relativePath)
+        try FileManager.default.setAttributes(
+            [.modificationDate: writtenAt],
+            ofItemAtPath: appending(path: relativePath).path
+        )
+    }
+
     /// The same write, made the way another app makes it: coordinated, and on
     /// behalf of nobody Aujour is presenting the folder for.
     ///

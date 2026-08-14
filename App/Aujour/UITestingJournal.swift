@@ -15,6 +15,11 @@ import AujourCore
 /// - **A Content Template.** Spawning is most of what M1's Today view does,
 ///   and nothing in the app can set a template until the settings screen
 ///   lands.
+/// - **A day two devices wrote.** An unresolved iCloud conflict takes two
+///   devices, a sync and a moment of bad luck; there is no making one in a
+///   simulator, and no waiting for one either. So the suite says what iCloud
+///   would have been holding, and everything after that point — the policy,
+///   the parking, the notice — is the app's own code over its own folder.
 ///
 /// Inert unless the launch environment says otherwise, and read exactly once,
 /// here — the app has no other back door into where the journal lives.
@@ -32,6 +37,14 @@ enum UITestingJournal {
     /// the Files picker.
     static let folderToPickKey = "AUJOUR_UITEST_FOLDER_TO_PICK"
 
+    /// What today's Entry file already says — a day this device wrote an hour
+    /// ago, put there before the app opens the folder.
+    static let todaysEntryKey = "AUJOUR_UITEST_TODAYS_ENTRY"
+
+    /// What another device wrote for today, which iCloud is holding as a
+    /// version of its own. Dated now, so it is the newer of the two.
+    static let divergedVersionKey = "AUJOUR_UITEST_DIVERGED_VERSION"
+
     @MainActor
     static func fromLaunchEnvironment(
         _ environment: [String: String] = ProcessInfo.processInfo.environment
@@ -41,6 +54,12 @@ enum UITestingJournal {
         var settings = JournalSettings.default
         if let contentTemplate = environment[contentTemplateKey] {
             settings.contentTemplate = contentTemplate
+        }
+
+        let root = documentsFolder(named: folder)
+        let entryPath = todaysEntryPath(under: settings)
+        if let written = environment[todaysEntryKey] {
+            seed(written, at: entryPath, under: root)
         }
 
         return Journal(
@@ -58,7 +77,39 @@ enum UITestingJournal {
                 // the claim being made.
                 customRoot: .stored(key: "\(CustomJournalRoot.bookmarkKey).\(folder)")
             ),
-            settings: settings
+            settings: settings,
+            versions: environment[divergedVersionKey].map { written in
+                AVersionFromAnotherDevice(
+                    written,
+                    of: root.appending(path: entryPath)
+                )
+            } ?? ICloudVersions()
+        )
+    }
+
+    /// Where today's Entry belongs — the same question the app asks, asked the
+    /// same way, so that the file seeded here is the one it opens.
+    private static func todaysEntryPath(under settings: JournalSettings) -> String {
+        let template = (try? PathTemplate(settings.pathTemplate)) ?? .default
+        return template.render(
+            JournalDay.current(at: Date(), in: .current, rolloverHour: settings.rolloverHour)
+        )
+    }
+
+    /// Writes a file into the journal folder as another app would have, before
+    /// Aujour opens it — and dated an hour ago, because a divergence is decided
+    /// by which version was written last and a file written this instant would
+    /// tie with the version arriving.
+    private static func seed(_ text: String, at relativePath: String, under root: URL) {
+        let file = root.appending(path: relativePath)
+        try? FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try? Data(text.utf8).write(to: file)
+        try? FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(-3600)],
+            ofItemAtPath: file.path
         )
     }
 
@@ -91,5 +142,49 @@ enum UITestingJournal {
         URL.documentsDirectory
             .appending(path: "UITests", directoryHint: .isDirectory)
             .appending(path: name, directoryHint: .isDirectory)
+    }
+}
+
+/// The version of one file that iCloud would have been holding, said at launch
+/// instead of arriving from another device.
+///
+/// It stands in for `NSFileVersion` and for nothing else: everything the app
+/// does with it — weighing the two dates, giving the loser a file of its own,
+/// telling the user — is the same code that runs over a real conflict. What
+/// cannot be had in a simulator is the conflict itself.
+///
+/// A class, and unchecked, because settling it has to stick: a version still
+/// reported after it has been parked would be parked again at every change in
+/// the folder, which is exactly the failure the real one is guarded against.
+private final class AVersionFromAnotherDevice: EntryVersions, EntryVersion, @unchecked Sendable {
+    private let text: String
+    private let file: URL
+    private let settled = NSLock()
+    private var isSettled = false
+
+    /// Now, so that it is newer than the seeded Entry beside it and takes the
+    /// day's path — the harder half of the decision to show.
+    let writtenAt: Date? = Date()
+
+    init(_ text: String, of file: URL) {
+        self.text = text
+        self.file = file.standardizedFileURL
+    }
+
+    func unresolved(at url: URL) -> [any EntryVersion] {
+        settled.lock()
+        defer { settled.unlock() }
+        guard !isSettled, url.standardizedFileURL == file else { return [] }
+        return [self]
+    }
+
+    func contents() throws -> Data {
+        Data(text.utf8)
+    }
+
+    func settle() {
+        settled.lock()
+        isSettled = true
+        settled.unlock()
     }
 }

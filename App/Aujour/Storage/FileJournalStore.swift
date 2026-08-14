@@ -25,9 +25,12 @@ import AujourCore
 /// ``CoordinatedJournalRoot``, which is also what a store is given so that
 /// Aujour's own writes are not reported back to Aujour as news.
 ///
-/// Not here yet, and deliberately: version-based divergence handling, and
-/// *waiting* for iCloud to bring a file down — this store asks for the
-/// download and refuses the operation, rather than blocking on it.
+/// Not here yet, and deliberately: *waiting* for iCloud to bring a file down
+/// — this store asks for the download and refuses the operation, rather than
+/// blocking on it. The other thing only iCloud can produce, two versions of
+/// one day, is ``DivergenceParking``'s, which works over this store rather
+/// than inside it: a folder of files answers what is in it, and which of two
+/// versions of a day belongs at its path is a question about the journal.
 struct FileJournalStore: JournalStore {
     /// The folder every path in this store is relative to.
     let root: URL
@@ -201,6 +204,52 @@ struct FileJournalStore: JournalStore {
                 // autosave races its way back to Aujour as news.
                 presenter?.aujourWrote(url)
             }
+        } catch {
+            throw JournalRootError.writeFailed(
+                path: path.string,
+                reason: error.localizedDescription
+            )
+        }
+    }
+
+    func create(_ contents: Data, at relativePath: String) async throws {
+        let path = try RelativePath(relativePath)
+        try checkTheRootIsThere()
+
+        let url = url(for: path)
+        try checkAFileCanLive(at: path)
+        // Asked before the write as well as during it, because the two say
+        // different things: a file iCloud is holding but has not sent down is
+        // not there to be seen by an exclusive write, and creating over it
+        // would lose a version this device has never read.
+        guard !isRegularFile(at: url), !isEvicted(at: url) else {
+            throw JournalStoreError.fileAlreadyExists(path.string)
+        }
+
+        do {
+            try coordinatedWrite(of: url) { writingTo in
+                try FileManager.default.createDirectory(
+                    at: writingTo.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                do {
+                    // Exclusively rather than atomically, which is the trade
+                    // this operation exists to make: the file is a new one, so
+                    // there is nothing a half-finished write could damage,
+                    // while replacing one would lose a version outright. The
+                    // check above is a question, and this is the answer the
+                    // file system itself gives — with no gap in between for
+                    // another device's file to arrive in.
+                    try contents.write(to: writingTo, options: .withoutOverwriting)
+                } catch let error as CocoaError where error.code == .fileWriteFileExists {
+                    throw JournalStoreError.fileAlreadyExists(path.string)
+                }
+                presenter?.aujourWrote(url)
+            }
+        } catch let refusal as JournalStoreError {
+            // The seam's own answer, which the caller acts on: parking asks
+            // for another name and tries again.
+            throw refusal
         } catch {
             throw JournalRootError.writeFailed(
                 path: path.string,

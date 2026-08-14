@@ -45,6 +45,17 @@ struct ContentView: View {
                     // never be, so the unreachable case is the spinner.
                     if let today = journal.today {
                         EntryView(editor: today)
+                            // Above the words rather than over them: a version
+                            // of this day the user has not seen is news, and
+                            // the day itself is still theirs to write in while
+                            // the notice is up.
+                            .safeAreaInset(edge: .top) {
+                                if !journal.parkedFiles.isEmpty {
+                                    ParkedFilesNotice(files: journal.parkedFiles) {
+                                        journal.acknowledgeParkedFiles()
+                                    }
+                                }
+                            }
                             .navigationTitle(today.day.spelledOut())
                             .navigationBarTitleDisplayMode(.inline)
                             .toolbar {
@@ -251,6 +262,61 @@ private struct JournalFolderSheet: View {
             return
         }
         picking = true
+    }
+}
+
+/// A day two devices both wrote, said where the user is writing it.
+///
+/// The Parked File beside the Entry is the lasting notice — it is a file in
+/// their vault, which is where they will meet it again. This is so that they
+/// meet it at all: without it, the only sign that a version of today was set
+/// aside would be a file they have no reason to go looking for.
+///
+/// Dismissible, and nothing else. Aujour does not offer to merge the two, or
+/// to delete either: they are the user's words in the user's folder, and this
+/// is the one moment the app is not the right thing to be doing it in
+/// (ADR 0002).
+private struct ParkedFilesNotice: View {
+    let files: [ParkedFile]
+    let acknowledge: () -> Void
+
+    private var names: String {
+        files.map(\.name).formatted(.list(type: .and))
+    }
+
+    private var headline: String {
+        files.count == 1
+            ? "Another version of this day was kept"
+            : "\(files.count) other versions of this day were kept"
+    }
+
+    private var detail: String {
+        files.count == 1
+            ? "Two devices wrote it, so Aujour kept both rather than merging them. The other one is beside your entry as \(names) — open it in Files or Obsidian to bring across anything you want."
+            : "This day was written on more than one device, so Aujour kept every version rather than merging them. They are beside your entry as \(names) — open them in Files or Obsidian to bring across anything you want."
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "doc.on.doc")
+                .foregroundStyle(.tint)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(headline)
+                    .font(.footnote.weight(.semibold))
+                    .accessibilityIdentifier("parkedFileNotice")
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("parkedFileNames")
+            }
+            Spacer(minLength: 0)
+            Button("Dismiss", systemImage: "xmark", action: acknowledge)
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("dismissParkedFileNotice")
+        }
+        .padding(12)
+        .background(.thinMaterial)
     }
 }
 

@@ -227,6 +227,47 @@ final class AujourUITests: XCTestCase {
         XCTAssertEqual(backHome.value as? String, "Written in Aujour's own folder.")
     }
 
+    func testADayWrittenOnTwoDevicesKeepsBothVersionsAndSaysSo() throws {
+        // The day was written here and on the iPad, and iCloud has come back
+        // holding both. Making that happen takes two devices and a sync, so
+        // the suite says at launch what iCloud would have been holding;
+        // everything after that is the app deciding and doing.
+        let app = launchApp(
+            todaysEntry: "Written on this iPhone.",
+            divergedVersion: "Written on the iPad."
+        )
+
+        // The version written last is the one at the day's own path, and so
+        // the one in front of the user.
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        expect(editor, toHaveValue: "Written on the iPad.")
+
+        // And the one it displaced was not dropped: it is a file beside the
+        // entry, and the app says which, because a file nobody knows about is
+        // a file nobody merges.
+        let notice = app.staticTexts["parkedFileNotice"]
+        XCTAssertTrue(
+            notice.waitForExistence(timeout: 10),
+            "nothing on screen said the other version had been kept"
+        )
+        let parkedName = "\(todaysEntryName())_1.md"
+        XCTAssertTrue(
+            app.staticTexts["parkedFileNames"].label.contains(parkedName),
+            "the notice did not name \(parkedName): "
+                + app.staticTexts["parkedFileNames"].label
+        )
+
+        // The Parked File is beside the journal and not in it: one day
+        // written, one entry, whatever else is in the folder (ADR 0002).
+        XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
+        app.buttons["Done"].tap()
+
+        // Dismissible, because the file itself is the lasting notice.
+        app.buttons["dismissParkedFileNotice"].tap()
+        XCTAssertFalse(notice.waitForExistence(timeout: 3))
+    }
+
     // MARK: - Driving the app
 
     /// Launches the app onto a journal folder of this test's own.
@@ -236,17 +277,31 @@ final class AujourUITests: XCTestCase {
     /// the app it is driving. Their other half is `UITestingJournal`, which is
     /// where they are read.
     ///
-    /// - Parameter folderToPick: the folder "Use a custom folder…" picks, in
-    ///   place of the Files picker.
+    /// - Parameters:
+    ///   - folderToPick: the folder "Use a custom folder…" picks, in place of
+    ///     the Files picker.
+    ///   - todaysEntry: what today's Entry file already says, written an hour
+    ///     ago — a day this device journaled before the app was opened.
+    ///   - divergedVersion: what another device wrote for today, which iCloud
+    ///     is holding as an unresolved version of the same file. Dated at
+    ///     launch, so it is the newer of the two.
     private func launchApp(
         contentTemplate: String = "",
-        folderToPick: String? = nil
+        folderToPick: String? = nil,
+        todaysEntry: String? = nil,
+        divergedVersion: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["AUJOUR_UITEST_JOURNAL_FOLDER"] = journalFolder
         app.launchEnvironment["AUJOUR_UITEST_CONTENT_TEMPLATE"] = contentTemplate
         if let folderToPick {
             app.launchEnvironment["AUJOUR_UITEST_FOLDER_TO_PICK"] = folderToPick
+        }
+        if let todaysEntry {
+            app.launchEnvironment["AUJOUR_UITEST_TODAYS_ENTRY"] = todaysEntry
+        }
+        if let divergedVersion {
+            app.launchEnvironment["AUJOUR_UITEST_DIVERGED_VERSION"] = divergedVersion
         }
         app.launch()
         return app

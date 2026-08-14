@@ -12,6 +12,12 @@ import AujourCore
 struct JournalCalendarView: View {
     let calendar: JournalCalendar
 
+    /// The Journal the calendar is over, for the one thing a day being opened
+    /// needs that the grid does not know: a day two devices wrote is settled
+    /// before it is put in front of anybody, and the file set aside is said
+    /// on that day's own screen.
+    let journal: Journal
+
     /// The day being written in, pushed on top of the grid — nil while the
     /// grid is what is on screen.
     @State private var opened: OpenedDay?
@@ -39,6 +45,7 @@ struct JournalCalendarView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $opened) { opened in
             EntryView(editor: opened.editor)
+                .parkedFilesNotice(from: journal, for: opened.day)
                 // With its year: a day reached from the calendar can be years
                 // back, and every February has a 14th.
                 .navigationTitle(opened.day.spelledOut(withYear: true))
@@ -134,7 +141,15 @@ struct JournalCalendarView: View {
         // this is the same refusal said where it cannot be tapped around.
         guard let editor = calendar.editor(for: day) else { return }
         opened = OpenedDay(day: day, editor: editor)
-        Task { await editor.open() }
+        Task {
+            // Before it is read, for the same reason today's Entry is: a past
+            // day can have been written on two devices too — backfilled on the
+            // iPad on the train and on the iPhone that evening — and the
+            // version that loses its path is set aside rather than left in
+            // iCloud where nobody would ever see it.
+            await journal.settleAnyDivergence(before: editor)
+            await editor.open()
+        }
     }
 }
 
@@ -231,13 +246,17 @@ private struct IndicatorsProblemNotice: View {
                         }
                     )
                 )
-            )
+            ),
+            journal: Journal(locator: .preview(.onThisDevice))
         )
     }
 }
 
 #Preview("A month nobody has written in") {
     NavigationStack {
-        JournalCalendarView(calendar: JournalCalendar(store: InMemoryJournalStore()))
+        JournalCalendarView(
+            calendar: JournalCalendar(store: InMemoryJournalStore()),
+            journal: Journal(locator: .preview(.onThisDevice))
+        )
     }
 }

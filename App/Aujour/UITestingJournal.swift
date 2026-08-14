@@ -57,7 +57,7 @@ enum UITestingJournal {
         }
 
         let root = documentsFolder(named: folder)
-        let entryPath = todaysEntryPath(under: settings)
+        let entryPath = todaysEntryPath(rolloverHour: settings.rolloverHour)
         if let written = environment[todaysEntryKey] {
             seed(written, at: entryPath, under: root)
         }
@@ -87,12 +87,16 @@ enum UITestingJournal {
         )
     }
 
-    /// Where today's Entry belongs — the same question the app asks, asked the
-    /// same way, so that the file seeded here is the one it opens.
-    private static func todaysEntryPath(under settings: JournalSettings) -> String {
-        let template = (try? PathTemplate(settings.pathTemplate)) ?? .default
-        return template.render(
-            JournalDay.current(at: Date(), in: .current, rolloverHour: settings.rolloverHour)
+    /// Where today's Entry belongs, so that the file seeded here is the one the
+    /// app opens.
+    ///
+    /// Under the default Path Template, flatly: nothing in the UI suite can
+    /// change it, since a settings screen is what would, and that has not
+    /// landed. A second way of working the path out would be a second thing to
+    /// be wrong about it.
+    private static func todaysEntryPath(rolloverHour: RolloverHour) -> String {
+        PathTemplate.default.render(
+            JournalDay.current(at: Date(), in: .current, rolloverHour: rolloverHour)
         )
     }
 
@@ -156,6 +160,10 @@ enum UITestingJournal {
 /// A class, and unchecked, because settling it has to stick: a version still
 /// reported after it has been parked would be parked again at every change in
 /// the folder, which is exactly the failure the real one is guarded against.
+///
+/// Both halves of the seam at once — the versions held for a file, and the one
+/// version — because here there is exactly one of each. Two objects to say
+/// that would be two objects to keep in step.
 private final class AVersionFromAnotherDevice: EntryVersions, EntryVersion, @unchecked Sendable {
     private let text: String
     private let file: URL

@@ -45,21 +45,38 @@ enum UITestingJournal {
     /// version of its own. Dated now, so it is the newer of the two.
     static let divergedVersionKey = "AUJOUR_UITEST_DIVERGED_VERSION"
 
+    /// A file the folder already holds that is none of Aujour's business —
+    /// a note the vault made — as a path relative to the Journal Root, and
+    /// what it says.
+    ///
+    /// For the migration collision, which is a note already sitting where a
+    /// new Path Template would put a day (ADR 0002). It is seeded rather than
+    /// written by the app because that is what it is: somebody else's file,
+    /// there before Aujour looked.
+    static let vaultNotePathKey = "AUJOUR_UITEST_VAULT_NOTE_AT"
+    static let vaultNoteKey = "AUJOUR_UITEST_VAULT_NOTE"
+
     @MainActor
     static func fromLaunchEnvironment(
         _ environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> Journal? {
         guard let folder = environment[folderKey], isAFolderName(folder) else { return nil }
 
-        var settings = JournalSettings.default
+        let settings = settingsStore(for: folder)
         if let contentTemplate = environment[contentTemplateKey] {
-            settings.contentTemplate = contentTemplate
+            settings.update { $0.contentTemplate = contentTemplate }
         }
 
         let root = documentsFolder(named: folder)
-        let entryPath = todaysEntryPath(rolloverHour: settings.rolloverHour)
+        let entryPath = todaysEntryPath(rolloverHour: settings.settings.rolloverHour)
         if let written = environment[todaysEntryKey] {
             seed(written, at: entryPath, under: root)
+        }
+        if let note = environment[vaultNoteKey],
+            let path = environment[vaultNotePathKey],
+            (try? RelativePath(path)) != nil
+        {
+            seed(note, at: path, under: root)
         }
 
         return Journal(
@@ -87,13 +104,34 @@ enum UITestingJournal {
         )
     }
 
+    /// The journal-shaping settings for one test, kept apart from every other
+    /// test's and from the app's own.
+    ///
+    /// Scoped rather than shared for the reason the journal folder is: a Path
+    /// Template one test changes must not be the template the next test opens
+    /// with, or "these entries are where the new template says" stops being a
+    /// claim any test can make. Kept in a `UserDefaults` suite of the test's
+    /// own — which is durable, so a change made in one launch is still there
+    /// in the next, exactly as it is for a real install — and deliberately
+    /// nowhere near iCloud, whose key-value storage is one bag per app and
+    /// would carry one test's settings into the next.
+    @MainActor
+    private static func settingsStore(for folder: String) -> JournalSettingsStore {
+        JournalSettingsStore(
+            syncedThrough: SyncedSettingsStorage(
+                iCloud: nil,
+                onThisDevice: UserDefaults(suiteName: "aujour.uitest.\(folder)") ?? .standard
+            )
+        )
+    }
+
     /// Where today's Entry belongs, so that the file seeded here is the one the
     /// app opens.
     ///
-    /// Under the default Path Template, flatly: nothing in the UI suite can
-    /// change it, since a settings screen is what would, and that has not
-    /// landed. A second way of working the path out would be a second thing to
-    /// be wrong about it.
+    /// Under the default Path Template, flatly: what a test seeds is seeded
+    /// before the app opens, which is before any template it goes on to change
+    /// has been changed. A second way of working the path out would be a
+    /// second thing to be wrong about it.
     private static func todaysEntryPath(rolloverHour: RolloverHour) -> String {
         PathTemplate.default.render(
             JournalDay.current(at: Date(), in: .current, rolloverHour: rolloverHour)

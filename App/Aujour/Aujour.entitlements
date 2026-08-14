@@ -20,5 +20,14 @@
 	<array>
 		<string>iCloud.com.julesseguin.aujour</string>
 	</array>
+	<!-- The journal-shaping settings — Path Template, Content Template,
+	     Rollover Hour — travel between the user's devices through iCloud
+	     key-value storage rather than a config file in the Journal Root,
+	     which is somebody's Obsidian vault (ADR 0003). Two devices with
+	     different Path Templates would write the same day to two paths.
+	     Read through SyncedSettingsStorage, which mirrors it on the device
+	     so the settings survive iCloud being unreachable. -->
+	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
+	<string>$(TeamIdentifierPrefix)$(CFBundleIdentifier)</string>
 </dict>
 </plist>

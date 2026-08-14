@@ -291,6 +291,11 @@ private final class RecordingJournalStore: JournalStore, @unchecked Sendable {
         try await folder.write(contents, at: relativePath)
     }
 
+    func create(_ contents: Data, at relativePath: String) async throws {
+        writes.append((relativePath, String(decoding: contents, as: UTF8.self)))
+        try await folder.create(contents, at: relativePath)
+    }
+
     func move(from source: String, to destination: String) async throws {
         moves.append((source, destination))
         try await folder.move(from: source, to: destination)

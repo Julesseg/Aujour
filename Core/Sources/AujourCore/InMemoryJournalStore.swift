@@ -70,6 +70,10 @@ public actor InMemoryJournalStore: JournalStore {
         try files.write(contents, at: RelativePath(relativePath))
     }
 
+    public func create(_ contents: Data, at relativePath: String) throws(JournalStoreError) {
+        try files.create(contents, at: RelativePath(relativePath))
+    }
+
     public func move(
         from source: String,
         to destination: String
@@ -110,6 +114,14 @@ private struct FileTable {
 
     mutating func write(_ data: Data, at path: RelativePath) throws(JournalStoreError) {
         try checkAFileCanLive(at: path)
+        contents[path.string] = data
+    }
+
+    mutating func create(_ data: Data, at path: RelativePath) throws(JournalStoreError) {
+        try checkAFileCanLive(at: path)
+        guard !containsFile(at: path) else {
+            throw JournalStoreError.fileAlreadyExists(path.string)
+        }
         contents[path.string] = data
     }
 

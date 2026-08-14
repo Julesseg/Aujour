@@ -40,6 +40,30 @@ struct InMemoryJournalStoreTests {
         #expect(try await store.listFiles() == ["day.md"])
     }
 
+    @Test("creating a file where one already is refuses, and keeps both versions")
+    func creatingNeverOverwrites() async throws {
+        // What a Parked File is written by. A move is the other operation
+        // that refuses, and between them nothing in the app can put one
+        // version of a day on top of another (ADR 0002).
+        let store: any JournalStore = InMemoryJournalStore(["2026-03-01_1.md": "the iPad's"])
+
+        await #expect(throws: JournalStoreError.fileAlreadyExists("2026-03-01_1.md")) {
+            try await store.createText("this iPhone's", at: "2026-03-01_1.md")
+        }
+
+        #expect(try await store.readText(at: "2026-03-01_1.md") == "the iPad's")
+    }
+
+    @Test("creating a file makes the folders its path names")
+    func creatingMakesTheFoldersOnTheWay() async throws {
+        let store: any JournalStore = InMemoryJournalStore()
+
+        try await store.createText("the iPad's", at: "2026/03/2026-03-01_1.md")
+
+        #expect(try await store.listFiles() == ["2026/03/2026-03-01_1.md"])
+        #expect(try await store.readText(at: "2026/03/2026-03-01_1.md") == "the iPad's")
+    }
+
     @Test("only files are listed — the folders they sit in are not files")
     func foldersAreNotFiles() async throws {
         let store: any JournalStore = InMemoryJournalStore(["2026/03/2026-03-01.md": ""])
@@ -122,6 +146,12 @@ struct InMemoryJournalStoreTests {
         }
         await #expect(throws: JournalStoreError.pathIsNotAFolder("notes.md")) {
             try await store.move(from: "2026/03/2026-03-01.md", to: "notes.md/inner.md")
+        }
+        await #expect(throws: JournalStoreError.pathIsAFolder("2026/03")) {
+            try await store.createText("", at: "2026/03")
+        }
+        await #expect(throws: JournalStoreError.pathIsNotAFolder("notes.md")) {
+            try await store.createText("", at: "notes.md/inner.md")
         }
     }
 

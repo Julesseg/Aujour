@@ -70,6 +70,10 @@ private final class FallibleJournalStore: JournalStore, @unchecked Sendable {
         try await folder.write(contents, at: relativePath)
     }
 
+    func create(_ contents: Data, at relativePath: String) async throws {
+        try await folder.create(contents, at: relativePath)
+    }
+
     func move(from source: String, to destination: String) async throws {
         try await folder.move(from: source, to: destination)
     }

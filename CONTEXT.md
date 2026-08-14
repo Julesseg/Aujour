@@ -109,12 +109,22 @@ Three kinds:
 Photos are deliberately *not* a placeholder: that day's photos are offered by
 a suggestion panel and inserted as Attachments where the user chooses.
 
+### Divergence
+Two versions of one Journal Day that were both written — the Entry edited on
+two devices while one of them was offline, which iCloud brings back as a
+conflict it has no opinion about. Aujour has none about their contents either:
+nothing is merged and nothing is discarded. The version written last keeps the
+Entry path, every other version becomes a Parked File beside it, and the app
+says so where the user is writing.
+
 ### Parked File
 A file set aside as `{filename}_1.md` beside an Entry when two files claim
 the same day — a template-migration collision, or sync divergence where the
 older version loses the Entry path. Parked Files are never Entries; they hold
 content awaiting a manual merge, and sit adjacent to the Entry precisely so
-the user notices them in Obsidian or Files.
+the user notices them in Obsidian or Files. The suffix is the first free one
+— `_1`, then `_2`, and so on — because a `_1` already in the folder is
+somebody's unmerged words too, and nothing is ever written over.
 
 ### Attachment
 A non-markdown file (typically a photo) referenced by an Entry. Attachments

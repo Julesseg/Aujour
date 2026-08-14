@@ -157,6 +157,18 @@ private struct JournalFolderSheet: View {
                         if let problem = journal.folderProblem {
                             FolderProblemNotice(problem: problem, identifier: "folderProblem")
                         }
+                        // The other half of "where are my files?": the folder
+                        // above, and the shape of the paths inside it.
+                        //
+                        // On screen whatever state the journal is in, and not
+                        // only while it is open — changing the entry path
+                        // closes the journal and opens it again, and a
+                        // section that came and went with that would take the
+                        // migration it is showing with it. What a journal
+                        // that is not open cannot do is *change* the path,
+                        // which is the button's own business.
+                        Divider()
+                        EntryPathSection(journal: journal)
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -171,7 +183,11 @@ private struct JournalFolderSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        // Full height rather than half: the sheet answers "where are my
+        // files?" in two parts now, and the entry path — a field, what it
+        // renders, and the button that changes it — is the part that would be
+        // below the fold.
+        .presentationDetents([.large])
     }
 
     @ViewBuilder
@@ -399,19 +415,19 @@ struct StorageProblemNotice: View {
 // Previews journal into a scratch folder rather than into whatever this Mac's
 // iCloud Drive holds, so each one shows the state it is named after.
 #Preview("Journaling into iCloud Drive") {
-    ContentView(journal: Journal(locator: .preview(.iCloudDrive)))
+    ContentView(journal: Journal(locator: .preview(.iCloudDrive), settings: .inMemory()))
 }
 
 #Preview("Journaling on the device") {
-    ContentView(journal: Journal(locator: .preview(.onThisDevice)))
+    ContentView(journal: Journal(locator: .preview(.onThisDevice), settings: .inMemory()))
 }
 
 #Preview("Journaling into a folder of the user's own") {
-    ContentView(journal: Journal(locator: .previewCustomFolder))
+    ContentView(journal: Journal(locator: .previewCustomFolder, settings: .inMemory()))
 }
 
 #Preview("Nowhere to journal") {
-    ContentView(journal: Journal(locator: .preview(nil)))
+    ContentView(journal: Journal(locator: .preview(nil), settings: .inMemory()))
 }
 
 extension JournalRootLocator {

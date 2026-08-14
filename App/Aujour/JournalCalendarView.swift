@@ -247,7 +247,7 @@ private struct IndicatorsProblemNotice: View {
                     )
                 )
             ),
-            journal: Journal(locator: .preview(.onThisDevice))
+            journal: Journal(locator: .preview(.onThisDevice), settings: .inMemory())
         )
     }
 }
@@ -256,7 +256,7 @@ private struct IndicatorsProblemNotice: View {
     NavigationStack {
         JournalCalendarView(
             calendar: JournalCalendar(store: InMemoryJournalStore()),
-            journal: Journal(locator: .preview(.onThisDevice))
+            journal: Journal(locator: .preview(.onThisDevice), settings: .inMemory())
         )
     }
 }

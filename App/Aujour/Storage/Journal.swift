@@ -22,6 +22,20 @@ struct StorageProblem: Equatable, Sendable {
     }
 }
 
+/// Asked to plan a Path Template change with no folder open to plan it over.
+///
+/// Not reachable from the screen — the entry path is only offered where the
+/// journal is open — and said in the same two sentences as every other
+/// storage failure rather than as a silence, because a change that appeared
+/// to do nothing is the one outcome a user would repeat.
+struct NoJournalIsOpen: LocalizedError {
+    var errorDescription: String? { "Aujour hasn't opened your journal folder yet." }
+
+    var recoverySuggestion: String? {
+        "Nothing has been changed. Wait for the folder to open, then change where your entries go."
+    }
+}
+
 /// The user's Journal, as this installation has it: the folder opened on
 /// launch — the one they pointed Aujour at, or the one it found for itself —
 /// a Journal Store over it, and whichever of the two answers came back for
@@ -89,7 +103,24 @@ final class Journal {
     private(set) var parkedFiles: [ParkedFile] = []
 
     private let locator: JournalRootLocator
-    private let settings: JournalSettings
+
+    /// The journal-shaping settings, and the seam they sync through: today's
+    /// Entry is spawned and saved by these, and which files are Entries at all
+    /// is the Path Template among them (ADR 0002, ADR 0003).
+    private let settingsStore: JournalSettingsStore
+
+    /// What they say right now — read afresh rather than copied, because they
+    /// change under a running app, from this device and from another.
+    private var settings: JournalSettings { settingsStore.settings }
+
+    /// The settings observation that reopens the journal when they change.
+    /// Held so that it lives exactly as long as this Journal.
+    private var watchingTheSettings: SettingsObservation?
+
+    /// The reopening a settings change set going, if one is still under way —
+    /// what changing the Path Template here waits on before it says it is
+    /// done.
+    private var reopening: Task<Void, Never>?
 
     /// What the system is holding besides the file at an Entry's path — iCloud,
     /// unless a test is standing in for it.
@@ -120,16 +151,30 @@ final class Journal {
     private var keepingUpWithTheFolder: Task<Void, Never>?
 
     /// - Parameter settings: the journal-shaping settings today's Entry is
-    ///   spawned and saved by. The defaults until the settings screen lands;
-    ///   they arrive through iCloud key-value storage then (ADR 0003).
+    ///   spawned and saved by, and the seam they arrive through from the
+    ///   user's other devices (ADR 0003).
     init(
         locator: JournalRootLocator = .system,
-        settings: JournalSettings = .default,
+        settings: JournalSettingsStore? = nil,
         versions: any EntryVersions = ICloudVersions()
     ) {
+        // Made here rather than as a default argument: the store it is over
+        // reads iCloud, which is main-actor work, and a default argument is
+        // evaluated wherever the caller happens to be.
+        let settings = settings ?? JournalSettingsStore(syncedThrough: SyncedSettingsStorage())
         self.locator = locator
-        self.settings = settings
+        self.settingsStore = settings
         self.versions = versions
+
+        // A Path Template changed on the iPad reshapes what an Entry is here
+        // too (ADR 0002), and so does one changed on this device — which is
+        // why adopting one is a write to the settings and nothing more. The
+        // journal is reopened either way: today's Entry is a different file
+        // afterwards, and so is every mark on the calendar.
+        watchingTheSettings = settings.observe { [weak self] _ in
+            guard let self else { return }
+            reopening = Task { await self.open() }
+        }
     }
 
     func open() async {
@@ -315,7 +360,10 @@ final class Journal {
     /// files the Path Template names are Entries at all (ADR 0002).
     func use(_ folder: URL) async {
         folderProblem = nil
-        guard await saveWhatBelongsToTheFolderBeingLeft() else { return }
+        if let unsaved = await saveWhatIsOnScreenWhereItBelongsNow() {
+            folderProblem = StorageProblem(unsaved)
+            return
+        }
         do {
             try locator.customRoot.choose(folder)
         } catch {
@@ -334,27 +382,103 @@ final class Journal {
     /// in Obsidian (ADR 0001).
     func useAujoursOwnFolder() async {
         folderProblem = nil
-        guard await saveWhatBelongsToTheFolderBeingLeft() else { return }
+        if let unsaved = await saveWhatIsOnScreenWhereItBelongsNow() {
+            folderProblem = StorageProblem(unsaved)
+            return
+        }
         locator.customRoot.forget()
         await open()
     }
 
-    /// Writes what is on screen to the folder it belongs to, before that
-    /// folder stops being the journal — and answers whether the move may go
-    /// ahead.
+    // MARK: - Changing the Path Template
+
+    /// The Path Template in force, exactly as it is stored — what the user is
+    /// shown when they go to change it.
+    var pathTemplate: String { settings.pathTemplate }
+
+    /// Whether there is a folder open to change anything about. A journal
+    /// still opening, or one that could not be, has no Entries to plan a
+    /// migration over.
+    var isOpen: Bool {
+        if case .open = state { true } else { false }
+    }
+
+    /// What changing the Path Template to this would do to the folder: which
+    /// Entries move where, and which days already have a file sitting at the
+    /// path they would move to.
     ///
-    /// Today's Entry belongs to the folder being left, and this is the last
-    /// moment it can be written there: after the switch its file is not one
-    /// Aujour is looking at any more, and the editor holding those words is
-    /// replaced. So a save that will not go stops the move, exactly as it
-    /// stops the day turning under the editor — no words are ever silently
+    /// Asking changes nothing. The plan *is* the offer — a migration is
+    /// skippable, so what is being skipped has to be sayable first (ADR 0002)
+    /// — and it is worked out afresh every time, over the folder as it is
+    /// this moment rather than as it was at launch.
+    ///
+    /// Today's words are written to the file they belong to *now* before the
+    /// folder is read, so that the migration moves them along with the rest
+    /// of the journal. A save that will not go stops the whole thing: what is
+    /// on screen would otherwise be autosaved, a moment later, to a path that
+    /// has stopped meaning anything.
+    func planChangingThePathTemplate(to template: PathTemplate) async throws -> MigrationPlan {
+        guard let store else { throw NoJournalIsOpen() }
+        if let unsaved = await saveWhatIsOnScreenWhereItBelongsNow() { throw unsaved }
+
+        // A stored template that cannot be read names no Entries at all
+        // (ADR 0002), so there is nothing in the folder to move — and
+        // changing away from it is exactly what fixes that.
+        guard let current = try? PathTemplate(settings.pathTemplate) else {
+            return MigrationPlan(moves: [])
+        }
+        return try await JournalMigration(over: store).plan(changingFrom: current, to: template)
+    }
+
+    /// Adopts a Path Template — moving the Entries a plan names, or leaving
+    /// them where they are, which is what skipping the migration means.
+    ///
+    /// The order is the point. The files are moved first and the template is
+    /// changed after, so that at no moment is an Entry's path a path Aujour
+    /// has not put its file at yet.
+    ///
+    /// Skipping is a real choice and not a deferral: the old files stay on
+    /// disk untouched, where they stop being Entries and stop being surfaced
+    /// anywhere in the app. Aujour keeps no list of them and offers no way
+    /// back — they are the user's, in their folder, to move or keep or delete
+    /// in Files or in Obsidian (ADR 0002).
+    ///
+    /// Adopting is a write to the settings and nothing more; what makes the
+    /// journal reshape itself around the new template is the same observation
+    /// that reshapes it when the iPad changes the template. Awaited here so
+    /// that the caller can say the change is done when it is done.
+    @discardableResult
+    func changeThePathTemplate(
+        to template: PathTemplate,
+        movingEntriesBy plan: MigrationPlan?
+    ) async -> MigrationOutcome? {
+        var outcome: MigrationOutcome?
+        if let plan, !plan.isEmpty, let store {
+            outcome = await JournalMigration(over: store).carryOut(plan)
+        }
+
+        reopening = nil
+        settingsStore.update { $0.pathTemplate = template.format }
+        await reopening?.value
+        return outcome
+    }
+
+    /// Writes what is on screen to the file it belongs to right now, before
+    /// the ground under it moves — and answers what stopped it, if anything
+    /// did.
+    ///
+    /// Two things move that ground, and both come through here: pointing
+    /// Aujour at another folder, and changing the Path Template. Either way
+    /// this is the last moment today's words can be written where they
+    /// currently belong — afterwards the editor holding them is replaced, and
+    /// in the migration's case the file they belong to has been moved. So a
+    /// save that will not go stops what was about to happen, exactly as it
+    /// stops the day turning under the editor: no words are ever silently
     /// discarded (`v1-decisions.md`).
-    private func saveWhatBelongsToTheFolderBeingLeft() async -> Bool {
-        guard let today else { return true }
+    private func saveWhatIsOnScreenWhereItBelongsNow() async -> (any Error)? {
+        guard let today else { return nil }
         await today.save()
-        guard let unsaved = today.saveProblem else { return true }
-        folderProblem = StorageProblem(unsaved)
-        return false
+        return today.saveProblem
     }
 
     /// Counts the Entries in the folder again.
@@ -409,6 +533,19 @@ final class Journal {
     ) -> Int? {
         guard let template = try? PathTemplate(settings.pathTemplate) else { return nil }
         return files.filter { template.match($0) != nil }.count
+    }
+}
+
+extension JournalSettingsStore {
+    /// Journal-shaping settings that live and die with the object holding
+    /// them.
+    ///
+    /// For previews and for tests, which run on a machine that has an Aujour
+    /// of its own: settings read from `UserDefaults` or from iCloud would be
+    /// somebody's real Path Template, and a test that changed one would
+    /// change theirs.
+    static func inMemory() -> JournalSettingsStore {
+        JournalSettingsStore(syncedThrough: InMemorySyncedKeyValueStore())
     }
 }
 

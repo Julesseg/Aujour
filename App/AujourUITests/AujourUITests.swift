@@ -268,6 +268,136 @@ final class AujourUITests: XCTestCase {
         XCTAssertFalse(notice.waitForExistence(timeout: 3))
     }
 
+    func testChangingWhereEntriesGoOffersToMoveThemAndMovesThem() throws {
+        // A day this device already journaled, under the entry path a fresh
+        // install starts with — so there is something for the migration to
+        // be about.
+        let app = launchApp(todaysEntry: "Walked to the market.")
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        openFolderSheet(app)
+        XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
+        typeEntryPath("[Journal]/YYYY-MM-DD", into: app)
+
+        // Changing it is an offer, not a change: the files are still where
+        // they were until this is answered (ADR 0002).
+        app.buttons["changeEntryPath"].tap()
+        let prompt = app.staticTexts["migrationPrompt"]
+        XCTAssertTrue(prompt.waitForExistence(timeout: 15), "nothing offered to move the entries")
+        XCTAssertEqual(prompt.label, "Move your 1 entry?")
+        // And it says the one thing about renaming daily notes that nobody
+        // would guess (ADR 0002).
+        XCTAssertTrue(app.staticTexts["migrationLinkWarning"].exists)
+
+        app.buttons["moveEntries"].tap()
+        let summary = app.staticTexts["migrationSummary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 30), "the migration never finished")
+        XCTAssertEqual(summary.label, "1 entry moved.")
+        app.buttons["dismissMigrationSummary"].tap()
+
+        // Still one entry, and the same words — moved, not copied and not
+        // lost. The count is read from the folder, so this is the file being
+        // where the new template says.
+        expect(app.staticTexts["journalEntryCount"], toHaveLabel: "1 entry")
+        XCTAssertEqual(app.textFields["entryPathField"].value as? String, "[Journal]/YYYY-MM-DD")
+        app.buttons["Done"].tap()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 15), "today never reopened")
+        expect(editor, toHaveValue: "Walked to the market.")
+
+        // And the entry path outlives the launch, the way every other
+        // journal-shaping setting does (ADR 0003).
+        relaunch(app)
+        XCTAssertTrue(app.textViews["entryEditor"].waitForExistence(timeout: 30))
+        XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
+        XCTAssertEqual(app.textFields["entryPathField"].value as? String, "[Journal]/YYYY-MM-DD")
+    }
+
+    func testSkippingTheMigrationLeavesTheOldFilesWhereTheyAreAndUnsurfaced() throws {
+        let app = launchApp(todaysEntry: "Walked to the market.")
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        openFolderSheet(app)
+        typeEntryPath("[Journal]/YYYY-MM-DD", into: app)
+        app.buttons["changeEntryPath"].tap()
+        XCTAssertTrue(
+            app.staticTexts["migrationPrompt"].waitForExistence(timeout: 15),
+            "nothing offered to move the entries"
+        )
+
+        app.buttons["skipMigration"].tap()
+
+        // The old file is still in the folder and is no longer an Entry: the
+        // count is a scan of the folder against the *current* template, and
+        // nothing anywhere else surfaces what was left behind (ADR 0002).
+        expect(app.staticTexts["journalEntryCount"], toHaveLabel: "0 entries")
+        app.buttons["Done"].tap()
+
+        // Today, under the new path, is a day nobody has written on.
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 15), "today never reopened")
+        expect(editor, toHaveValue: "")
+
+        // Not on the calendar either — a skipped migration orphans the old
+        // files completely, which is the deal ADR 0002 makes.
+        openCalendar(app, showingTheMonthOf: Date())
+        let today = app.buttons["day-\(todaysEntryName())"]
+        XCTAssertTrue(today.waitForExistence(timeout: 10), "today was not on the calendar")
+        XCTAssertEqual(today.value as? String, "Not written")
+    }
+
+    func testAMigrationOntoAnOccupiedPathKeepsBothFiles() throws {
+        // The vault already keeps a note where the new entry path would put
+        // today — which is exactly how two files come to claim one day.
+        let app = launchApp(
+            todaysEntry: "Written in Aujour.",
+            vaultNote: (at: "Journal/\(todaysEntryName()).md", saying: "Written in Obsidian.")
+        )
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        openFolderSheet(app)
+        typeEntryPath("[Journal]/YYYY-MM-DD", into: app)
+        app.buttons["changeEntryPath"].tap()
+
+        // The collision is named before anything moves — being asked is the
+        // whole of ADR 0002's rule here.
+        let collisions = app.staticTexts["migrationCollisions"]
+        XCTAssertTrue(collisions.waitForExistence(timeout: 15), "the collision was never mentioned")
+        XCTAssertEqual(collisions.label, "1 day already has a file where it would go")
+
+        app.buttons["moveEntries"].tap()
+        XCTAssertTrue(
+            app.staticTexts["migrationSummary"].waitForExistence(timeout: 30),
+            "the migration never finished"
+        )
+        let parked = app.staticTexts["migrationParkedFiles"]
+        XCTAssertTrue(parked.exists, "nothing said where the second version went")
+        XCTAssertTrue(
+            parked.label.contains("\(todaysEntryName())_1.md"),
+            "the summary did not name the parked file: \(parked.label)"
+        )
+        app.buttons["dismissMigrationSummary"].tap()
+
+        // One day, one Entry: the file that was already there. The version
+        // Aujour brought is beside it and is not an Entry (ADR 0002).
+        expect(app.staticTexts["journalEntryCount"], toHaveLabel: "1 entry")
+        app.buttons["Done"].tap()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 15), "today never reopened")
+        expect(editor, toHaveValue: "Written in Obsidian.")
+    }
+
     // MARK: - Driving the app
 
     /// Launches the app onto a journal folder of this test's own.
@@ -285,11 +415,14 @@ final class AujourUITests: XCTestCase {
     ///   - divergedVersion: what another device wrote for today, which iCloud
     ///     is holding as an unresolved version of the same file. Dated at
     ///     launch, so it is the newer of the two.
+    ///   - vaultNote: a file the folder already holds that is none of Aujour's
+    ///     business — a note the vault made — and the path it sits at.
     private func launchApp(
         contentTemplate: String = "",
         folderToPick: String? = nil,
         todaysEntry: String? = nil,
-        divergedVersion: String? = nil
+        divergedVersion: String? = nil,
+        vaultNote: (at: String, saying: String)? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["AUJOUR_UITEST_JOURNAL_FOLDER"] = journalFolder
@@ -302,6 +435,10 @@ final class AujourUITests: XCTestCase {
         }
         if let divergedVersion {
             app.launchEnvironment["AUJOUR_UITEST_DIVERGED_VERSION"] = divergedVersion
+        }
+        if let vaultNote {
+            app.launchEnvironment["AUJOUR_UITEST_VAULT_NOTE_AT"] = vaultNote.at
+            app.launchEnvironment["AUJOUR_UITEST_VAULT_NOTE"] = vaultNote.saying
         }
         app.launch()
         return app
@@ -317,6 +454,29 @@ final class AujourUITests: XCTestCase {
             app.staticTexts["journalRootLocation"].waitForExistence(timeout: 10),
             "the folder sheet never appeared"
         )
+    }
+
+    /// Replaces what is in the entry path field, and puts the keyboard away.
+    ///
+    /// Cleared a character at a time from the end, because a text field's
+    /// whole contents cannot be selected without a hardware keyboard the
+    /// simulator does not have. The tap is at the far right of the field so
+    /// that the cursor is behind the last character rather than wherever the
+    /// middle of the field happened to be.
+    ///
+    /// The keyboard is dismissed afterwards for a plain reason: it covers the
+    /// button the test is about to press.
+    private func typeEntryPath(_ path: String, into app: XCUIApplication) {
+        let field = app.textFields["entryPathField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "the entry path field never appeared")
+        let existing = (field.value as? String) ?? ""
+
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: existing.count))
+        field.typeText(path)
+        field.typeText("\n")
+
+        XCTAssertEqual(field.value as? String, path)
     }
 
     private func relaunch(_ app: XCUIApplication) {

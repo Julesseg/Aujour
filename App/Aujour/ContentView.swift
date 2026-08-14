@@ -45,17 +45,7 @@ struct ContentView: View {
                     // never be, so the unreachable case is the spinner.
                     if let today = journal.today {
                         EntryView(editor: today)
-                            // Above the words rather than over them: a version
-                            // of this day the user has not seen is news, and
-                            // the day itself is still theirs to write in while
-                            // the notice is up.
-                            .safeAreaInset(edge: .top) {
-                                if !journal.parkedFiles.isEmpty {
-                                    ParkedFilesNotice(files: journal.parkedFiles) {
-                                        journal.acknowledgeParkedFiles()
-                                    }
-                                }
-                            }
+                            .parkedFilesNotice(from: journal, for: today.day)
                             .navigationTitle(today.day.spelledOut())
                             .navigationBarTitleDisplayMode(.inline)
                             .toolbar {
@@ -107,7 +97,7 @@ struct ContentView: View {
             // folder for a day just filled in.
             .navigationDestination(isPresented: $showingCalendar) {
                 if let calendar = journal.calendar {
-                    JournalCalendarView(calendar: calendar)
+                    JournalCalendarView(calendar: calendar, journal: journal)
                 }
             }
         }
@@ -265,6 +255,30 @@ private struct JournalFolderSheet: View {
     }
 }
 
+extension View {
+    /// Says, above a day's Entry, that another version of that day was kept
+    /// beside it.
+    ///
+    /// A modifier because there are two ways into a day and both of them need
+    /// it: today's screen, and a day filled in from the calendar. Each shows
+    /// only its own day's Parked Files — a notice about March 1st over the
+    /// Entry for the 14th would be about a file that is nowhere near it.
+    ///
+    /// Above the words rather than over them: a version of this day the user
+    /// has not seen is news, and the day itself is still theirs to write in
+    /// while the notice is up.
+    func parkedFilesNotice(from journal: Journal, for day: JournalDay) -> some View {
+        safeAreaInset(edge: .top) {
+            let parked = journal.parkedFiles(from: day)
+            if !parked.isEmpty {
+                ParkedFilesNotice(files: parked) {
+                    journal.acknowledgeParkedFiles(from: day)
+                }
+            }
+        }
+    }
+}
+
 /// A day two devices both wrote, said where the user is writing it.
 ///
 /// The Parked File beside the Entry is the lasting notice — it is a file in
@@ -276,7 +290,7 @@ private struct JournalFolderSheet: View {
 /// to delete either: they are the user's words in the user's folder, and this
 /// is the one moment the app is not the right thing to be doing it in
 /// (ADR 0002).
-private struct ParkedFilesNotice: View {
+struct ParkedFilesNotice: View {
     let files: [ParkedFile]
     let acknowledge: () -> Void
 
@@ -404,7 +418,10 @@ extension JournalRootLocator {
     /// A locator over a scratch folder, pinned to one of Aujour's own
     /// locations — or to none, for the failure the user would see with iCloud
     /// Drive off and the app's own folder unreachable.
-    fileprivate static func preview(_ location: JournalRoot.DefaultFolder?) -> JournalRootLocator {
+    ///
+    /// Reachable from the other screens' previews too: any of them that takes
+    /// a whole `Journal` needs one that is not this Mac's own.
+    static func preview(_ location: JournalRoot.DefaultFolder?) -> JournalRootLocator {
         let folder = URL.temporaryDirectory.appending(path: "AujourPreview/\(location?.rawValue ?? "none")")
         return JournalRootLocator(
             iCloudDocuments: { location == .iCloudDrive ? folder : nil },

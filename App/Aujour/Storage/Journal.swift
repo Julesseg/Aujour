@@ -22,23 +22,6 @@ struct StorageProblem: Equatable, Sendable {
     }
 }
 
-/// A version of a day that was set aside beside its Entry, because two devices
-/// wrote that day and only one version can be at its path.
-///
-/// Named rather than pathed on screen: what the user is being told is what
-/// they will see the file called when they go looking for it in Obsidian or in
-/// the Files app, which is the whole reason it was put beside the Entry.
-struct ParkedFile: Hashable, Sendable, Identifiable {
-    /// Where it is, relative to the Journal Root.
-    let path: String
-
-    var name: String {
-        path.split(separator: "/").last.map(String.init) ?? path
-    }
-
-    var id: String { path }
-}
-
 /// The user's Journal, as this installation has it: the folder opened on
 /// launch — the one they pointed Aujour at, or the one it found for itself —
 /// a Journal Store over it, and whichever of the two answers came back for
@@ -175,7 +158,7 @@ final class Journal {
             // that won the day's path: a divergence that arrived while the app
             // was closed is settled on the way in, not shown and then swapped
             // out from under the user.
-            await parkAnyDivergence()
+            await settleAnyDivergence(before: editor)
             await editor.open()
             keepUpWith(opened.folder.changes)
         } catch {
@@ -223,21 +206,23 @@ final class Journal {
         // First, because it decides what the file at today's path says: a day
         // two devices wrote is settled before the Entry is re-read, and never
         // the other way round.
-        await parkAnyDivergence()
+        if let today { await settleAnyDivergence(before: today) }
         await today?.reloadIfClean()
         await calendar?.scan()
     }
 
-    /// Settles today's Entry if two devices wrote it, and remembers the Parked
-    /// Files to tell the user about.
+    /// Settles the day this editor is over if two devices wrote it, and
+    /// remembers the Parked Files to tell the user about.
     ///
-    /// Only today's Entry, because it is the one that is open: a day reached
-    /// from the calendar reads its file each time it is opened, and a day
-    /// nobody has open has nothing on screen to be wrong. The versions stay
-    /// unresolved until somebody is looking at that day, which is when it
-    /// matters and when there is a notice to show.
-    private func parkAnyDivergence() async {
-        guard let parking, let today, let path = entryPath(for: today.day) else { return }
+    /// Said of an editor rather than of a day, because it is having a day open
+    /// that makes this worth doing: the Entry is about to be read, or has just
+    /// been changed underneath, and the words in front of the user have to be
+    /// part of the reckoning. Every way into a day goes through one — today's
+    /// screen and a day filled in from the calendar alike — so every day the
+    /// user actually opens is settled, and the days nobody has opened are left
+    /// for the launch that opens them.
+    func settleAnyDivergence(before editor: EntryEditor) async {
+        guard let parking, let path = entryPath(for: editor.day) else { return }
         // Asked first because the answer is almost always no, and everything
         // below is work — including a save the user did not ask for.
         guard !settlingADivergence, parking.hasDiverged(path) else { return }
@@ -248,29 +233,39 @@ final class Journal {
         // against each other. Otherwise the words being typed are the one
         // version not on disk, and a version arriving from another device
         // could take the Entry path from underneath them.
-        await today.save()
+        //
+        // Which does decide it, and deliberately: an Entry with unsaved words
+        // keeps its path, because writing them is what makes the file the
+        // newest version — and they *are* the newest, typed after anything
+        // that arrived while they were being typed. The version that arrived
+        // is parked rather than dropped, so what this costs is which of the
+        // two the user finds at the day's own path.
+        await editor.save()
         // And if they would not go, nothing is settled at all. A version that
         // took the Entry path here would be written over by the next autosave
         // that does succeed — the one way this could actually lose a version.
         // The conflict stays open instead, and the next change tries again.
-        guard today.saveProblem == nil else { return }
+        guard editor.saveProblem == nil else { return }
 
         // Silent when it will not go, deliberately: nothing has been lost —
         // the file is as it was and the conflict is still open — so the next
         // change in the folder tries again. A notice here would be a notice
         // about something the user cannot act on.
-        guard let parked = try? await parking.park(path) else { return }
-        parkedFiles.append(
-            contentsOf: parked
-                .filter { path in !parkedFiles.contains { $0.path == path } }
-                .map(ParkedFile.init)
-        )
+        guard let parked = try? await parking.park(path, of: editor.day) else { return }
+        parkedFiles.append(contentsOf: parked.filter { !parkedFiles.contains($0) })
     }
 
-    /// The user has seen the notice; the Parked Files themselves stay where
-    /// they are, which is the point of them.
-    func acknowledgeParkedFiles() {
-        parkedFiles = []
+    /// The Parked Files set aside from one day — which is what that day's
+    /// screen has to say, and the only screen that has anything to say about
+    /// them.
+    func parkedFiles(from day: JournalDay) -> [ParkedFile] {
+        parkedFiles.filter { $0.day == day }
+    }
+
+    /// The user has seen the notice for a day; the Parked Files themselves
+    /// stay where they are, which is the point of them.
+    func acknowledgeParkedFiles(from day: JournalDay) {
+        parkedFiles.removeAll { $0.day == day }
     }
 
     /// Where a day's Entry belongs — `nil` for a Path Template that cannot say,

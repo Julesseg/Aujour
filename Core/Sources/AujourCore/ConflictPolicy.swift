@@ -35,19 +35,12 @@ public struct ConflictPolicy: Sendable {
     /// file at the Entry path is one it can read, and the rest are versions
     /// the system is holding on to, which it knows only by the order it was
     /// given them in.
-    public enum Version: Hashable, Sendable, CustomStringConvertible {
+    public enum Version: Hashable, Sendable {
         /// The version the Entry path holds right now.
         case theFileThere
 
         /// One of the other versions, by its place among those given.
         case another(Int)
-
-        public var description: String {
-            switch self {
-            case .theFileThere: "the file at the Entry path"
-            case .another(let index): "the version at index \(index)"
-            }
-        }
     }
 
     /// A version that lost the Entry path, and the Parked File it becomes.

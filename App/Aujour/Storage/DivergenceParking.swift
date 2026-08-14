@@ -1,6 +1,27 @@
 import Foundation
 import AujourCore
 
+/// A version of a day that was set aside beside its Entry, because two devices
+/// wrote that day and only one version can be at its path.
+///
+/// It carries a name as well as a path because that is what the user is told:
+/// what they will see the file called when they go looking for it in Obsidian
+/// or in the Files app, which is the whole reason it was put beside the Entry.
+struct ParkedFile: Hashable, Sendable, Identifiable {
+    /// Where it is, relative to the Journal Root.
+    let path: String
+
+    /// The Journal Day it is a version of — which is the day whose screen has
+    /// something to say about it, and no other.
+    let day: JournalDay
+
+    var name: String {
+        path.split(separator: "/").last.map(String.init) ?? path
+    }
+
+    var id: String { path }
+}
+
 /// A day that was written twice, and the folder afterwards holding both
 /// versions.
 ///
@@ -50,8 +71,16 @@ struct DivergenceParking {
     /// Parks every version of this day but the newest, and answers the Parked
     /// Files it left behind — empty for a day nobody else wrote, which is the
     /// usual answer.
+    ///
+    /// - Parameters:
+    ///   - entryPath: where the day's Entry lives, relative to the Journal
+    ///     Root.
+    ///   - day: which Journal Day that is. Carried rather than worked out,
+    ///     because reading a path back is the Path Template's job and this is
+    ///     not the place to keep a second answer to it — it travels with each
+    ///     Parked File so that the day's own screen is where it is mentioned.
     @discardableResult
-    func park(_ entryPath: String) async throws -> [String] {
+    func park(_ entryPath: String, of day: JournalDay) async throws -> [ParkedFile] {
         let url = try url(for: entryPath)
         let otherVersions = versions.unresolved(at: url)
         guard !otherVersions.isEmpty else { return [] }
@@ -59,7 +88,7 @@ struct DivergenceParking {
         let filesInTheFolder = Set(try await store.listFiles())
         let resolution = try policy.resolve(
             entryPath,
-            writtenAt: whenItWasWritten(url),
+            writtenAt: store.modificationDate(ofFileAt: entryPath),
             against: otherVersions.map(\.writtenAt),
             beside: filesInTheFolder
         )
@@ -68,12 +97,12 @@ struct DivergenceParking {
         // start, so that a version having to take a different one never takes
         // the one meant for the version after it.
         var taken = filesInTheFolder.union(resolution.parked.map(\.path))
-        var parkedFiles: [String] = []
+        var parkedFiles: [ParkedFile] = []
         for parked in resolution.parked {
             let words = try await contents(of: parked.version, among: otherVersions, at: entryPath)
             let path = try await park(words, at: parked.path, for: entryPath, avoiding: taken)
             taken.insert(path)
-            parkedFiles.append(path)
+            parkedFiles.append(ParkedFile(path: path, day: day))
         }
 
         // Last of the writing, and only ever onto a path whose previous
@@ -131,15 +160,14 @@ struct DivergenceParking {
 
     // MARK: - The file underneath
 
+    /// Asked of the store rather than assembled here: where a relative path
+    /// actually is on the device is the store's own answer, and two of them is
+    /// one too many.
+    ///
+    /// The only reason a URL is needed at all is that the versions the system
+    /// is holding are addressed by one. Everything else — reading the file,
+    /// writing beside it, listing the folder — goes back through the seam.
     private func url(for entryPath: String) throws -> URL {
-        try RelativePath(entryPath).components.reduce(store.root) { $0.appending(path: $1) }
-    }
-
-    /// When the file at the Entry's path was last written, or `nil` where the
-    /// folder will not say — which the policy reads as "not the newest"
-    /// rather than as a date.
-    private func whenItWasWritten(_ url: URL) -> Date? {
-        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
-        return attributes?[.modificationDate] as? Date
+        try store.url(forFileAt: entryPath)
     }
 }

@@ -307,6 +307,27 @@ struct FileJournalStore: JournalStore {
         }
     }
 
+    /// When the file at this path was last written, or `nil` where the folder
+    /// will not say — which includes a file that is not there.
+    ///
+    /// Not on the seam, and it never will be: a folder of files answers what
+    /// is in it, and a modification date is a property of a particular file
+    /// system. It is here because divergence is decided by which version was
+    /// written last (``DivergenceParking``), and this is the date of the one
+    /// version that is a file rather than something iCloud is holding.
+    ///
+    /// Coordinated, like every other read: mid-sync, the date of a file being
+    /// written is the date of a write that has not finished.
+    func modificationDate(ofFileAt relativePath: String) throws -> Date? {
+        let path = try RelativePath(relativePath)
+        return try? coordinatedRead(
+            of: url(for: path),
+            options: .immediatelyAvailableMetadataOnly
+        ) { url in
+            try FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date
+        }
+    }
+
     // MARK: - Taking turns with the other apps in the folder
 
     // Three shapes of the same thing: ask for the access, do the work on the
@@ -394,6 +415,17 @@ struct FileJournalStore: JournalStore {
     }
 
     // MARK: - The folder underneath
+
+    /// Where a path relative to the Journal Root actually is on this device.
+    ///
+    /// The one thing above the seam that a `URL` is owed to, and only for what
+    /// no folder of files can answer: the versions iCloud is holding of a file
+    /// are addressed by URL, so settling a day two devices wrote
+    /// (``DivergenceParking``) has to be able to name the file to the system.
+    /// Everything else about that day goes back through the operations above.
+    func url(forFileAt relativePath: String) throws -> URL {
+        url(for: try RelativePath(relativePath))
+    }
 
     private func url(for path: RelativePath) -> URL {
         path.components.reduce(root) { $0.appending(path: $1) }

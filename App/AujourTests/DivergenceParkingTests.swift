@@ -15,7 +15,9 @@ import AujourCore
 // tested to death in Core. What is left here is the folder afterwards, which
 // is the only place the claim can actually be checked.
 
-/// The day both devices wrote, under the default Path Template.
+/// The day both devices wrote, and where its Entry lives under the default
+/// Path Template.
+private let march1 = JournalDay(year: 2026, month: 3, day: 1)
 private let entry = "2026/03/2026-03-01.md"
 
 private let breakfast = Date(timeIntervalSince1970: 1_772_000_000)
@@ -34,11 +36,11 @@ struct DivergenceParkingTests {
             let parked = try await DivergenceParking(
                 store: store,
                 versions: TheVersionsHeldFor(entry, in: root, are: [iPad])
-            ).park(entry)
+            ).park(entry, of: march1)
 
             // Both of them, on disk, where the user can read one against the
             // other — which is the whole of what parking is for.
-            #expect(parked == ["2026/03/2026-03-01_1.md"])
+            #expect(parked.map(\.path) == ["2026/03/2026-03-01_1.md"])
             #expect(try await store.readText(at: entry) == "Written on the iPad.\n")
             #expect(
                 try await store.readText(at: "2026/03/2026-03-01_1.md")
@@ -57,9 +59,9 @@ struct DivergenceParkingTests {
             let parked = try await DivergenceParking(
                 store: store,
                 versions: TheVersionsHeldFor(entry, in: root, are: [iPad])
-            ).park(entry)
+            ).park(entry, of: march1)
 
-            #expect(parked == ["2026/03/2026-03-01_1.md"])
+            #expect(parked.map(\.path) == ["2026/03/2026-03-01_1.md"])
             #expect(try await store.readText(at: entry) == "Written on this iPhone.\n")
             #expect(
                 try await store.readText(at: "2026/03/2026-03-01_1.md")
@@ -81,7 +83,7 @@ struct DivergenceParkingTests {
                     in: root,
                     are: [AVersionHeldByTheSystem("Written on the iPad.\n", writtenAt: dinner)]
                 )
-            ).park(entry)
+            ).park(entry, of: march1)
 
             // Two files, one day. The calendar and the Today view read the
             // folder through the Path Template and nothing else (ADR 0002),
@@ -102,7 +104,7 @@ struct DivergenceParkingTests {
             let parked = try await DivergenceParking(
                 store: store,
                 versions: TheVersionsHeldFor(entry, in: root, are: [])
-            ).park(entry)
+            ).park(entry, of: march1)
 
             #expect(parked.isEmpty)
             #expect(try await store.listFiles() == [entry])
@@ -126,9 +128,9 @@ struct DivergenceParkingTests {
                     in: root,
                     are: [AVersionHeldByTheSystem("Written on the iPad.\n", writtenAt: dinner)]
                 )
-            ).park(entry)
+            ).park(entry, of: march1)
 
-            #expect(parked == ["2026/03/2026-03-01_2.md"])
+            #expect(parked.map(\.path) == ["2026/03/2026-03-01_2.md"])
             #expect(
                 try await store.readText(at: "2026/03/2026-03-01_1.md") == "Parked last week.\n"
             )
@@ -152,9 +154,9 @@ struct DivergenceParkingTests {
             let parked = try await DivergenceParking(
                 store: store,
                 versions: TheVersionsHeldFor(entry, in: root, are: others)
-            ).park(entry)
+            ).park(entry, of: march1)
 
-            #expect(parked == ["2026/03/2026-03-01_1.md", "2026/03/2026-03-01_2.md"])
+            #expect(parked.map(\.path) == ["2026/03/2026-03-01_1.md", "2026/03/2026-03-01_2.md"])
             #expect(try await store.readText(at: entry) == "Written on this iPhone.\n")
             #expect(
                 try await store.readText(at: "2026/03/2026-03-01_1.md") == "Written on the iPad.\n"
@@ -178,14 +180,14 @@ struct DivergenceParkingTests {
             )
 
             #expect(parking.hasDiverged(entry))
-            _ = try await parking.park(entry)
+            _ = try await parking.park(entry, of: march1)
 
             // Told the system it has been taken care of, so that the same
             // divergence does not come back as news at every change in the
             // folder and leave a `_2`, a `_3`, and a journal full of copies.
             #expect(iPad.isSettled)
             #expect(!parking.hasDiverged(entry))
-            #expect(try await parking.park(entry).isEmpty)
+            #expect(try await parking.park(entry, of: march1).isEmpty)
             #expect(try await store.listFiles() == [entry, "2026/03/2026-03-01_1.md"])
         }
     }

@@ -22,6 +22,23 @@ struct StorageProblem: Equatable, Sendable {
     }
 }
 
+/// A version of a day that was set aside beside its Entry, because two devices
+/// wrote that day and only one version can be at its path.
+///
+/// Named rather than pathed on screen: what the user is being told is what
+/// they will see the file called when they go looking for it in Obsidian or in
+/// the Files app, which is the whole reason it was put beside the Entry.
+struct ParkedFile: Hashable, Sendable, Identifiable {
+    /// Where it is, relative to the Journal Root.
+    let path: String
+
+    var name: String {
+        path.split(separator: "/").last.map(String.init) ?? path
+    }
+
+    var id: String { path }
+}
+
 /// The user's Journal, as this installation has it: the folder opened on
 /// launch — the one they pointed Aujour at, or the one it found for itself —
 /// a Journal Store over it, and whichever of the two answers came back for
@@ -80,8 +97,33 @@ final class Journal {
     /// already had is still open and still theirs to write in.
     private(set) var folderProblem: StorageProblem?
 
+    /// The Parked Files this journal has set aside since it was opened, oldest
+    /// first — what the screen tells the user about.
+    ///
+    /// Kept until they say they have seen it, and not longer: the file itself
+    /// is the lasting notice, sitting beside the Entry in their vault. This is
+    /// only how they come to know it is there without going and looking.
+    private(set) var parkedFiles: [ParkedFile] = []
+
     private let locator: JournalRootLocator
     private let settings: JournalSettings
+
+    /// What the system is holding besides the file at an Entry's path — iCloud,
+    /// unless a test is standing in for it.
+    private let versions: any EntryVersions
+
+    /// How a day written twice is settled, over the open folder.
+    private var parking: DivergenceParking?
+
+    /// Whether a divergence is being settled right now.
+    ///
+    /// The app comes back to the front and the folder reports a change at the
+    /// same moment more often than it sounds, and both ask for this. Two
+    /// settlings of one divergence would each find the versions unresolved,
+    /// and the second would leave a `_2` holding a copy of what the first had
+    /// just parked — litter in somebody's vault, in the one place the app
+    /// promises to be careful.
+    private var settlingADivergence = false
 
     /// The open folder, presented: what Aujour's reads and writes take their
     /// turn through, and what says when somebody else has had theirs.
@@ -97,15 +139,24 @@ final class Journal {
     /// - Parameter settings: the journal-shaping settings today's Entry is
     ///   spawned and saved by. The defaults until the settings screen lands;
     ///   they arrive through iCloud key-value storage then (ADR 0003).
-    init(locator: JournalRootLocator = .system, settings: JournalSettings = .default) {
+    init(
+        locator: JournalRootLocator = .system,
+        settings: JournalSettings = .default,
+        versions: any EntryVersions = ICloudVersions()
+    ) {
         self.locator = locator
         self.settings = settings
+        self.versions = versions
     }
 
     func open() async {
         state = .opening
         today = nil
         calendar = nil
+        // Whatever was parked belonged to the folder being left. The files are
+        // still there, beside the Entries they diverged from; it is the notice
+        // that does not carry over into somebody else's vault.
+        parkedFiles = []
         // Before anything is opened, whatever folder was open stops being
         // presented: a change arriving from the folder being left would be
         // answered by re-reading a file in a journal that is no longer this
@@ -118,12 +169,19 @@ final class Journal {
             today = editor
             calendar = JournalCalendar(store: opened.store, settings: settings)
             folder = opened.folder
+            parking = DivergenceParking(store: opened.store, versions: versions)
             state = .open(opened.root, entryCount: opened.entryCount)
+            // Before the Entry is read, so that what is read is the version
+            // that won the day's path: a divergence that arrived while the app
+            // was closed is settled on the way in, not shown and then swapped
+            // out from under the user.
+            await parkAnyDivergence()
             await editor.open()
             keepUpWith(opened.folder.changes)
         } catch {
             store = nil
             calendar = nil
+            parking = nil
             state = .unavailable(StorageProblem(error))
         }
     }
@@ -162,8 +220,64 @@ final class Journal {
     /// stream of changes read one at a time gives: a folder in the middle of a
     /// sync is walked once per catch-up and not once per file.
     private func catchUpWithTheFolder() async {
+        // First, because it decides what the file at today's path says: a day
+        // two devices wrote is settled before the Entry is re-read, and never
+        // the other way round.
+        await parkAnyDivergence()
         await today?.reloadIfClean()
         await calendar?.scan()
+    }
+
+    /// Settles today's Entry if two devices wrote it, and remembers the Parked
+    /// Files to tell the user about.
+    ///
+    /// Only today's Entry, because it is the one that is open: a day reached
+    /// from the calendar reads its file each time it is opened, and a day
+    /// nobody has open has nothing on screen to be wrong. The versions stay
+    /// unresolved until somebody is looking at that day, which is when it
+    /// matters and when there is a notice to show.
+    private func parkAnyDivergence() async {
+        guard let parking, let today, let path = entryPath(for: today.day) else { return }
+        // Asked first because the answer is almost always no, and everything
+        // below is work — including a save the user did not ask for.
+        guard !settlingADivergence, parking.hasDiverged(path) else { return }
+        settlingADivergence = true
+        defer { settlingADivergence = false }
+
+        // What is on screen goes into the file before the versions are weighed
+        // against each other. Otherwise the words being typed are the one
+        // version not on disk, and a version arriving from another device
+        // could take the Entry path from underneath them.
+        await today.save()
+        // And if they would not go, nothing is settled at all. A version that
+        // took the Entry path here would be written over by the next autosave
+        // that does succeed — the one way this could actually lose a version.
+        // The conflict stays open instead, and the next change tries again.
+        guard today.saveProblem == nil else { return }
+
+        // Silent when it will not go, deliberately: nothing has been lost —
+        // the file is as it was and the conflict is still open — so the next
+        // change in the folder tries again. A notice here would be a notice
+        // about something the user cannot act on.
+        guard let parked = try? await parking.park(path) else { return }
+        parkedFiles.append(
+            contentsOf: parked
+                .filter { path in !parkedFiles.contains { $0.path == path } }
+                .map(ParkedFile.init)
+        )
+    }
+
+    /// The user has seen the notice; the Parked Files themselves stay where
+    /// they are, which is the point of them.
+    func acknowledgeParkedFiles() {
+        parkedFiles = []
+    }
+
+    /// Where a day's Entry belongs — `nil` for a Path Template that cannot say,
+    /// which is a sentence the editor is already showing (ADR 0002).
+    private func entryPath(for day: JournalDay) -> String? {
+        guard let template = try? PathTemplate(settings.pathTemplate) else { return nil }
+        return template.render(day)
     }
 
     /// The app coming back to the front.

@@ -101,6 +101,32 @@ struct FileJournalStoreTests {
         }
     }
 
+    @Test("creating a file where one already is refuses, and keeps both versions")
+    func creatingNeverOverwrites() async throws {
+        try await withTemporaryFolder { root in
+            try root.seed("the iPad's", at: "2026/03/2026-03-01_1.md")
+            let store: any JournalStore = FileJournalStore(root: root)
+
+            await #expect(throws: JournalStoreError.fileAlreadyExists("2026/03/2026-03-01_1.md")) {
+                try await store.createText("this iPhone's", at: "2026/03/2026-03-01_1.md")
+            }
+
+            #expect(try await store.readText(at: "2026/03/2026-03-01_1.md") == "the iPad's")
+        }
+    }
+
+    @Test("a created file appears in the listing, folders and all")
+    func creatingMakesTheFoldersOnTheWay() async throws {
+        try await withTemporaryFolder { root in
+            let store: any JournalStore = FileJournalStore(root: root)
+
+            try await store.createText("the iPad's", at: "2026/03/2026-03-01_1.md")
+
+            #expect(try await store.listFiles() == ["2026/03/2026-03-01_1.md"])
+            #expect(try await store.readText(at: "2026/03/2026-03-01_1.md") == "the iPad's")
+        }
+    }
+
     @Test("a move onto an occupied path is refused, and loses neither version")
     func moveNeverOverwrites() async throws {
         try await withTemporaryFolder { root in
@@ -204,6 +230,9 @@ struct FileJournalStoreTests {
                 await #expect(throws: JournalStoreError.invalidPath(path), "asking about \(path)") {
                     try await store.fileExists(at: path)
                 }
+                await #expect(throws: JournalStoreError.invalidPath(path), "creating \(path)") {
+                    try await store.createText("", at: path)
+                }
                 await #expect(throws: JournalStoreError.invalidPath(path), "moving to \(path)") {
                     try await store.move(from: "day.md", to: path)
                 }
@@ -227,6 +256,9 @@ struct FileJournalStoreTests {
             }
             await #expect(throws: JournalStoreError.invalidPath("../Vault/Secret.md")) {
                 try await store.writeText("clobbered", at: "../Vault/Secret.md")
+            }
+            await #expect(throws: JournalStoreError.invalidPath("../Vault/Secret.md")) {
+                try await store.createText("parked here", at: "../Vault/Secret.md")
             }
 
             let untouched = try String(contentsOf: enclosing.appending(path: "Vault/Secret.md"), encoding: .utf8)

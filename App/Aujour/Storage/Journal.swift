@@ -403,6 +403,23 @@ final class Journal {
         if case .open = state { true } else { false }
     }
 
+    /// The Journal Day the app is on — which is what an entry path is worth
+    /// showing an example for, since it names a file the user could go and
+    /// look at.
+    ///
+    /// Today's Entry where there is one, and the same reckoning it was made
+    /// by where there is not: the Rollover Hour, and not the calendar date. At
+    /// 1 AM under a 4 AM rollover the day being written is yesterday, and an
+    /// example naming today's file would name a file nothing is going to write.
+    var dayOnScreen: JournalDay {
+        today?.day
+            ?? JournalDay.current(
+                at: Date(),
+                in: .current,
+                rolloverHour: settings.rolloverHour
+            )
+    }
+
     /// What changing the Path Template to this would do to the folder: which
     /// Entries move where, and which days already have a file sitting at the
     /// path they would move to.
@@ -445,8 +462,12 @@ final class Journal {
     ///
     /// Adopting is a write to the settings and nothing more; what makes the
     /// journal reshape itself around the new template is the same observation
-    /// that reshapes it when the iPad changes the template. Awaited here so
-    /// that the caller can say the change is done when it is done.
+    /// that reshapes it when the iPad changes the template. That observation
+    /// runs while `update` is still on the stack, which is what leaves
+    /// `reopening` holding a task to wait on here — so a caller that gets an
+    /// outcome back is looking at a journal that has already reopened onto the
+    /// new shape. Cleared first, so that a change the settings did not
+    /// actually make waits on nothing.
     @discardableResult
     func changeThePathTemplate(
         to template: PathTemplate,

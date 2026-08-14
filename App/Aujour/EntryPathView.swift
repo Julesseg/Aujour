@@ -47,8 +47,13 @@ struct EntryPathSection: View {
 
     /// The typed template, read — or the sentence saying why it cannot be.
     private var typedTemplate: Result<PathTemplate, PathTemplateError> {
-        Result { try PathTemplate(typed) }
-            .mapError { $0 as? PathTemplateError ?? .emptyFormat }
+        do {
+            return .success(try PathTemplate(typed))
+        } catch {
+            // `PathTemplate` throws its rejection and nothing else, so this
+            // is the sentence to show and not a guess at one.
+            return .failure(error)
+        }
     }
 
     private var rejection: PathTemplateError? {
@@ -207,6 +212,10 @@ struct PathTemplateMigrationSheet: View {
                     .accessibilityIdentifier("cancelEntryPathChange")
             }
         case .moving:
+            // Nothing to press while the files are moving. Stopping halfway
+            // is not an outcome worth offering — every move already made is
+            // one the plan says is safe, and the way out of a migration that
+            // did not finish is to change the entry path again.
             ToolbarItem(placement: .cancellationAction) { EmptyView() }
         case .moved:
             ToolbarItem(placement: .confirmationAction) {
@@ -220,7 +229,7 @@ struct PathTemplateMigrationSheet: View {
 
     @ViewBuilder
     private var theOffer: some View {
-        Text(plan.entryCount == 1 ? "Move your 1 entry?" : "Move your \(plan.entryCount) entries?")
+        Text("Move your \(counted(plan.entryCount, "entry", "entries"))?")
             .font(.title3.weight(.semibold))
             .accessibilityIdentifier("migrationPrompt")
 
@@ -281,6 +290,7 @@ struct PathTemplateMigrationSheet: View {
                 .font(.footnote.weight(.semibold))
                 .accessibilityIdentifier("migrationCollisions")
 
+
                 Text(
                     """
                     Aujour never overwrites. The file that's already there stays as that day's \
@@ -291,7 +301,7 @@ struct PathTemplateMigrationSheet: View {
                 .foregroundStyle(.secondary)
 
                 ForEach(colliding, id: \.to) { collision in
-                    Text("\(collision.day.description) → \(name(of: collision.to))")
+                    Text("\(collision.day.description) → \(collision.name)")
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                 }
@@ -307,19 +317,15 @@ struct PathTemplateMigrationSheet: View {
 
     @ViewBuilder
     private func summary(of outcome: MigrationOutcome) -> some View {
-        Text(
-            outcome.moved.count == 1
-                ? "1 entry moved."
-                : "\(outcome.moved.count) entries moved."
-        )
-        .font(.title3.weight(.semibold))
-        .accessibilityIdentifier("migrationSummary")
+        Text(headline(of: outcome))
+            .font(.title3.weight(.semibold))
+            .accessibilityIdentifier("migrationSummary")
 
         if !outcome.parked.isEmpty {
             Text(
                 """
-                \(outcome.parked.count == 1 ? "1 day" : "\(outcome.parked.count) days") already \
-                had a file where it would go, so both were kept: \
+                \(counted(outcome.parked.count, "day", "days")) already had a file where \
+                \(outcome.parked.count == 1 ? "it" : "they") would go, so both were kept: \
                 \(outcome.parked.map(\.name).formatted(.list(type: .and))). Open them in Files or \
                 Obsidian to bring across anything you want.
                 """
@@ -331,17 +337,34 @@ struct PathTemplateMigrationSheet: View {
 
         if !outcome.leftBehind.isEmpty {
             Text(
-                """
-                \(outcome.leftBehind.count == 1 ? "1 entry" : "\(outcome.leftBehind.count) entries") \
-                couldn't be moved and \(outcome.leftBehind.count == 1 ? "is" : "are") still where \
-                \(outcome.leftBehind.count == 1 ? "it was" : "they were"). Nothing was lost — \
-                change your entry path again to try the rest.
-                """
+                outcome.leftBehind.count == 1
+                    ? """
+                    1 entry couldn't be moved and is still where it was. Nothing was lost — \
+                    change your entry path again to try it once more.
+                    """
+                    : """
+                    \(outcome.leftBehind.count) entries couldn't be moved and are still where \
+                    they were. Nothing was lost — change your entry path again to try them once \
+                    more.
+                    """
             )
             .font(.callout)
             .foregroundStyle(.secondary)
             .accessibilityIdentifier("migrationLeftBehind")
         }
+    }
+
+    /// The one line at the top: how much of the journal moved.
+    ///
+    /// Counted over the days that were parked as well as the days that took
+    /// their new path, because both of them moved — a day whose new path was
+    /// taken is at a name beside it, and the sentence underneath is what says
+    /// which. "0 entries moved" over a folder where a file did move is the one
+    /// thing this must not say.
+    private func headline(of outcome: MigrationOutcome) -> String {
+        let moved = outcome.moved.count + outcome.parked.count
+        guard moved > 0 else { return "Nothing moved." }
+        return "\(counted(moved, "entry", "entries")) moved."
     }
 
     // MARK: - Deciding
@@ -365,19 +388,14 @@ struct PathTemplateMigrationSheet: View {
         }
     }
 
-    private func name(of path: String) -> String {
-        path.split(separator: "/").last.map(String.init) ?? path
-    }
 }
 
-extension Journal {
-    /// The Journal Day the app is on — what an entry-path example is rendered
-    /// for, so that it reads as a file the user could go and look at.
-    ///
-    /// Asked of today's Entry, which is the one place the Rollover Hour has
-    /// already been applied; a journal still opening has no Entry yet, and the
-    /// plain calendar date is the right guess for the second it takes.
-    var dayOnScreen: JournalDay {
-        today?.day ?? JournalDay.current(at: Date(), in: .current, rolloverHour: .midnight)
-    }
+/// A number and the noun it counts, in the form the sentence needs — "1
+/// entry", "12 entries".
+///
+/// Every sentence on this screen is about a count of the user's own days, and
+/// a screen that says "1 entries" about somebody's journal reads as a screen
+/// that was not looked at.
+private func counted(_ count: Int, _ singular: String, _ plural: String) -> String {
+    "\(count) \(count == 1 ? singular : plural)"
 }

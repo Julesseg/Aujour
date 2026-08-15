@@ -122,6 +122,37 @@ final class MarkdownTextStorage: NSTextStorage {
         endEditing()
     }
 
+    // MARK: - Waiting for the text to stop moving
+
+    /// How deep this storage is inside an editing group.
+    ///
+    /// Counted here because a text storage will not say, and it has to be
+    /// known: the layout may not be spoken to at all until the text has
+    /// settled. Asking it to make glyphs again mid-edit is "attempted layout
+    /// while textStorage is editing", which is not a warning — it is an
+    /// exception, and it takes the app and the day being written with it.
+    private var editingDepth = 0
+
+    /// Stretches whose glyphs are stale, because syntax over them has just
+    /// hidden or come back. Held until the edit they were found in is over.
+    private var staleGlyphs: [NSRange] = []
+
+    override func beginEditing() {
+        editingDepth += 1
+        super.beginEditing()
+    }
+
+    override func endEditing() {
+        super.endEditing()
+        editingDepth = max(0, editingDepth - 1)
+        // The outermost group only: an inner one closing means the text view
+        // is still part-way through changing something.
+        guard editingDepth == 0, !staleGlyphs.isEmpty else { return }
+        let stale = staleGlyphs
+        staleGlyphs = []
+        redrawGlyphs(over: stale)
+    }
+
     // MARK: - Restyling
 
     /// Guards against restyling in answer to restyling. Announcing the widened
@@ -154,11 +185,11 @@ final class MarkdownTextStorage: NSTextStorage {
             restyling = false
         }
         super.processEditing()
-        // After the announcement, because until it has been made the layout
-        // still has the text at its old length, and these are offsets into the
-        // new one.
+        // Noted rather than done: this is the middle of an editing group, and
+        // the layout is not to be touched until it closes (see
+        // ``endEditing()``).
         if textChanged {
-            redrawGlyphs(over: restyledRanges)
+            staleGlyphs.append(contentsOf: restyledRanges)
         }
     }
 
@@ -180,8 +211,8 @@ final class MarkdownTextStorage: NSTextStorage {
         guard backing.length > 0 else { return }
         beginEditing()
         restyledRanges = [restyle(around: NSRange(location: 0, length: backing.length))]
+        staleGlyphs.append(contentsOf: restyledRanges)
         endEditing()
-        redrawGlyphs(over: restyledRanges)
     }
 
     /// Draws the elements the cursor left and the ones it arrived in.
@@ -201,8 +232,8 @@ final class MarkdownTextStorage: NSTextStorage {
             if !stretches.contains(stretch) { stretches.append(stretch) }
         }
         restyledRanges = stretches
+        staleGlyphs.append(contentsOf: stretches)
         endEditing()
-        redrawGlyphs(over: stretches)
     }
 
     /// Reads the lines an edit touched, and draws what they say.
@@ -239,7 +270,8 @@ final class MarkdownTextStorage: NSTextStorage {
     }
 
     /// Has the layout make its glyphs again over stretches whose styling has
-    /// just changed.
+    /// just changed. Called from ``endEditing()`` and nowhere else — see the
+    /// depth counter for why.
     ///
     /// Attributes changing does not ask for this on its own: a layout manager
     /// answers that by laying the same glyphs out again, and whether a

@@ -154,6 +154,10 @@ of the *drawing* — never out of the text, which stays byte for byte the file
 on disk (ADR 0001). Selecting, copying and deleting all reach every character,
 hidden or not.
 
+A day nobody is writing in has no cursor in it, and so no marks anywhere: the
+keyboard going down leaves a document to read rather than the last heading
+still showing its hashes.
+
 ### Element
 The thing the cursor is in, for the purposes of Live Preview: one heading, one
 emphasised phrase, one link. Elements answer one at a time and not by line —

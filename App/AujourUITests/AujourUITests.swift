@@ -91,15 +91,17 @@ final class AujourUITests: XCTestCase {
         XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
     }
 
-    /// The claim styled source mode is worth nothing without: the editor
-    /// draws markdown, and writes plain text.
+    /// The claim the editor is worth nothing without: it draws markdown, and
+    /// writes plain text.
     ///
-    /// What the styling *looks like* is not here — a heading's point size is
-    /// checked where a font exists to check it, in `MarkdownTextStorageTests`.
-    /// What only a running app can show is that a day typed as markdown comes
-    /// back out of the folder character for character: no markup the editor
-    /// added, no curly quote where an apostrophe was typed, no em dash where
-    /// two hyphens were.
+    /// What the drawing *looks like* is not here — a heading's point size, and
+    /// which marks a moving caret hides, are checked where a font and a line
+    /// exist to check them, in `MarkdownTextStorageTests` and
+    /// `HiddenSyntaxDrawingTests`. What only a running app can show is that a
+    /// day typed as markdown, and hidden and revealed under a caret since,
+    /// comes back out of the folder character for character: no markup the
+    /// editor added, no curly quote where an apostrophe was typed, no em dash
+    /// where two hyphens were.
     func testMarkdownIsWrittenToTheFileExactlyAsItWasTyped() throws {
         let app = launchApp()
 
@@ -112,37 +114,12 @@ final class AujourUITests: XCTestCase {
         let entry = "# Sunday\n\nWalked to the *market* -- it's shut.\n\n- Milk\n- **Bread**"
         editor.typeText(entry)
 
-        Thread.sleep(forTimeInterval: 4)
-        relaunch(app)
-
-        let reopened = app.textViews["entryEditor"]
-        XCTAssertTrue(reopened.waitForExistence(timeout: 30))
-        XCTAssertEqual(reopened.value as? String, entry)
-        XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
-    }
-
-    /// Live preview, where its risk actually lives: a real text view, with the
-    /// marks around the cursor drawn and the rest left out of the layout
-    /// altogether.
-    ///
-    /// That the hiding *happens* is checked where a line has a width, in
-    /// `HiddenSyntaxDrawingTests`. What only a running app can show is that a
-    /// day whose syntax has been hiding and revealing under a moving caret
-    /// still reaches the folder as the markdown that was typed — every star
-    /// and every hash of it, in the order they were typed.
-    func testSyntaxThatHidesAtTheCursorIsStillInTheFile() throws {
-        let app = launchApp()
-
-        let editor = app.textViews["entryEditor"]
-        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
-        editor.tap()
-
-        let entry = "# Sunday\n\nWalked to the *market*, and it was **shut**."
-        editor.typeText(entry)
-
-        // The caret away from the last thing typed: whatever it leaves behind
-        // stops being drawn, and none of it stops being there.
-        editor.tap()
+        // And the caret away from the last thing typed, which is what makes
+        // the marks hide (`HiddenSyntaxDrawingTests` has the hiding itself).
+        // By coordinate rather than `editor.tap()`: the keyboard is up by now
+        // and covers the text view's middle, so a tap there would land on a
+        // key and type it.
+        editor.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.05)).tap()
         XCTAssertEqual(editor.value as? String, entry)
 
         Thread.sleep(forTimeInterval: 4)
@@ -151,6 +128,7 @@ final class AujourUITests: XCTestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, entry)
+        XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
     }
 
     func testAPastDayIsFilledInFromTheCalendar() throws {

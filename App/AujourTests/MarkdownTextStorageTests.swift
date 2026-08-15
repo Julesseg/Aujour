@@ -156,8 +156,8 @@ struct MarkdownTextStorageTests {
 
     @Test("a wrapped list item lines up under its own words, not under its bullet")
     func listsHang() throws {
-        let storage = storage(holding: "- milk, and quite a lot of other things besides")
-        let style = try paragraph(in: storage, at: 4)
+        let item = storage(holding: "- milk, and quite a lot of other things besides")
+        let style = try paragraph(in: item, at: 4)
         #expect(style.headIndent > 0)
         #expect(style.firstLineHeadIndent == 0)
 

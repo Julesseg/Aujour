@@ -13,7 +13,11 @@ import UIKit
 ///
 /// The view holds no rules and no markdown knowledge. What the text *is* comes
 /// from ``EntryMarkdown`` in Core, and what that looks like from
-/// ``MarkdownStyling`` beside it.
+/// ``MarkdownStyling`` beside it. All this adds is the two things only a text
+/// view knows: what was typed, and where the cursor is — the second because
+/// the marks around the cursor are shown and the rest are not, which is what
+/// makes the Entry read like a document while staying markdown under the hand
+/// writing it.
 struct MarkdownEditor: UIViewRepresentable {
     /// The Entry's text — the file's own words, and nothing the editor added.
     @Binding var text: String
@@ -35,6 +39,11 @@ struct MarkdownEditor: UIViewRepresentable {
 
         storage.addLayoutManager(layoutManager)
         layoutManager.addTextContainer(container)
+        // What makes this a live preview rather than a styled source view: the
+        // syntax the storage marked hidden is not turned into glyphs at all.
+        // Held by the coordinator, because a layout manager does not keep its
+        // delegate alive.
+        layoutManager.delegate = context.coordinator.glyphs
         // A day can run to thousands of words, and laying all of them out to
         // show the first screenful is the wait the user would feel.
         layoutManager.allowsNonContiguousLayout = true
@@ -98,15 +107,21 @@ struct MarkdownEditor: UIViewRepresentable {
         // iCloud can be shorter than the one on screen.
         let length = (text as NSString).length
         textView.selectedRange = NSRange(location: min(caret.location, length), length: 0)
+        storage.selection = textView.selectedRange
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text)
     }
 
-    /// Carries what was typed back to the Entry.
+    /// Carries what was typed back to the Entry, and where the cursor is back
+    /// to the storage.
     final class Coordinator: NSObject, UITextViewDelegate {
         var text: Binding<String>
+
+        /// Kept for as long as the text view is, because the layout manager
+        /// holds its delegate weakly.
+        let glyphs = HiddenSyntaxGlyphs()
 
         init(text: Binding<String>) {
             self.text = text
@@ -114,6 +129,15 @@ struct MarkdownEditor: UIViewRepresentable {
 
         func textViewDidChange(_ textView: UITextView) {
             text.wrappedValue = textView.text
+        }
+
+        /// Every tap, every arrow key, every drag over a word — and the caret
+        /// moving as something is typed. The storage draws the element the
+        /// cursor is in differently from the rest of the day, so it has to
+        /// hear about all of them.
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            guard let storage = textView.textStorage as? MarkdownTextStorage else { return }
+            storage.selection = textView.selectedRange
         }
     }
 }

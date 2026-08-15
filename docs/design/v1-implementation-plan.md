@@ -48,7 +48,10 @@ platform), thin SwiftUI in `App/`, XCUITest + CI as the canonical UI gate.
   paragraph at a time, and it is what selects the TextKit 1 stack. This is the
   schedule risk below being taken rather than fought — stage (a) is the
   shippable fallback, and it is shipped on the path there was no way to verify
-  from a Linux session. Revisit when stage (b) needs cursor-aware hiding.
+  from a Linux session. Stage (b) settled it: TextKit 1's glyph generation is
+  where a character can be made to take up no room without being taken out of
+  the text, which is exactly what cursor-aware hiding needed, so the stack
+  stays.
 - FileJournalStore: bookmarks, NSFileCoordinator/NSFilePresenter, autosave
   loop, external-change reload, iCloud conflict (NSFileVersion) handling.
 - Calendar/history navigation, onboarding, settings screens.

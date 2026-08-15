@@ -9,12 +9,13 @@ import UIKit
 /// is Core's, unit-tested on Linux against the text it came from. What that
 /// looks like is here, where it needs a font to be anything at all.
 ///
-/// Nothing here hides a character. Every `#`, every `*`, every `](…)` stays
-/// on screen and stays editable, drawn quietly rather than not drawn: the
-/// file is plain markdown (ADR 0001) and the editor is a view of it, not a
-/// second document that has to be turned back into one. Hiding syntax at the
-/// cursor is a later stage of the editor, and it is a change to this file
-/// rather than to the file on disk.
+/// Nothing here hides a *character*. Marks the cursor is away from are left
+/// out of the drawing — that is what live preview is, and which ones those
+/// are is ``AujourCore/HiddenSyntax``'s to say — but they are left out by
+/// marking them for glyph generation to skip (``HiddenSyntaxGlyphs``), never
+/// by taking them out of the text. The file is plain markdown (ADR 0001) and
+/// the editor is a view of it, not a second document that has to be turned
+/// back into one.
 struct MarkdownStyling: Equatable {
     /// The typeface everything else is derived from — headings by scaling it,
     /// emphasis by adding a trait, code by exchanging it for a monospaced one
@@ -88,9 +89,22 @@ struct MarkdownStyling: Equatable {
     /// over it, then the spans inside *those*. Emphasis inside a bold heading
     /// therefore comes out bold, italic and heading-sized without anywhere
     /// having to name that combination.
-    func apply(_ markdown: EntryMarkdown, to text: NSMutableAttributedString) {
+    ///
+    /// Hiding comes last, and is one attribute: the marks the cursor is away
+    /// from are still coloured and still fonted like the syntax they are —
+    /// they are simply not drawn while they are marked, and are drawn again
+    /// the moment a later reading leaves the mark off. Nothing here needs to
+    /// know how that is done, or to undo it.
+    func apply(
+        _ markdown: EntryMarkdown,
+        hiding hidden: HiddenSyntax = .nothing,
+        to text: NSMutableAttributedString
+    ) {
         for line in markdown.lines {
             apply(line, to: text)
+        }
+        for mark in hidden.ranges {
+            text.addAttribute(.hiddenSyntax, value: true, range: mark)
         }
     }
 

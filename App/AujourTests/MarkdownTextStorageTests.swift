@@ -223,7 +223,8 @@ struct MarkdownTextStorageTests {
         let middle = (entry as NSString).range(of: "Paragraph 250,")
         storage.replaceCharacters(in: NSRange(location: middle.location, length: 0), with: "**")
 
-        let restyled = storage.restyledRange
+        let restyled = try #require(storage.restyledRanges.first)
+        #expect(storage.restyledRanges.count == 1)
         #expect(restyled.location <= middle.location)
         #expect(restyled.length < 200, "restyled \(restyled.length) characters for two")
         #expect(restyled.upperBound <= storage.length)
@@ -234,7 +235,7 @@ struct MarkdownTextStorageTests {
         let storage = storage(holding: "Woke late.")
         storage.setSource("# Sunday\n\nWoke late.")
 
-        #expect(storage.restyledRange == NSRange(location: 0, length: storage.length))
+        #expect(storage.restyledRanges == [NSRange(location: 0, length: storage.length)])
         #expect(isBold(try font(in: storage, at: 2)))
     }
 

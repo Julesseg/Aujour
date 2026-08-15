@@ -91,6 +91,36 @@ final class AujourUITests: XCTestCase {
         XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
     }
 
+    /// The claim styled source mode is worth nothing without: the editor
+    /// draws markdown, and writes plain text.
+    ///
+    /// What the styling *looks like* is not here — a heading's point size is
+    /// checked where a font exists to check it, in `MarkdownTextStorageTests`.
+    /// What only a running app can show is that a day typed as markdown comes
+    /// back out of the folder character for character: no markup the editor
+    /// added, no curly quote where an apostrophe was typed, no em dash where
+    /// two hyphens were.
+    func testMarkdownIsWrittenToTheFileExactlyAsItWasTyped() throws {
+        let app = launchApp()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        editor.tap()
+
+        // Every line starts with a capital the test typed itself, so that
+        // autocapitalisation has nothing it could change.
+        let entry = "# Sunday\n\nWalked to the *market* -- it's shut.\n\n- Milk\n- **Bread**"
+        editor.typeText(entry)
+
+        Thread.sleep(forTimeInterval: 4)
+        relaunch(app)
+
+        let reopened = app.textViews["entryEditor"]
+        XCTAssertTrue(reopened.waitForExistence(timeout: 30))
+        XCTAssertEqual(reopened.value as? String, entry)
+        XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
+    }
+
     func testAPastDayIsFilledInFromTheCalendar() throws {
         let app = launchApp(contentTemplate: "# {{title}}\n")
         XCTAssertTrue(

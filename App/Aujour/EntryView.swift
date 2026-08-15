@@ -1,12 +1,7 @@
 import SwiftUI
 import AujourCore
 
-/// One day's Entry, in the plainest editor that could possibly work.
-///
-/// Deliberately a bare `TextEditor`: the live-preview editor is M3's whole
-/// milestone, and putting a real one here first would mean writing it twice.
-/// What this proves is the loop underneath — a day opens, what is typed is
-/// written, and it is still there next launch.
+/// One day's Entry, written in markdown that is styled where it is typed.
 ///
 /// The same screen for today's Entry and for a day filled in from the
 /// calendar, because they are the same thing: an Entry is its date, and
@@ -28,14 +23,15 @@ struct EntryView: View {
 
             case .editing:
                 // Bound straight to the editor's own text, which is what
-                // makes every keystroke an edit it knows to save.
-                TextEditor(text: $editor.content)
-                    .font(.body)
-                    .lineSpacing(2)
-                    .scrollContentBackground(.hidden)
-                    .padding(.horizontal, 12)
-                    .accessibilityIdentifier("entryEditor")
-                    .accessibilityLabel("Entry for \(editor.day.spelledOut())")
+                // makes every keystroke an edit it knows to save. What the
+                // markdown in it looks like is `MarkdownEditor`'s, and what
+                // it means is Core's.
+                MarkdownEditor(
+                    text: $editor.content,
+                    identifier: "entryEditor",
+                    label: "Entry for \(editor.day.spelledOut())"
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             case .unavailable(let error):
                 StorageProblemNotice(problem: StorageProblem(error)) {
@@ -102,7 +98,21 @@ private struct UnsavedWordsNotice: View {
     let today = JournalDay.current(at: .now, in: .current, rolloverHour: .midnight)
     let editor = EntryEditor(
         store: InMemoryJournalStore([
-            PathTemplate.default.render(today): "Walked to the market, and back the long way.\n"
+            PathTemplate.default.render(today): """
+                # \(today.spelledOut())
+
+                Walked to [the market](https://example.com), and back the *long* way.
+
+                ## Bought
+                - milk
+                - **bread**, still warm
+                1. and a paper, in the end
+
+                > Someone at the stall said something worth keeping.
+
+                ---
+                Ran `swift test` on the bus. ~~Nothing~~ everything passed.
+                """
         ])
     )
 

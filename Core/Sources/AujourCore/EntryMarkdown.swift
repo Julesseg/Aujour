@@ -210,6 +210,15 @@ public struct MarkdownInline: Equatable, Sendable {
     /// Spans nested inside ``content`` — emphasis within strong, and the
     /// words of a link. Empty inside code, which shields whatever it holds.
     public let inlines: [MarkdownInline]
+
+    /// The punctuation either side of the words: ``opening`` and ``closing``,
+    /// whichever of them there are. Both are drawn alike and hidden alike —
+    /// a span is never quiet at one end and loud at the other — so what wants
+    /// them wants both, and asking for them together is one place to be wrong
+    /// rather than two.
+    public var delimiters: [NSRange] {
+        [opening, closing].filter { $0.length > 0 }
+    }
 }
 
 // MARK: - Reading lines

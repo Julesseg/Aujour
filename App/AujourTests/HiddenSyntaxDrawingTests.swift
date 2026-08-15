@@ -22,7 +22,7 @@ struct HiddenSyntaxDrawingTests {
     private func storage(holding source: String, cursor: NSRange) -> MarkdownTextStorage {
         let storage = MarkdownTextStorage(styling: styling)
         storage.setSource(source)
-        storage.selection = cursor
+        storage.cursor = cursor
         return storage
     }
 
@@ -63,10 +63,10 @@ struct HiddenSyntaxDrawingTests {
         let entry = storage(holding: "# Sunday\n\nWoke *late*.", caret: 3)
         #expect(undrawn(in: entry) == ["*", "*"])
 
-        entry.selection = NSRange(location: 17, length: 0)
+        entry.cursor = NSRange(location: 17, length: 0)
         #expect(undrawn(in: entry) == ["# "])
 
-        entry.selection = NSRange(location: 22, length: 0)
+        entry.cursor = NSRange(location: 22, length: 0)
         #expect(undrawn(in: entry) == ["# ", "*", "*"])
     }
 
@@ -78,7 +78,7 @@ struct HiddenSyntaxDrawingTests {
         let day = storage(holding: entry, caret: 0)
 
         for caret in 0...day.length {
-            day.selection = NSRange(location: caret, length: 0)
+            day.cursor = NSRange(location: caret, length: 0)
             #expect(day.string == entry)
         }
     }
@@ -92,7 +92,7 @@ struct HiddenSyntaxDrawingTests {
         #expect(undrawn(in: entry) == ["*", "*"])
 
         entry.replaceCharacters(in: NSRange(location: 7, length: 1), with: "")
-        entry.selection = NSRange(location: 7, length: 0)
+        entry.cursor = NSRange(location: 7, length: 0)
 
         #expect(entry.string == "A *soft word")
         #expect(undrawn(in: entry).isEmpty)
@@ -105,7 +105,7 @@ struct HiddenSyntaxDrawingTests {
     func typingAnElement() {
         let entry = storage(holding: "A *soft word", caret: 7)
         entry.replaceCharacters(in: NSRange(location: 7, length: 0), with: "*")
-        entry.selection = NSRange(location: 8, length: 0)
+        entry.cursor = NSRange(location: 8, length: 0)
 
         #expect(entry.string == "A *soft* word")
         #expect(undrawn(in: entry).isEmpty)
@@ -157,7 +157,7 @@ struct HiddenSyntaxDrawingTests {
         #expect(day.length > 20_000)
 
         let far = (entry as NSString).range(of: "Paragraph 250,")
-        day.selection = NSRange(location: far.location + 2, length: 0)
+        day.cursor = NSRange(location: far.location + 2, length: 0)
 
         #expect(day.restyledRanges.count == 2)
         for stretch in day.restyledRanges {
@@ -168,7 +168,7 @@ struct HiddenSyntaxDrawingTests {
     @Test("moving the cursor within a paragraph costs that paragraph once")
     func movingInsideOneParagraph() {
         let day = storage(holding: "# Sunday\n\nWoke *late*.", caret: 12)
-        day.selection = NSRange(location: 17, length: 0)
+        day.cursor = NSRange(location: 17, length: 0)
 
         #expect(day.restyledRanges.count == 1)
     }
@@ -216,7 +216,7 @@ struct HiddenSyntaxDrawingTests {
         layoutManager.addTextContainer(container)
 
         storage.setSource(source)
-        storage.selection = NSRange(location: caret, length: 0)
+        storage.cursor = NSRange(location: caret, length: 0)
         layoutManager.ensureLayout(for: container)
 
         return LaidOut(layoutManager: layoutManager, container: container, glyphs: glyphs)

@@ -54,7 +54,8 @@ final class MarkdownTextStorage: NSTextStorage {
     /// way. This is what a test can look at.
     private(set) var restyledRanges: [NSRange] = []
 
-    /// Where the cursor is, as the text view has it — a caret, or a selection.
+    /// Where the cursor is, as the text view has it — a caret, or the words a
+    /// selection covers.
     ///
     /// The second thing an Entry is drawn from, and the reason the editor is
     /// a live preview rather than a styled source view: which syntax is drawn
@@ -62,18 +63,18 @@ final class MarkdownTextStorage: NSTextStorage {
     /// (``AujourCore/HiddenSyntax``). Setting it costs the paragraph the
     /// cursor left and the one it arrived in — the only two the answer can
     /// have changed for, because an element never reaches past its line.
-    var selection: NSRange {
-        get { cursor }
+    var cursor: NSRange {
+        get { cursorRange }
         set {
             let moved = clamped(newValue)
-            guard moved != cursor else { return }
-            let left = cursor
-            cursor = moved
+            guard moved != cursorRange else { return }
+            let left = cursorRange
+            cursorRange = moved
             restyle(leaving: left, arrivingIn: moved)
         }
     }
 
-    private var cursor = NSRange(location: 0, length: 0)
+    private var cursorRange = NSRange(location: 0, length: 0)
 
     init(styling: MarkdownStyling = MarkdownStyling()) {
         self.styling = styling
@@ -163,9 +164,10 @@ final class MarkdownTextStorage: NSTextStorage {
         replaceCharacters(in: NSRange(location: 0, length: backing.length), with: source)
         // A version arriving from iCloud can be shorter than the one it
         // replaced, and a cursor past the end of the text is in no element at
-        // all. Assigning rather than clamping quietly, so that the paragraph
-        // it lands in is drawn for a cursor that is really in it.
-        selection = cursor
+        // all. Assigned back to itself rather than clamped quietly, so that
+        // the paragraph it lands in is drawn for a cursor that is really in
+        // it.
+        cursor = cursorRange
     }
 
     private func restyleEverything() {
@@ -214,7 +216,8 @@ final class MarkdownTextStorage: NSTextStorage {
         guard reading.range.length > 0 else { return reading.range }
 
         backing.setAttributes(styling.baseAttributes, range: reading.range)
-        styling.apply(reading, hiding: HiddenSyntax(reading, cursor: clamped(cursor)), to: backing)
+        let hidden = HiddenSyntax(reading, cursor: clamped(cursorRange))
+        styling.apply(reading, hiding: hidden, to: backing)
         edited(.editedAttributes, range: reading.range, changeInLength: 0)
         return reading.range
     }

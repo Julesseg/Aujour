@@ -125,7 +125,7 @@ Photos are deliberately *not* a placeholder: that day's photos are offered by
 a suggestion panel and inserted as Attachments where the user chooses.
 
 ### Styled Source
-How the editor reads an Entry: the markdown drawn as what it means — headings
+How the editor shows an Entry: the markdown drawn as what it means — headings
 large, emphasis slanted, list markers set apart, quotes in somebody else's
 voice. Nothing is added and nothing is rewritten, so the text in the editor is
 the text in the file, character for character. Which characters are *drawn* is

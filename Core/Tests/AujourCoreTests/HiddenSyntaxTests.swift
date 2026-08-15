@@ -37,10 +37,11 @@ private struct Cursored {
     /// Never written anywhere — this is what the reader sees, and the file
     /// still says ``source``.
     var drawn: String {
-        var kept: [UInt16] = []
-        for index in 0..<units.count where !hidden.hides(index) {
-            kept.append(units[index])
+        var undrawn = IndexSet()
+        for range in hidden.ranges {
+            undrawn.insert(integersIn: range.lowerBound..<range.upperBound)
         }
+        let kept = units.indices.filter { !undrawn.contains($0) }.map { units[$0] }
         return String(decoding: kept, as: UTF16.self)
     }
 }

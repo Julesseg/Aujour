@@ -45,18 +45,9 @@ import Foundation
 /// what makes editing at an element's edge safe: there is no invisible
 /// character where the user is aiming.
 public struct HiddenSyntax: Equatable, Sendable {
-    /// Everything drawn — what an Entry looks like with the cursor in none of
-    /// it, and what the editor asks for when it is drawing markdown nobody is
-    /// writing in.
-    public static let nothing = HiddenSyntax(ranges: [])
-
     /// The stretches that are not drawn: in order, never overlapping, never
     /// empty, and never covering anything but syntax.
     public let ranges: [NSRange]
-
-    private init(ranges: [NSRange]) {
-        self.ranges = ranges
-    }
 
     /// Reads a reading: which of the marks in `markdown` the cursor leaves
     /// hidden.
@@ -80,11 +71,6 @@ public struct HiddenSyntax: Equatable, Sendable {
         self.ranges = hidden.sorted { $0.location < $1.location }
     }
 
-    /// Whether the character at this offset is one of the ones not drawn.
-    public func hides(_ location: Int) -> Bool {
-        ranges.contains { NSLocationInRange(location, $0) }
-    }
-
     private static func hide(
         _ inlines: [MarkdownInline],
         from cursor: NSRange,
@@ -92,9 +78,7 @@ public struct HiddenSyntax: Equatable, Sendable {
     ) {
         for inline in inlines {
             if inline.style.hidesItsDelimiters, !inline.range.isTouched(by: cursor) {
-                for delimiter in [inline.opening, inline.closing] where delimiter.length > 0 {
-                    hidden.append(delimiter)
-                }
+                hidden.append(contentsOf: inline.delimiters)
             }
             // Whatever the span itself does: the cursor can be in a word of a
             // link whose brackets are showing, and outside the emphasis three
@@ -106,9 +90,17 @@ public struct HiddenSyntax: Equatable, Sendable {
 
 extension MarkdownBlock {
     /// Whether this line's marker may go undrawn — see ``HiddenSyntax``.
+    ///
+    /// Written out one shape at a time rather than as "a heading, and nothing
+    /// else": a block added later should stop the compiler here and be
+    /// answered for, not default quietly to being drawn.
     fileprivate var hidesItsMarker: Bool {
-        if case .heading = self { return true }
-        return false
+        switch self {
+        case .heading:
+            return true
+        case .blank, .paragraph, .bulletItem, .numberedItem, .quote, .thematicBreak:
+            return false
+        }
     }
 }
 

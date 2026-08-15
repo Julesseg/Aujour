@@ -276,7 +276,6 @@ struct EntryMarkdownInlineTests {
         #expect(spans.map(\.style) == [.link])
         #expect(read.text(spans[0].range) == "[the market](https://example.com)")
         #expect(read.text(spans[0].content) == "the market")
-        #expect(read.text(spans[0].destination ?? NSRange()) == "https://example.com")
         #expect(read.text(spans[0].closing) == "](https://example.com)")
     }
 
@@ -286,7 +285,7 @@ struct EntryMarkdownInlineTests {
         let spans = read.inlines(0)
         #expect(spans.map(\.style) == [.image])
         #expect(read.text(spans[0].opening) == "![")
-        #expect(read.text(spans[0].destination ?? NSRange()) == "attachments/2026/03/market.jpg")
+        #expect(read.text(spans[0].closing) == "](attachments/2026/03/market.jpg)")
     }
 
     @Test("brackets that lead nowhere are brackets")
@@ -317,9 +316,10 @@ struct EntryMarkdownInlineTests {
 }
 
 // The whole reason blocks are one line and spans never cross one: the editor
-// restyles the lines a keystroke touched and nothing else, which is only
-// correct if a line's styling is a fact about that line.
-@Suite("Styling is a fact about one line")
+// re-reads the lines a keystroke touched and nothing else, which is only
+// correct if a line's shape is a fact about that line. These are the tests
+// that licence it.
+@Suite("Reading around an edit")
 struct EntryMarkdownLocalityTests {
     private let entry = """
         # Sunday 1 March
@@ -336,37 +336,64 @@ struct EntryMarkdownLocalityTests {
         `swift test`, and then bed.
         """
 
-    @Test("a stretch of lines reads the same alone as it does in the entry")
-    func readingAStretchOfLines() {
+    @Test("a whole entry is covered end to end")
+    func theWholeEntry() {
         let whole = EntryMarkdown(entry)
-        let units = Array(entry.utf16)
+        #expect(whole.range == NSRange(location: 0, length: entry.utf16.count))
+        #expect(whole.lines.first?.range.location == 0)
+        #expect(whole.lines.last?.range.upperBound == entry.utf16.count)
+    }
 
-        for first in whole.lines.indices {
-            for last in first..<whole.lines.count {
-                let from = whole.lines[first].range.location
-                let to = whole.lines[last].range.upperBound
-                let stretch = String(decoding: units[from..<to], as: UTF16.self)
+    // The claim in full: every edit anywhere reads back exactly the lines the
+    // whole entry has there, so re-reading a stretch can never disagree with
+    // re-reading everything.
+    @Test("the lines around an edit are the lines the entry has there")
+    func readingAroundAnEdit() {
+        let whole = EntryMarkdown(entry)
 
-                #expect(
-                    EntryMarkdown(stretch).shifted(by: from).lines
-                        == Array(whole.lines[first...last]),
-                    "lines \(first)…\(last) read differently on their own"
-                )
+        for location in 0...entry.utf16.count {
+            for length in [0, 1, 5] where location + length <= entry.utf16.count {
+                let edit = NSRange(location: location, length: length)
+                let read = EntryMarkdown(entry, around: edit)
+
+                // By paragraph rather than by line: a stretch ending at a
+                // break holds the line above it and not the one below, whose
+                // own break is past the end of what was read.
+                let expected = whole.lines.filter {
+                    $0.paragraph.location >= read.range.location
+                        && $0.paragraph.upperBound <= read.range.upperBound
+                }
+                #expect(read.lines == expected, "reading around \(edit) disagreed with the entry")
+                #expect(!read.lines.isEmpty, "reading around \(edit) found no line at all")
             }
         }
     }
 
-    @Test("shifting moves every range by the same amount")
-    func shifting() {
-        let read = Read("- milk, **two** bottles")
-        let shifted = read.markdown.shifted(by: 100)
+    @Test("an edit reaches back to the start of its line and on to the end of it")
+    func anEditReadsWholeLines() {
+        let read = EntryMarkdown("# Sunday\nWoke late.\n", around: NSRange(location: 4, length: 0))
+        #expect(read.range == NSRange(location: 0, length: 9))
+        #expect(read.lines.map(\.block) == [.heading(level: 1)])
+    }
 
-        #expect(shifted.lines[0].range == NSRange(location: 100, length: read[0].range.length))
-        #expect(shifted.lines[0].marker.location == read[0].marker.location + 100)
-        #expect(
-            shifted.lines[0].inlines[0].range.location
-                == read[0].inlines[0].range.location + 100
-        )
-        #expect(shifted.shifted(by: -100) == read.markdown)
+    // A return typed into the middle of a line: the half below the break is
+    // the half that stops being a heading, and the edit never touched it.
+    @Test("an edit that ends on a line break reads the line after it too")
+    func aBreakReadsTheLineBelowIt() {
+        let split = "# Sunday\n and more"
+        let read = EntryMarkdown(split, around: NSRange(location: 8, length: 1))
+
+        #expect(read.range == NSRange(location: 0, length: split.utf16.count))
+        #expect(read.lines.map(\.block) == [.heading(level: 1), .paragraph])
+    }
+
+    @Test("a line's paragraph is the line and the break that ended it")
+    func paragraphsIncludeTheirBreak() {
+        let read = Read("# Sunday\r\nWoke late.\n")
+        #expect(read[0].range == NSRange(location: 0, length: 8))
+        #expect(read[0].paragraph == NSRange(location: 0, length: 10))
+        #expect(read[1].paragraph == NSRange(location: 10, length: 11))
+        // Nothing left over: the paragraphs tile the entry exactly.
+        #expect(read[2].paragraph == NSRange(location: 21, length: 0))
     }
 }

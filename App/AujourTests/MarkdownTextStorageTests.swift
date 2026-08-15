@@ -238,16 +238,29 @@ struct MarkdownTextStorageTests {
         #expect(isBold(try font(in: storage, at: 2)))
     }
 
+    // The caret sits after the last word of a heading too, and a caret at
+    // body height there reads as a heading that has already ended.
+    @Test("a line's break is drawn as part of the line, not as what follows it")
+    func lineBreaksBelongToTheirLine() throws {
+        let storage = storage(holding: "# Sunday\nWoke late.")
+        let heading = try font(in: storage, at: 2)
+        let breakAfterIt = try font(in: storage, at: 8)
+
+        #expect(breakAfterIt == heading)
+    }
+
     // Dynamic Type, and later the editor font setting: every font in the
-    // editor is derived from one, so moving it moves all of them.
+    // editor is derived from one, so moving it moves all of them — and
+    // nothing else about the styling moves with it.
     @Test("a larger reading size makes every shape larger")
     func stylingFollowsTheBodyFont() throws {
         let storage = storage(holding: "# Sunday")
         let before = try font(in: storage, at: 2).pointSize
 
-        storage.styling = MarkdownStyling(body: styling.body.withSize(styling.body.pointSize * 2))
+        storage.styling = storage.styling.with(body: styling.body.withSize(60))
 
         #expect(try font(in: storage, at: 2).pointSize > before)
+        #expect(try colour(in: storage, at: 0) == styling.syntax)
         #expect(storage.string == "# Sunday")
     }
 }

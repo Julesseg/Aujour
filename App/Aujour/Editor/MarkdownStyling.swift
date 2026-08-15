@@ -33,8 +33,9 @@ struct MarkdownStyling: Equatable {
     /// Quoted words, which are somebody else's.
     var quoted: UIColor
 
-    /// Where a link or an embed points.
-    var destination: UIColor
+    /// The words of a link or an embed — the only thing here that is not
+    /// simply text, and the only place the editor spends a colour.
+    var link: UIColor
 
     /// The gap between lines, which the plain editor had too.
     var lineSpacing: CGFloat
@@ -44,15 +45,25 @@ struct MarkdownStyling: Equatable {
         words: UIColor = .label,
         syntax: UIColor = .tertiaryLabel,
         quoted: UIColor = .secondaryLabel,
-        destination: UIColor = .tintColor,
+        link: UIColor = .tintColor,
         lineSpacing: CGFloat = 2
     ) {
         self.body = body
         self.words = words
         self.syntax = syntax
         self.quoted = quoted
-        self.destination = destination
+        self.link = link
         self.lineSpacing = lineSpacing
+    }
+
+    /// The same styling over a different typeface — Dynamic Type moving, and
+    /// later the editor font setting. Everything else is kept, because a
+    /// rebuilt-from-scratch styling would quietly drop any colour that was
+    /// not the default.
+    func with(body: UIFont) -> MarkdownStyling {
+        var moved = self
+        moved.body = body
+        return moved
     }
 
     /// What every character is before anything markdown has to say about it,
@@ -69,9 +80,9 @@ struct MarkdownStyling: Equatable {
 
     /// Draws a reading of some markdown onto the text it was read from.
     ///
-    /// The ranges have to be in `text`'s own coordinates — a reading of one
-    /// paragraph of a long Entry is shifted back into place before it gets
-    /// here (``EntryMarkdown/shifted(by:)``).
+    /// The ranges are already in `text`'s own coordinates, whether the whole
+    /// Entry was read or only the lines around a keystroke — so there is no
+    /// arithmetic here, and none to get wrong.
     ///
     /// Additive by design: a line is drawn, then the spans inside it are drawn
     /// over it, then the spans inside *those*. Emphasis inside a bold heading
@@ -84,11 +95,14 @@ struct MarkdownStyling: Equatable {
     }
 
     private func apply(_ line: MarkdownLine, to text: NSMutableAttributedString) {
-        // An empty line has nothing to draw — and a zero-length range at the
-        // very end of the storage is the one range that cannot be styled.
-        guard line.range.length > 0 else { return }
+        // The last line of an Entry with nothing after it: no characters, so
+        // nothing to draw them as.
+        guard line.paragraph.length > 0 else { return }
 
-        text.setAttributes(attributes(for: line, in: text), range: line.range)
+        // Over the paragraph rather than the line, so that the break carries
+        // the line's own font and spacing: the caret sits after the last word
+        // of a heading too, and it should be a heading's height there.
+        text.setAttributes(attributes(for: line, in: text), range: line.paragraph)
         if line.marker.length > 0 {
             text.addAttribute(.foregroundColor, value: syntax, range: line.marker)
         }
@@ -114,7 +128,7 @@ struct MarkdownStyling: Equatable {
             // delimiters either side reads as a mistake.
             monospace(inline.range, in: text)
         case .link, .image:
-            text.addAttribute(.foregroundColor, value: destination, range: inline.content)
+            text.addAttribute(.foregroundColor, value: link, range: inline.content)
         }
 
         // Last, so that whatever the span did to its own text does not also
@@ -156,6 +170,8 @@ struct MarkdownStyling: Equatable {
     /// and Dynamic Type wherever they go.
     private func heading(level: Int) -> UIFont {
         let scales: [CGFloat] = [1.55, 1.35, 1.2, 1.12, 1.06, 1.0]
+        // Core only ever says 1 to 6. Clamped anyway, because the cost of
+        // being wrong here is the editor stopping rather than a wrong size.
         let scale = scales[min(max(level, 1), scales.count) - 1]
         let bolder =
             body.fontDescriptor.withSymbolicTraits(
@@ -212,11 +228,11 @@ struct MarkdownStyling: Equatable {
         over range: NSRange,
         in text: NSMutableAttributedString
     ) {
-        change(range, in: text) { $0.adding(traits) }
+        refont(range, in: text) { $0.adding(traits) }
     }
 
     private func monospace(_ range: NSRange, in text: NSMutableAttributedString) {
-        change(range, in: text) { font in
+        refont(range, in: text) { font in
             // A touch smaller: a monospaced face at the same point size reads
             // heavier than the words either side of it.
             .monospacedSystemFont(ofSize: font.pointSize * 0.95, weight: .regular)
@@ -228,7 +244,7 @@ struct MarkdownStyling: Equatable {
     /// Gathered before anything is written, because changing an attribute
     /// while enumerating that same attribute is a walk over a collection being
     /// mutated underneath it.
-    private func change(
+    private func refont(
         _ range: NSRange,
         in text: NSMutableAttributedString,
         to newFont: (UIFont) -> UIFont

@@ -26,15 +26,29 @@ platform), thin SwiftUI in `App/`, XCUITest + CI as the canonical UI gate.
   Apple-only).
 - `SearchIndex` — tokenize/query over entry text; serializable, rebuildable
   cache per ADR 0001.
-- `MarkdownModel` — block/inline structure used by the editor styling pass
-  (backed by apple/swift-markdown, which builds on Linux).
+- `EntryMarkdown` — block/inline structure used by the editor styling pass.
+  Hand-rolled rather than backed by apple/swift-markdown, as this plan first
+  said, for two reasons found while building M3(a). swift-markdown gives an
+  AST of a *whole document*, so every keystroke would cost a full reparse —
+  and styling while typing is exactly the case that cannot afford one. And a
+  styled *source* editor needs the delimiters themselves — which two
+  characters made a word bold — where an AST is built to discard them. So
+  the model reads one line at a time and points at every character, which is
+  what lets the editor restyle a paragraph and leave the rest of the day
+  alone. It also keeps Core dependency-free.
 - `JournalSettings` — typed settings model + which keys are journal-shaping
   (KVS-synced) vs device-local; KVS itself is injected.
 
 **`App/Aujour` (SwiftUI + platform frameworks):**
 
-- Live-preview editor (UITextView/TextKit 2), accessory row, placeholder
-  widgets (NSTextAttachment view providers).
+- Live-preview editor (`UITextView` over a custom `NSTextStorage`), accessory
+  row, placeholder widgets (NSTextAttachment view providers). M3(a) shipped on
+  TextKit **1**, not TextKit 2 as this plan first said: a text-storage subclass
+  is the seam that sees every change to the text and can answer it one
+  paragraph at a time, and it is what selects the TextKit 1 stack. This is the
+  schedule risk below being taken rather than fought — stage (a) is the
+  shippable fallback, and it is shipped on the path there was no way to verify
+  from a Linux session. Revisit when stage (b) needs cursor-aware hiding.
 - FileJournalStore: bookmarks, NSFileCoordinator/NSFilePresenter, autosave
   loop, external-change reload, iCloud conflict (NSFileVersion) handling.
 - Calendar/history navigation, onboarding, settings screens.

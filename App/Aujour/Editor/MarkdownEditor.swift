@@ -82,7 +82,7 @@ struct MarkdownEditor: UIViewRepresentable {
             compatibleWith: textView.traitCollection
         )
         if storage.styling.body != body {
-            storage.styling = MarkdownStyling(body: body)
+            storage.styling = storage.styling.with(body: body)
             textView.typingAttributes = storage.styling.baseAttributes
         }
 

@@ -18,7 +18,7 @@ private struct Cursored {
     let hidden: HiddenSyntax
     private let units: [UInt16]
 
-    init(_ source: String, cursor: NSRange) {
+    init(_ source: String, cursor: NSRange?) {
         self.source = source
         self.units = Array(source.utf16)
         self.hidden = HiddenSyntax(EntryMarkdown(source), cursor: cursor)
@@ -26,6 +26,11 @@ private struct Cursored {
 
     init(_ source: String, caret: Int) {
         self.init(source, cursor: NSRange(location: caret, length: 0))
+    }
+
+    /// The same day with nobody writing in it.
+    init(_ source: String) {
+        self.init(source, cursor: nil)
     }
 
     /// The stretches that are not drawn, as the characters they cover.
@@ -184,6 +189,15 @@ struct HiddenSyntaxTests {
     func embeds() {
         let entry = Cursored("![sunset](attachments/sunset.jpg) and then bed.", caret: 46)
         #expect(entry.marks.isEmpty)
+    }
+
+    // The keyboard is down and the day is being read rather than written: a
+    // reveal is for the person editing, and there is nobody editing.
+    @Test("an entry nobody is writing in reveals nothing at all")
+    func noCursorAtAll() {
+        let entry = Cursored("# Sunday\n\nWoke *late*.")
+        #expect(entry.marks == ["# ", "*", "*"])
+        #expect(entry.drawn == "Sunday\n\nWoke late.")
     }
 
     @Test("a day with no markdown in it hides nothing")

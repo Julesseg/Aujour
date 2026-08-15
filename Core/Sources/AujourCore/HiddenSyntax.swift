@@ -44,6 +44,10 @@ import Foundation
 /// inside a stretch that is not drawn (`HiddenSyntaxSafetyTests`), which is
 /// what makes editing at an element's edge safe: there is no invisible
 /// character where the user is aiming.
+///
+/// And where there is no cursor at all — nobody is writing in this Entry, the
+/// keyboard is down, the day is being read — nothing is revealed and the whole
+/// of it reads as a document.
 public struct HiddenSyntax: Equatable, Sendable {
     /// The stretches that are not drawn: in order, never overlapping, never
     /// empty, and never covering anything but syntax.
@@ -56,7 +60,11 @@ public struct HiddenSyntax: Equatable, Sendable {
     /// the editor re-read after a keystroke. A cursor outside that stretch is
     /// in none of its elements, which is exactly what a cursor in another
     /// paragraph is.
-    public init(_ markdown: EntryMarkdown, cursor: NSRange) {
+    ///
+    /// - Parameter cursor: where the cursor is, or `nil` for nobody writing
+    ///   here at all — which reveals nothing, because a reveal is for the
+    ///   person editing and there is nobody editing.
+    public init(_ markdown: EntryMarkdown, cursor: NSRange?) {
         var hidden: [NSRange] = []
         for line in markdown.lines {
             let markerHides = line.block.hidesItsMarker && line.marker.length > 0
@@ -73,7 +81,7 @@ public struct HiddenSyntax: Equatable, Sendable {
 
     private static func hide(
         _ inlines: [MarkdownInline],
-        from cursor: NSRange,
+        from cursor: NSRange?,
         into hidden: inout [NSRange]
     ) {
         for inline in inlines {
@@ -118,8 +126,10 @@ extension MarkdownInline.Style {
 
 extension NSRange {
     /// Whether a cursor is in this stretch, counting both of its ends: a caret
-    /// against either edge of an element is editing that element.
-    fileprivate func isTouched(by cursor: NSRange) -> Bool {
-        cursor.location <= upperBound && cursor.upperBound >= location
+    /// against either edge of an element is editing that element. A cursor
+    /// that is nowhere touches nothing.
+    fileprivate func isTouched(by cursor: NSRange?) -> Bool {
+        guard let cursor else { return false }
+        return cursor.location <= upperBound && cursor.upperBound >= location
     }
 }

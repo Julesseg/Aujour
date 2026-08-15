@@ -55,6 +55,12 @@ final class HiddenSyntaxGlyphs: NSObject, NSLayoutManagerDelegate {
             guard runIsHidden else { continue }
             // Not drawn and not laid out: the characters either side of it
             // close up, which is what makes an Entry read as a document.
+            //
+            // Replacing whatever TextKit said rather than adding to it, on
+            // purpose. A hidden character is not an elastic anything and not a
+            // control character to take action over — it is nothing at all,
+            // and every other property of it describes a mark that is not
+            // being made.
             amended[glyph] = .null
             anyHidden = true
         }

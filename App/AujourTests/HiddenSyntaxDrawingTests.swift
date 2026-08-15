@@ -111,6 +111,20 @@ struct HiddenSyntaxDrawingTests {
         #expect(undrawn(in: entry).isEmpty)
     }
 
+    // The keyboard going down is the cursor leaving the Entry altogether, and
+    // the day it leaves behind is one to read.
+    @Test("an entry nobody is writing in shows no marks at all")
+    func noCursorAtAll() {
+        let entry = storage(holding: "# Sunday\n\nWoke *late*.", caret: 3)
+        #expect(undrawn(in: entry) == ["*", "*"])
+
+        entry.cursor = nil
+        #expect(undrawn(in: entry) == ["# ", "*", "*"])
+
+        entry.cursor = NSRange(location: 3, length: 0)
+        #expect(undrawn(in: entry) == ["*", "*"])
+    }
+
     @Test("a selection shows the marks of everything it covers")
     func selections() {
         let entry = storage(
@@ -182,7 +196,11 @@ struct HiddenSyntaxDrawingTests {
     private struct LaidOut {
         let layoutManager: NSLayoutManager
         let container: NSTextContainer
-        /// Held because a layout manager does not keep its delegate alive.
+        /// Both held for the same reason, and neither of them decoration: a
+        /// layout manager keeps neither its delegate nor its text storage
+        /// alive, and a storage that went away under it would take the
+        /// attributes these measurements are about with it.
+        let storage: MarkdownTextStorage
         let glyphs: HiddenSyntaxGlyphs
 
         /// How much room a stretch of characters takes on screen — nothing at
@@ -219,6 +237,11 @@ struct HiddenSyntaxDrawingTests {
         storage.cursor = NSRange(location: caret, length: 0)
         layoutManager.ensureLayout(for: container)
 
-        return LaidOut(layoutManager: layoutManager, container: container, glyphs: glyphs)
+        return LaidOut(
+            layoutManager: layoutManager,
+            container: container,
+            storage: storage,
+            glyphs: glyphs
+        )
     }
 }

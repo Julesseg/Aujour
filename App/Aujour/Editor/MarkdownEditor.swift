@@ -136,8 +136,26 @@ struct MarkdownEditor: UIViewRepresentable {
         /// cursor is in differently from the rest of the day, so it has to
         /// hear about all of them.
         func textViewDidChangeSelection(_ textView: UITextView) {
-            guard let storage = textView.textStorage as? MarkdownTextStorage else { return }
-            storage.cursor = textView.selectedRange
+            storage(of: textView)?.cursor = textView.selectedRange
+        }
+
+        /// Tapping back in without moving the caret: the same selection as
+        /// before, so no change is announced, and the element it is in has to
+        /// be revealed again by hand.
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            storage(of: textView)?.cursor = textView.selectedRange
+        }
+
+        /// The keyboard going down, and with it the last revealed element. A
+        /// day nobody is writing in is a day being read, and it reads as a
+        /// document — no hashes left over around the heading that happened to
+        /// be edited last.
+        func textViewDidEndEditing(_ textView: UITextView) {
+            storage(of: textView)?.cursor = nil
+        }
+
+        private func storage(of textView: UITextView) -> MarkdownTextStorage? {
+            textView.textStorage as? MarkdownTextStorage
         }
     }
 }

@@ -97,7 +97,7 @@ struct MarkdownStyling: Equatable {
     /// know how that is done, or to undo it.
     func apply(
         _ markdown: EntryMarkdown,
-        hiding hidden: HiddenSyntax = .nothing,
+        hiding hidden: HiddenSyntax,
         to text: NSMutableAttributedString
     ) {
         for line in markdown.lines {
@@ -147,7 +147,7 @@ struct MarkdownStyling: Equatable {
 
         // Last, so that whatever the span did to its own text does not also
         // happen to the punctuation that marks it.
-        for delimiter in [inline.opening, inline.closing] where delimiter.length > 0 {
+        for delimiter in inline.delimiters {
             text.addAttribute(.foregroundColor, value: syntax, range: delimiter)
         }
         for nested in inline.inlines {

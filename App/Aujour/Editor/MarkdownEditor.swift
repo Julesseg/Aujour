@@ -107,7 +107,7 @@ struct MarkdownEditor: UIViewRepresentable {
         // iCloud can be shorter than the one on screen.
         let length = (text as NSString).length
         textView.selectedRange = NSRange(location: min(caret.location, length), length: 0)
-        storage.selection = textView.selectedRange
+        storage.cursor = textView.selectedRange
     }
 
     func makeCoordinator() -> Coordinator {
@@ -137,7 +137,7 @@ struct MarkdownEditor: UIViewRepresentable {
         /// hear about all of them.
         func textViewDidChangeSelection(_ textView: UITextView) {
             guard let storage = textView.textStorage as? MarkdownTextStorage else { return }
-            storage.selection = textView.selectedRange
+            storage.cursor = textView.selectedRange
         }
     }
 }

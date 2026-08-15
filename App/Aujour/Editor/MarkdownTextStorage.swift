@@ -11,6 +11,16 @@ import UIKit
 /// the text, so what the editor holds is byte for byte what goes in the file
 /// (ADR 0001).
 ///
+/// ## Where the cursor is
+///
+/// Half of what an Entry is drawn from, and told to this class the same way
+/// the text is (``selection``). Markdown away from the cursor is drawn as what
+/// it means and its marks are left out; the element the cursor is in shows its
+/// marks, because they are what is being edited. Which marks those are is
+/// ``AujourCore/HiddenSyntax``'s to say, and leaving them out of the drawing
+/// is ``HiddenSyntaxGlyphs``'s — here they meet, on one attribute over the
+/// paragraph being restyled.
+///
 /// ## What a keystroke costs
 ///
 /// The lines it landed in — never the whole Entry — which is what keeps typing
@@ -35,13 +45,35 @@ final class MarkdownTextStorage: NSTextStorage {
         }
     }
 
-    /// The stretch the last change was paid for in.
+    /// The stretches the last change was paid for in: one for a keystroke, and
+    /// up to two for a cursor that moved from one paragraph to another.
     ///
     /// Kept because "only the paragraph that changed is restyled" is the whole
     /// performance claim of this editor, and a claim about work done is not
     /// observable from the text afterwards — the styling is identical either
     /// way. This is what a test can look at.
-    private(set) var restyledRange = NSRange(location: 0, length: 0)
+    private(set) var restyledRanges: [NSRange] = []
+
+    /// Where the cursor is, as the text view has it — a caret, or a selection.
+    ///
+    /// The second thing an Entry is drawn from, and the reason the editor is
+    /// a live preview rather than a styled source view: which syntax is drawn
+    /// at all depends on which element the cursor is in
+    /// (``AujourCore/HiddenSyntax``). Setting it costs the paragraph the
+    /// cursor left and the one it arrived in — the only two the answer can
+    /// have changed for, because an element never reaches past its line.
+    var selection: NSRange {
+        get { cursor }
+        set {
+            let moved = clamped(newValue)
+            guard moved != cursor else { return }
+            let left = cursor
+            cursor = moved
+            restyle(leaving: left, arrivingIn: moved)
+        }
+    }
+
+    private var cursor = NSRange(location: 0, length: 0)
 
     init(styling: MarkdownStyling = MarkdownStyling()) {
         self.styling = styling
@@ -107,13 +139,21 @@ final class MarkdownTextStorage: NSTextStorage {
         guard !restyling else { return }
 
         // Attributes changing is this class's own doing, and restyling in
-        // answer to that would never stop.
-        if editedMask.contains(.editedCharacters) {
+        // answer to that would never stop. Asked once and remembered, because
+        // announcing the edit below is what clears it.
+        let textChanged = editedMask.contains(.editedCharacters)
+        if textChanged {
             restyling = true
-            restyle(around: editedRange)
+            restyledRanges = [restyle(around: editedRange)]
             restyling = false
         }
         super.processEditing()
+        // After the announcement, because until it has been made the layout
+        // still has the text at its old length, and these are offsets into the
+        // new one.
+        if textChanged {
+            redrawGlyphs(over: restyledRanges)
+        }
     }
 
     /// Replaces the whole text — opening a day, and taking the file's version
@@ -121,13 +161,36 @@ final class MarkdownTextStorage: NSTextStorage {
     func setSource(_ source: String) {
         guard backing.string != source else { return }
         replaceCharacters(in: NSRange(location: 0, length: backing.length), with: source)
+        // A version arriving from iCloud can be shorter than the one it
+        // replaced, and a cursor past the end of the text is in no element at
+        // all. Assigning rather than clamping quietly, so that the paragraph
+        // it lands in is drawn for a cursor that is really in it.
+        selection = cursor
     }
 
     private func restyleEverything() {
         guard backing.length > 0 else { return }
         beginEditing()
-        restyle(around: NSRange(location: 0, length: backing.length))
+        restyledRanges = [restyle(around: NSRange(location: 0, length: backing.length))]
         endEditing()
+        redrawGlyphs(over: restyledRanges)
+    }
+
+    /// Draws the elements the cursor left and the ones it arrived in.
+    ///
+    /// Two paragraphs at the most, and while somebody is typing it is one:
+    /// the caret moves within the line it is writing, and both readings are of
+    /// that line. Reading it twice is a few dozen characters read twice, which
+    /// is cheaper than the arithmetic that would work out it was the same
+    /// line.
+    private func restyle(leaving left: NSRange, arrivingIn arrived: NSRange) {
+        guard backing.length > 0 else { return }
+        beginEditing()
+        let before = restyle(around: left)
+        let after = restyle(around: arrived)
+        restyledRanges = before == after ? [before] : [before, after]
+        endEditing()
+        redrawGlyphs(over: restyledRanges)
     }
 
     /// Reads the lines an edit touched, and draws what they say.
@@ -140,13 +203,49 @@ final class MarkdownTextStorage: NSTextStorage {
     /// The announcement at the end widens the edit to the whole stretch, which
     /// is more than the characters that changed — the `#` typed at the front
     /// of a line is what restyles the rest of it.
-    private func restyle(around edit: NSRange) {
+    ///
+    /// Where the cursor is comes into it as much as what the text says: the
+    /// same paragraph is drawn with its marks and without them depending on
+    /// whether the cursor is in it. Every attribute is set again from scratch,
+    /// so a mark that was hidden and is not any more simply comes back — there
+    /// is nothing to undo.
+    private func restyle(around edit: NSRange) -> NSRange {
         let reading = EntryMarkdown(backing.string, around: edit)
-        restyledRange = reading.range
-        guard reading.range.length > 0 else { return }
+        guard reading.range.length > 0 else { return reading.range }
 
         backing.setAttributes(styling.baseAttributes, range: reading.range)
-        styling.apply(reading, to: backing)
+        styling.apply(reading, hiding: HiddenSyntax(reading, cursor: clamped(cursor)), to: backing)
         edited(.editedAttributes, range: reading.range, changeInLength: 0)
+        return reading.range
+    }
+
+    /// Has the layout make its glyphs again over stretches whose styling has
+    /// just changed.
+    ///
+    /// Attributes changing does not ask for this on its own: a layout manager
+    /// answers that by laying the same glyphs out again, and whether a
+    /// character has a glyph at all is decided when glyphs are *made*
+    /// (``HiddenSyntaxGlyphs``). Without this, a mark that just hid would go
+    /// on taking up the room it took before, and one that just came back would
+    /// have nowhere to appear.
+    private func redrawGlyphs(over stretches: [NSRange]) {
+        for stretch in stretches where stretch.length > 0 {
+            for manager in layoutManagers {
+                manager.invalidateGlyphs(
+                    forCharacterRange: stretch,
+                    changeInLength: 0,
+                    actualCharacterRange: nil
+                )
+                manager.invalidateLayout(forCharacterRange: stretch, actualCharacterRange: nil)
+            }
+        }
+    }
+
+    /// A range brought inside the text — the cursor the text view had before a
+    /// version arriving from iCloud made the day shorter.
+    private func clamped(_ range: NSRange) -> NSRange {
+        let location = min(max(range.location, 0), backing.length)
+        let length = min(max(range.length, 0), backing.length - location)
+        return NSRange(location: location, length: length)
     }
 }

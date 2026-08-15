@@ -121,6 +121,38 @@ final class AujourUITests: XCTestCase {
         XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
     }
 
+    /// Live preview, where its risk actually lives: a real text view, with the
+    /// marks around the cursor drawn and the rest left out of the layout
+    /// altogether.
+    ///
+    /// That the hiding *happens* is checked where a line has a width, in
+    /// `HiddenSyntaxDrawingTests`. What only a running app can show is that a
+    /// day whose syntax has been hiding and revealing under a moving caret
+    /// still reaches the folder as the markdown that was typed — every star
+    /// and every hash of it, in the order they were typed.
+    func testSyntaxThatHidesAtTheCursorIsStillInTheFile() throws {
+        let app = launchApp()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        editor.tap()
+
+        let entry = "# Sunday\n\nWalked to the *market*, and it was **shut**."
+        editor.typeText(entry)
+
+        // The caret away from the last thing typed: whatever it leaves behind
+        // stops being drawn, and none of it stops being there.
+        editor.tap()
+        XCTAssertEqual(editor.value as? String, entry)
+
+        Thread.sleep(forTimeInterval: 4)
+        relaunch(app)
+
+        let reopened = app.textViews["entryEditor"]
+        XCTAssertTrue(reopened.waitForExistence(timeout: 30))
+        XCTAssertEqual(reopened.value as? String, entry)
+    }
+
     func testAPastDayIsFilledInFromTheCalendar() throws {
         let app = launchApp(contentTemplate: "# {{title}}\n")
         XCTAssertTrue(

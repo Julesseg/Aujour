@@ -125,13 +125,11 @@ Photos are deliberately *not* a placeholder: that day's photos are offered by
 a suggestion panel and inserted as Attachments where the user chooses.
 
 ### Styled Source
-How the editor shows an Entry: the markdown drawn as what it means — headings
+How the editor reads an Entry: the markdown drawn as what it means — headings
 large, emphasis slanted, list markers set apart, quotes in somebody else's
-voice — with every syntax character still on screen, still selectable and
-still deletable. Nothing is hidden and nothing is added, so the text in the
-editor is the text in the file, character for character. Hiding the syntax
-around the cursor is a later stage of the same editor, and a change to how an
-Entry is drawn rather than to what an Entry is.
+voice. Nothing is added and nothing is rewritten, so the text in the editor is
+the text in the file, character for character. Which characters are *drawn* is
+a separate question, and Live Preview's.
 
 A line is the unit. What shape a line is — heading, list item, quote — is read
 from that line alone, and the spans inside it never reach past its ends. That
@@ -140,6 +138,28 @@ heading inside a quote is quoted text), and it is what makes a keystroke cost
 a paragraph rather than a day: the editor re-reads the paragraph the typing
 landed in, which is only the same answer as re-reading the Entry because the
 answer was never about the rest of it.
+
+### Live Preview
+Styled Source with the marks left out where nobody is writing: the `#` before
+a heading and the `**` around a bold word are not drawn while the cursor is
+elsewhere, and are drawn again the moment it enters that element. The Entry
+reads like a document everywhere the user is not, and like markdown exactly
+where they are — so a mark is always visible where it might be typed, aimed
+at or deleted.
+
+Only a mark whose meaning survives without it may go. A heading's hashes may,
+because the line stays large; a bullet's `- ` may not, because the marker is
+the only thing that says "list". Hiding is done by leaving the character out
+of the *drawing* — never out of the text, which stays byte for byte the file
+on disk (ADR 0001). Selecting, copying and deleting all reach every character,
+hidden or not.
+
+### Element
+The thing the cursor is in, for the purposes of Live Preview: one heading, one
+emphasised phrase, one link. Elements answer one at a time and not by line —
+standing in a heading does not reveal the emphasis further along it — and an
+element's ends count as inside it, because a caret against the closing `*` is
+a caret editing that emphasis.
 
 ### Divergence
 Two versions of one Journal Day that were both written — the Entry edited on

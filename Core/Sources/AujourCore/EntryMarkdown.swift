@@ -26,47 +26,73 @@ import Foundation
 /// (`EntryMarkdownLocalityTests`).
 ///
 /// Ranges are UTF-16 offsets into the source, which is what a text view
-/// addresses its storage in. ``shifted(by:)`` moves a stretch that was read on
-/// its own back into the coordinates of the whole.
+/// addresses its storage in — and they stay in the source's coordinates
+/// whether the whole Entry was read or only the lines around an edit, so a
+/// reading can be drawn onto the text it came from without any arithmetic in
+/// between.
 public struct EntryMarkdown: Equatable, Sendable {
-    /// The Entry's lines, in order — one per line break plus the last, so a
-    /// blank line between paragraphs is a line like any other.
+    /// The stretch of the source these lines cover: all of it, or the whole
+    /// lines an edit touched.
+    public let range: NSRange
+
+    /// The lines, in order — one per line break plus the last, so a blank line
+    /// between paragraphs is a line like any other.
     public let lines: [MarkdownLine]
 
-    /// Reads markdown. Cannot fail: every line is *something*, and text that
-    /// does not parse as markdown is text.
+    /// Reads the whole of it. Cannot fail: every line is *something*, and text
+    /// that does not parse as markdown is text.
     public init(_ source: String) {
         let units = Array(source.utf16)
-        var lines: [MarkdownLine] = []
-        var start = 0
-        var index = 0
+        self.init(units, covering: bounds(0, units.count))
+    }
 
-        while index < units.count {
+    /// Reads only the whole lines an edit can have changed the meaning of.
+    ///
+    /// What the editor asks after every keystroke, and the reason blocks are
+    /// one line: the answer for this stretch is the answer it has in the whole
+    /// Entry, so the editor can restyle a paragraph and leave the rest of the
+    /// day alone (`EntryMarkdownLocalityTests`).
+    ///
+    /// Wider than the edit at both ends. Backwards to the start of the line
+    /// the edit begins in — a `#` typed at the front of a line is what makes
+    /// the *rest* of it a heading. Forwards past the end of the line it ends
+    /// in, which is one line further when the edit ended on a line break: a
+    /// return typed into the middle of a heading leaves half a heading above
+    /// the break and words that are not a heading at all below it, and the
+    /// half below was never touched.
+    public init(_ source: String, around edit: NSRange) {
+        let units = Array(source.utf16)
+        self.init(units, covering: EntryMarkdown.wholeLines(of: units, around: edit))
+    }
+
+    private init(_ units: [UInt16], covering stretch: NSRange) {
+        self.range = stretch
+
+        var lines: [MarkdownLine] = []
+        var start = stretch.location
+        var index = start
+
+        while index < stretch.upperBound {
             let breakLength = EntryMarkdown.lineBreakLength(in: units, at: index)
             guard breakLength > 0 else {
                 index += 1
                 continue
             }
-            lines.append(EntryMarkdown.readLine(units, from: start, to: index))
+            lines.append(EntryMarkdown.readLine(units, from: start, to: index, ending: breakLength))
             index += breakLength
             start = index
         }
-        // The text after the last break is a line too, even when it is empty
-        // — an Entry ending in a newline ends on a line the cursor can sit on.
-        lines.append(EntryMarkdown.readLine(units, from: start, to: units.count))
 
+        // The text after the last break is a line too, even when it is empty —
+        // an Entry ending in a newline ends on a line the cursor can sit on.
+        // Unless a stretch stopped at that break part-way through the Entry,
+        // where the line after it runs on past what was read.
+        if start < stretch.upperBound || stretch.upperBound == units.count {
+            lines.append(
+                EntryMarkdown.readLine(units, from: start, to: stretch.upperBound, ending: 0)
+            )
+        }
         self.lines = lines
-    }
-
-    private init(lines: [MarkdownLine]) {
-        self.lines = lines
-    }
-
-    /// The same reading, in the coordinates of a longer text this one is a
-    /// stretch of — how the editor puts the lines it restyled back where they
-    /// came from.
-    public func shifted(by offset: Int) -> EntryMarkdown {
-        EntryMarkdown(lines: lines.map { $0.shifted(by: offset) })
     }
 }
 
@@ -84,6 +110,12 @@ public struct MarkdownLine: Equatable, Sendable {
     /// The line itself, without the break that ended it.
     public let range: NSRange
 
+    /// The line together with that break — what a text system calls a
+    /// paragraph, and the stretch a line's own font and spacing are drawn
+    /// over. Including the break, because the caret sits after the last word
+    /// of a heading too, and it should be a heading's height there.
+    public let paragraph: NSRange
+
     /// The whitespace the line starts with — how deeply a list item is
     /// nested, and nothing to draw.
     public let indent: NSRange
@@ -100,17 +132,6 @@ public struct MarkdownLine: Equatable, Sendable {
     /// their parent rather than beside it, so emphasis within strong is found
     /// where it is written.
     public let inlines: [MarkdownInline]
-
-    public func shifted(by offset: Int) -> MarkdownLine {
-        MarkdownLine(
-            block: block,
-            range: range.shifted(by: offset),
-            indent: indent.shifted(by: offset),
-            marker: marker.shifted(by: offset),
-            content: content.shifted(by: offset),
-            inlines: inlines.map { $0.shifted(by: offset) }
-        )
-    }
 }
 
 /// What a line is, as a whole.
@@ -182,27 +203,13 @@ public struct MarkdownInline: Equatable, Sendable {
     public let content: NSRange
 
     /// The delimiter that closed it. For a link this is the whole
-    /// `](destination)`, because all of it is punctuation the words are not.
+    /// `](destination)` — where it points included, because all of it is
+    /// punctuation the words are not, and all of it is drawn that way.
     public let closing: NSRange
-
-    /// Where a link or an embed points, inside ``closing``.
-    public let destination: NSRange?
 
     /// Spans nested inside ``content`` — emphasis within strong, and the
     /// words of a link. Empty inside code, which shields whatever it holds.
     public let inlines: [MarkdownInline]
-
-    public func shifted(by offset: Int) -> MarkdownInline {
-        MarkdownInline(
-            style: style,
-            range: range.shifted(by: offset),
-            opening: opening.shifted(by: offset),
-            content: content.shifted(by: offset),
-            closing: closing.shifted(by: offset),
-            destination: destination?.shifted(by: offset),
-            inlines: inlines.map { $0.shifted(by: offset) }
-        )
-    }
 }
 
 // MARK: - Reading lines
@@ -210,9 +217,9 @@ public struct MarkdownInline: Equatable, Sendable {
 extension EntryMarkdown {
     /// How many code units of line break start at `index`, or zero for none.
     ///
-    /// The same breaks a text view treats as paragraph ends, so that the
-    /// stretch the editor restyles after an edit is exactly a stretch of the
-    /// lines read here. `\r\n` counts once, as one break of two units.
+    /// The breaks a paragraph can end on, written down once so that the
+    /// editor's idea of the stretch to re-read and this model's idea of a line
+    /// cannot drift apart. `\r\n` counts once, as one break of two units.
     private static func lineBreakLength(in units: [UInt16], at index: Int) -> Int {
         switch units[index] {
         case Unit.carriageReturn:
@@ -224,20 +231,61 @@ extension EntryMarkdown {
         }
     }
 
-    private static func readLine(_ units: [UInt16], from start: Int, to end: Int) -> MarkdownLine {
+    /// Whether a line ends immediately before `index` — the same rule read
+    /// backwards, for finding the start of the line an edit landed in. The
+    /// `\n` of a `\r\n` is the middle of a break and ends nothing.
+    private static func endsALine(_ units: [UInt16], at index: Int) -> Bool {
+        guard index > 0 else { return false }
+        switch units[index - 1] {
+        case Unit.newline, Unit.paragraphSeparator:
+            return true
+        case Unit.carriageReturn:
+            return index >= units.count || units[index] != Unit.newline
+        default:
+            return false
+        }
+    }
+
+    /// The whole lines an edit at `edit` reaches — see ``init(_:around:)``.
+    private static func wholeLines(of units: [UInt16], around edit: NSRange) -> NSRange {
+        func inBounds(_ index: Int) -> Int { min(max(index, 0), units.count) }
+
+        var start = inBounds(edit.location)
+        while start > 0, !endsALine(units, at: start) { start -= 1 }
+
+        var end = max(start, inBounds(edit.upperBound))
+        while end < units.count {
+            let breakLength = lineBreakLength(in: units, at: end)
+            guard breakLength == 0 else {
+                end += breakLength
+                break
+            }
+            end += 1
+        }
+        return bounds(start, end)
+    }
+
+    private static func readLine(
+        _ units: [UInt16],
+        from start: Int,
+        to end: Int,
+        ending breakLength: Int
+    ) -> MarkdownLine {
         var cursor = start
         while cursor < end, isSpaceOrTab(units[cursor]) { cursor += 1 }
-        let indent = range(start, cursor)
+        let indent = bounds(start, cursor)
+        let paragraph = bounds(start, end + breakLength)
 
         guard cursor < end else {
             // Whitespace and nothing else. The indent holds it all, so the
             // parts still add up to the line.
             return MarkdownLine(
                 block: .blank,
-                range: range(start, end),
+                range: bounds(start, end),
+                paragraph: paragraph,
                 indent: indent,
-                marker: range(end, end),
-                content: range(end, end),
+                marker: bounds(end, end),
+                content: bounds(end, end),
                 inlines: []
             )
         }
@@ -245,10 +293,11 @@ extension EntryMarkdown {
         let (block, markerEnd) = readBlock(units, at: cursor, to: end)
         return MarkdownLine(
             block: block,
-            range: range(start, end),
+            range: bounds(start, end),
+            paragraph: paragraph,
             indent: indent,
-            marker: range(cursor, markerEnd),
-            content: range(markerEnd, end),
+            marker: bounds(cursor, markerEnd),
+            content: bounds(markerEnd, end),
             // A rule has no words, only the characters that draw it.
             inlines: block == .thematicBreak
                 ? []
@@ -448,11 +497,10 @@ extension EntryMarkdown {
             if closing == fence {
                 return MarkdownInline(
                     style: .code,
-                    range: range(index, cursor + fence),
-                    opening: range(index, index + fence),
-                    content: range(index + fence, cursor),
-                    closing: range(cursor, cursor + fence),
-                    destination: nil,
+                    range: bounds(index, cursor + fence),
+                    opening: bounds(index, index + fence),
+                    content: bounds(index + fence, cursor),
+                    closing: bounds(cursor, cursor + fence),
                     // Nothing inside code is markdown — that is what code is.
                     inlines: []
                 )
@@ -561,31 +609,28 @@ extension EntryMarkdown {
         guard width == 3 else {
             return MarkdownInline(
                 style: mark == Unit.tilde ? .strikethrough : (width == 2 ? .strong : .emphasis),
-                range: range(openStart, closeEnd),
-                opening: range(openStart, openEnd),
-                content: range(openEnd, closeStart),
-                closing: range(closeStart, closeEnd),
-                destination: nil,
+                range: bounds(openStart, closeEnd),
+                opening: bounds(openStart, openEnd),
+                content: bounds(openEnd, closeStart),
+                closing: bounds(closeStart, closeEnd),
                 inlines: inlines(in: units, from: openEnd, to: closeStart)
             )
         }
 
         let strong = MarkdownInline(
             style: .strong,
-            range: range(openStart + 1, closeStart + 2),
-            opening: range(openStart + 1, openEnd),
-            content: range(openEnd, closeStart),
-            closing: range(closeStart, closeStart + 2),
-            destination: nil,
+            range: bounds(openStart + 1, closeStart + 2),
+            opening: bounds(openStart + 1, openEnd),
+            content: bounds(openEnd, closeStart),
+            closing: bounds(closeStart, closeStart + 2),
             inlines: inlines(in: units, from: openEnd, to: closeStart)
         )
         return MarkdownInline(
             style: .emphasis,
-            range: range(openStart, closeEnd),
-            opening: range(openStart, openStart + 1),
-            content: range(openStart + 1, closeStart + 2),
-            closing: range(closeStart + 2, closeEnd),
-            destination: nil,
+            range: bounds(openStart, closeEnd),
+            opening: bounds(openStart, openStart + 1),
+            content: bounds(openStart + 1, closeStart + 2),
+            closing: bounds(closeStart + 2, closeEnd),
             inlines: [strong]
         )
     }
@@ -614,12 +659,11 @@ extension EntryMarkdown {
         let start = embedded ? bracket - 1 : bracket
         return MarkdownInline(
             style: embedded ? .image : .link,
-            range: range(start, closeParenthesis + 1),
-            opening: range(start, bracket + 1),
-            content: range(bracket + 1, closeBracket),
+            range: bounds(start, closeParenthesis + 1),
+            opening: bounds(start, bracket + 1),
+            content: bounds(bracket + 1, closeBracket),
             // All of `](destination)` is punctuation, and drawn as such.
-            closing: range(closeBracket, closeParenthesis + 1),
-            destination: range(closeBracket + 2, closeParenthesis),
+            closing: bounds(closeBracket, closeParenthesis + 1),
             inlines: inlines(in: units, from: bracket + 1, to: closeBracket)
         )
     }
@@ -715,12 +759,6 @@ private func runLength(_ units: [UInt16], at index: Int, to end: Int) -> Int {
     return cursor - index
 }
 
-private func range(_ start: Int, _ end: Int) -> NSRange {
+private func bounds(_ start: Int, _ end: Int) -> NSRange {
     NSRange(location: start, length: end - start)
-}
-
-extension NSRange {
-    fileprivate func shifted(by offset: Int) -> NSRange {
-        NSRange(location: location + offset, length: length)
-    }
 }

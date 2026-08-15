@@ -13,13 +13,13 @@ import UIKit
 ///
 /// ## What a keystroke costs
 ///
-/// One paragraph. After a change, only the paragraph it landed in is read and
-/// re-styled — never the whole Entry — which is what keeps typing into a
-/// thousand-word day as quick as typing into an empty one. That is sound only
-/// because markdown is read one line at a time in Core, where reading a
-/// stretch of lines on its own is *proved* to give the same answer as reading
-/// them in place (`EntryMarkdownLocalityTests`). Any block that needed more
-/// than a line to recognise would break this, which is why none is modelled.
+/// The lines it landed in — never the whole Entry — which is what keeps typing
+/// into a thousand-word day as quick as typing into an empty one. That is
+/// sound only because markdown is read one line at a time in Core, where
+/// reading a stretch of lines on its own is *proved* to give the same answer
+/// as reading them in place (`EntryMarkdownLocalityTests`). Any block that
+/// needed more than a line to recognise would break this, which is why none
+/// is modelled.
 final class MarkdownTextStorage: NSTextStorage {
     /// The attributed string this one is a façade over. `NSTextStorage` is an
     /// abstract class: subclassing it means holding the storage yourself and
@@ -86,54 +86,34 @@ final class MarkdownTextStorage: NSTextStorage {
 
     // MARK: - Restyling
 
-    /// Guards against restyling in answer to restyling.
-    ///
-    /// Announcing the attribute change below is what tells the layout manager
-    /// to redraw a paragraph that grew a heading — and announcing a change is
-    /// also what got this method called. The flag, rather than a rule about
-    /// which edits are whose, because re-entering here is the one failure that
-    /// would not be a wrong style but a hung app.
+    /// Guards against restyling in answer to restyling. Announcing the widened
+    /// stretch below is what tells the layout manager to redraw a line that
+    /// only just became a heading — and announcing a change is also what got
+    /// this method called.
     private var restyling = false
 
+    /// Restyles at the end of the whole editing group, which is the only
+    /// moment the text has settled.
+    ///
+    /// Not beside the change itself, tempting as that is: a text view inserts
+    /// text in two steps — the characters, and then the attributes they were
+    /// typed in — and styling between the two is styling the second step wipes
+    /// straight off whatever was just typed. This is also where a text storage
+    /// is meant to fix up its own attributes.
     override func processEditing() {
-        // Announcing the widened range below re-enters here. There is nothing
-        // to do in that call and nothing to announce from it either: the
-        // announcement is folded into the one the call already in progress is
-        // on its way to make.
+        // The announcement below re-enters here. Nothing to do in that call
+        // and nothing to announce from it either: it is folded into the
+        // announcement the call already in progress is on its way to make.
         guard !restyling else { return }
 
-        // Before `super`, which is where the layout manager is told: the
-        // paragraph is styled by the time anything lays it out, so a heading
-        // is never drawn twice, once at each size.
+        // Attributes changing is this class's own doing, and restyling in
+        // answer to that would never stop.
         if editedMask.contains(.editedCharacters) {
             restyling = true
-            let stretch = stretchToRestyle(after: editedRange)
-            restyle(stretch)
-            // Widened to whole paragraphs, which is more than the characters
-            // that changed — the `#` typed at the front of a line is what
-            // restyles the rest of it.
-            edited(.editedAttributes, range: stretch, changeInLength: 0)
+            restyle(around: editedRange)
             restyling = false
         }
         super.processEditing()
-    }
-
-    /// The whole lines an edit can have changed the meaning of.
-    ///
-    /// The paragraph it landed in, and — when it ended on a line break — the
-    /// one after. A return typed into the middle of a heading leaves half a
-    /// heading above the break and something that is not a heading at all
-    /// below it, and the half below is in a paragraph the edit never touched.
-    private func stretchToRestyle(after edit: NSRange) -> NSRange {
-        let text = backing.string as NSString
-        let paragraph = text.paragraphRange(for: edit)
-        guard edit.upperBound == paragraph.upperBound, paragraph.upperBound < text.length else {
-            return paragraph
-        }
-        return NSUnionRange(
-            paragraph,
-            text.paragraphRange(for: NSRange(location: paragraph.upperBound, length: 0))
-        )
     }
 
     /// Replaces the whole text — opening a day, and taking the file's version
@@ -144,28 +124,29 @@ final class MarkdownTextStorage: NSTextStorage {
     }
 
     private func restyleEverything() {
-        let whole = NSRange(location: 0, length: backing.length)
-        guard whole.length > 0 else {
-            restyledRange = whole
-            return
-        }
+        guard backing.length > 0 else { return }
         beginEditing()
-        restyle(whole)
-        edited(.editedAttributes, range: whole, changeInLength: 0)
+        restyle(around: NSRange(location: 0, length: backing.length))
         endEditing()
     }
 
-    /// Reads a stretch of whole lines and draws what it says.
+    /// Reads the lines an edit touched, and draws what they say.
     ///
-    /// The stretch is read on its own, so the cost is the stretch's rather
-    /// than the Entry's, and shifted back into the Entry's coordinates before
-    /// anything is drawn.
-    private func restyle(_ stretch: NSRange) {
-        restyledRange = stretch
-        guard stretch.length > 0 else { return }
+    /// Which lines those are is Core's to decide — the same rule that decides
+    /// where a line ends decides how far back and forward to read, so the two
+    /// cannot drift apart. Everything comes back in the storage's own
+    /// coordinates, so there is no arithmetic here to get wrong either.
+    ///
+    /// The announcement at the end widens the edit to the whole stretch, which
+    /// is more than the characters that changed — the `#` typed at the front
+    /// of a line is what restyles the rest of it.
+    private func restyle(around edit: NSRange) {
+        let reading = EntryMarkdown(backing.string, around: edit)
+        restyledRange = reading.range
+        guard reading.range.length > 0 else { return }
 
-        let source = (backing.string as NSString).substring(with: stretch)
-        backing.setAttributes(styling.baseAttributes, range: stretch)
-        styling.apply(EntryMarkdown(source).shifted(by: stretch.location), to: backing)
+        backing.setAttributes(styling.baseAttributes, range: reading.range)
+        styling.apply(reading, to: backing)
+        edited(.editedAttributes, range: reading.range, changeInLength: 0)
     }
 }

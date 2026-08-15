@@ -124,6 +124,23 @@ Three kinds:
 Photos are deliberately *not* a placeholder: that day's photos are offered by
 a suggestion panel and inserted as Attachments where the user chooses.
 
+### Styled Source
+How the editor shows an Entry: the markdown drawn as what it means — headings
+large, emphasis slanted, list markers set apart, quotes in somebody else's
+voice — with every syntax character still on screen, still selectable and
+still deletable. Nothing is hidden and nothing is added, so the text in the
+editor is the text in the file, character for character. Hiding the syntax
+around the cursor is a later stage of the same editor, and a change to how an
+Entry is drawn rather than to what an Entry is.
+
+A line is the unit. What shape a line is — heading, list item, quote — is read
+from that line alone, and the spans inside it never reach past its ends. That
+rules out what needs more than a line to recognise (a fenced code block; a
+heading inside a quote is quoted text), and it is what makes a keystroke cost
+a paragraph rather than a day: the editor re-reads the paragraph the typing
+landed in, which is only the same answer as re-reading the Entry because the
+answer was never about the rest of it.
+
 ### Divergence
 Two versions of one Journal Day that were both written — the Entry edited on
 two devices while one of them was offline, which iCloud brings back as a

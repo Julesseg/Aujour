@@ -44,7 +44,7 @@ struct DrawnMarkdownDrawingTests {
             guard let drawn = value as? DrawnMarkdown else { return }
             let text = (storage.string as NSString).substring(with: drawn.text)
             switch drawn.kind {
-            case .taskBox(let isDone):
+            case .taskBox(let isDone, _):
                 found.append((text, isDone ? "ticked box" : "empty box"))
             case .picture:
                 found.append((text, "picture"))
@@ -161,6 +161,23 @@ struct DrawnMarkdownDrawingTests {
         #expect(entry.written == "- [ ] Milk\n- [ ] Bread\n")
     }
 
+    // A tick is an edit, and the day it is in is full of other edits: shaking
+    // to undo after ticking the wrong line should take back the tick rather
+    // than the sentence typed before it.
+    @Test("a tick can be undone, like any other edit")
+    func undoingATick() throws {
+        let entry = editor(holding: "- [ ] Milk\n")
+        entry.coordinator.tickTheBox(in: entry.textView, at: entry.firstBox)
+        #expect(entry.textView.text == "- [x] Milk\n")
+
+        let undo = try #require(entry.textView.undoManager)
+        #expect(undo.canUndo)
+        undo.undo()
+
+        #expect(entry.textView.text == "- [ ] Milk\n")
+        #expect(entry.written == "- [ ] Milk\n")
+    }
+
     // A tap on words is the text view's, and moves the caret like any other.
     @Test("a tap that is not on a box does nothing at all")
     func tappingBesideTheBox() {
@@ -192,11 +209,11 @@ struct DrawnMarkdownDrawingTests {
 
     @Test("an embed whose picture is there is drawn as the picture, in either spelling")
     func embedsBecomePictures() async throws {
-        let pictures = try await picturesOfAMarket()
+        let market = try await aMarketToDrawFrom()
 
         for embed in ["![the market](market.jpg)", "![[market.jpg]]"] {
             let entry = storage(holding: "Walked to \(embed)", cursor: nil)
-            entry.pictures = pictures
+            entry.pictures = market.pictures
             entry.aPictureArrived()
 
             let drawn = drawings(in: entry)
@@ -207,8 +224,9 @@ struct DrawnMarkdownDrawingTests {
 
     @Test("the embed's own markdown comes back at the cursor")
     func anEmbedAtTheCursor() async throws {
+        let market = try await aMarketToDrawFrom()
         let entry = storage(holding: "![[market.jpg]]", cursor: nil)
-        entry.pictures = try await picturesOfAMarket()
+        entry.pictures = market.pictures
         entry.aPictureArrived()
         #expect(drawings(in: entry).count == 1)
 
@@ -220,10 +238,10 @@ struct DrawnMarkdownDrawingTests {
     // grow to hold it — otherwise it would be painted over the words below.
     @Test("a picture makes room for itself on the line it is on")
     func aPictureIsLaidOut() async throws {
-        let pictures = try await picturesOfAMarket()
+        let market = try await aMarketToDrawFrom()
         let entry = "Walked to\n![[market.jpg]]\nand back."
 
-        let withPicture = laidOut(entry, cursor: nil, pictures: pictures)
+        let withPicture = laidOut(entry, cursor: nil, pictures: market.pictures)
         let withoutPicture = laidOut(entry, cursor: nil)
 
         let embedLine = 10
@@ -236,48 +254,37 @@ struct DrawnMarkdownDrawingTests {
         #expect(withPicture.lineTop(atCharacter: 26) >= withPicture.lineHeight(atCharacter: 10))
     }
 
-    // MARK: - Finding the file
+    // MARK: - Turning what the folder holds into a picture
 
-    @Test("a picture is found beside the entry, up out of it, and by bare name")
-    func findingPictures() async throws {
-        let store = InMemoryJournalStore()
-        try await store.write(marketPicture(), at: "attachments/2026/03/market.jpg")
-        try await store.write(marketPicture(), at: "2026/03/beside.png")
-
-        let pictures = EmbeddedPictures()
-        pictures.look(in: store, beside: "2026/03/2026-03-14.md")
-
-        #expect(await found(in: pictures, "beside.png") != nil)
-        #expect(await found(in: pictures, "../../attachments/2026/03/market.jpg") != nil)
-        // Obsidian's bare wiki name, which is a search of the whole folder.
-        #expect(await found(in: pictures, "market.jpg") != nil)
-        #expect(await found(in: pictures, "nothing.jpg") == nil)
-    }
-
+    // Which file a target names is `EntryAttachmentTests` in Core, over a
+    // folder and without a screen. What is left for here is the half that
+    // needs one: bytes that are a photograph become a picture, and bytes that
+    // are not become nothing at all — which is the same answer as a file that
+    // was never there, and draws the same markdown.
     @Test("a file that is not a picture is not a picture")
     func filesThatAreNotPictures() async throws {
         let store = InMemoryJournalStore()
         try await store.writeText("not a photograph", at: "2026/03/market.jpg")
+        let open = await day(over: store)
 
-        let pictures = EmbeddedPictures()
-        pictures.look(in: store, beside: "2026/03/2026-03-14.md")
-        #expect(await found(in: pictures, "market.jpg") == nil)
+        #expect(await found(in: open.pictures, "market.jpg") == nil)
+        #expect(await found(in: open.pictures, "nothing.jpg") == nil)
     }
 
-    // A target is relative to the Entry that wrote it, so March's
-    // `./market.jpg` and April's are allowed to be two different photographs
-    // — and the second day may find nothing where the first found something.
-    @Test("changing the day forgets what the last one's embeds pointed at")
-    func movingToAnotherDay() async throws {
+    // The folder is shared, so a photo an Entry names can arrive after the
+    // Entry did — and a "not there" that stood for the life of the day would
+    // leave it undrawable until the day was left and come back to.
+    @Test("a target that was not there is looked for again when the app comes back")
+    func lookingAgain() async throws {
         let store = InMemoryJournalStore()
+        let open = await day(over: store)
+        #expect(await found(in: open.pictures, "market.jpg") == nil)
+
         try await store.write(marketPicture(), at: "2026/03/market.jpg")
+        #expect(open.pictures.picture(for: "market.jpg") == nil, "a failure is remembered")
 
-        let pictures = EmbeddedPictures()
-        pictures.look(in: store, beside: "2026/03/2026-03-14.md")
-        #expect(await found(in: pictures, "./market.jpg") != nil)
-
-        pictures.look(in: store, beside: "2026/04/2026-04-14.md")
-        #expect(await found(in: pictures, "./market.jpg") == nil)
+        open.pictures.lookAgainForWhatWasMissing()
+        #expect(await found(in: open.pictures, "market.jpg") != nil)
     }
 
     // MARK: - A folder with one photograph in it
@@ -292,14 +299,32 @@ struct DrawnMarkdownDrawingTests {
         return image.pngData()!
     }
 
-    private func picturesOfAMarket() async throws -> EmbeddedPictures {
+    /// A day open over that folder, and the pictures its embeds point at.
+    ///
+    /// Both, because the pictures know their Entry weakly — being only a
+    /// drawer of what it holds — so a test has to keep the day it is about.
+    /// Over the real editor rather than a stand-in, because which file a
+    /// target names is the editor's to answer and standing in for it here
+    /// would be testing the stand-in.
+    private func day(over store: InMemoryJournalStore) async -> (
+        entry: EntryEditor, pictures: EmbeddedPictures
+    ) {
+        let entry = EntryEditor(store: store, day: JournalDay(year: 2026, month: 3, day: 14))
+        await entry.open()
+
+        let pictures = EmbeddedPictures()
+        pictures.look(in: entry)
+        return (entry, pictures)
+    }
+
+    private func aMarketToDrawFrom() async throws -> (entry: EntryEditor, pictures: EmbeddedPictures)
+    {
         let store = InMemoryJournalStore()
         try await store.write(marketPicture(), at: "2026/03/market.jpg")
 
-        let pictures = EmbeddedPictures()
-        pictures.look(in: store, beside: "2026/03/2026-03-14.md")
-        _ = await found(in: pictures, "market.jpg")
-        return pictures
+        let open = await day(over: store)
+        _ = await found(in: open.pictures, "market.jpg")
+        return open
     }
 
     /// The picture, once looking for it has finished — which it does off the

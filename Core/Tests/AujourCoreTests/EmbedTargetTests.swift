@@ -76,14 +76,23 @@ struct EmbedTargetTests {
         #expect(EmbedTarget.candidates(for: "market.jpg", inEntryAt: nil) == ["market.jpg"])
     }
 
-    @Test("a bare wiki name is matched against the file names in the folder")
+    @Test("a bare name is matched against the file names in the folder")
     func matchingByName() {
         let files = ["2026/03/2026-03-14.md", "attachments/2026/03/market.jpg", "other.jpg"]
         #expect(EmbedTarget.match("market.jpg", among: files) == "attachments/2026/03/market.jpg")
         #expect(EmbedTarget.match("Market.JPG", among: files) == "attachments/2026/03/market.jpg")
         #expect(EmbedTarget.match("nothing.jpg", among: files) == nil)
-        // A path has already been looked for as one.
-        #expect(EmbedTarget.match("attachments/2026/03/market.jpg", among: files) == nil)
+    }
+
+    // Searching the folder means listing all of it, so a target that could
+    // never be found by name has to be turned away before the listing rather
+    // than after it.
+    @Test("only a bare name is worth searching the folder for")
+    func namesWorthSearchingFor() {
+        #expect(EmbedTarget.bareName(of: " market.jpg ") == "market.jpg")
+        #expect(EmbedTarget.bareName(of: "attachments/market.jpg") == nil)
+        #expect(EmbedTarget.bareName(of: "https://example.com/a.jpg") == nil)
+        #expect(EmbedTarget.bareName(of: "   ") == nil)
     }
 
     // The paths this hands out cross into a Journal Store, which refuses

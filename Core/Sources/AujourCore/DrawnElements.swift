@@ -65,7 +65,7 @@ public struct DrawnElements: Equatable, Sendable {
     ///     which stands in for everything, because a day nobody is writing in
     ///     is a day being read.
     public init(_ markdown: EntryMarkdown, in source: String, cursor: NSRange?) {
-        var text = Spelling(source)
+        var text = AddressableText(source)
         var elements: [Element] = []
 
         for line in markdown.lines {
@@ -79,7 +79,7 @@ public struct DrawnElements: Equatable, Sendable {
 
     private static func pictures(
         in inlines: [MarkdownInline],
-        of text: inout Spelling,
+        of text: inout AddressableText,
         from cursor: NSRange?,
         into elements: inout [Element]
     ) {
@@ -94,7 +94,7 @@ public struct DrawnElements: Equatable, Sendable {
             guard !inline.range.isTouched(by: cursor), inline.destination.length > 0 else {
                 continue
             }
-            let target = text.string(in: inline.destination)
+            let target = text.text(in: inline.destination)
                 .trimmingCharacters(in: .whitespaces)
             guard !target.isEmpty else { continue }
             elements.append(Element(kind: .picture(target: target), range: inline.range))
@@ -102,24 +102,25 @@ public struct DrawnElements: Equatable, Sendable {
     }
 }
 
-/// The source, ready to be asked what a range of it says — and not before.
+/// An Entry's text, made addressable by UTF-16 range the first time somebody
+/// asks and not before.
 ///
-/// This is asked of every paragraph a keystroke lands in, and nearly every
-/// paragraph has no embed in it. Reaching into the text costs the length of
-/// the Entry rather than the length of the line, so it is not done at all
-/// until something needs a target spelled out — which is what keeps a
-/// keystroke costing a paragraph in a day of any size.
-private struct Spelling {
+/// Making it addressable costs the length of the whole Entry, and this is
+/// built for every paragraph a keystroke lands in — nearly none of which hold
+/// an embed whose target needs spelling out. So the cost is not paid until
+/// there is something to pay it for, which is what keeps a keystroke costing a
+/// paragraph in a day of any size.
+private struct AddressableText {
     private let source: String
-    private var reachable: NSString?
+    private var addressable: NSString?
 
     init(_ source: String) {
         self.source = source
     }
 
-    mutating func string(in range: NSRange) -> String {
-        let reachable = self.reachable ?? source as NSString
-        self.reachable = reachable
-        return reachable.substring(with: range)
+    mutating func text(in range: NSRange) -> String {
+        let addressable = self.addressable ?? source as NSString
+        self.addressable = addressable
+        return addressable.substring(with: range)
     }
 }

@@ -286,7 +286,8 @@ final class MarkdownTextStorage: NSTextStorage {
         let cursor = cursorRange.map { clamped($0) }
         backing.setAttributes(styling.baseAttributes, range: reading.range)
         let hidden = HiddenSyntax(reading, cursor: cursor)
-        styling.apply(reading, hiding: hidden, drawing: drawings(of: reading, at: cursor), to: backing)
+        let drawn = drawings(of: reading, at: cursor)
+        styling.apply(reading, hiding: hidden, drawing: drawn, to: backing)
         edited(.editedAttributes, range: reading.range, changeInLength: 0)
         return reading.range
     }
@@ -305,11 +306,11 @@ final class MarkdownTextStorage: NSTextStorage {
             switch element.kind {
             case .taskBox(let isDone):
                 return DrawnMarkdown(
-                    .taskBox(isDone: isDone), over: element.range, tint: styling.box
+                    .taskBox(isDone: isDone, tint: styling.box), over: element.range
                 )
             case .picture(let target):
                 guard let picture = pictures?.picture(for: target) else { return nil }
-                return DrawnMarkdown(.picture(picture), over: element.range, tint: styling.box)
+                return DrawnMarkdown(.picture(picture), over: element.range)
             }
         }
     }

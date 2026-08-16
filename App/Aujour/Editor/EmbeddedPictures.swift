@@ -6,10 +6,15 @@ import UIKit
 ///
 /// Drawing happens a paragraph at a time while somebody is typing, and reading
 /// a photo off iCloud does not. So this answers immediately with whatever it
-/// already has, goes and looks for the rest, and says when something arrived —
-/// at which point the editor draws that paragraph again and the picture is
-/// there. Until then the embed is its own markdown on screen, which is what an
-/// embed that names nothing stays as for good.
+/// already has, goes and asks the Entry for the rest, and says when something
+/// arrived — at which point the editor draws that paragraph again and the
+/// picture is there. Until then the embed is its own markdown on screen, which
+/// is what an embed naming nothing stays as for good.
+///
+/// Which file a target means is not decided here. That is a question about the
+/// Journal Root and the Entry's own path — domain, and `EntryEditor`'s to
+/// answer (`AujourCore/EntryEditor/attachment(named:)`). What is left is the
+/// half that needs a screen: turning bytes into a picture, and remembering it.
 ///
 /// ## Not there is an answer
 ///
@@ -20,10 +25,10 @@ import UIKit
 /// editor only stands a picture in front of characters when it has one.
 ///
 /// Remembered either way, so that a day with a broken embed in it does not
-/// search the folder again on every keystroke. A day is reopened often enough
-/// — every launch, every time it is come back to — that a file which arrives
-/// later is found soon enough, and a file that arrives *while the day is open*
-/// is what the folder's own change notice reopens it for.
+/// search the folder again on every keystroke — and forgotten again when the
+/// app comes back to the front, which is when a photo iCloud was still
+/// bringing down is likely to have arrived
+/// (``lookAgainForWhatWasMissing()``).
 @MainActor
 final class EmbeddedPictures {
     /// What to do when a picture has been found: draw the Entry again, so
@@ -35,25 +40,44 @@ final class EmbeddedPictures {
     private var looked: Set<String> = []
     private var looking: Set<String> = []
 
-    private var folder: (any JournalStore)?
-    private var entryPath: String?
+    /// The Entry whose embeds these are — weakly, because it is the day on
+    /// screen and this is only a drawer of what it holds.
+    private weak var entry: EntryEditor?
 
-    /// Points this at the Entry now on screen.
+    /// Points this at the Entry now on screen, forgetting everything the last
+    /// one pointed at.
     ///
-    /// Everything already found is forgotten when the Entry changes, because
-    /// a target is relative to the Entry that wrote it: `market.jpg` in
-    /// March's day and `market.jpg` in April's are allowed to be two
-    /// different photographs.
-    func look(in folder: any JournalStore, beside entryPath: String?) {
-        guard self.entryPath != entryPath else {
-            self.folder = folder
-            return
-        }
-        self.folder = folder
-        self.entryPath = entryPath
+    /// Forgetting, because a target is relative to the Entry that wrote it:
+    /// `market.jpg` in March's day and `market.jpg` in April's are allowed to
+    /// be two different photographs, and so are the same day's two versions in
+    /// two folders after the user moves their journal.
+    ///
+    /// Cheap because it is rare — this is called when the day on screen
+    /// becomes a different day, not when somebody types.
+    func look(in entry: EntryEditor) {
+        self.entry = entry
         found = [:]
         looked = []
         looking = []
+    }
+
+    /// Forgets the targets that were not there, and keeps the pictures that
+    /// were.
+    ///
+    /// What the app coming back to the front means for an embed: the folder is
+    /// shared, so the photo an Entry names can arrive after the Entry did —
+    /// iCloud bringing it down, or Obsidian on another device putting it
+    /// there. Without this, a "not there" stands for as long as the day is
+    /// open, and the embed nobody could draw stays undrawable until the day is
+    /// left and come back to.
+    ///
+    /// Only the failures, because a picture already found is the same picture:
+    /// re-reading every photograph in the day on every foreground would be
+    /// paying a folder read for an answer nothing has changed.
+    func lookAgainForWhatWasMissing() {
+        guard !looked.isEmpty else { return }
+        looked = []
+        whenOneArrives?()
     }
 
     /// The picture at this target, if it has been found — and if it has not,
@@ -86,32 +110,14 @@ final class EmbeddedPictures {
         whenOneArrives?()
     }
 
-    /// Where the target might be, asked of the folder in order — and for a
-    /// bare wiki name that was nowhere obvious, a look through the whole
-    /// folder for a file of that name, which is what `![[market.jpg]]` means.
     private func find(_ target: String) async -> UIImage? {
-        guard let folder else { return nil }
-
-        for path in EmbedTarget.candidates(for: target, inEntryAt: entryPath) {
-            if let picture = await picture(at: path, in: folder) { return picture }
-        }
-        guard let files = try? await folder.listFiles(),
-            let named = EmbedTarget.match(target, among: files)
-        else { return nil }
-        return await picture(at: named, in: folder)
-    }
-
-    private func picture(at path: String, in folder: any JournalStore) async -> UIImage? {
-        // Every failure is the same answer here: no file, an unreadable one, a
-        // path the store refuses. The embed is drawn as its own text, which is
-        // what it should be for all three.
-        guard let data = try? await folder.read(at: path) else { return nil }
-        return await EmbeddedPictures.decode(data)
+        guard let contents = await entry?.attachment(named: target) else { return nil }
+        return await EmbeddedPictures.decode(contents)
     }
 
     /// Off the main actor, because a photograph is megabytes and decoding one
     /// where the typing happens is the typing stopping.
-    private static func decode(_ data: Data) async -> UIImage? {
-        await Task.detached { UIImage(data: data)?.preparingForDisplay() }.value
+    private static func decode(_ contents: Data) async -> UIImage? {
+        await Task.detached { UIImage(data: contents)?.preparingForDisplay() }.value
     }
 }

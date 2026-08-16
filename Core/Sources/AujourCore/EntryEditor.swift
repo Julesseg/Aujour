@@ -100,22 +100,7 @@ public final class EntryEditor {
     @ObservationIgnored private let wait: @MainActor (Duration) async throws -> Void
 
     /// Where this day's Entry belongs, once the Path Template has been read.
-    ///
-    /// Public because an embed is written relative to the Entry that holds it
-    /// — `![](market.jpg)` in `2026/03/2026-03-14.md` means the picture beside
-    /// it — so the folder this path names is half of finding the file. Not
-    /// ignored by observation like the rest, because the editor drawing this
-    /// Entry has to hear when it becomes a different day's.
-    public private(set) var entryPath: String?
-
-    /// The folder this Entry is in, for reading what is not the Entry: the
-    /// pictures its embeds point at.
-    ///
-    /// The same seam everything else here goes through, handed on rather than
-    /// re-derived — an editor over an in-memory journal resolves its embeds
-    /// against that journal, which is what makes drawing one testable without
-    /// a disk.
-    public var folder: any JournalStore { store }
+    @ObservationIgnored private var entryPath: String?
 
     /// The text a save would be a no-op against: what the folder holds, or —
     /// before there is a file — the text the template spawned, which is
@@ -264,6 +249,42 @@ public final class EntryEditor {
                 dateFormat: template.entryNameFormat
             )
         )
+    }
+
+    // MARK: - What this Entry points at
+
+    /// The bytes of the file an Embed in this Entry names, or `nil` for a
+    /// target that names nothing in the Journal Root.
+    ///
+    /// The Entry is asked because the Entry is what knows: an Embed's target
+    /// is written relative to the file holding it — `![](market.jpg)` in
+    /// `2026/03/2026-03-14.md` means the picture beside that day — so nothing
+    /// but this object has both halves of the question. Which is also why the
+    /// editor above does not get handed the folder to go rummaging in.
+    ///
+    /// Bytes rather than a picture, because what a JPEG looks like needs a
+    /// screen and this module has none. Decoding is the app's; deciding which
+    /// file is meant is the domain's, and is `EmbedTarget`'s to spell out.
+    ///
+    /// `nil` for every way of failing, deliberately: no file, an unreadable
+    /// one, a path the store refuses, a target climbing out of the folder the
+    /// user pointed Aujour at. All four mean the same thing on screen — the
+    /// Embed is drawn as the markdown it is, visible and harmless — and a
+    /// notice about a photograph would be a notice in front of somebody who is
+    /// writing.
+    public func attachment(named target: String) async -> Data? {
+        for path in EmbedTarget.candidates(for: target, inEntryAt: entryPath) {
+            if let contents = try? await store.read(at: path) { return contents }
+        }
+        // A bare name and nowhere obvious to look: Obsidian's `![[market.jpg]]`
+        // names a file and leaves finding it to the app, so the folder is
+        // searched — last, and only for a target that could be found this way,
+        // because a listing costs the whole Journal Root.
+        guard let name = EmbedTarget.bareName(of: target),
+            let files = try? await store.listFiles(),
+            let named = EmbedTarget.match(name, among: files)
+        else { return nil }
+        return try? await store.read(at: named)
     }
 
     // MARK: - The file changing underneath

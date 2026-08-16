@@ -22,6 +22,7 @@ struct EntryView: View {
     /// `market.jpg` in March's day and `market.jpg` in April's are allowed to
     /// be two different photographs.
     @State private var pictures = EmbeddedPictures()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -42,11 +43,15 @@ struct EntryView: View {
                     label: "Entry for \(editor.day.spelledOut())"
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                // The day on screen decides where a relative embed points, so
+                // The Entry on screen decides where a relative embed points, so
                 // the pictures follow it — including on the morning an app
                 // left open overnight moves on to today.
-                .onChange(of: editor.entryPath, initial: true) {
-                    pictures.look(in: editor.folder, beside: editor.entryPath)
+                .onChange(of: editor.day, initial: true) { pictures.look(in: editor) }
+                // The folder is shared, so a photo an Entry names can arrive
+                // after the Entry did. Coming back to the front is when it is
+                // worth looking again for the ones that were not there.
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { pictures.lookAgainForWhatWasMissing() }
                 }
 
             case .unavailable(let error):

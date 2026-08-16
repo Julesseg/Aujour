@@ -370,6 +370,10 @@ struct EntryMarkdownInlineTests {
         #expect(Read("![[]] nothing").inlines(0).isEmpty)
         // A wiki *link* is not an embed, and v1 draws nothing over it.
         #expect(Read("[[a note]]").inlines(0).isEmpty)
+        // One bracket short at the front, two at the back: a wiki embed needs
+        // both of its own, and this is a bang followed by brackets.
+        #expect(Read("![ab]]").inlines(0).isEmpty)
+        #expect(Read("![[[a]]").inlines(0).isEmpty)
     }
 
     @Test("a span that points nowhere says so with an empty destination")

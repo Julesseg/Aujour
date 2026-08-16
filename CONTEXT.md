@@ -196,9 +196,11 @@ drawn as the picture they name wherever they are written; the embed-syntax
 Journal Setting decides only what Aujour itself *writes*.
 
 Where a target points is resolved against the Entry holding it first and the
-Journal Root second, and a bare file name is looked for anywhere in the folder
-— which is what a wiki embed means. Never outside the Journal Root: a target
-that climbs past it names somebody else's file and resolves to nothing.
+Journal Root second; a target that is only a file name is then looked for
+anywhere in the folder, which is what a wiki embed means and what Obsidian
+does for a markdown link too — so both spellings are searched for the same
+way. Never outside the Journal Root: a target that climbs past it names
+somebody else's file and resolves to nothing.
 
 ### Divergence
 Two versions of one Journal Day that were both written — the Entry edited on

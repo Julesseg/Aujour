@@ -79,8 +79,9 @@ struct DrawnElementsTests {
     // thing comes back.
     @Test("the embed's own words come back at the cursor")
     func anEmbedAtTheCursor() {
-        let source = "![the market](attachments/market.jpg) and then home."
-        #expect(Drawn(source, caret: 51).covered == [source.replacingOccurrences(of: " and then home.", with: "")])
+        let embed = "![the market](attachments/market.jpg)"
+        let source = "\(embed) and then home."
+        #expect(Drawn(source, caret: 51).covered == [embed])
         #expect(Drawn(source, caret: 5).elements.isEmpty)
         #expect(Drawn(source, caret: 37).elements.isEmpty)
     }

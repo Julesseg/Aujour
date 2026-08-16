@@ -759,7 +759,9 @@ extension EntryMarkdown {
         to end: Int
     ) -> MarkdownInline? {
         let contentStart = index + 3
-        guard contentStart <= end, units[index + 1] == Unit.leftBracket else { return nil }
+        // Both brackets, and then something that is not a third: `![a](b)` is
+        // a standard embed of `a`, and `![[[a]]` is nobody's target.
+        guard index + 2 < end, units[index + 2] == Unit.leftBracket else { return nil }
         guard contentStart < end, units[contentStart] != Unit.leftBracket else { return nil }
 
         var cursor = contentStart

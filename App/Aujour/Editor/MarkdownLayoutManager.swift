@@ -45,9 +45,49 @@ final class MarkdownLayoutManager: NSLayoutManager {
         room.origin.x += origin.x
         room.origin.y += origin.y
 
-        let font =
-            storage.attribute(.font, at: characters.location, effectiveRange: nil) as? UIFont
-            ?? .preferredFont(forTextStyle: .body)
-        drawn.draw(in: room, in: font)
+        drawn.draw(in: room, in: storage.font(at: characters.location))
+    }
+
+    // MARK: - Finding one again
+
+    /// What is drawn at this point, if anything is — the point being in the
+    /// text's own coordinates, which is what a view hands over after taking
+    /// its inset off.
+    ///
+    /// Here rather than wherever the tap arrives, because the room a drawing
+    /// took is a glyph's and this is the only object that knows where a glyph
+    /// ended up. What is asked of it is the same question drawing asks, from
+    /// the other end.
+    ///
+    /// The nearest glyph on its own would not do: a layout manager answers
+    /// that for a point anywhere at all, so a tap three lines below the last
+    /// one would find the last box in the day. The room that glyph took has to
+    /// hold the point as well — widened to something a thumb can hit, because
+    /// a checkbox is about twenty points square and a finger is not.
+    ///
+    /// Safe to be generous about, because the drawing has already had to be
+    /// the glyph *nearest* the point: a finger on the word after a box is
+    /// nearest that word and finds nothing here. What the widening reaches is
+    /// the margin around the box, and the inset above the first line — which
+    /// is where a tap aimed at a box lands when it misses.
+    func drawnMarkdown(under point: CGPoint, in container: NSTextContainer) -> DrawnMarkdown? {
+        guard let storage = textStorage, storage.length > 0 else { return nil }
+
+        let glyph = glyphIndex(for: point, in: container)
+        let room = boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container)
+        guard MarkdownLayoutManager.forAFinger(room).contains(point) else { return nil }
+
+        let character = characterIndexForGlyph(at: glyph)
+        guard character < storage.length else { return nil }
+        return storage.attribute(.drawnMarkdown, at: character, effectiveRange: nil)
+            as? DrawnMarkdown
+    }
+
+    private static func forAFinger(_ room: CGRect) -> CGRect {
+        let comfortable: CGFloat = 44
+        return room.insetBy(
+            dx: min(0, (room.width - comfortable) / 2),
+            dy: min(0, (room.height - comfortable) / 2)
+        )
     }
 }

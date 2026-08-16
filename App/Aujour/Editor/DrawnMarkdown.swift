@@ -33,8 +33,10 @@ extension NSAttributedString.Key {
 /// cursor is somewhere else.
 final class DrawnMarkdown: NSObject {
     enum Kind {
-        /// `- [x] `, drawn as a box the user can tap.
-        case taskBox(isDone: Bool)
+        /// `- [x] `, drawn as a box the user can tap — in the colour a
+        /// control is drawn in, which a picture has no use for and so does
+        /// not carry.
+        case taskBox(isDone: Bool, tint: UIColor)
         /// `![…](…)`, drawn as the picture it points at.
         case picture(UIImage)
     }
@@ -45,13 +47,9 @@ final class DrawnMarkdown: NSObject {
     /// restyle has to cover to take it away again.
     let text: NSRange
 
-    /// The colour a box is drawn in. A picture brings its own.
-    let tint: UIColor
-
-    init(_ kind: Kind, over text: NSRange, tint: UIColor) {
+    init(_ kind: Kind, over text: NSRange) {
         self.kind = kind
         self.text = text
-        self.tint = tint
     }
 
     /// Whether this is something the user can tap to change the Entry.
@@ -103,7 +101,7 @@ final class DrawnMarkdown: NSObject {
     func draw(in room: CGRect, in font: UIFont) {
         let size = size(in: font, fitting: room.width)
         switch kind {
-        case .taskBox(let isDone):
+        case .taskBox(let isDone, let tint):
             let side = min(size.height, room.height)
             let box = CGRect(
                 x: room.minX,
@@ -111,7 +109,7 @@ final class DrawnMarkdown: NSObject {
                 width: side,
                 height: side
             )
-            symbol(isDone: isDone, fitting: side)?.draw(in: box)
+            symbol(isDone: isDone, tinted: tint, fitting: side)?.draw(in: box)
         case .picture(let picture):
             let drawn = CGRect(origin: room.origin, size: size)
             let rounded = UIBezierPath(roundedRect: drawn, cornerRadius: 8)
@@ -122,11 +120,25 @@ final class DrawnMarkdown: NSObject {
         }
     }
 
-    private func symbol(isDone: Bool, fitting side: CGFloat) -> UIImage? {
+    private func symbol(isDone: Bool, tinted: UIColor, fitting side: CGFloat) -> UIImage? {
         UIImage(
             systemName: isDone ? "checkmark.square.fill" : "square",
             withConfiguration: UIImage.SymbolConfiguration(pointSize: side, weight: .regular)
         )?
-        .withTintColor(tint, renderingMode: .alwaysOriginal)
+        .withTintColor(tinted, renderingMode: .alwaysOriginal)
+    }
+}
+
+extension NSAttributedString {
+    /// The font a character is set in — the body face for one that somehow is
+    /// not set in anything, which is nothing this editor ever writes.
+    ///
+    /// Here because the two halves of drawing over a stretch of text both need
+    /// it and neither owns it: glyph generation measures a box in the line's
+    /// own font, and the layout manager paints it in the same one.
+    func font(at character: Int) -> UIFont {
+        guard character < length else { return .preferredFont(forTextStyle: .body) }
+        return attribute(.font, at: character, effectiveRange: nil) as? UIFont
+            ?? .preferredFont(forTextStyle: .body)
     }
 }

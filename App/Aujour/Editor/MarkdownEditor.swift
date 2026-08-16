@@ -158,6 +158,13 @@ struct MarkdownEditor: UIViewRepresentable {
         /// anything else should put the caret there. So this one is offered
         /// first, answers only over a box, and the text view's tap waits to
         /// see whether it did.
+        ///
+        /// A finger is the only way to it for now, and that is a gap rather
+        /// than a decision: a box is painted glyphs, not a view, so VoiceOver
+        /// and Switch Control reach the line's `- [ ] ` as text and nothing
+        /// they can activate. The text is still readable and still editable by
+        /// hand, and the accessory row's checkbox control (issue #21) is the
+        /// way to a task that never needs the box to be aimed at.
         func ticksBoxes(in textView: UITextView) {
             let tick = UITapGestureRecognizer(target: self, action: #selector(tickTheBoxTapped))
             tick.delegate = self
@@ -184,8 +191,21 @@ struct MarkdownEditor: UIViewRepresentable {
         @discardableResult
         func tickTheBox(in textView: UITextView, at point: CGPoint) -> Bool {
             guard let edit = box(in: textView, under: point) else { return false }
+            apply(edit, in: textView)
+            return true
+        }
 
+        /// Makes the one-character change a tick is, and tells the Entry.
+        ///
+        /// Undoable, because a tick is an edit and the day it is in is full of
+        /// other edits: shaking to undo after ticking the wrong line should
+        /// take back the tick, not the sentence typed before it. Registered
+        /// against the same undo manager the typing uses, so the two share one
+        /// stack in the order they happened.
+        private func apply(_ edit: MarkdownEdit, in textView: UITextView) {
             let selection = textView.selectedRange
+            let before = (textView.text as NSString).substring(with: edit.range)
+
             textView.textStorage.replaceCharacters(in: edit.range, with: edit.replacement)
             // Put back where it was, if it was anywhere. Ticking something off
             // is not a claim about where the user was writing, and a caret
@@ -196,49 +216,35 @@ struct MarkdownEditor: UIViewRepresentable {
             // this told its storage — so the Entry is told here, and hears
             // about a tick exactly as it hears about a keystroke.
             text.wrappedValue = textView.text
-            return true
+
+            textView.undoManager?.registerUndo(withTarget: self) { [weak textView] coordinator in
+                guard let textView else { return }
+                coordinator.apply(
+                    MarkdownEdit(range: edit.range, replacement: before), in: textView
+                )
+            }
         }
 
         /// The edit a tap at this point would make, or `nil` for a tap that
         /// landed on words.
         ///
-        /// The glyph nearest the tap is not enough on its own: a text view
-        /// answers that question for a point anywhere on the screen, so a tap
-        /// three lines below the last one would tick the last box in the day.
-        /// The room that glyph took has to hold the tap as well, which is the
-        /// difference between tapping a box and tapping near one.
+        /// All this adds to the layout manager's answer is the one thing only
+        /// a text view knows: where its text starts, which its inset moved.
         private func box(in textView: UITextView, under point: CGPoint) -> MarkdownEdit? {
             guard let storage = textView.textStorage as? MarkdownTextStorage,
                 let layout = textView.layoutManager as? MarkdownLayoutManager
             else { return nil }
 
-            // Into the text's own coordinates, which the inset moved.
             let inText = CGPoint(
                 x: point.x - textView.textContainerInset.left,
                 y: point.y - textView.textContainerInset.top
             )
-            let glyph = layout.glyphIndex(for: inText, in: textView.textContainer)
-            let room = layout.boundingRect(
-                forGlyphRange: NSRange(location: glyph, length: 1), in: textView.textContainer
-            )
-            guard forAFinger(room).contains(inText) else { return nil }
-            return storage.tickingTheBox(at: layout.characterIndexForGlyph(at: glyph))
-        }
-
-        /// A box's room, widened to something a thumb can hit: a checkbox is
-        /// about twenty points square, and a finger is not.
-        ///
-        /// Safe to be generous, because the box has already had to be the
-        /// glyph *nearest* the tap. A finger on the word after it is nearest
-        /// that word, and this is never asked; what the widening reaches is
-        /// the margin around the box and the inset above the first line, which
-        /// is where a tap aimed at the box lands when it misses.
-        private func forAFinger(_ room: CGRect) -> CGRect {
-            let comfortable: CGFloat = 44
-            return room.insetBy(
-                dx: min(0, (room.width - comfortable) / 2),
-                dy: min(0, (room.height - comfortable) / 2)
-            )
+            guard let drawn = layout.drawnMarkdown(under: inText, in: textView.textContainer)
+            else { return nil }
+            // Whether that drawing is one a tap means anything to is the
+            // storage's to say, along with what the tap changes — a picture is
+            // drawn over an Entry too, and is not a control.
+            return storage.tickingTheBox(at: drawn.text.location)
         }
 
         func textViewDidChange(_ textView: UITextView) {

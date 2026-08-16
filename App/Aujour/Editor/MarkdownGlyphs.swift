@@ -129,8 +129,10 @@ final class MarkdownGlyphs: NSObject, NSLayoutManagerDelegate {
         glyphPosition: CGPoint,
         characterIndex: Int
     ) -> CGRect {
-        guard let drawn = drawing(in: layoutManager, at: characterIndex) else { return .zero }
-        let font = font(in: layoutManager, at: characterIndex)
+        guard let storage = layoutManager.textStorage,
+            let drawn = drawing(in: layoutManager, at: characterIndex)
+        else { return .zero }
+        let font = storage.font(at: characterIndex)
         // What is left of the line after everything already on it — a picture
         // is as wide as the text is, and an indented one is narrower by its
         // indent.
@@ -184,10 +186,8 @@ final class MarkdownGlyphs: NSObject, NSLayoutManagerDelegate {
         var tallest: CGFloat?
         storage.enumerateAttribute(.drawnMarkdown, in: characters) { value, range, _ in
             guard let drawn = value as? DrawnMarkdown else { return }
-            let height = drawn
-                .size(in: font(in: layoutManager, at: range.location), fitting: max(width, 1))
-                .height
-            tallest = max(tallest ?? 0, height)
+            let room = drawn.size(in: storage.font(at: range.location), fitting: max(width, 1))
+            tallest = max(tallest ?? 0, room.height)
         }
         return tallest
     }
@@ -200,13 +200,5 @@ final class MarkdownGlyphs: NSObject, NSLayoutManagerDelegate {
         }
         return storage.attribute(.drawnMarkdown, at: character, effectiveRange: nil)
             as? DrawnMarkdown
-    }
-
-    private func font(in layoutManager: NSLayoutManager, at character: Int) -> UIFont {
-        guard let storage = layoutManager.textStorage, character < storage.length else {
-            return .preferredFont(forTextStyle: .body)
-        }
-        return storage.attribute(.font, at: character, effectiveRange: nil) as? UIFont
-            ?? .preferredFont(forTextStyle: .body)
     }
 }

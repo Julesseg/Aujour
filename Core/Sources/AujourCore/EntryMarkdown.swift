@@ -121,9 +121,14 @@ public struct MarkdownLine: Equatable, Sendable {
     public let indent: NSRange
 
     /// The characters that make the line the block it is, and the space that
-    /// separates them from the words: `## `, `- `, `1. `, `> `. Empty for a
-    /// paragraph, which is made of nothing.
+    /// separates them from the words: `## `, `- `, `1. `, `> `, `- [x] `.
+    /// Empty for a paragraph, which is made of nothing.
     public let marker: NSRange
+
+    /// A task item's `[ ]` or `[x]` — the three characters the editor draws a
+    /// box over. Inside ``marker`` rather than beside it, because the box is
+    /// part of what makes the line a task; empty on every other line.
+    public let box: NSRange
 
     /// The words: everything the marker introduces.
     public let content: NSRange
@@ -152,6 +157,15 @@ public enum MarkdownBlock: Equatable, Sendable {
 
     /// `-`, `*` or `+`, followed by a space.
     case bulletItem
+
+    /// A bullet whose first word is a box: `- [ ]` or `- [x]`, followed by a
+    /// space or the end of the line. Carries whether the box is ticked.
+    ///
+    /// Only the two states markdown's task lists actually agree on. Obsidian
+    /// lets a theme give `- [/]` or `- [-]` a look of its own; those are a
+    /// bullet whose words begin with a bracket here, which is what they are
+    /// anywhere the theme is not.
+    case taskItem(isDone: Bool)
 
     /// `1.` or `1)`, followed by a space. Carries the number the user wrote,
     /// not the position in the list: a list that starts at 3 starts at 3.
@@ -185,9 +199,11 @@ public struct MarkdownInline: Equatable, Sendable {
         case code
         /// `[words](destination)`.
         case link
-        /// `![words](destination)` — an embed. Drawing the picture itself is
-        /// a later stage of the editor; this is the span it will be drawn
-        /// over.
+        /// `![words](destination)`, or Obsidian's `![[target]]` — an embed,
+        /// and the span the editor draws a picture over. Both spellings are
+        /// read wherever they are written: the embed-syntax setting decides
+        /// what Aujour *writes*, and a journal shared with Obsidian holds
+        /// whatever anything else wrote.
         case image
     }
 
@@ -206,6 +222,16 @@ public struct MarkdownInline: Equatable, Sendable {
     /// `](destination)` — where it points included, because all of it is
     /// punctuation the words are not, and all of it is drawn that way.
     public let closing: NSRange
+
+    /// Where a link or an embed points: what is between `](` and `)`, or a
+    /// wiki embed's target up to its `|`. Empty for every other style, and
+    /// for a link that points nowhere.
+    ///
+    /// Inside ``closing`` for a standard link and inside ``content`` for a
+    /// wiki one — this is not a fourth part of the span but a reading of the
+    /// part it lives in, so that finding the file an embed names is not a
+    /// second parse of the same characters.
+    public let destination: NSRange
 
     /// Spans nested inside ``content`` — emphasis within strong, and the
     /// words of a link. Empty inside code, which shields whatever it holds.
@@ -294,37 +320,52 @@ extension EntryMarkdown {
                 paragraph: paragraph,
                 indent: indent,
                 marker: bounds(end, end),
+                box: bounds(end, end),
                 content: bounds(end, end),
                 inlines: []
             )
         }
 
-        let (block, markerEnd) = readBlock(units, at: cursor, to: end)
+        let marker = readBlock(units, at: cursor, to: end)
         return MarkdownLine(
-            block: block,
+            block: marker.block,
             range: bounds(start, end),
             paragraph: paragraph,
             indent: indent,
-            marker: bounds(cursor, markerEnd),
-            content: bounds(markerEnd, end),
+            marker: bounds(cursor, marker.end),
+            box: marker.box,
+            content: bounds(marker.end, end),
             // A rule has no words, only the characters that draw it.
-            inlines: block == .thematicBreak
+            inlines: marker.block == .thematicBreak
                 ? []
-                : inlines(in: units, from: markerEnd, to: end)
+                : inlines(in: units, from: marker.end, to: end)
         )
     }
 
+    /// What a line's opening characters make it: its shape, where those
+    /// characters stop and the words start, and — for a task item — where its
+    /// box is among them.
+    private struct Marker {
+        let block: MarkdownBlock
+        let end: Int
+        let box: NSRange
+
+        init(_ block: MarkdownBlock, end: Int, box: NSRange? = nil) {
+            self.block = block
+            self.end = end
+            // Nothing to draw a box over, said as an empty range where the
+            // words begin rather than as an optional every caller unwraps.
+            self.box = box ?? bounds(end, end)
+        }
+    }
+
     /// What the line is, and where its marker ends.
-    private static func readBlock(
-        _ units: [UInt16],
-        at cursor: Int,
-        to end: Int
-    ) -> (MarkdownBlock, markerEnd: Int) {
+    private static func readBlock(_ units: [UInt16], at cursor: Int, to end: Int) -> Marker {
         // A rule is checked first because it is spelled out of the same
         // characters as the other shapes: `---` is one dash away from a list
         // item, `***` from emphasis.
         if isThematicBreak(units, from: cursor, to: end) {
-            return (.thematicBreak, end)
+            return Marker(.thematicBreak, end: end)
         }
         if let heading = readHeading(units, at: cursor, to: end) {
             return heading
@@ -338,7 +379,7 @@ extension EntryMarkdown {
         if let numbered = readNumberedItem(units, at: cursor, to: end) {
             return numbered
         }
-        return (.paragraph, cursor)
+        return Marker(.paragraph, end: cursor)
     }
 
     private static func isThematicBreak(_ units: [UInt16], from start: Int, to end: Int) -> Bool {
@@ -357,11 +398,7 @@ extension EntryMarkdown {
         return marks >= 3
     }
 
-    private static func readHeading(
-        _ units: [UInt16],
-        at cursor: Int,
-        to end: Int
-    ) -> (MarkdownBlock, Int)? {
+    private static func readHeading(_ units: [UInt16], at cursor: Int, to end: Int) -> Marker? {
         var index = cursor
         while index < end, units[index] == Unit.hash { index += 1 }
         let level = index - cursor
@@ -371,14 +408,10 @@ extension EntryMarkdown {
         guard (1...6).contains(level), index == end || isSpaceOrTab(units[index]) else {
             return nil
         }
-        return (.heading(level: level), skippingSpaces(units, from: index, to: end))
+        return Marker(.heading(level: level), end: skippingSpaces(units, from: index, to: end))
     }
 
-    private static func readQuote(
-        _ units: [UInt16],
-        at cursor: Int,
-        to end: Int
-    ) -> (MarkdownBlock, Int)? {
+    private static func readQuote(_ units: [UInt16], at cursor: Int, to end: Int) -> Marker? {
         guard units[cursor] == Unit.greaterThan else { return nil }
         var index = cursor
         var depth = 0
@@ -386,27 +419,47 @@ extension EntryMarkdown {
             depth += 1
             index = skippingSpaces(units, from: index + 1, to: end)
         }
-        return (.quote(depth: depth), index)
+        return Marker(.quote(depth: depth), end: index)
     }
 
-    private static func readBulletItem(
-        _ units: [UInt16],
-        at cursor: Int,
-        to end: Int
-    ) -> (MarkdownBlock, Int)? {
+    private static func readBulletItem(_ units: [UInt16], at cursor: Int, to end: Int) -> Marker? {
         let mark = units[cursor]
         guard mark == Unit.hyphen || mark == Unit.asterisk || mark == Unit.plus else { return nil }
         // The space is what separates a bullet from a word that starts with a
         // dash, and `*emphasis*` from a list item.
         guard cursor + 1 == end || isSpaceOrTab(units[cursor + 1]) else { return nil }
-        return (.bulletItem, skippingSpaces(units, from: cursor + 1, to: end))
+
+        let words = skippingSpaces(units, from: cursor + 1, to: end)
+        if let task = readBox(units, at: words, to: end) {
+            return task
+        }
+        return Marker(.bulletItem, end: words)
     }
 
-    private static func readNumberedItem(
-        _ units: [UInt16],
-        at cursor: Int,
-        to end: Int
-    ) -> (MarkdownBlock, Int)? {
+    /// The `[ ]` or `[x]` that turns a bullet into a task item.
+    ///
+    /// The box has to be the first thing after the bullet and has to be
+    /// followed by a space or by nothing — `- [x]y` is a bullet whose words
+    /// start with a bracket, and so is `- the [x] column`. Anything but a
+    /// space or an `x` between the brackets is somebody's own notation, and is
+    /// left as the words it is.
+    private static func readBox(_ units: [UInt16], at cursor: Int, to end: Int) -> Marker? {
+        guard cursor + 2 < end, units[cursor] == Unit.leftBracket else { return nil }
+        guard units[cursor + 2] == Unit.rightBracket else { return nil }
+        guard cursor + 3 == end || isSpaceOrTab(units[cursor + 3]) else { return nil }
+
+        let state = units[cursor + 1]
+        let isDone = state == Unit.lowercaseX || state == Unit.uppercaseX
+        guard isDone || state == Unit.space else { return nil }
+
+        return Marker(
+            .taskItem(isDone: isDone),
+            end: skippingSpaces(units, from: cursor + 3, to: end),
+            box: bounds(cursor, cursor + 3)
+        )
+    }
+
+    private static func readNumberedItem(_ units: [UInt16], at cursor: Int, to end: Int) -> Marker? {
         var index = cursor
         while index < end, isDigit(units[index]), index - cursor < 9 { index += 1 }
         guard index > cursor, index < end else { return nil }
@@ -417,7 +470,10 @@ extension EntryMarkdown {
 
         let digits = String(decoding: units[cursor..<index], as: UTF16.self)
         guard let number = Int(digits) else { return nil }
-        return (.numberedItem(number: number), skippingSpaces(units, from: index + 1, to: end))
+        return Marker(
+            .numberedItem(number: number),
+            end: skippingSpaces(units, from: index + 1, to: end)
+        )
     }
 
     private static func skippingSpaces(_ units: [UInt16], from index: Int, to end: Int) -> Int {
@@ -469,7 +525,12 @@ extension EntryMarkdown {
 
             case Unit.exclamationMark
             where index + 1 < end && units[index + 1] == Unit.leftBracket:
-                if let embed = linkSpan(units, bracket: index + 1, to: end, embedded: true) {
+                // A second bracket is Obsidian's spelling of the same thing,
+                // and it is tried first: `![[a]](b)` is a wiki embed of `a`
+                // with a stray link after it, not a standard embed of `[a]`.
+                if let embed = wikiEmbedSpan(units, at: index, to: end)
+                    ?? linkSpan(units, bracket: index + 1, to: end, embedded: true)
+                {
                     found.append(embed)
                     index = embed.range.upperBound
                 } else {
@@ -510,6 +571,7 @@ extension EntryMarkdown {
                     opening: bounds(index, index + fence),
                     content: bounds(index + fence, cursor),
                     closing: bounds(cursor, cursor + fence),
+                    destination: bounds(cursor, cursor),
                     // Nothing inside code is markdown — that is what code is.
                     inlines: []
                 )
@@ -622,6 +684,7 @@ extension EntryMarkdown {
                 opening: bounds(openStart, openEnd),
                 content: bounds(openEnd, closeStart),
                 closing: bounds(closeStart, closeEnd),
+                destination: bounds(closeEnd, closeEnd),
                 inlines: inlines(in: units, from: openEnd, to: closeStart)
             )
         }
@@ -632,6 +695,7 @@ extension EntryMarkdown {
             opening: bounds(openStart + 1, openEnd),
             content: bounds(openEnd, closeStart),
             closing: bounds(closeStart, closeStart + 2),
+            destination: bounds(closeStart + 2, closeStart + 2),
             inlines: inlines(in: units, from: openEnd, to: closeStart)
         )
         return MarkdownInline(
@@ -640,6 +704,7 @@ extension EntryMarkdown {
             opening: bounds(openStart, openStart + 1),
             content: bounds(openStart + 1, closeStart + 2),
             closing: bounds(closeStart + 2, closeEnd),
+            destination: bounds(closeEnd, closeEnd),
             inlines: [strong]
         )
     }
@@ -673,8 +738,57 @@ extension EntryMarkdown {
             content: bounds(bracket + 1, closeBracket),
             // All of `](destination)` is punctuation, and drawn as such.
             closing: bounds(closeBracket, closeParenthesis + 1),
+            destination: bounds(closeBracket + 2, closeParenthesis),
             inlines: inlines(in: units, from: bracket + 1, to: closeBracket)
         )
+    }
+
+    /// `![[target]]`, and `![[target|however Obsidian was asked to size it]]`
+    /// — the embed as an Obsidian vault spells it.
+    ///
+    /// Read wherever it appears, whatever the embed-syntax setting says: the
+    /// setting decides what Aujour writes into an Entry, and a folder shared
+    /// with Obsidian holds what Obsidian wrote (`v1-decisions.md`).
+    ///
+    /// The target is one file name and no markdown — a `*` in it is a
+    /// character in a file name — so nothing inside is read as a span, and a
+    /// bracket inside ends the search rather than nesting.
+    private static func wikiEmbedSpan(
+        _ units: [UInt16],
+        at index: Int,
+        to end: Int
+    ) -> MarkdownInline? {
+        let contentStart = index + 3
+        guard contentStart <= end, units[index + 1] == Unit.leftBracket else { return nil }
+        guard contentStart < end, units[contentStart] != Unit.leftBracket else { return nil }
+
+        var cursor = contentStart
+        var pipe: Int?
+        while cursor + 1 < end {
+            switch units[cursor] {
+            case Unit.rightBracket where units[cursor + 1] == Unit.rightBracket:
+                guard cursor > contentStart else { return nil }
+                return MarkdownInline(
+                    style: .image,
+                    range: bounds(index, cursor + 2),
+                    opening: bounds(index, contentStart),
+                    content: bounds(contentStart, cursor),
+                    closing: bounds(cursor, cursor + 2),
+                    // Everything after the pipe is Obsidian telling itself how
+                    // wide to draw the picture. The file is what comes before.
+                    destination: bounds(contentStart, pipe ?? cursor),
+                    inlines: []
+                )
+            case Unit.leftBracket, Unit.rightBracket:
+                return nil
+            case Unit.verticalBar where pipe == nil:
+                pipe = cursor
+            default:
+                break
+            }
+            cursor += 1
+        }
+        return nil
     }
 
     /// The index of the delimiter closing the one at `start`, counting nested
@@ -731,8 +845,11 @@ private enum Unit {
     static let leftBracket: UInt16 = 0x5B
     static let backslash: UInt16 = 0x5C
     static let rightBracket: UInt16 = 0x5D
+    static let uppercaseX: UInt16 = 0x58
     static let underscore: UInt16 = 0x5F
     static let backtick: UInt16 = 0x60
+    static let lowercaseX: UInt16 = 0x78
+    static let verticalBar: UInt16 = 0x7C
     static let tilde: UInt16 = 0x7E
     static let paragraphSeparator: UInt16 = 0x2029
 }

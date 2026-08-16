@@ -165,6 +165,41 @@ standing in a heading does not reveal the emphasis further along it — and an
 element's ends count as inside it, because a caret against the closing `*` is
 a caret editing that emphasis.
 
+### Drawn Element
+A stretch of an Entry the editor draws as something other than its own
+characters: a Task's box, and an Embed's picture. Live Preview's other half —
+where hiding leaves a mark out of the drawing because what it means is already
+on screen without it, a Drawn Element is *stood in for*, and something takes
+its place.
+
+Held to the same cursor rule, and for the same reason: a stretch is only stood
+in for while the cursor is away from it, so the markdown is on screen wherever
+somebody might edit it and nobody ever deletes a character they could not see.
+Nothing is added to the text to hang the drawing on — the box and the picture
+are laid out over characters the file already has, which stay selectable,
+deletable and in the file (ADR 0001).
+
+A picture nobody can find is not a Drawn Element at all: an Embed whose target
+names no file in the Journal Root is left as the markdown it is, visible and
+harmless, exactly as Obsidian shows it.
+
+### Task
+A list item whose first word is a box: `- [ ]` or `- [x]`. Drawn as a checkbox
+the user taps, and tapping it rewrites one character of the Entry — the file is
+plain markdown before and after, so a task Aujour ticked and a task Obsidian
+ticked are the same file.
+
+### Embed
+An Attachment referenced from an Entry, in either of the two spellings a vault
+holds: standard markdown `![alt](path)` and Obsidian's `![[target]]`. Both are
+drawn as the picture they name wherever they are written; the embed-syntax
+Journal Setting decides only what Aujour itself *writes*.
+
+Where a target points is resolved against the Entry holding it first and the
+Journal Root second, and a bare file name is looked for anywhere in the folder
+— which is what a wiki embed means. Never outside the Journal Root: a target
+that climbs past it names somebody else's file and resolves to nothing.
+
 ### Divergence
 Two versions of one Journal Day that were both written — the Entry edited on
 two devices while one of them was offline, which iCloud brings back as a

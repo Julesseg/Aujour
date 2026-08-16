@@ -100,7 +100,22 @@ public final class EntryEditor {
     @ObservationIgnored private let wait: @MainActor (Duration) async throws -> Void
 
     /// Where this day's Entry belongs, once the Path Template has been read.
-    @ObservationIgnored private var entryPath: String?
+    ///
+    /// Public because an embed is written relative to the Entry that holds it
+    /// — `![](market.jpg)` in `2026/03/2026-03-14.md` means the picture beside
+    /// it — so the folder this path names is half of finding the file. Not
+    /// ignored by observation like the rest, because the editor drawing this
+    /// Entry has to hear when it becomes a different day's.
+    public private(set) var entryPath: String?
+
+    /// The folder this Entry is in, for reading what is not the Entry: the
+    /// pictures its embeds point at.
+    ///
+    /// The same seam everything else here goes through, handed on rather than
+    /// re-derived — an editor over an in-memory journal resolves its embeds
+    /// against that journal, which is what makes drawing one testable without
+    /// a disk.
+    public var folder: any JournalStore { store }
 
     /// The text a save would be a no-op against: what the folder holds, or —
     /// before there is a file — the text the template spawned, which is

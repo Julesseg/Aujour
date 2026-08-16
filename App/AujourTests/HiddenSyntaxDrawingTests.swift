@@ -201,7 +201,7 @@ struct HiddenSyntaxDrawingTests {
         /// alive, and a storage that went away under it would take the
         /// attributes these measurements are about with it.
         let storage: MarkdownTextStorage
-        let glyphs: HiddenSyntaxGlyphs
+        let glyphs: MarkdownGlyphs
 
         /// How much room a stretch of characters takes on screen — nothing at
         /// all, for the ones that were not turned into glyphs.
@@ -224,7 +224,7 @@ struct HiddenSyntaxDrawingTests {
     private func laidOut(_ source: String, caret: Int) -> LaidOut {
         let storage = MarkdownTextStorage(styling: styling)
         let layoutManager = NSLayoutManager()
-        let glyphs = HiddenSyntaxGlyphs()
+        let glyphs = MarkdownGlyphs()
         let container = NSTextContainer(
             size: CGSize(width: 2000, height: CGFloat.greatestFiniteMagnitude)
         )

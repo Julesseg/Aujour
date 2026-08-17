@@ -71,4 +71,51 @@ extension URL {
         if let refused { throw refused }
         if let written { throw written }
     }
+
+    /// The same, for a folder rather than a day: a month another device has
+    /// started journaling into, arriving before any of its Entries do.
+    func somebodyElseMakesAFolder(at relativePath: String) throws {
+        var made: (any Error)?
+        var refused: NSError?
+        NSFileCoordinator(filePresenter: nil).coordinate(
+            writingItemAt: appending(path: relativePath, directoryHint: .isDirectory),
+            options: .forReplacing,
+            error: &refused
+        ) { folder in
+            do {
+                try FileManager.default.createDirectory(
+                    at: folder,
+                    withIntermediateDirectories: true
+                )
+            } catch {
+                made = error
+            }
+        }
+        if let refused { throw refused }
+        if let made { throw made }
+    }
+
+    /// The same, for a day another app removes — deleted in Obsidian, or
+    /// dragged to the bin in the Files app.
+    ///
+    /// Coordinated for deleting, which is the option that asks a presenter to
+    /// make way rather than telling it afterwards, and so the only one that is
+    /// how a deletion actually reaches Aujour.
+    func somebodyElseDeletes(at relativePath: String) throws {
+        var removed: (any Error)?
+        var refused: NSError?
+        NSFileCoordinator(filePresenter: nil).coordinate(
+            writingItemAt: appending(path: relativePath),
+            options: .forDeleting,
+            error: &refused
+        ) { file in
+            do {
+                try FileManager.default.removeItem(at: file)
+            } catch {
+                removed = error
+            }
+        }
+        if let refused { throw refused }
+        if let removed { throw removed }
+    }
 }

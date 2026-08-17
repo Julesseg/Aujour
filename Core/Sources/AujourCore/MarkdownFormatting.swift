@@ -22,12 +22,14 @@ import Foundation
 ///
 /// It undoes itself. Bold inside a bold word takes the marks away, a bullet on
 /// a list of bullets takes the markers away — the same button, and the way back
-/// from a mistake is the button that made it. Two exceptions earn themselves:
+/// from a mistake is the button that made it. Three exceptions earn themselves:
 /// a heading at another level is re-levelled rather than removed, because
-/// nobody presses *Heading 2* meaning "not a heading"; and bold at the *end* of
-/// a bold word steps the caret out over the closing marks, because that is
+/// nobody presses *Heading 2* meaning "not a heading"; bold at the *end* of a
+/// bold word steps the caret out over the closing marks, because that is
 /// somebody who has finished writing the bold word rather than somebody who
-/// wishes they had not.
+/// wishes they had not; and the checkbox goes round three states rather than
+/// two — a task, a task that is done, and neither — because ticking a box is
+/// otherwise something only a finger on the glass can do (``taskList``).
 public enum MarkdownFormatting: Equatable, Sendable {
     /// `**two stars**`.
     case strong
@@ -44,7 +46,14 @@ public enum MarkdownFormatting: Equatable, Sendable {
     /// `1. `, counting down the lines the selection touches.
     case numberedList
 
-    /// `- [ ] `, on every line the selection touches.
+    /// `- [ ] `, on every line the selection touches — and then the tick, and
+    /// then neither.
+    ///
+    /// The one control that goes round three states. A box is drawn over
+    /// characters rather than being a view, so a finger on the glass is the
+    /// only thing that can tick one on the page; this is how a Task is made,
+    /// ticked and unmade by somebody who is working by VoiceOver, by Switch
+    /// Control, or by a keyboard.
     case taskList
 
     /// One level further in, on every line the selection touches.
@@ -80,19 +89,17 @@ public enum MarkdownFormatting: Equatable, Sendable {
 // MARK: - Bold and italic
 
 extension MarkdownFormatting {
-    /// The delimiter this control wraps words in, for the two that wrap any.
-    private var mark: String? {
+    /// The span this control writes and the marks it is spelled with, for the
+    /// two controls that wrap words rather than opening a line.
+    ///
+    /// The two together, because they are one fact said twice: what is read
+    /// back out of the Entry (``AujourCore/MarkdownInline/Style``) is what the
+    /// control put in, and a control whose marks and style could disagree
+    /// would wrap a word it then could not unwrap.
+    private var wraps: (style: MarkdownInline.Style, mark: String)? {
         switch self {
-        case .strong: return "**"
-        case .emphasis: return "*"
-        case .heading, .bulletList, .numberedList, .taskList, .indent, .outdent: return nil
-        }
-    }
-
-    private var style: MarkdownInline.Style? {
-        switch self {
-        case .strong: return .strong
-        case .emphasis: return .emphasis
+        case .strong: return (.strong, "**")
+        case .emphasis: return (.emphasis, "*")
         case .heading, .bulletList, .numberedList, .taskList, .indent, .outdent: return nil
         }
     }
@@ -109,16 +116,15 @@ extension MarkdownFormatting {
         in reading: EntryMarkdown,
         over cursor: NSRange
     ) -> MarkdownEdit? {
-        guard let mark, let style, let line = reading.line(holding: cursor.location) else {
-            return nil
-        }
+        guard let wraps, let line = reading.line(holding: cursor.location) else { return nil }
         let within = cursor.brought(inside: line.range)
 
-        if let span = MarkdownFormatting.span(of: style, in: line.inlines, around: within) {
+        if let span = MarkdownFormatting.span(of: wraps.style, in: line.inlines, around: within) {
             return leaving(span, at: within, in: text)
         }
 
         let words = wordsToWrap(text, at: within, in: line)
+        let mark = wraps.mark
         return MarkdownEdit(
             range: words,
             replacement: mark + text.substring(with: words) + mark,
@@ -134,6 +140,14 @@ extension MarkdownFormatting {
 
     /// What to do about a cursor that is already inside a pair of these marks:
     /// step out over the closing ones, or take both away.
+    ///
+    /// Which is not symmetrical, deliberately. A caret at the closing end has
+    /// somebody behind it who has just written the word; one at the opening
+    /// end has somebody who has written nothing, and taking the marks away is
+    /// the only thing they could mean. Past the closing marks there is
+    /// nothing to do at all and this says so — a second pair of marks against
+    /// the first would spell `****`, which is not bold anywhere and is not
+    /// what anybody asked for either.
     private func leaving(
         _ span: MarkdownInline,
         at cursor: NSRange,
@@ -226,17 +240,20 @@ extension MarkdownFormatting {
         // an empty bullet somebody has to delete again. So the blank lines
         // between paragraphs — where most multi-line selections stop — are
         // passed over, and they do not get a say in whether the rest of the
-        // selection is already a list.
+        // selection is already what this control would make it.
         let written = selected.filter { $0.block != .blank }
         guard !written.isEmpty else { return nil }
-        let undoing = marker(nil) != nil && written.allSatisfy { isAlreadyDone($0.block) }
 
+        let marking = marking(of: written)
+        let step = stepIn(under: reading.lines.last { $0.range.upperBound < first.range.location })
         var lines: [RewrittenLine] = []
         var number = firstNumber(before: first, in: reading)
         var lineStart = first.range.location
 
         for line in selected {
-            let rewritten = rewrite(line, in: text, undoing: undoing, number: number, at: lineStart)
+            let rewritten = rewrite(
+                line, in: text, marking: marking, number: number, step: step, at: lineStart
+            )
             if line.block != .blank, case .numberedList = self { number += 1 }
             lineStart = rewritten.rewritten.upperBound + breakLength(of: line)
             lines.append(rewritten)
@@ -287,18 +304,14 @@ extension MarkdownFormatting {
     private func rewrite(
         _ line: MarkdownLine,
         in text: NSString,
-        undoing: Bool,
+        marking: Marking,
         number: Int,
+        step: String,
         at start: Int
     ) -> RewrittenLine {
-        // A blank line is kept whole and whatever it is: there is nothing on
-        // it to be a heading or a list item, and a `- ` on its own is an empty
-        // bullet somebody has to delete again.
-        let words = line.block == .blank ? line.range : keptWords(of: line)
-        let prefix = line.block == .blank
-            ? ""
-            : self.prefix(of: line, in: text, undoing: undoing, number: number)
-
+        let (words, prefix) = rewriting(
+            line, in: text, marking: marking, number: number, step: step
+        )
         let rewritten = prefix + text.substring(with: words)
         return RewrittenLine(
             line: line,
@@ -309,76 +322,125 @@ extension MarkdownFormatting {
         )
     }
 
-    /// The characters of a line this control keeps as they are.
-    private func keptWords(of line: MarkdownLine) -> NSRange {
-        // The marker moves with the words when a line is indented: a bullet a
-        // step further in is still a bullet. And a rule is nothing *but* its
-        // own characters — there are no words behind `---` for a marker to
-        // introduce — so its dashes are kept rather than thrown away.
-        switch self {
-        case .indent, .outdent:
-            return line.markerAndWords
-        case .strong, .emphasis, .heading, .bulletList, .numberedList, .taskList:
-            return line.block == .thematicBreak ? line.markerAndWords : line.content
-        }
-    }
-
-    /// What now comes in front of a line's words: its indent, and the marker
-    /// this control gives it.
-    private func prefix(
-        of line: MarkdownLine,
+    /// How this control rewrites one line: the characters of it that are kept,
+    /// and what now goes in front of them.
+    ///
+    /// The two answered together because they are one decision — a control
+    /// that took a line's marker away in one of them and left the words after
+    /// it in the other would write a line that is neither.
+    private func rewriting(
+        _ line: MarkdownLine,
         in text: NSString,
-        undoing: Bool,
-        number: Int
-    ) -> String {
+        marking: Marking,
+        number: Int,
+        step: String
+    ) -> (words: NSRange, prefix: String) {
+        // A blank line is kept whole and left as it is: see above.
+        guard line.block != .blank else { return (line.range, "") }
         let indent = text.substring(with: line.indent)
+
         switch self {
         case .indent:
-            // Indented the way the line is already indented: a vault written
-            // in Obsidian is indented with tabs, and one line of it indented
-            // with spaces is a line that lines up with nothing.
-            return (indent.contains("\t") ? "\t" : "  ") + indent
+            // The marker goes in with the words: a bullet a step further in is
+            // still a bullet. Spelled with a tab where the line is already
+            // indented with them, because a vault written in Obsidian is, and
+            // one line of spaces among them lines up with nothing.
+            return (line.markerAndWords, (indent.contains("\t") ? "\t" : step) + indent)
         case .outdent:
-            return String(steppedBack(indent))
-        case .strong, .emphasis:
-            // These two never reach a line: they wrap words inside one, and
-            // whatever it starts with is none of their business.
-            return indent
-        case .heading, .bulletList, .numberedList, .taskList:
-            return indent + (undoing ? "" : marker(number) ?? "")
+            return (line.markerAndWords, String(steppedBack(indent, by: step)))
+        case .strong, .emphasis, .heading, .bulletList, .numberedList, .taskList:
+            // A rule is nothing *but* its own characters — there are no words
+            // behind `---` for a marker to introduce — so its dashes are kept
+            // rather than thrown away.
+            //
+            // The two that wrap words never reach a line, and a marker they
+            // did not ask for is the empty one.
+            let words = line.block == .thematicBreak ? line.markerAndWords : line.content
+            return (words, indent + (marker(number, marking) ?? ""))
         }
     }
 
-    /// One level of indentation taken off the front — a tab, or up to the two
-    /// spaces one is written as.
-    private func steppedBack(_ indent: String) -> Substring {
+    /// One level of indentation taken off the front — a tab, or as many of the
+    /// spaces one is written as there are to take.
+    private func steppedBack(_ indent: String, by step: String) -> Substring {
         if indent.hasPrefix("\t") { return indent.dropFirst() }
         var stepped = Substring(indent)
-        for _ in 0..<2 where stepped.hasPrefix(" ") { stepped = stepped.dropFirst() }
+        for _ in 0..<step.count where stepped.hasPrefix(" ") { stepped = stepped.dropFirst() }
         return stepped
     }
 
-    /// The marker this control puts in front of a line, or `nil` for the
-    /// controls that do not deal in markers.
-    private func marker(_ number: Int?) -> String? {
+    /// One step in, as spaces: the width of the marker on the line above, so
+    /// that a line stepped in under `1. ` starts where that item's words do and
+    /// is read as nested rather than as the next item along. Two spaces where
+    /// there is no list above to nest under, which is what `- ` measures.
+    ///
+    /// A task's box is not part of the step — `- [ ] milk` is a bullet whose
+    /// words happen to begin with a box, and its words start two characters
+    /// in like any other bullet's.
+    private func stepIn(under previous: MarkdownLine?) -> String {
+        let width =
+            switch previous?.block {
+            case .taskItem:
+                previous.map { $0.box.location - $0.indent.upperBound } ?? 2
+            case .bulletItem, .numberedItem:
+                previous?.marker.length ?? 2
+            default:
+                2
+            }
+        return String(repeating: " ", count: max(2, width))
+    }
+
+    /// The marker this control puts in front of a line, or `nil` where it is
+    /// taking one away or does not deal in markers at all.
+    private func marker(_ number: Int, _ marking: Marking) -> String? {
+        guard marking != .take else { return nil }
         switch self {
         case .heading(let level): return String(repeating: "#", count: level) + " "
         case .bulletList: return "- "
-        case .numberedList: return "\(number ?? 1). "
-        case .taskList: return "- [ ] "
+        case .numberedList: return "\(number). "
+        case .taskList: return marking == .tick ? "- [x] " : "- [ ] "
         case .strong, .emphasis, .indent, .outdent: return nil
         }
     }
 
-    /// Whether a line is already what this control would make it — which is
-    /// what turns the control into the way back out.
-    private func isAlreadyDone(_ block: MarkdownBlock) -> Bool {
-        switch (self, block) {
-        case (.heading(let level), .heading(let onTheLine)): return level == onTheLine
-        case (.bulletList, .bulletItem): return true
-        case (.numberedList, .numberedItem): return true
-        case (.taskList, .taskItem): return true
-        default: return false
+    /// What a control does to the lines it is aimed at, which depends on what
+    /// they already are.
+    private enum Marking {
+        /// Put this control's marker in front of them.
+        case put
+
+        /// Tick the boxes: every line is a task, and none of them is done.
+        case tick
+
+        /// Take the marker away — every line already has what this control
+        /// would give it, which is what makes the control its own way back.
+        case take
+    }
+
+    /// Which of the three a selection is in for.
+    ///
+    /// The checkbox has three states rather than two, and it is the one
+    /// control that has to: a box is painted glyphs rather than a view, so a
+    /// finger is the only thing that can tick one on the page. Cycling here —
+    /// a task, then a task that is done, then neither — is what makes a Task
+    /// reachable to somebody working by VoiceOver or Switch Control, and it
+    /// leaves every state one or two presses away.
+    private func marking(of lines: [MarkdownLine]) -> Marking {
+        switch self {
+        case .taskList:
+            if lines.allSatisfy({ $0.block == .taskItem(isDone: false) }) { return .tick }
+            if lines.allSatisfy({ $0.block == .taskItem(isDone: true) }) { return .take }
+            return .put
+        case .heading(let level):
+            return lines.allSatisfy { $0.block == .heading(level: level) } ? .take : .put
+        case .bulletList:
+            return lines.allSatisfy { $0.block == .bulletItem } ? .take : .put
+        case .numberedList:
+            return lines.allSatisfy { $0.block.isNumbered } ? .take : .put
+        // Indenting is the one control with no state to be in: a line that has
+        // been stepped in can be stepped in again.
+        case .strong, .emphasis, .indent, .outdent:
+            return .put
         }
     }
 
@@ -435,6 +497,14 @@ extension MarkdownFormatting {
 
 // MARK: - Finding the lines a cursor is on
 
+extension MarkdownBlock {
+    /// Whether this line is numbered, whatever number it carries.
+    fileprivate var isNumbered: Bool {
+        if case .numberedItem = self { return true }
+        return false
+    }
+}
+
 extension MarkdownLine {
     /// Everything on the line but the whitespace it starts with — what a
     /// control keeps when it is rewriting that whitespace rather than the
@@ -445,13 +515,6 @@ extension MarkdownLine {
 }
 
 extension EntryMarkdown {
-    /// The line a position is on. Past the end of what was read it is the last
-    /// line, which is where a stale selection points after the file moved on
-    /// underneath the editor.
-    func line(holding position: Int) -> MarkdownLine? {
-        lines.first { position < $0.paragraph.upperBound } ?? lines.last
-    }
-
     /// Every line a cursor reaches — the one a caret is on, or all of those a
     /// selection covers.
     ///

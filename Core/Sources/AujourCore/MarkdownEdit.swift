@@ -49,8 +49,7 @@ extension EntryMarkdown {
     /// between them. Past the end of what was read it is the last line, which
     /// is where a tap at the bottom of an Entry lands.
     public func tickingTheBox(at index: Int) -> MarkdownEdit? {
-        let line = lines.first { index < $0.paragraph.upperBound } ?? lines.last
-        guard let line, line.box.length > 0 else { return nil }
+        guard let line = line(holding: index), line.box.length > 0 else { return nil }
         guard case .taskItem(let isDone) = line.block else { return nil }
 
         return MarkdownEdit(

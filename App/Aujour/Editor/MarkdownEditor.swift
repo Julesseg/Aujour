@@ -35,12 +35,6 @@ struct MarkdownEditor: UIViewRepresentable {
     let identifier: String
     let label: String
 
-    /// What the accessory row's photo control does, or `nil` while nothing has
-    /// said — which is where the attachment pipeline (issue #22) plugs in, and
-    /// until it does, a control that says it is not ready rather than a button
-    /// that looks live and does nothing (``MarkdownAccessoryRow``).
-    var insertPhoto: (() -> Void)? = nil
-
     func makeUIView(context: Context) -> UITextView {
         let styling = MarkdownStyling()
         let storage = MarkdownTextStorage(styling: styling)
@@ -92,7 +86,7 @@ struct MarkdownEditor: UIViewRepresentable {
         pictures.whenOneArrives = { [weak storage] in storage?.aPictureArrived() }
 
         context.coordinator.ticksBoxes(in: textView)
-        context.coordinator.formats(in: textView, insertPhoto: insertPhoto)
+        context.coordinator.formats(in: textView)
         storage.setSource(text)
         return textView
     }
@@ -170,9 +164,9 @@ struct MarkdownEditor: UIViewRepresentable {
         /// A finger is the only way to *this*, and deliberately so: a box is
         /// painted glyphs, not a view, so VoiceOver and Switch Control reach
         /// the line's `- [ ] ` as text and nothing they can activate. What
-        /// answers for them is the accessory row, whose checkbox control makes
-        /// and unmakes a task without the box ever being aimed at, and whose
-        /// buttons are the only part of this editor with a label to read.
+        /// answers for them is the accessory row's checkbox control, which
+        /// goes round all three states of a task — made, ticked, and neither —
+        /// so a box can be ticked by somebody who never aims at one.
         func ticksBoxes(in textView: UITextView) {
             let tick = UITapGestureRecognizer(target: self, action: #selector(tickTheBoxTapped))
             tick.delegate = self
@@ -211,9 +205,11 @@ struct MarkdownEditor: UIViewRepresentable {
         /// it comes and goes with the keyboard — see ``MarkdownAccessoryRow``.
         /// The row is handed a way to say which control was pressed and
         /// nothing else: what a control writes is Core's, and where it writes
-        /// it is this text view's.
-        func formats(in textView: UITextView, insertPhoto: (() -> Void)?) {
-            textView.inputAccessoryView = MarkdownAccessoryRow(insertPhoto: insertPhoto) {
+        /// it is this text view's. Nothing is handed it for the photo control,
+        /// which is why that one is on the row and not yet offered — inserting
+        /// a photograph is the attachment pipeline's (issue #22).
+        func formats(in textView: UITextView) {
+            textView.inputAccessoryView = MarkdownAccessoryRow {
                 [weak self, weak textView] command in
                 guard let self, let textView else { return }
                 format(command, in: textView)
@@ -246,16 +242,23 @@ struct MarkdownEditor: UIViewRepresentable {
         /// typed before it. Registered against the same undo manager the
         /// typing uses, so the two share one stack in the order they happened.
         private func apply(_ edit: MarkdownEdit, in textView: UITextView) {
+            let onScreen = textView.text as NSString
+            // An edit is about the text it was worked out from, and an undo
+            // registered against a day the file has since replaced is about
+            // characters that are not there any more. Left undone rather than
+            // reaching past the end of the Entry, which is an exception in
+            // front of somebody who is writing.
+            guard edit.range.upperBound <= onScreen.length else { return }
+
             let selection = textView.selectedRange
-            let before = (textView.text as NSString).substring(with: edit.range)
+            let before = onScreen.substring(with: edit.range)
 
             // A control can ask for nothing but a different cursor — bold at
             // the end of a bold word steps out over its closing marks — and an
             // edit that writes the same characters back is not an edit to save
             // or to undo.
             guard before != edit.replacement else {
-                textView.selectedRange = edit.selection ?? selection
-                rememberWhereTheCursorIs(in: textView)
+                put(edit.selection ?? selection, in: textView)
                 return
             }
 
@@ -266,8 +269,7 @@ struct MarkdownEditor: UIViewRepresentable {
             // the finger that just tapped it — while a formatting control
             // wrote its characters around the very place they are writing, and
             // has to hand the words back.
-            textView.selectedRange = edit.selection ?? selection
-            rememberWhereTheCursorIs(in: textView)
+            put(edit.selection ?? selection, in: textView)
             // The text view announces what it was told to change, not what
             // this told its storage — so the Entry is told here, and hears
             // about a tick exactly as it hears about a keystroke.
@@ -290,10 +292,20 @@ struct MarkdownEditor: UIViewRepresentable {
             }
         }
 
-        /// Tells the storage where the cursor has been left, for the moves it
-        /// makes rather than the user: the element it is now in shows its
-        /// markdown, and the one it left goes back to being a document.
-        private func rememberWhereTheCursorIs(in textView: UITextView) {
+        /// Leaves the cursor where an edit said to, and tells the storage —
+        /// which hears about the caret the user moves and not the one moved
+        /// for them, and has to draw the element it is now in.
+        ///
+        /// Brought inside the text on the way, for the same reason the edit
+        /// above is: a range past the end of an Entry is an exception rather
+        /// than a misplaced caret.
+        private func put(_ cursor: NSRange, in textView: UITextView) {
+            let length = (textView.text as NSString).length
+            let location = min(max(cursor.location, 0), length)
+            textView.selectedRange = NSRange(
+                location: location,
+                length: min(max(cursor.length, 0), length - location)
+            )
             storage(of: textView)?.cursor = cursorIfSomebodyIsWriting(in: textView)
         }
 

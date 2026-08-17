@@ -33,11 +33,7 @@ final class OpenEditor {
     /// What the Entry has been told, or `nil` if it has been told nothing.
     var written: String? { entry.text }
 
-    init(
-        holding source: String,
-        styling: MarkdownStyling = MarkdownStyling(),
-        insertPhoto: (() -> Void)? = nil
-    ) {
+    init(holding source: String, styling: MarkdownStyling = MarkdownStyling()) {
         let storage = MarkdownTextStorage(styling: styling)
         let layoutManager = MarkdownLayoutManager()
         let container = NSTextContainer(
@@ -65,7 +61,7 @@ final class OpenEditor {
         )
         textView.delegate = coordinator
         coordinator.ticksBoxes(in: textView)
-        coordinator.formats(in: textView, insertPhoto: insertPhoto)
+        coordinator.formats(in: textView)
 
         storage.setSource(source)
         layoutManager.ensureLayout(for: container)

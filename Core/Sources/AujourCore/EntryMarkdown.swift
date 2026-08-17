@@ -247,6 +247,17 @@ public struct MarkdownInline: Equatable, Sendable {
     }
 }
 
+extension EntryMarkdown {
+    /// The line a position in the source is on.
+    ///
+    /// Past the end of what was read it is the last line — which is where a
+    /// tap below the last words of an Entry lands, and where a selection the
+    /// editor is still holding points after the file moved on underneath it.
+    public func line(holding position: Int) -> MarkdownLine? {
+        lines.first { position < $0.paragraph.upperBound } ?? lines.last
+    }
+}
+
 // MARK: - Reading lines
 
 extension EntryMarkdown {

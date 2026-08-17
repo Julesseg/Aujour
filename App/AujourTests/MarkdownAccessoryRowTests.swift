@@ -32,7 +32,11 @@ struct MarkdownAccessoryRowTests {
         #expect(entry.textView.selectedRange == NSRange(location: 19, length: 0))
     }
 
-    @Test("the checkbox control makes a task of the line, and unmakes it")
+    // The control a box would need even if nothing else on the row existed: a
+    // box is drawn over characters rather than being a view, so a finger is
+    // the only thing that can tick one on the page. Round the three states, a
+    // task is made, ticked and unmade without ever being aimed at.
+    @Test("the checkbox control makes a task, ticks it, and unmakes it")
     func checkboxes() {
         let entry = OpenEditor(holding: "Milk")
         entry.cursor(at: 4)
@@ -40,6 +44,12 @@ struct MarkdownAccessoryRowTests {
         entry.coordinator.format(.taskList, in: entry.textView)
         #expect(entry.textView.text == "- [ ] Milk")
         #expect(entry.textView.selectedRange == NSRange(location: 10, length: 0))
+
+        entry.coordinator.format(.taskList, in: entry.textView)
+        #expect(entry.textView.text == "- [x] Milk")
+        // Which is the same one character a finger on the box would have
+        // changed, so the Entry is the plain task list it was before.
+        #expect(entry.written == "- [x] Milk")
 
         entry.coordinator.format(.taskList, in: entry.textView)
         #expect(entry.textView.text == "Milk")
@@ -140,13 +150,13 @@ struct MarkdownAccessoryRowTests {
     func photographs() throws {
         #expect(try !control("insertPhoto", of: MarkdownAccessoryRow { _ in }).isEnabled)
 
-        let asked = Pressed()
-        let ready = MarkdownAccessoryRow(insertPhoto: { asked.commands.append(.indent) }) { _ in }
+        let pressed = Pressed()
+        let ready = MarkdownAccessoryRow(insertPhoto: { pressed.photographs += 1 }) { _ in }
         let photo = try control("insertPhoto", of: ready)
 
         #expect(photo.isEnabled)
         photo.sendActions(for: .touchUpInside)
-        #expect(asked.commands.count == 1)
+        #expect(pressed.photographs == 1)
     }
 
     // MARK: - Reading the row
@@ -155,6 +165,7 @@ struct MarkdownAccessoryRowTests {
     /// row keeps the closure that writes to it.
     private final class Pressed {
         var commands: [MarkdownFormatting] = []
+        var photographs = 0
     }
 
     /// Every button on the row, left to right.

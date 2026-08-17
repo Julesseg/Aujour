@@ -199,17 +199,24 @@ final class AujourUITests: XCTestCase {
         let bold = app.buttons["formatBold"]
         XCTAssertTrue(bold.waitForExistence(timeout: 10), "the formatting row never appeared")
 
-        // The line becomes a task, the word being written becomes bold, and
-        // the whole line steps in — each of them where the cursor is.
+        // The line becomes a task, the box is ticked, the word being written
+        // becomes bold, and the whole line steps in — each of them where the
+        // cursor is, and none of them aimed at.
         editor.typeText("Milk")
-        app.buttons["formatTaskList"].tap()
+        let checkbox = app.buttons["formatTaskList"]
+        checkbox.tap()
         expect(editor, toHaveValue: "- [ ] Milk")
 
+        // The one thing a finger on the box is otherwise the only way to do,
+        // which is why the control goes round three states rather than two.
+        checkbox.tap()
+        expect(editor, toHaveValue: "- [x] Milk")
+
         bold.tap()
-        expect(editor, toHaveValue: "- [ ] **Milk**")
+        expect(editor, toHaveValue: "- [x] **Milk**")
 
         app.buttons["formatIndent"].tap()
-        expect(editor, toHaveValue: "  - [ ] **Milk**")
+        expect(editor, toHaveValue: "  - [x] **Milk**")
 
         // The way to a photograph is on the row and is not offered yet: its
         // flow is the attachment pipeline's (issue #22).
@@ -223,7 +230,7 @@ final class AujourUITests: XCTestCase {
 
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
-        XCTAssertEqual(reopened.value as? String, "  - [ ] **Milk**")
+        XCTAssertEqual(reopened.value as? String, "  - [x] **Milk**")
         // A day being read has no keyboard, and the row is gone with it.
         XCTAssertFalse(
             app.buttons["formatBold"].exists,

@@ -114,6 +114,23 @@ struct MarkdownFormattingTests {
         #expect(formatted(.taskList, "- [x] mi|lk") == "mi|lk")
     }
 
+    // Three states rather than two, and the reason is the one thing a box
+    // cannot do: it is drawn over characters rather than being a view, so a
+    // finger on the glass is the only thing that can tick one on the page.
+    // Round the cycle, a Task can be made, ticked and unmade by somebody who
+    // never touches it.
+    @Test("the checkbox goes round: a task, a task that is done, and neither")
+    func tickingFromTheRow() {
+        #expect(formatted(.taskList, "mi|lk") == "- [ ] mi|lk")
+        #expect(formatted(.taskList, "- [ ] mi|lk") == "- [x] mi|lk")
+        #expect(formatted(.taskList, "- [x] mi|lk") == "mi|lk")
+        // A selection of tasks that are not all in the same state is a
+        // selection somebody is making into tasks.
+        #expect(
+            formatted(.taskList, "|- [x] milk\n- [ ] bread|") == "|- [ ] milk\n- [ ] bread|"
+        )
+    }
+
     // The numbers are what the user reads — the editor draws an Entry's own
     // characters — so a list that starts under `3.` starts at 4.
     @Test("a numbered list counts, and carries on from the line above it")
@@ -122,12 +139,15 @@ struct MarkdownFormattingTests {
         #expect(formatted(.numberedList, "3. milk\n|bread|") == "3. milk\n4. |bread|")
     }
 
-    // One line, one shape: the marker a line has is the one it gives up.
+    // One line, one shape: the marker a line has is the one it gives up. A
+    // quote's `> ` goes the same way a heading's hashes do — it is the mark
+    // that made the line what it was, and the line is something else now.
     @Test("a line can only be one thing, so the marker it had gives way")
     func replacingAMarker() {
         #expect(formatted(.heading(level: 2), "- [ ] mi|lk") == "## mi|lk")
         #expect(formatted(.taskList, "1. mi|lk") == "- [ ] mi|lk")
         #expect(formatted(.bulletList, "# Sun|day") == "- Sun|day")
+        #expect(formatted(.bulletList, "> mi|lk") == "- mi|lk")
     }
 
     // A `- ` on a line with nothing after it is an empty list item somebody
@@ -169,6 +189,19 @@ struct MarkdownFormattingTests {
     func indentingWithTabs() {
         #expect(formatted(.indent, "\t- mi|lk") == "\t\t- mi|lk")
         #expect(formatted(.outdent, "\t\t- mi|lk") == "\t- mi|lk")
+    }
+
+    // Markdown nests a list item under the column its parent's words start in:
+    // two spaces under a `- `, three under a `1. `. A step of the wrong width
+    // is the next item along rather than a nested one, which is what the user
+    // would see in Obsidian.
+    @Test("a step in is as wide as the marker on the line above it")
+    func indentingUnderAList() {
+        #expect(formatted(.indent, "1. milk\n|bread") == "1. milk\n   |bread")
+        #expect(formatted(.outdent, "1. milk\n   |bread") == "1. milk\n|bread")
+        // A task's box is not part of the step: `- [ ] milk` is a bullet whose
+        // words happen to begin with a box.
+        #expect(formatted(.indent, "- [ ] milk\n|bread") == "- [ ] milk\n  |bread")
     }
 
     // The cursor stays with the characters it was against — the whole of both

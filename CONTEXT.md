@@ -213,7 +213,9 @@ Every control is a shortcut for markdown the user could have typed by hand, so
 each one is a rewrite of the characters that are already there and the Entry is
 plain markdown before and after. A control acts on what the cursor is on: the
 word a caret stands in or the words that are selected for the ones that wrap,
-and every line the selection touches for the ones that are about lines.
+and every line the selection touches for the ones that are about lines — a line
+with nothing on it included, since a list is most often started on the empty
+line the return key just made.
 
 Each is its own way back: bold inside a bold word takes the marks away, a
 bullet on a list of bullets takes the markers away. Three exceptions earn

@@ -74,6 +74,20 @@ struct MarkdownAccessoryRowTests {
         #expect(entry.textView.selectedRange == NSRange(location: 2, length: 0))
     }
 
+    // The commonest press there is: return, and then the control, before there
+    // is anything on the line to format.
+    @Test("a control starts a list on the empty line the return key just made")
+    func emptyLines() {
+        let entry = OpenEditor(holding: "Milk\n")
+        entry.cursor(at: 5)
+
+        entry.coordinator.format(.taskList, in: entry.textView)
+        #expect(entry.textView.text == "Milk\n- [ ] ")
+        // With the caret where the words go, so the next thing typed is the
+        // task rather than something in front of the box.
+        #expect(entry.textView.selectedRange == NSRange(location: 11, length: 0))
+    }
+
     @Test("a control with nothing to do leaves the Entry alone")
     func nothingToDo() {
         let entry = OpenEditor(holding: "Milk")

@@ -236,15 +236,12 @@ extension MarkdownFormatting {
         let selected = reading.lines(touchedBy: cursor)
         guard let first = selected.first, let last = selected.last else { return nil }
 
-        // A blank line has nothing to be a list item, and a `- ` on its own is
-        // an empty bullet somebody has to delete again. So the blank lines
-        // between paragraphs — where most multi-line selections stop — are
-        // passed over, and they do not get a say in whether the rest of the
-        // selection is already what this control would make it.
-        let written = selected.filter { $0.block != .blank }
-        guard !written.isEmpty else { return nil }
-
-        let marking = marking(of: written)
+        // A line with nothing on it gets the marker like any other, and that is
+        // the commonest press of all: a list is started on the empty line the
+        // return key just made, before there is anything to put in it. So `- `
+        // on its own is not junk — it is a list item waiting to be typed into,
+        // and the same control takes it away again.
+        let marking = marking(of: selected)
         let step = stepIn(under: reading.lines.last { $0.range.upperBound < first.range.location })
         var lines: [RewrittenLine] = []
         var number = firstNumber(before: first, in: reading)
@@ -254,7 +251,7 @@ extension MarkdownFormatting {
             let rewritten = rewrite(
                 line, in: text, marking: marking, number: number, step: step, at: lineStart
             )
-            if line.block != .blank, case .numberedList = self { number += 1 }
+            if case .numberedList = self { number += 1 }
             lineStart = rewritten.rewritten.upperBound + breakLength(of: line)
             lines.append(rewritten)
         }
@@ -335,8 +332,6 @@ extension MarkdownFormatting {
         number: Int,
         step: String
     ) -> (words: NSRange, prefix: String) {
-        // A blank line is kept whole and left as it is: see above.
-        guard line.block != .blank else { return (line.range, "") }
         let indent = text.substring(with: line.indent)
 
         switch self {

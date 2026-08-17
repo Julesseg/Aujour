@@ -150,13 +150,19 @@ struct MarkdownFormattingTests {
         #expect(formatted(.bulletList, "> mi|lk") == "- mi|lk")
     }
 
-    // A `- ` on a line with nothing after it is an empty list item somebody
-    // has to delete again, and the blank lines between paragraphs are where
-    // most multi-line selections stop.
-    @Test("a blank line inside a selection is left alone")
-    func blankLines() {
-        #expect(formatted(.bulletList, "|milk\n\nbread|") == "- |milk\n\n- bread|")
-        #expect(formatted(.bulletList, "|\n\n|") == nil)
+    // The commonest press of all: a list is started on the empty line the
+    // return key just made, before there is anything to put in it. So a line
+    // with nothing on it takes the marker like any other, and the same control
+    // takes it away again.
+    @Test("a line with nothing on it takes the marker too")
+    func emptyLines() {
+        #expect(formatted(.taskList, "milk\n|") == "milk\n- [ ] |")
+        #expect(formatted(.taskList, "milk\n- [ ] |") == "milk\n- [x] |")
+        #expect(formatted(.heading(level: 2), "|") == "## |")
+        // And the room the next line is going to be typed in is made before
+        // there is anything in it.
+        #expect(formatted(.indent, "- milk\n|") == "- milk\n  |")
+        #expect(formatted(.bulletList, "|milk\n\nbread|") == "- |milk\n- \n- bread|")
     }
 
     // Dragging down to the start of the next paragraph is a selection of the
@@ -207,9 +213,9 @@ struct MarkdownFormattingTests {
     // The cursor stays with the characters it was against — the whole of both
     // lines is still what is selected, and the room made in front of them is
     // not part of what the user had hold of.
-    @Test("indenting reaches every line the selection touches, and no blank one")
+    @Test("indenting reaches every line the selection touches")
     func indentingASelection() {
-        #expect(formatted(.indent, "|- milk\n\n- bread|") == "  |- milk\n\n  - bread|")
+        #expect(formatted(.indent, "|- milk\n\n- bread|") == "  |- milk\n  \n  - bread|")
     }
 
     // MARK: - What a control leaves behind

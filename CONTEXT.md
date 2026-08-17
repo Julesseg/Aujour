@@ -202,6 +202,25 @@ does for a markdown link too — so both spellings are searched for the same
 way. Never outside the Journal Root: a target that climbs past it names
 somebody else's file and resolves to nothing.
 
+### Accessory Row
+The formatting bar above the keyboard: headings, bold and italic, lists,
+checkboxes, indenting, and a photograph. On screen exactly while an Entry is
+being written in, and gone with the keyboard — a day being read has neither.
+
+Every control is a shortcut for markdown the user could have typed by hand, so
+each one is a rewrite of the characters that are already there and the Entry is
+plain markdown before and after. A control acts on what the cursor is on: the
+word a caret stands in or the words that are selected for the ones that wrap,
+and every line the selection touches for the ones that are about lines.
+
+Each is its own way back: bold inside a bold word takes the marks away, a
+bullet on a list of bullets takes the markers away. Two exceptions earn
+themselves — a heading at another level is re-levelled rather than removed,
+because nobody presses *Heading 2* meaning "not a heading"; and bold at the end
+of a bold word steps the cursor out past the closing marks, because that is
+somebody who has finished writing it rather than somebody who wishes they had
+not.
+
 ### Divergence
 Two versions of one Journal Day that were both written — the Entry edited on
 two devices while one of them was offline, which iCloud brings back as a

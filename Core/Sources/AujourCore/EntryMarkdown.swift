@@ -856,7 +856,11 @@ private enum Unit {
     static let paragraphSeparator: UInt16 = 0x2029
 }
 
-private func isSpaceOrTab(_ unit: UInt16) -> Bool {
+/// The whitespace that separates a marker from the words it introduces — and
+/// the whitespace a formatting control leaves outside the marks it wraps a
+/// selection in (``MarkdownFormatting``). Never a line break, which ends the
+/// line rather than sitting in it.
+func isSpaceOrTab(_ unit: UInt16) -> Bool {
     unit == Unit.space || unit == Unit.tab
 }
 
@@ -864,9 +868,11 @@ private func isDigit(_ unit: UInt16) -> Bool {
     (Unit.zero...Unit.nine).contains(unit)
 }
 
-/// What an underscore may not sit next to and still emphasise. Anything
-/// outside ASCII counts as a letter, so an accented word is a word.
-private func isWordUnit(_ unit: UInt16) -> Bool {
+/// What a word is made of: what an underscore may not sit next to and still
+/// emphasise, and what a formatting control wraps when the caret is standing in
+/// one (``MarkdownFormatting``). Anything outside ASCII counts as a letter, so
+/// an accented word is a word.
+func isWordUnit(_ unit: UInt16) -> Bool {
     if isDigit(unit) { return true }
     if (0x41...0x5A).contains(unit) || (0x61...0x7A).contains(unit) { return true }
     return unit >= 0x80

@@ -173,6 +173,64 @@ final class AujourUITests: XCTestCase {
         XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
     }
 
+    /// The formatting row above the keyboard: the marks a journal is written
+    /// with, one tap on glass.
+    ///
+    /// What each control writes, and where it leaves the cursor, is decided in
+    /// Core and tested there against the text it rewrites; that a press reaches
+    /// the Entry the app is saving is `MarkdownAccessoryRowTests`, headless.
+    /// What only a running app can show is the rest of the claim: the row is
+    /// there while the day is being written in and gone while it is not, the
+    /// controls are aimed at what the cursor is on, and what they wrote is
+    /// plain markdown in the file afterwards.
+    func testTheFormattingRowWritesMarkdownWhereTheCursorIs() throws {
+        let app = launchApp()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        // Nobody is writing in it yet: no keyboard, and so no row.
+        XCTAssertFalse(
+            app.buttons["formatBold"].exists,
+            "the formatting row was up over a day nobody was writing in"
+        )
+
+        editor.tap()
+        let bold = app.buttons["formatBold"]
+        XCTAssertTrue(bold.waitForExistence(timeout: 10), "the formatting row never appeared")
+
+        // The line becomes a task, the word being written becomes bold, and
+        // the whole line steps in — each of them where the cursor is.
+        editor.typeText("Milk")
+        app.buttons["formatTaskList"].tap()
+        expect(editor, toHaveValue: "- [ ] Milk")
+
+        bold.tap()
+        expect(editor, toHaveValue: "- [ ] **Milk**")
+
+        app.buttons["formatIndent"].tap()
+        expect(editor, toHaveValue: "  - [ ] **Milk**")
+
+        // The way to a photograph is on the row and is not offered yet: its
+        // flow is the attachment pipeline's (issue #22).
+        XCTAssertTrue(app.buttons["insertPhoto"].exists, "there was no way to a photo on the row")
+        XCTAssertFalse(app.buttons["insertPhoto"].isEnabled)
+
+        // And what the row wrote is in the file, exactly as a hand would have
+        // typed it — which the relaunch is what proves.
+        Thread.sleep(forTimeInterval: 4)
+        relaunch(app)
+
+        let reopened = app.textViews["entryEditor"]
+        XCTAssertTrue(reopened.waitForExistence(timeout: 30))
+        XCTAssertEqual(reopened.value as? String, "  - [ ] **Milk**")
+        // A day being read has no keyboard, and the row is gone with it.
+        XCTAssertFalse(
+            app.buttons["formatBold"].exists,
+            "the formatting row outlived the keyboard it came up with"
+        )
+    }
+
     func testAPastDayIsFilledInFromTheCalendar() throws {
         let app = launchApp(contentTemplate: "# {{title}}\n")
         XCTAssertTrue(

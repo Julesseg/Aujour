@@ -597,6 +597,74 @@ struct EntryEditorExternalChangeTests {
     }
 }
 
+// An Embed's target is written relative to the Entry holding it, so the Entry
+// is what can find it. Which spellings are read as an embed at all is
+// `EntryMarkdownTests`, and which paths a target might be at is
+// `EmbedTargetTests`; this is the two of them over a folder.
+@Suite("What an Entry's embeds point at")
+@MainActor
+struct EntryAttachmentTests {
+    private func session(holding attachments: [String: String]) -> EditorSession {
+        EditorSession(files: attachments.merging(["2026/03/2026-03-01.md": "![a](b.jpg)\n"]) { a, _ in a })
+    }
+
+    @Test("a target beside the entry is found, and so is one up and across")
+    func targetsRelativeToTheEntry() async throws {
+        let session = session(holding: [
+            "2026/03/market.jpg": "beside it",
+            "attachments/2026/03/market.jpg": "up and across",
+        ])
+        await session.open()
+
+        #expect(await session.editor.text(of: "market.jpg") == "beside it")
+        #expect(
+            await session.editor.text(of: "../../attachments/2026/03/market.jpg")
+                == "up and across"
+        )
+        // Obsidian's bare name, which is a search of the whole folder — and
+        // which finds the one beside the Entry first.
+        #expect(await session.editor.text(of: "market.jpg") == "beside it")
+    }
+
+    @Test("a bare name is found wherever in the folder it is")
+    func targetsFoundByName() async throws {
+        let session = session(holding: ["attachments/2026/03/market.jpg": "a photograph"])
+        await session.open()
+
+        #expect(await session.editor.text(of: "market.jpg") == "a photograph")
+    }
+
+    // Every way of failing is the same answer, because they all mean the same
+    // thing on screen: the embed is drawn as the markdown it is.
+    @Test("a target naming nothing in the folder is nothing at all")
+    func targetsThatFindNothing() async throws {
+        let session = session(holding: ["2026/03/market.jpg": "a photograph"])
+        await session.open()
+
+        #expect(await session.editor.attachment(named: "nothing.jpg") == nil)
+        #expect(await session.editor.attachment(named: "https://example.com/a.jpg") == nil)
+        #expect(await session.editor.attachment(named: "") == nil)
+    }
+
+    // The user pointed Aujour at one folder. An Entry that names its way out
+    // of it names somebody else's file, and the file system is never asked.
+    @Test("a target that climbs out of the journal root finds nothing")
+    func targetsOutsideTheFolder() async throws {
+        let session = session(holding: [:])
+        await session.open()
+
+        #expect(await session.editor.attachment(named: "../../../../etc/passwd") == nil)
+    }
+}
+
+extension EntryEditor {
+    /// The attachment as the words a test seeded it with — a test's photograph
+    /// is a sentence, because the bytes being bytes is not what is in doubt.
+    fileprivate func text(of target: String) async -> String? {
+        await attachment(named: target).map { String(decoding: $0, as: UTF8.self) }
+    }
+}
+
 @Suite("Autosave timing")
 struct AutosaveTimingTests {
     @Test("each wait is the quiet period, until the ceiling cuts it short")

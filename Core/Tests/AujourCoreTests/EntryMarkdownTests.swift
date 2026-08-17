@@ -125,6 +125,52 @@ struct EntryMarkdownBlockTests {
         #expect(line("> > Deeper").line.block == .quote(depth: 2))
     }
 
+    @Test("a bullet whose first word is a box is a task")
+    func taskItems() {
+        let (unticked, todo) = line("- [ ] buy milk")
+        #expect(todo.block == .taskItem(isDone: false))
+        #expect(unticked.text(todo.marker) == "- [ ] ")
+        #expect(unticked.text(todo.box) == "[ ]")
+        #expect(unticked.text(todo.content) == "buy milk")
+
+        let (ticked, done) = line("- [x] bought milk")
+        #expect(done.block == .taskItem(isDone: true))
+        #expect(ticked.text(done.box) == "[x]")
+        #expect(ticked.text(done.content) == "bought milk")
+
+        // Obsidian ticks with either case, and a task written on another
+        // device is still this device's task.
+        #expect(line("- [X] shouted").line.block == .taskItem(isDone: true))
+        // Any of the three bullets, and however deeply nested.
+        #expect(line("* [ ] a").line.block == .taskItem(isDone: false))
+        #expect(line("+ [x] a").line.block == .taskItem(isDone: true))
+        #expect(line("    - [ ] a").line.block == .taskItem(isDone: false))
+    }
+
+    @Test("a task with nothing left to say is still a task")
+    func emptyTask() {
+        let (read, empty) = line("- [ ]")
+        #expect(empty.block == .taskItem(isDone: false))
+        #expect(read.text(empty.marker) == "- [ ]")
+        #expect(read.text(empty.box) == "[ ]")
+        #expect(read.text(empty.content) == "")
+    }
+
+    // A journal is full of brackets, and none of them should turn a line into
+    // something the user can tick.
+    @Test("brackets that are not a box leave a bullet a bullet")
+    func bracketsThatAreNotBoxes() {
+        for notATask in ["- [ ]x", "- [/] half", "- [] nothing", "- [xx] two", "- the [x] column"] {
+            let (read, item) = line(notATask)
+            #expect(item.block == .bulletItem, "expected \(notATask) to stay a plain bullet")
+            #expect(read.text(item.box) == "")
+        }
+        // A box needs a bullet in front of it: a paragraph that opens with one
+        // is a paragraph.
+        #expect(line("[ ] buy milk").line.block == .paragraph)
+        #expect(line("1. [ ] buy milk").line.block == .numberedItem(number: 1))
+    }
+
     @Test("three or more of one mark across a line is a rule, not a list")
     func thematicBreaks() {
         for rule in ["---", "***", "___", "- - -", "-----"] {
@@ -172,6 +218,7 @@ struct EntryMarkdownBlockTests {
             # Sunday
 
               - milk
+            - [x] bought milk
             1. first
             > quoted
             ---
@@ -183,6 +230,9 @@ struct EntryMarkdownBlockTests {
             #expect(line.marker.location == line.indent.upperBound)
             #expect(line.content.location == line.marker.upperBound)
             #expect(line.content.upperBound == line.range.upperBound)
+            // A box is part of the marker rather than a fourth part beside it.
+            #expect(line.box.location >= line.marker.location)
+            #expect(line.box.upperBound <= line.marker.upperBound)
         }
     }
 }
@@ -286,6 +336,54 @@ struct EntryMarkdownInlineTests {
         #expect(spans.map(\.style) == [.image])
         #expect(read.text(spans[0].opening) == "![")
         #expect(read.text(spans[0].closing) == "](attachments/2026/03/market.jpg)")
+        #expect(read.text(spans[0].destination) == "attachments/2026/03/market.jpg")
+    }
+
+    // Both spellings are read wherever they are written: the embed-syntax
+    // setting decides what Aujour writes, and a folder shared with Obsidian
+    // holds whatever Obsidian wrote.
+    @Test("an embed written Obsidian's way is the same embed")
+    func wikiEmbeds() {
+        let read = Read("![[market.jpg]] and then home.")
+        let spans = read.inlines(0)
+        #expect(spans.map(\.style) == [.image])
+        #expect(read.text(spans[0].range) == "![[market.jpg]]")
+        #expect(read.text(spans[0].opening) == "![[")
+        #expect(read.text(spans[0].content) == "market.jpg")
+        #expect(read.text(spans[0].closing) == "]]")
+        #expect(read.text(spans[0].destination) == "market.jpg")
+    }
+
+    // Obsidian's way of saying how wide to draw it. The file is what comes
+    // before the pipe, and the rest is somebody else's instruction.
+    @Test("a wiki embed's size hint is not part of the file it names")
+    func wikiEmbedSizeHints() {
+        let read = Read("![[attachments/market.jpg|300]]")
+        let spans = read.inlines(0)
+        #expect(read.text(spans[0].content) == "attachments/market.jpg|300")
+        #expect(read.text(spans[0].destination) == "attachments/market.jpg")
+    }
+
+    @Test("brackets that never close are not an embed")
+    func wikiEmbedsThatAreNot() {
+        #expect(Read("![[unfinished").inlines(0).isEmpty)
+        #expect(Read("![[]] nothing").inlines(0).isEmpty)
+        // A wiki *link* is not an embed, and v1 draws nothing over it.
+        #expect(Read("[[a note]]").inlines(0).isEmpty)
+        // One bracket short at the front, two at the back: a wiki embed needs
+        // both of its own, and this is a bang followed by brackets.
+        #expect(Read("![ab]]").inlines(0).isEmpty)
+        #expect(Read("![[[a]]").inlines(0).isEmpty)
+    }
+
+    @Test("a span that points nowhere says so with an empty destination")
+    func destinationsOfEverythingElse() {
+        for source in ["A *soft* word", "A **loud** word", "Run `swift test`", "A ~~struck~~ one"] {
+            let spans = Read(source).inlines(0)
+            #expect(spans.allSatisfy { $0.destination.length == 0 }, "\(source) pointed somewhere")
+        }
+        let link = Read("Went to [the market](https://example.com)")
+        #expect(link.text(link.inlines(0)[0].destination) == "https://example.com")
     }
 
     @Test("brackets that lead nowhere are brackets")

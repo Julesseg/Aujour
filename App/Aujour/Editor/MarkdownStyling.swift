@@ -12,7 +12,7 @@ import UIKit
 /// Nothing here hides a *character*. Marks the cursor is away from are left
 /// out of the drawing — that is what live preview is, and which ones those
 /// are is ``AujourCore/HiddenSyntax``'s to say — but they are left out by
-/// marking them for glyph generation to skip (``HiddenSyntaxGlyphs``), never
+/// marking them for glyph generation to skip (``MarkdownGlyphs``), never
 /// by taking them out of the text. The file is plain markdown (ADR 0001) and
 /// the editor is a view of it, not a second document that has to be turned
 /// back into one.
@@ -38,6 +38,11 @@ struct MarkdownStyling: Equatable {
     /// simply text, and the only place the editor spends a colour.
     var link: UIColor
 
+    /// A task's box. The app's own colour, because a checkbox is a control
+    /// rather than a mark: it is the one thing in an Entry that answers a tap,
+    /// and it should look like it.
+    var box: UIColor
+
     /// The gap between lines, which the plain editor had too.
     var lineSpacing: CGFloat
 
@@ -47,6 +52,7 @@ struct MarkdownStyling: Equatable {
         syntax: UIColor = .tertiaryLabel,
         quoted: UIColor = .secondaryLabel,
         link: UIColor = .tintColor,
+        box: UIColor = .tintColor,
         lineSpacing: CGFloat = 2
     ) {
         self.body = body
@@ -54,6 +60,7 @@ struct MarkdownStyling: Equatable {
         self.syntax = syntax
         self.quoted = quoted
         self.link = link
+        self.box = box
         self.lineSpacing = lineSpacing
     }
 
@@ -95,9 +102,16 @@ struct MarkdownStyling: Equatable {
     /// they are simply not drawn while they are marked, and are drawn again
     /// the moment a later reading leaves the mark off. Nothing here needs to
     /// know how that is done, or to undo it.
+    ///
+    /// Then the boxes and the pictures, which are the same idea one step
+    /// further on: their characters are not drawn *and* something is drawn
+    /// instead. The stretch is hidden like any other and one character of it
+    /// carries the drawing, so that a restyle takes both away together and
+    /// there is never a box left standing over words that have moved on.
     func apply(
         _ markdown: EntryMarkdown,
         hiding hidden: HiddenSyntax,
+        drawing drawn: [DrawnMarkdown],
         to text: NSMutableAttributedString
     ) {
         for line in markdown.lines {
@@ -106,6 +120,26 @@ struct MarkdownStyling: Equatable {
         for mark in hidden.ranges {
             text.addAttribute(.hiddenSyntax, value: true, range: mark)
         }
+        for drawing in drawn {
+            apply(drawing, to: text)
+        }
+    }
+
+    /// Stands one drawing in front of the characters it is for: all of them
+    /// undrawn, and the first of them carrying the thing to draw.
+    ///
+    /// The first character rather than a new one, because there is no new one
+    /// to have — the text is the file (ADR 0001) and this adds nothing to it.
+    /// So the box or the picture is laid out where that character would have
+    /// been, and the caret can still be put either side of it.
+    private func apply(_ drawing: DrawnMarkdown, to text: NSMutableAttributedString) {
+        guard drawing.text.length > 0, drawing.text.upperBound <= text.length else { return }
+        text.addAttribute(.hiddenSyntax, value: true, range: drawing.text)
+        text.addAttribute(
+            .drawnMarkdown,
+            value: drawing,
+            range: NSRange(location: drawing.text.location, length: 1)
+        )
     }
 
     private func apply(_ line: MarkdownLine, to text: NSMutableAttributedString) {
@@ -166,7 +200,7 @@ struct MarkdownStyling: Equatable {
         case .heading(let level):
             attributes[.font] = heading(level: level)
             attributes[.paragraphStyle] = paragraphStyle(spacedLikeAHeading: true)
-        case .bulletItem, .numberedItem:
+        case .bulletItem, .taskItem, .numberedItem:
             attributes[.paragraphStyle] = paragraphStyle(hangingUnder: line, in: text)
         case .quote:
             attributes[.foregroundColor] = quoted

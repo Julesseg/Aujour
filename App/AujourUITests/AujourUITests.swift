@@ -131,6 +131,48 @@ final class AujourUITests: XCTestCase {
         XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
     }
 
+    /// A checkbox is the one thing in an Entry that answers a tap, and the
+    /// whole of what it does is rewrite one character of the file.
+    ///
+    /// Whether a box is drawn at all, and where, is
+    /// `DrawnMarkdownDrawingTests` — headless, and exact. What only a running
+    /// app can show is that a finger on the box changes the markdown, that the
+    /// caret does not go chasing it, and that what reaches the folder is a
+    /// plain task list somebody could open in Obsidian.
+    func testTappingACheckboxTicksItInTheFile() throws {
+        let app = launchApp()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        editor.tap()
+
+        // Typed rather than seeded, because a file the launch environment
+        // seeds is seeded again on the next launch — and this test is about
+        // what survives one.
+        editor.typeText("- [ ] Milk\n- [ ] Bread")
+
+        // The first line's box, a little in from the top left corner of the
+        // text. The caret is on the second line by now, so the first one is
+        // drawn as a box — and it is aimed at by coordinate because a box is a
+        // drawing rather than a view: there is nothing in the hierarchy to
+        // find, and nothing was added to the text to find either (ADR 0001).
+        //
+        // In points from the corner rather than as a fraction of the editor,
+        // whose height is whatever the keyboard has left of the screen.
+        editor.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 24, dy: 23))
+            .tap()
+        expect(editor, toHaveValue: "- [x] Milk\n- [ ] Bread")
+
+        Thread.sleep(forTimeInterval: 4)
+        relaunch(app)
+
+        let reopened = app.textViews["entryEditor"]
+        XCTAssertTrue(reopened.waitForExistence(timeout: 30))
+        XCTAssertEqual(reopened.value as? String, "- [x] Milk\n- [ ] Bread")
+        XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
+    }
+
     func testAPastDayIsFilledInFromTheCalendar() throws {
         let app = launchApp(contentTemplate: "# {{title}}\n")
         XCTAssertTrue(

@@ -14,6 +14,16 @@ import AujourCore
 struct EntryView: View {
     @Bindable var editor: EntryEditor
 
+    /// The pictures this Entry's embeds point at, read out of the same folder
+    /// the Entry came from.
+    ///
+    /// Here rather than inside the editor because it is the screen that knows
+    /// which day is on it: a target is relative to the Entry that wrote it, so
+    /// `market.jpg` in March's day and `market.jpg` in April's are allowed to
+    /// be two different photographs.
+    @State private var pictures = EmbeddedPictures()
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some View {
         Group {
             switch editor.state {
@@ -28,10 +38,21 @@ struct EntryView: View {
                 // it means is Core's.
                 MarkdownEditor(
                     text: $editor.content,
+                    pictures: pictures,
                     identifier: "entryEditor",
                     label: "Entry for \(editor.day.spelledOut())"
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // The Entry on screen decides where a relative embed points, so
+                // the pictures follow it — including on the morning an app
+                // left open overnight moves on to today.
+                .onChange(of: editor.day, initial: true) { pictures.look(in: editor) }
+                // The folder is shared, so a photo an Entry names can arrive
+                // after the Entry did. Coming back to the front is when it is
+                // worth looking again for the ones that were not there.
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { pictures.lookAgainForWhatWasMissing() }
+                }
 
             case .unavailable(let error):
                 StorageProblemNotice(problem: StorageProblem(error)) {
@@ -104,9 +125,11 @@ private struct UnsavedWordsNotice: View {
                 Walked to [the market](https://example.com), and back the *long* way.
 
                 ## Bought
-                - milk
-                - **bread**, still warm
+                - [x] milk
+                - [ ] **bread**, still warm
                 1. and a paper, in the end
+
+                ![the market](attachments/2026/03/market.jpg)
 
                 > Someone at the stall said something worth keeping.
 

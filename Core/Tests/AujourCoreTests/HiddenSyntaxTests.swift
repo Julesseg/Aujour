@@ -175,9 +175,13 @@ struct HiddenSyntaxTests {
     // A bullet hidden is a list item drawn as a paragraph, and a rule hidden
     // is nothing at all: these marks are not a spelling of something else on
     // screen, they *are* what is on screen.
+    // A task's `- [x] ` is undrawn too, on a day nobody is writing in — but by
+    // being stood in for rather than hidden, which is ``DrawnElements``'.
+    // Hidden here as well, it would go on any day the box could not be drawn
+    // and leave a task looking like a paragraph.
     @Test("the marks that are the only sign of what they mark stay drawn")
     func marksThatCarryTheirOwnMeaning() {
-        for line in ["- milk", "1. milk", "> Someone said this", "---"] {
+        for line in ["- milk", "1. milk", "> Someone said this", "---", "- [x] milk"] {
             let entry = Cursored("Woke late.\n\n\(line)", caret: 0)
             #expect(entry.marks.isEmpty, "\(line) lost the characters that make it what it is")
         }

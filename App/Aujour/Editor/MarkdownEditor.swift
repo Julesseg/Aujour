@@ -22,6 +22,11 @@ struct MarkdownEditor: UIViewRepresentable {
     /// The Entry's text — the file's own words, and nothing the editor added.
     @Binding var text: String
 
+    /// Where the pictures this Entry's embeds point at come from. Already
+    /// aimed at the day on screen by whoever owns it, because which folder and
+    /// which Entry is not a thing a text view knows.
+    let pictures: EmbeddedPictures
+
     /// What a UI test finds this by, and what VoiceOver calls it. Set on the
     /// text view itself rather than through SwiftUI's accessibility
     /// modifiers, which would describe the wrapper instead of the thing being
@@ -32,7 +37,10 @@ struct MarkdownEditor: UIViewRepresentable {
     func makeUIView(context: Context) -> UITextView {
         let styling = MarkdownStyling()
         let storage = MarkdownTextStorage(styling: styling)
-        let layoutManager = NSLayoutManager()
+        // Its own layout manager, because a box and a picture are painted
+        // where their glyphs ended up and nothing above the layout knows
+        // where that is.
+        let layoutManager = MarkdownLayoutManager()
         let container = NSTextContainer(
             size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
         )
@@ -69,6 +77,14 @@ struct MarkdownEditor: UIViewRepresentable {
         textView.accessibilityIdentifier = identifier
         textView.accessibilityLabel = label
 
+        // A picture arriving from the folder is the one change to an Entry
+        // that nobody typed, so it is the one that has to ask for the drawing
+        // again. Weakly, because the pictures outlive this text view when the
+        // day on screen changes.
+        storage.pictures = pictures
+        pictures.whenOneArrives = { [weak storage] in storage?.aPictureArrived() }
+
+        context.coordinator.ticksBoxes(in: textView)
         storage.setSource(text)
         return textView
     }
@@ -80,6 +96,7 @@ struct MarkdownEditor: UIViewRepresentable {
         textView.accessibilityLabel = label
 
         guard let storage = textView.textStorage as? MarkdownTextStorage else { return }
+        storage.pictures = pictures
 
         // Dynamic Type: the font everything else is derived from has moved, so
         // everything is drawn again. Compared by font rather than by whole
@@ -107,7 +124,7 @@ struct MarkdownEditor: UIViewRepresentable {
         // iCloud can be shorter than the one on screen.
         let length = (text as NSString).length
         textView.selectedRange = NSRange(location: min(caret.location, length), length: 0)
-        storage.cursor = textView.selectedRange
+        storage.cursor = context.coordinator.cursorIfSomebodyIsWriting(in: textView)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -121,10 +138,113 @@ struct MarkdownEditor: UIViewRepresentable {
 
         /// Kept for as long as the text view is, because the layout manager
         /// holds its delegate weakly.
-        let glyphs = HiddenSyntaxGlyphs()
+        let glyphs = MarkdownGlyphs()
+
+        /// The gesture that ticks boxes, kept so that the delegate below can
+        /// tell it apart from every gesture a text view has of its own.
+        fileprivate var tick: UITapGestureRecognizer?
 
         init(text: Binding<String>) {
             self.text = text
+        }
+
+        // MARK: - Ticking a box
+
+        /// Makes the boxes tappable.
+        ///
+        /// A gesture of its own rather than the text view's own tap, because
+        /// the two want opposite things from the same finger: a tap on a box
+        /// should tick it and leave the caret where it was, and a tap on
+        /// anything else should put the caret there. So this one is offered
+        /// first, answers only over a box, and the text view's tap waits to
+        /// see whether it did.
+        ///
+        /// A finger is the only way to it for now, and that is a gap rather
+        /// than a decision: a box is painted glyphs, not a view, so VoiceOver
+        /// and Switch Control reach the line's `- [ ] ` as text and nothing
+        /// they can activate. The text is still readable and still editable by
+        /// hand, and the accessory row's checkbox control (issue #21) is the
+        /// way to a task that never needs the box to be aimed at.
+        func ticksBoxes(in textView: UITextView) {
+            let tick = UITapGestureRecognizer(target: self, action: #selector(tickTheBoxTapped))
+            tick.delegate = self
+            self.tick = tick
+            textView.addGestureRecognizer(tick)
+        }
+
+        /// Ticks or unticks the box the tap landed on.
+        ///
+        /// One character of the Entry changes, and the file is plain markdown
+        /// before and after — a task Aujour ticked and a task Obsidian ticked
+        /// are the same file (ADR 0001).
+        @objc private func tickTheBoxTapped(_ tap: UITapGestureRecognizer) {
+            guard let textView = tap.view as? UITextView else { return }
+            tickTheBox(in: textView, at: tap.location(in: textView))
+        }
+
+        /// Ticks the box at this point, and says whether there was one.
+        ///
+        /// Internal so that both halves of a tap — finding the box under a
+        /// finger, and the rewrite it makes — can be asked for without a
+        /// simulator; the gesture above is then the only part left that needs
+        /// one.
+        @discardableResult
+        func tickTheBox(in textView: UITextView, at point: CGPoint) -> Bool {
+            guard let edit = box(in: textView, under: point) else { return false }
+            apply(edit, in: textView)
+            return true
+        }
+
+        /// Makes the one-character change a tick is, and tells the Entry.
+        ///
+        /// Undoable, because a tick is an edit and the day it is in is full of
+        /// other edits: shaking to undo after ticking the wrong line should
+        /// take back the tick, not the sentence typed before it. Registered
+        /// against the same undo manager the typing uses, so the two share one
+        /// stack in the order they happened.
+        private func apply(_ edit: MarkdownEdit, in textView: UITextView) {
+            let selection = textView.selectedRange
+            let before = (textView.text as NSString).substring(with: edit.range)
+
+            textView.textStorage.replaceCharacters(in: edit.range, with: edit.replacement)
+            // Put back where it was, if it was anywhere. Ticking something off
+            // is not a claim about where the user was writing, and a caret
+            // that jumped to the box would reveal that line's markdown under
+            // the finger that just tapped it.
+            textView.selectedRange = selection
+            // The text view announces what it was told to change, not what
+            // this told its storage — so the Entry is told here, and hears
+            // about a tick exactly as it hears about a keystroke.
+            text.wrappedValue = textView.text
+
+            textView.undoManager?.registerUndo(withTarget: self) { [weak textView] coordinator in
+                guard let textView else { return }
+                coordinator.apply(
+                    MarkdownEdit(range: edit.range, replacement: before), in: textView
+                )
+            }
+        }
+
+        /// The edit a tap at this point would make, or `nil` for a tap that
+        /// landed on words.
+        ///
+        /// All this adds to the layout manager's answer is the one thing only
+        /// a text view knows: where its text starts, which its inset moved.
+        private func box(in textView: UITextView, under point: CGPoint) -> MarkdownEdit? {
+            guard let storage = textView.textStorage as? MarkdownTextStorage,
+                let layout = textView.layoutManager as? MarkdownLayoutManager
+            else { return nil }
+
+            let inText = CGPoint(
+                x: point.x - textView.textContainerInset.left,
+                y: point.y - textView.textContainerInset.top
+            )
+            guard let drawn = layout.drawnMarkdown(under: inText, in: textView.textContainer)
+            else { return nil }
+            // Whether that drawing is one a tap means anything to is the
+            // storage's to say, along with what the tap changes — a picture is
+            // drawn over an Entry too, and is not a control.
+            return storage.tickingTheBox(at: drawn.text.location)
         }
 
         func textViewDidChange(_ textView: UITextView) {
@@ -135,8 +255,20 @@ struct MarkdownEditor: UIViewRepresentable {
         /// moving as something is typed. The storage draws the element the
         /// cursor is in differently from the rest of the day, so it has to
         /// hear about all of them.
+        ///
+        /// Unless nobody is writing here. A text view has a selection whether
+        /// or not anybody is in it — a day just put on screen reports a caret
+        /// at its very start — and taking that for a cursor would open every
+        /// Entry with its first line's markdown showing: the heading's hashes,
+        /// or the `- [ ] ` where a box belongs.
         func textViewDidChangeSelection(_ textView: UITextView) {
-            storage(of: textView)?.cursor = textView.selectedRange
+            storage(of: textView)?.cursor = cursorIfSomebodyIsWriting(in: textView)
+        }
+
+        /// Where the cursor is, as live preview means it: where the caret is
+        /// while somebody is writing here, and nowhere at all while nobody is.
+        func cursorIfSomebodyIsWriting(in textView: UITextView) -> NSRange? {
+            textView.isFirstResponder ? textView.selectedRange : nil
         }
 
         /// Tapping back in without moving the caret: the same selection as
@@ -157,5 +289,34 @@ struct MarkdownEditor: UIViewRepresentable {
         private func storage(of textView: UITextView) -> MarkdownTextStorage? {
             textView.textStorage as? MarkdownTextStorage
         }
+    }
+}
+
+extension MarkdownEditor.Coordinator: UIGestureRecognizerDelegate {
+    /// Over a box and nowhere else. Every other tap in the Entry belongs to
+    /// the text view, and is not delayed by this one for longer than deciding
+    /// takes.
+    func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
+        guard let textView = gesture.view as? UITextView else { return false }
+        return box(in: textView, under: gesture.location(in: textView)) != nil
+    }
+
+    /// A single tap in the Entry goes to the box first, and to the text view
+    /// only if there was no box under it.
+    ///
+    /// Said here rather than by calling `require(toFail:)` on the text view's
+    /// own recognizers, because there is no moment at which they are all
+    /// there to be called on: a text view installs the gestures that move a
+    /// caret when it first becomes the one being written in, which is long
+    /// after this editor was built. Asked instead, and asked every time, it
+    /// covers whichever recognizers exist by then.
+    func gestureRecognizer(
+        _ gesture: UIGestureRecognizer,
+        shouldBeRequiredToFailBy other: UIGestureRecognizer
+    ) -> Bool {
+        guard gesture === tick, let tap = other as? UITapGestureRecognizer else { return false }
+        // Single taps only: a double tap selects a word and a triple selects a
+        // line, and neither is a thing a checkbox has an opinion about.
+        return tap.numberOfTapsRequired == 1
     }
 }

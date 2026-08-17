@@ -106,7 +106,11 @@ extension MarkdownBlock {
         switch self {
         case .heading:
             return true
-        case .blank, .paragraph, .bulletItem, .numberedItem, .quote, .thematicBreak:
+        // A task item's `- [x] ` does go undrawn — but it is not hidden, it is
+        // stood in for by a box, which is ``DrawnElements``' to say and the
+        // app's to draw. Hiding it here would leave a task looking like a
+        // paragraph on any day the picture of it could not be drawn.
+        case .blank, .paragraph, .bulletItem, .taskItem, .numberedItem, .quote, .thematicBreak:
             return false
         }
     }
@@ -128,7 +132,11 @@ extension NSRange {
     /// Whether a cursor is in this stretch, counting both of its ends: a caret
     /// against either edge of an element is editing that element. A cursor
     /// that is nowhere touches nothing.
-    fileprivate func isTouched(by cursor: NSRange?) -> Bool {
+    ///
+    /// The one rule behind everything live preview does — marks revealed, and
+    /// boxes and pictures stood down — so it is written once and read by both
+    /// (``HiddenSyntax``, ``DrawnElements``).
+    func isTouched(by cursor: NSRange?) -> Bool {
         guard let cursor else { return false }
         return cursor.location <= upperBound && cursor.upperBound >= location
     }

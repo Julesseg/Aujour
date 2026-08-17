@@ -251,6 +251,42 @@ public final class EntryEditor {
         )
     }
 
+    // MARK: - What this Entry points at
+
+    /// The bytes of the file an Embed in this Entry names, or `nil` for a
+    /// target that names nothing in the Journal Root.
+    ///
+    /// The Entry is asked because the Entry is what knows: an Embed's target
+    /// is written relative to the file holding it — `![](market.jpg)` in
+    /// `2026/03/2026-03-14.md` means the picture beside that day — so nothing
+    /// but this object has both halves of the question. Which is also why the
+    /// editor above does not get handed the folder to go rummaging in.
+    ///
+    /// Bytes rather than a picture, because what a JPEG looks like needs a
+    /// screen and this module has none. Decoding is the app's; deciding which
+    /// file is meant is the domain's, and is `EmbedTarget`'s to spell out.
+    ///
+    /// `nil` for every way of failing, deliberately: no file, an unreadable
+    /// one, a path the store refuses, a target climbing out of the folder the
+    /// user pointed Aujour at. All four mean the same thing on screen — the
+    /// Embed is drawn as the markdown it is, visible and harmless — and a
+    /// notice about a photograph would be a notice in front of somebody who is
+    /// writing.
+    public func attachment(named target: String) async -> Data? {
+        for path in EmbedTarget.candidates(for: target, inEntryAt: entryPath) {
+            if let contents = try? await store.read(at: path) { return contents }
+        }
+        // A bare name and nowhere obvious to look: Obsidian's `![[market.jpg]]`
+        // names a file and leaves finding it to the app, so the folder is
+        // searched — last, and only for a target that could be found this way,
+        // because a listing costs the whole Journal Root.
+        guard let name = EmbedTarget.bareName(of: target),
+            let files = try? await store.listFiles(),
+            let named = EmbedTarget.match(name, among: files)
+        else { return nil }
+        return try? await store.read(at: named)
+    }
+
     // MARK: - The file changing underneath
 
     /// Shows what this day's file says now, unless there are words on screen

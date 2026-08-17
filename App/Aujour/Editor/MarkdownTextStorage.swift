@@ -18,7 +18,7 @@ import UIKit
 /// it means and its marks are left out; the element the cursor is in shows its
 /// marks, because they are what is being edited. Which marks those are is
 /// ``AujourCore/HiddenSyntax``'s to say, and leaving them out of the drawing
-/// is ``HiddenSyntaxGlyphs``'s — here they meet, on one attribute over the
+/// is ``MarkdownGlyphs``'s — here they meet, on one attribute over the
 /// paragraph being restyled.
 ///
 /// ## What a keystroke costs
@@ -43,6 +43,23 @@ final class MarkdownTextStorage: NSTextStorage {
             guard styling != oldValue else { return }
             restyleEverything()
         }
+    }
+
+    /// Where the pictures an embed points at come from, once there is a folder
+    /// to look in.
+    ///
+    /// Absent in a preview and in a test that is only about the text, where
+    /// every embed is drawn as its own markdown — which is exactly what an
+    /// embed naming nothing is drawn as anyway, so there is no second
+    /// behaviour to get right.
+    var pictures: EmbeddedPictures?
+
+    /// Draws the Entry again, for a picture that has just arrived from the
+    /// folder. Everything, because the embed that was waiting for it could be
+    /// anywhere in the day — and because this happens once per picture, not
+    /// once per keystroke.
+    func aPictureArrived() {
+        restyleEverything()
     }
 
     /// The stretches the last change was paid for in: one for a keystroke, and
@@ -79,7 +96,11 @@ final class MarkdownTextStorage: NSTextStorage {
         }
     }
 
-    private var cursorRange: NSRange? = NSRange(location: 0, length: 0)
+    /// Nobody, until somebody taps in. A day that has just been opened has not
+    /// been written in yet, and a caret parked at the start of it would show
+    /// the first line's markdown to a reader who never asked for it — the
+    /// heading's hashes, or the `- [ ] ` where a box belongs.
+    private var cursorRange: NSRange?
 
     init(styling: MarkdownStyling = MarkdownStyling()) {
         self.styling = styling
@@ -262,11 +283,56 @@ final class MarkdownTextStorage: NSTextStorage {
         let reading = EntryMarkdown(backing.string, around: edit)
         guard reading.range.length > 0 else { return reading.range }
 
+        let cursor = cursorRange.map { clamped($0) }
         backing.setAttributes(styling.baseAttributes, range: reading.range)
-        let hidden = HiddenSyntax(reading, cursor: cursorRange.map { clamped($0) })
-        styling.apply(reading, hiding: hidden, to: backing)
+        let hidden = HiddenSyntax(reading, cursor: cursor)
+        let drawn = drawings(of: reading, at: cursor)
+        styling.apply(reading, hiding: hidden, drawing: drawn, to: backing)
         edited(.editedAttributes, range: reading.range, changeInLength: 0)
         return reading.range
+    }
+
+    /// What to draw over this stretch instead of its own characters, once the
+    /// boxes have a colour and the pictures have been found.
+    ///
+    /// The one place the folder gets a say in what an Entry looks like. Core
+    /// decides which stretches are stood in for and what each one points at,
+    /// from the text alone; a picture nobody can find is dropped here and its
+    /// embed stays the markdown it is on screen — visible, harmless, and what
+    /// Obsidian shows for the same line.
+    private func drawings(of reading: EntryMarkdown, at cursor: NSRange?) -> [DrawnMarkdown] {
+        let elements = DrawnElements(reading, in: backing.string, cursor: cursor).elements
+        return elements.compactMap { element in
+            switch element.kind {
+            case .taskBox(let isDone):
+                return DrawnMarkdown(
+                    .taskBox(isDone: isDone, tint: styling.box), over: element.range
+                )
+            case .picture(let target):
+                guard let picture = pictures?.picture(for: target) else { return nil }
+                return DrawnMarkdown(.picture(picture), over: element.range)
+            }
+        }
+    }
+
+    /// The box on the line a tap landed on, and the edit ticking it makes —
+    /// or `nil` for a tap that landed on something else.
+    ///
+    /// Asked of the storage because the storage is what knows both halves: the
+    /// text the edit is about, and whether a box is drawn there at all. A tap
+    /// on a task line whose markdown is showing — the cursor is in it — is a
+    /// tap on words, and moves the caret like any other.
+    func tickingTheBox(at character: Int) -> MarkdownEdit? {
+        guard character < backing.length else { return nil }
+        guard
+            let drawn = backing.attribute(.drawnMarkdown, at: character, effectiveRange: nil)
+                as? DrawnMarkdown,
+            drawn.isTappable
+        else { return nil }
+        // The line it is on and no more of the day than that — the same
+        // stretch a keystroke there would have cost.
+        let reading = EntryMarkdown(backing.string, around: drawn.text)
+        return reading.tickingTheBox(at: drawn.text.location)
     }
 
     /// Has the layout make its glyphs again over stretches whose styling has
@@ -276,7 +342,7 @@ final class MarkdownTextStorage: NSTextStorage {
     /// Attributes changing does not ask for this on its own: a layout manager
     /// answers that by laying the same glyphs out again, and whether a
     /// character has a glyph at all is decided when glyphs are *made*
-    /// (``HiddenSyntaxGlyphs``). Without this, a mark that just hid would go
+    /// (``MarkdownGlyphs``). Without this, a mark that just hid would go
     /// on taking up the room it took before, and one that just came back would
     /// have nowhere to appear.
     private func redrawGlyphs(over stretches: [NSRange]) {

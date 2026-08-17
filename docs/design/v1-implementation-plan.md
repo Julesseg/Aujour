@@ -51,7 +51,14 @@ platform), thin SwiftUI in `App/`, XCUITest + CI as the canonical UI gate.
   from a Linux session. Stage (b) settled it: TextKit 1's glyph generation is
   where a character can be made to take up no room without being taken out of
   the text, which is exactly what cursor-aware hiding needed, so the stack
-  stays.
+  stays. Stage (c) confirmed it again and named the price: a checkbox and an
+  inline picture are drawn over characters the file already has, and the
+  `NSTextAttachment` route this plan first assumed needs a `U+FFFC` in the
+  text to hang off — a character Aujour may not add (ADR 0001). TextKit 1
+  takes the same stretch without one, as a *control glyph* whose bounding box
+  the layout manager's delegate is asked for, and whose line fragment the same
+  delegate is asked to make taller. So the drawing sits where the markdown is
+  and the markdown is still every character of it.
 - FileJournalStore: bookmarks, NSFileCoordinator/NSFilePresenter, autosave
   loop, external-change reload, iCloud conflict (NSFileVersion) handling.
 - Calendar/history navigation, onboarding, settings screens.

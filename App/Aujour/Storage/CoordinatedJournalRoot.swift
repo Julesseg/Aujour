@@ -25,7 +25,10 @@ import Foundation
 /// the file written*. This one presents the folder that file is in, so the
 /// change comes back anyway, as a change to something inside what it presents.
 /// What settles it is the file itself: one still exactly as Aujour left it is
-/// Aujour's own write coming back.
+/// Aujour's own write coming back. The folders around it as well as the file,
+/// since renaming an Entry into place dates the month folder it lands in, and
+/// the first Entry of a year dates the Journal Root — each of them reported,
+/// and each of them the same autosave arriving under another name.
 ///
 /// Neither is what the folder already was when Aujour first looked at it.
 /// Presenting a folder does not begin at the instant it is asked for — the
@@ -150,12 +153,40 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
     /// Told by the store when a write of Aujour's own has landed, from inside
     /// the coordinated access that made it — before the folder can report it,
     /// which is the only ordering that makes the answer below reliable.
+    ///
+    /// The folders as well as the file, because a write is not only a change
+    /// to the Entry. The month folder is dated afresh the moment the file is
+    /// renamed into place, the year folder the moment the month has to be
+    /// made, and the Journal Root the moment the year does. The system reports
+    /// each of them, as a change to something under what this presents, and
+    /// every one is the same autosave coming back by another name.
     func aujourWrote(_ url: URL) {
-        let path = url.standardizedFileURL.path
-        let modified = modificationDate(of: url)
+        let asAujourLeavesThem = theFileAndTheFoldersAroundIt(url).map {
+            ($0.path, modificationDate(of: $0))
+        }
         ownWrites.lock()
-        asAujourLeftThem[path] = modified
+        for (path, modified) in asAujourLeavesThem {
+            asAujourLeftThem[path] = modified
+        }
         ownWrites.unlock()
+    }
+
+    /// A file, and every folder between it and the Journal Root with the Root
+    /// itself at the end of them — everything one write leaves a new date on.
+    private func theFileAndTheFoldersAroundIt(_ url: URL) -> [URL] {
+        guard let root = presentedItemURL?.standardizedFileURL else {
+            return [url.standardizedFileURL]
+        }
+        var places: [URL] = []
+        var here = url.standardizedFileURL
+        while here.pathComponents.count > root.pathComponents.count {
+            places.append(here)
+            here = here.deletingLastPathComponent().standardizedFileURL
+        }
+        // Only when the walk actually arrived there: a path that was never
+        // under the Root has nothing to say about it.
+        if here.path == root.path { places.append(root) }
+        return places
     }
 
     /// Whether this file is still exactly as Aujour left it — which makes a
@@ -188,7 +219,12 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
     // MARK: - What the system tells a presenter
 
     /// The folder itself changed — a file added or removed directly under it.
+    ///
+    /// Weighed against Aujour's own writes like everything else, because the
+    /// Root is one of the folders a write can leave a new date on: the first
+    /// Entry of a year makes a folder directly under it.
     func presentedItemDidChange() {
+        if let root = presentedItemURL, isAsAujourLeftIt(root) { return }
         announce.yield(.theFolder)
     }
 
@@ -286,9 +322,27 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
     /// The exception is the same one a listing makes: the placeholder standing
     /// in for a file iCloud has not sent down is hidden, and a day arriving
     /// from another device is the very thing worth hearing about.
+    ///
+    /// A folder is reported as the Journal Root reporting, and not as a change
+    /// to a file: no folder is ever an Entry, so naming one as the file a
+    /// change was about is a promise the change cannot keep. What the system
+    /// has said is that something under here is different and not which day it
+    /// was, which is what ``JournalRootChange/theFolder`` already means.
+    ///
+    /// Reported rather than dropped, though. A folder is the whole of the news
+    /// when a month arrives from another device with nothing in it yet, and it
+    /// is all the system gives when a burst of them arrives at once — an
+    /// evening of another device's writing lands as the folders it touched.
     private func report(_ url: URL) {
         guard !isHidden(url), !isAsAujourLeftIt(url) else { return }
-        announce.yield(.file(url))
+        announce.yield(isAFolder(url) ? .theFolder : .file(url))
+    }
+
+    /// Whether what changed is a folder rather than a file — asked of the file
+    /// system, and answered `false` for anything already gone, which is a
+    /// deletion and so was a file to somebody.
+    private func isAFolder(_ url: URL) -> Bool {
+        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
     }
 
     /// Whether anything between the Journal Root and this file is hidden.
@@ -312,7 +366,7 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
 }
 
 /// What a folder reported: the file it was about, or — where the system did
-/// not say — the folder itself.
+/// not say which day, or said a folder — the folder itself.
 ///
 /// Carried so that a change can be told from another one. Nothing decides
 /// what to *do* from this: an Entry is one path, and the editor over it asks

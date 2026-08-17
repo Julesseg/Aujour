@@ -72,6 +72,29 @@ extension URL {
         if let written { throw written }
     }
 
+    /// The same, for a folder rather than a day: a month another device has
+    /// started journaling into, arriving before any of its Entries do.
+    func somebodyElseMakesAFolder(at relativePath: String) throws {
+        var made: (any Error)?
+        var refused: NSError?
+        NSFileCoordinator(filePresenter: nil).coordinate(
+            writingItemAt: appending(path: relativePath, directoryHint: .isDirectory),
+            options: .forReplacing,
+            error: &refused
+        ) { folder in
+            do {
+                try FileManager.default.createDirectory(
+                    at: folder,
+                    withIntermediateDirectories: true
+                )
+            } catch {
+                made = error
+            }
+        }
+        if let refused { throw refused }
+        if let made { throw made }
+    }
+
     /// The same, for a day another app removes — deleted in Obsidian, or
     /// dragged to the bin in the Files app.
     ///

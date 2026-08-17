@@ -80,4 +80,11 @@ final class OpenEditor {
     func cursor(at location: Int, length: Int = 0) {
         textView.selectedRange = NSRange(location: location, length: length)
     }
+
+    /// Offers the editor a keystroke, and says whether it let the text view
+    /// have it — which is the question the return key in a list is the one
+    /// answer to.
+    func typed(_ keystroke: String, at range: NSRange) -> Bool {
+        coordinator.textView(textView, shouldChangeTextIn: range, replacementText: keystroke)
+    }
 }

@@ -112,6 +112,33 @@ struct MarkdownAccessoryRowTests {
         #expect(entry.textView.undoManager?.canUndo == false)
     }
 
+    // MARK: - The return key
+
+    // The one keystroke the editor answers itself. What it writes is decided
+    // in Core; what only a text view can show is that the keystroke is
+    // intercepted at all, that the Entry hears about what went in, and that
+    // the text view did not also write the line break it was asked for.
+    @Test("a return in a list opens the next item, and nothing else does")
+    func returningInAList() {
+        let entry = OpenEditor(holding: "- Milk")
+        entry.cursor(at: 6)
+
+        #expect(!entry.typed("\n", at: NSRange(location: 6, length: 0)))
+        #expect(entry.textView.text == "- Milk\n- ")
+        #expect(entry.written == "- Milk\n- ")
+        #expect(entry.textView.selectedRange == NSRange(location: 9, length: 0))
+
+        // A return on the item nobody typed into ends the list — the way out,
+        // and the only one that is not deleting what the editor wrote.
+        #expect(!entry.typed("\n", at: NSRange(location: 9, length: 0)))
+        #expect(entry.textView.text == "- Milk\n")
+
+        // And a return anywhere else is the text view's own business, as is
+        // every other key.
+        #expect(entry.typed("\n", at: NSRange(location: 7, length: 0)))
+        #expect(entry.typed("k", at: NSRange(location: 7, length: 0)))
+    }
+
     // MARK: - The row itself
 
     // Above the keyboard is the text view's own accessory view, which is the

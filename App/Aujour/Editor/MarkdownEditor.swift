@@ -335,6 +335,31 @@ struct MarkdownEditor: UIViewRepresentable {
             text.wrappedValue = textView.text
         }
 
+        /// Opens the next item when a return lands in a list, in place of the
+        /// plain line break the text view would have written.
+        ///
+        /// The one keystroke this editor answers itself. Which characters that
+        /// is — the marker again, its number moved on, its box empty — is
+        /// ``AujourCore/MarkdownReturn``'s, decided from the text alone and
+        /// unit-tested there; and it goes in through the same door a tapped
+        /// control does, so it is one undo step and the Entry hears about it
+        /// as it hears about typing.
+        ///
+        /// Every other keystroke is the text view's own, including a return
+        /// anywhere but in a list.
+        func textView(
+            _ textView: UITextView,
+            shouldChangeTextIn range: NSRange,
+            replacementText text: String
+        ) -> Bool {
+            guard text == "\n",
+                let edit = MarkdownReturn.edit(textView.text, over: range)
+            else { return true }
+
+            apply(edit, in: textView)
+            return false
+        }
+
         /// Every tap, every arrow key, every drag over a word — and the caret
         /// moving as something is typed. The storage draws the element the
         /// cursor is in differently from the rest of the day, so it has to

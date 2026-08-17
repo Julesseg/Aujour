@@ -111,8 +111,13 @@ final class AujourUITests: XCTestCase {
 
         // Every line starts with a capital the test typed itself, so that
         // autocapitalisation has nothing it could change.
+        //
+        // The second bullet is not typed: a return at the end of a list item
+        // opens the next one, which is the one keystroke this editor answers
+        // itself (`MarkdownReturnTests`). What that leaves in the file is
+        // still markdown somebody could have typed, which is the claim here.
         let entry = "# Sunday\n\nWalked to the *market* -- it's shut.\n\n- Milk\n- **Bread**"
-        editor.typeText(entry)
+        editor.typeText("# Sunday\n\nWalked to the *market* -- it's shut.\n\n- Milk\n**Bread**")
 
         // And the caret away from the last thing typed, which is what makes
         // the marks hide (`HiddenSyntaxDrawingTests` has the hiding itself).
@@ -149,7 +154,10 @@ final class AujourUITests: XCTestCase {
         // Typed rather than seeded, because a file the launch environment
         // seeds is seeded again on the next launch — and this test is about
         // what survives one.
-        editor.typeText("- [ ] Milk\n- [ ] Bread")
+        //
+        // The second task's `- [ ] ` is not typed: the return at the end of
+        // the first opens it, empty box and all.
+        editor.typeText("- [ ] Milk\nBread")
 
         // The first line's box, a little in from the top left corner of the
         // text. The caret is on the second line by now, so the first one is

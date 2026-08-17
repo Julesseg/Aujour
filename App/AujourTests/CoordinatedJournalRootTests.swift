@@ -47,6 +47,45 @@ struct CoordinatedJournalRootTests {
         }
     }
 
+    @Test("a month arriving from another device is reported")
+    func aFolderAppearingIsNews() async throws {
+        try await withTemporaryFolder { root in
+            let folder = CoordinatedJournalRoot(root: root)
+            defer { folder.stopWatching() }
+
+            // A folder and not a file, which is the whole of what the system
+            // says here — and is why a change to a folder is reported at all
+            // rather than left to the Entries inside it. A month can arrive
+            // before any of its days do, and a burst of another device's
+            // writing is reported as the folders it touched and not as every
+            // file in them.
+            try root.somebodyElseMakesAFolder(at: "2026/04")
+
+            // As the folder reporting, because no folder is ever an Entry:
+            // naming `04` as the file a change was about would be a promise
+            // about which day it was that the change cannot keep.
+            #expect(await changeReported(by: folder) == .theFolder)
+        }
+    }
+
+    @Test("another app deleting a day is reported")
+    func somebodyElsesDeletionIsNews() async throws {
+        try await withTemporaryFolder { root in
+            try root.seed("Walked to the market.\n", at: "2026/03/2026-03-01.md")
+            let folder = CoordinatedJournalRoot(root: root)
+            defer { folder.stopWatching() }
+
+            // The day deleted in Obsidian. Here on its own because it is the
+            // one thing the folder cannot check the file about: the file is
+            // still there when Aujour is told, wearing the dates it wore
+            // before anybody started watching, and what is happening to it is
+            // that it is about to stop existing.
+            try root.somebodyElseDeletes(at: "2026/03/2026-03-01.md")
+
+            #expect(await changeReported(by: folder) != nil)
+        }
+    }
+
     @Test("a folder nobody has touched reports nothing")
     func aQuietFolderIsQuiet() async throws {
         try await withTemporaryFolder { root in
@@ -79,6 +118,29 @@ struct CoordinatedJournalRootTests {
             // Told about it, the editor would re-read the file it had just
             // written and the calendar would walk the whole folder — and there
             // is one of these every time the typing pauses.
+            //
+            // The month folder counts as being told: renaming the Entry into
+            // place dates `2026/03` afresh, and the system reports that as
+            // readily as it reports the file.
+            let reported = await changeReported(by: folder, within: 2)
+            #expect(reported == nil, "Aujour's own write came back as \(reported as Any)")
+        }
+    }
+
+    @Test("the folders Aujour's own write has to make are not reported back either")
+    func theFoldersAujoursOwnWriteMakesAreNotNews() async throws {
+        try await withTemporaryFolder { root in
+            let folder = CoordinatedJournalRoot(root: root)
+            defer { folder.stopWatching() }
+            let store = FileJournalStore(root: root, coordinatedBy: folder)
+
+            // The first Entry of a month, into a folder with nothing in it —
+            // which is every journal on the day it is opened. The write has to
+            // make `2026/` and `2026/03/` on the way, and making the year
+            // dates the Journal Root itself, so there are three more things
+            // for the same autosave to come back as than the Entry.
+            try await store.writeText("Walked to the market.", at: "2026/03/2026-03-01.md")
+
             let reported = await changeReported(by: folder, within: 2)
             #expect(reported == nil, "Aujour's own write came back as \(reported as Any)")
         }

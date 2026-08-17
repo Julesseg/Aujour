@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 // What only a running app can show. Everything about *what* a folder of files
@@ -10,6 +11,13 @@ final class AujourUITests: XCTestCase {
     /// next one's journal. Reused by every launch within the test, which is
     /// how a relaunch is a relaunch and not a fresh install.
     private var journalFolder = ""
+
+    /// What the Files app calls Aujour's own on-device folder *here*. The app
+    /// names it after the device it is running on, so spelling "iPhone" into
+    /// the expectation made the suite assert that the iPad build was wrong.
+    /// Read the same way the app reads it (`UIDevice.current.model`) — the
+    /// runner is an app on the same device.
+    private var aujoursOwnFolder: String { "On My \(UIDevice.current.model) › Aujour" }
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -268,7 +276,7 @@ final class AujourUITests: XCTestCase {
 
         // Where a journal nobody has moved lives.
         openFolderSheet(app)
-        XCTAssertEqual(app.staticTexts["journalRootLocation"].label, "On My iPhone › Aujour")
+        XCTAssertEqual(app.staticTexts["journalRootLocation"].label, aujoursOwnFolder)
         XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
 
         // Pointed at a folder of the user's own: the journal is that folder
@@ -300,7 +308,7 @@ final class AujourUITests: XCTestCase {
         // And the way back: Aujour's own folder, with everything that was
         // written there still in it.
         app.buttons["useAujoursOwnFolder"].tap()
-        expect(app.staticTexts["journalRootLocation"], toHaveLabel: "On My iPhone › Aujour")
+        expect(app.staticTexts["journalRootLocation"], toHaveLabel: aujoursOwnFolder)
         XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
         app.buttons["Done"].tap()
 

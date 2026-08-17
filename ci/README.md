@@ -2,7 +2,7 @@
 
 The release workflow builds a **signed, installable `.ipa`** for every PR and
 publishes it to a GitHub Pages site, so you can install any PR's build on your
-iPhone straight from Safari, on GitHub's hosted `macos-15` runner — no
+iPhone or iPad straight from Safari, on GitHub's hosted `macos-15` runner — no
 self-hosted Mac required.
 
 Setup (Apple Developer console, repo secrets, Pages) is documented in the

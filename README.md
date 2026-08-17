@@ -11,11 +11,13 @@ identity (`Aujour` / `com.julesseguin.aujour`) that one script swaps for yours.
   CI and Claude Code web containers); `App/` is a thin SwiftUI target with an
   XCUITest suite on top.
 - **CI on every PR** (`.github/workflows/ci.yml`) — Core unit tests on a Linux
-  container (fast, no Mac needed) + full XCUITest run on a macOS runner.
+  container (fast, no Mac needed) + a full XCUITest run on a macOS runner, once
+  per device family (iPhone and iPad).
 - **Installable PR builds** (`.github/workflows/release.yml`) — every PR gets
   an ad-hoc–signed `.ipa` published to a GitHub Pages install site: open it in
-  Safari on your iPhone, tap **Install**. Optional ntfy.sh push when a build is
-  ready. Inert until you configure signing (see below) — PR checks stay green.
+  Safari on your iPhone or iPad, tap **Install**. Optional ntfy.sh push when a
+  build is ready. Inert until you configure signing (see below) — PR checks
+  stay green.
 - **App Store / TestFlight releases** (`.github/workflows/release-appstore.yml`)
   — push a `vX.X.X` tag and a build is signed for the App Store and uploaded to
   App Store Connect (TestFlight). Uses an App Store Connect API key with
@@ -152,7 +154,7 @@ blobs never accumulate in git history. Don't commit to it.
 ### Using it
 
 Open a PR → the `Release` workflow archives, signs, exports, and publishes.
-Visit `https://<owner>.github.io/<repo>/` in **Safari on the iPhone** and tap
+Visit `https://<owner>.github.io/<repo>/` in **Safari on the device** and tap
 **Install** (the OTA `itms-services://` flow only works in Safari, and only on
 devices whose UDID is in the profile). The site keeps the 5 most recent PR
 builds (`RETENTION` in `release.yml`); reinstalling the same PR after a new

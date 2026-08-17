@@ -35,8 +35,24 @@ jobs:
         run: swift test
 
   app-ui-tests:
-    name: App · XCUITest (macOS)
+    # Aujour ships universal (TARGETED_DEVICE_FAMILY = "1,2"), and the two
+    # families do not lay out the same: an iPad is a regular-width size class
+    # where an iPhone in portrait is compact. A suite that only ever ran on
+    # iPhone could not see a split view that never collapses, a sheet that
+    # presents as a form sheet, or a toolbar that moves. So run the whole suite
+    # once per family.
+    #
+    # The legs are independent — `fail-fast: false` so an iPad-only regression
+    # still reports the iPhone result rather than cancelling it.
+    #
+    # Each value is both the check's name and the prefix the simulator is
+    # resolved by — every simulator in a family is named after it.
+    name: App · XCUITest (${{ matrix.device }})
     runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iPhone, iPad]
     steps:
       - uses: actions/checkout@v4
 
@@ -48,20 +64,23 @@ jobs:
       - name: Toolchain versions
         run: xcodebuild -version
 
-      - name: Resolve and boot an iPhone simulator
+      - name: Resolve and boot a ${{ matrix.device }} simulator
         id: sim
+        env:
+          DEVICE_PREFIX: ${{ matrix.device }}
         run: |
           set -euo pipefail
           # By UDID rather than name, so the device booted below is provably
           # the one xcodebuild targets.
           SIM=$(xcrun simctl list devices available --json \
             | python3 -c "
-          import json, sys
+          import json, os, sys
+          prefix = os.environ['DEVICE_PREFIX']
           runtimes = json.load(sys.stdin)['devices']
-          iphones = [d for runtime in runtimes for d in runtimes[runtime] if d['name'].startswith('iPhone')]
-          if not iphones:
-              sys.exit('::error::no iPhone simulator is available on this runner')
-          chosen = sorted(iphones, key=lambda d: d['name'])[-1]
+          matches = [d for runtime in runtimes for d in runtimes[runtime] if d['name'].startswith(prefix)]
+          if not matches:
+              sys.exit(f'::error::no {prefix} simulator is available on this runner')
+          chosen = sorted(matches, key=lambda d: d['name'])[-1]
           print(f\"{chosen['name']}|{chosen['udid']}\")
           ")
           NAME=${SIM%%|*}
@@ -93,6 +112,8 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: ui-test-results
+          # Per family — upload-artifact@v4 rejects a name a sibling job in the
+          # same run already claimed.
+          name: ui-test-results-${{ matrix.device }}
           path: App/TestResults.xcresult
           if-no-files-found: ignore

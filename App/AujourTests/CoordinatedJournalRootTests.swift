@@ -47,6 +47,24 @@ struct CoordinatedJournalRootTests {
         }
     }
 
+    @Test("another app deleting a day is reported")
+    func somebodyElsesDeletionIsNews() async throws {
+        try await withTemporaryFolder { root in
+            try root.seed("Walked to the market.\n", at: "2026/03/2026-03-01.md")
+            let folder = CoordinatedJournalRoot(root: root)
+            defer { folder.stopWatching() }
+
+            // The day deleted in Obsidian. Here on its own because it is the
+            // one thing the folder cannot check the file about: the file is
+            // still there when Aujour is told, wearing the dates it wore
+            // before anybody started watching, and what is happening to it is
+            // that it is about to stop existing.
+            try root.somebodyElseDeletes(at: "2026/03/2026-03-01.md")
+
+            #expect(await changeReported(by: folder) != nil)
+        }
+    }
+
     @Test("a folder nobody has touched reports nothing")
     func aQuietFolderIsQuiet() async throws {
         try await withTemporaryFolder { root in

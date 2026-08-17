@@ -27,6 +27,15 @@ import Foundation
 /// What settles it is the file itself: one still exactly as Aujour left it is
 /// Aujour's own write coming back.
 ///
+/// Neither is what the folder already was when Aujour first looked at it.
+/// Presenting a folder does not begin at the instant it is asked for — the
+/// system notices uncoordinated writes by watching the file system, and that
+/// watch reaches a little way into the past, so a write that had already
+/// finished can arrive a second later looking exactly like one somebody has
+/// just made. The file settles this one too: nothing has happened to a file
+/// whose attributes have not been touched since presenting began, so a report
+/// about it is about a write from before Aujour was there.
+///
 /// Registration is global: a presenter goes on being one until it says
 /// otherwise, wherever the object holding it has got to. So `stopWatching()`
 /// is what ends it, and whoever opened a folder is who calls it when that
@@ -68,6 +77,18 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
     private let registration = NSLock()
     private var registered = false
 
+    /// The moment Aujour started presenting the folder.
+    ///
+    /// The line between what Aujour was there for and what it was not. A
+    /// presenter is not handed a folder as of the instant it registers: the
+    /// system watches the file system to notice uncoordinated writes, and that
+    /// watch begins a little way in the past — far enough that a write which
+    /// had already finished arrives, a second or so later, as though somebody
+    /// had just made it. So the folder is asked about anything reported to it,
+    /// and a file nothing has happened to since this moment is a report about
+    /// a write Aujour was not yet watching for.
+    private let presentingSince: Date
+
     private let ownWrites = NSLock()
     /// When each file Aujour has written was last modified, as Aujour left it.
     ///
@@ -92,6 +113,12 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
         )
         changes = stream
         announce = continuation
+
+        // Dated before registering rather than after, so that the error is
+        // always the safe one: a write landing in between is one Aujour is
+        // there for and reports, where a moment taken afterwards would have it
+        // fall on the side of things that happened before anybody was looking.
+        presentingSince = Date()
 
         super.init()
 
@@ -167,12 +194,12 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
 
     /// A file somewhere under the folder was written to.
     func presentedSubitemDidChange(at url: URL) {
-        report(url)
+        reportIfItHappenedWhileWatching(url)
     }
 
     /// A file appeared under the folder: another device's day, arriving.
     func presentedSubitemDidAppear(at url: URL) {
-        report(url)
+        reportIfItHappenedWhileWatching(url)
     }
 
     /// A file under the folder was renamed or moved — which, for an Entry's
@@ -183,7 +210,7 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
     /// path, and one deleted in Obsidian leaves its own for the vault's
     /// hidden `.trash`.
     func presentedSubitem(at oldURL: URL, didMoveTo newURL: URL) {
-        report(isHidden(newURL) ? oldURL : newURL)
+        reportIfItHappenedWhileWatching(isHidden(newURL) ? oldURL : newURL)
     }
 
     /// Somebody is about to delete a file under the folder. Aujour holds
@@ -195,6 +222,10 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
         completionHandler: @escaping ((any Error)?) -> Void
     ) {
         completionHandler(nil)
+        // Reported without asking the file when it last changed, alone among
+        // these: a deletion is news that nothing about the file as it stands
+        // can bear out. It is still there, with the dates it has always had,
+        // and what is happening now is that it is about to stop being there.
         report(url)
     }
 
@@ -208,9 +239,42 @@ final class CoordinatedJournalRoot: NSObject, NSFilePresenter, @unchecked Sendab
         announce.yield(.theFolder)
     }
 
-    /// Reports a change to one file — unless it is to a file that could not be
-    /// part of the journal, which is most of what a folder in a vault does all
-    /// day.
+    /// Reports that somebody wrote a file — unless the file says nobody has,
+    /// not since Aujour started presenting the folder.
+    ///
+    /// The system's account of *when* is the one thing it does not give: a
+    /// write that finished a moment before this presenter registered is
+    /// delivered, about a second later, in exactly the shape of one made just
+    /// now. The file is what tells them apart, and it tells them apart
+    /// squarely — a file whose attributes have not been touched since the
+    /// moment presenting began is one that nothing has happened to since, so
+    /// there is nothing about it to report.
+    ///
+    /// The attribute date and not the modification date, because that one can
+    /// be written to: an app that saves a file with the date it had before
+    /// would otherwise go unheard, where the date the system keeps of when the
+    /// inode last changed cannot be backdated by anybody.
+    ///
+    /// A file the folder cannot answer for — one already gone, one iCloud has
+    /// not sent down — is reported. Not knowing when something happened is not
+    /// the same as knowing it did not.
+    private func reportIfItHappenedWhileWatching(_ url: URL) {
+        guard somethingHappenedWhileWatching(url) else { return }
+        report(url)
+    }
+
+    /// Whether anything at all has happened to this file since Aujour started
+    /// presenting the folder.
+    private func somethingHappenedWhileWatching(_ url: URL) -> Bool {
+        let lastTouched = try? url.resourceValues(forKeys: [.attributeModificationDateKey])
+            .attributeModificationDate
+        guard let lastTouched else { return true }
+        return lastTouched >= presentingSince
+    }
+
+    /// Announces a change to one file — unless it is to a file that could not
+    /// be part of the journal, which is most of what a folder in a vault does
+    /// all day.
     ///
     /// Hidden files are none of Aujour's business, exactly as they are none of
     /// its business in a listing: `.obsidian/workspace.json` is rewritten

@@ -15,7 +15,16 @@ let package = Package(
     // — which builds for the host — stays green. Written as a string because
     // the enum case for this version needs a newer toolchain than the Linux
     // container CI runs `swift test` in.
-    platforms: [.iOS("26.0")],
+    //
+    // macOS is here for the same reason, and it is what makes `swift test`
+    // work on a Mac at all. Naming any platform leaves the ones left unnamed
+    // at their defaults rather than unconstrained, and the default macOS floor
+    // (10.13) predates both Swift concurrency and `Duration` — so on a Mac the
+    // documented fast loop failed to build, on code CI was compiling happily.
+    // CI never saw it: it runs `swift test` in a Linux container, where there
+    // is no availability gate to fail. The floor only has to be new enough for
+    // what Core already uses; it says nothing about where the app can run.
+    platforms: [.iOS("26.0"), .macOS("14.0")],
     products: [
         .library(name: "AujourCore", targets: ["AujourCore"]),
     ],

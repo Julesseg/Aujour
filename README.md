@@ -11,8 +11,8 @@ identity (`Aujour` / `com.julesseguin.aujour`) that one script swaps for yours.
   CI and Claude Code web containers); `App/` is a thin SwiftUI target with an
   XCUITest suite on top.
 - **CI on every PR** (`.github/workflows/ci.yml`) — Core unit tests on a Linux
-  container (fast, no Mac needed) + a full XCUITest run on a macOS runner, once
-  per device family (iPhone and iPad).
+  container (fast, no Mac needed) + the app's own tests on a macOS runner, with
+  the XCUITest suite run against both an iPhone and an iPad simulator.
 - **Installable PR builds** (`.github/workflows/release.yml`) — every PR gets
   an ad-hoc–signed `.ipa` published to a GitHub Pages install site: open it in
   Safari on your iPhone or iPad, tap **Install**. Optional ntfy.sh push when a

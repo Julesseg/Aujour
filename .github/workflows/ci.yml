@@ -45,14 +45,25 @@ jobs:
     # The legs are independent — `fail-fast: false` so an iPad-only regression
     # still reports the iPhone result rather than cancelling it.
     #
-    # Each value is both the check's name and the prefix the simulator is
+    # `device` is both the check's name and the prefix the simulator is
     # resolved by — every simulator in a family is named after it.
     name: App · XCUITest (${{ matrix.device }})
     runs-on: macos-15
     strategy:
       fail-fast: false
       matrix:
-        device: [iPhone, iPad]
+        include:
+          # Everything the scheme tests: `AujourTests` over real temporary
+          # folders, plus the UI suite.
+          - device: iPhone
+            only: ''
+          # The UI suite alone. `AujourTests` covers the store, iCloud and
+          # file coordination — headless work against temporary folders, with
+          # no view and so nothing a size class can change. Running it a
+          # second time buys no coverage; it only doubles the runtime and the
+          # chances of a flake there failing a PR.
+          - device: iPad
+            only: '-only-testing:AujourUITests'
     steps:
       - uses: actions/checkout@v4
 
@@ -106,6 +117,7 @@ jobs:
             -scheme "$APP_NAME" \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -resultBundlePath TestResults.xcresult \
+            ${{ matrix.only }} \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Upload test results

@@ -25,7 +25,7 @@ identity (`Aujour` / `com.julesseguin.aujour`) that one script swaps for yours.
   Shares the signing certificate with the PR-build pipeline (see below).
 - **Auto-dispatched agent sessions** (`.github/workflows/unblock-dispatch.yml`
   + `agent-implement.yml`) — `ready-for-agent` issues that nothing blocks each
-  get a detached [Paseo](https://paseo.sh) Claude Code session spawned on a
+  get a [T3 Code](https://t3.chat/code) Claude Code session spawned on a
   self-hosted Mac runner to implement them, re-scanned whenever a merged PR
   closes an issue or you kick the workflow off by hand. Dormant until you set
   up the runner (see below) — PR and issue events stay green meanwhile.
@@ -63,7 +63,7 @@ App/<Name>UITests/    XCUITest acceptance suite (runs in CI on every PR)
                       + release-appstore.yml (App Store / TestFlight on vX.X.X tags)
                       + unblock-dispatch.yml / agent-implement.yml (agent auto-dispatch)
 ci/                   assemble-build-history.mjs + pipeline docs (ci/README.md)
-docs/agents/          auto-dispatch setup (self-hosted runner + Paseo)
+docs/agents/          auto-dispatch setup (self-hosted runner + T3 Code)
 .claude/              Claude Code hooks & settings
 scripts/rename.sh     placeholder → your identity
 ```
@@ -227,10 +227,10 @@ attached to the run as an artifact (7-day retention). A misformatted tag (not
 ## Enabling agent auto-dispatch (one-time)
 
 The auto-dispatch pipeline (`unblock-dispatch.yml` + `agent-implement.yml`)
-spawns a detached [Paseo](https://paseo.sh) Claude Code session per ready
-issue. Until you complete this setup, `unblock-dispatch.yml` runs on issue
-events but finds nothing to dispatch, and `agent-implement.yml` never runs —
-both stay green.
+spawns a [T3 Code](https://t3.chat/code) Claude Code session per ready issue.
+Until you complete this setup, `unblock-dispatch.yml` runs on issue events but
+finds nothing to dispatch, and `agent-implement.yml` never runs — both stay
+green.
 
 1. **Create the `ready-for-agent` label** and write blockers as `- #N` bullets
    under a `## Blocked by` heading in issue bodies — that's what the dispatcher
@@ -240,8 +240,8 @@ both stay green.
    prompt is just `/implement issue #<N>`, so the skill is what tells the
    session how to work. Not shipped with this template.
 3. **Register a self-hosted macOS runner** (repo → Settings → Actions →
-   Runners) on a Mac with the Paseo daemon running and `gh` + `claude` logged
-   in.
+   Runners) on a Mac that stays logged into its GUI with the T3 Code app open,
+   with the `t3` CLI (`npm i -g t3`) and `gh` + `claude` logged in.
 4. **Set one required repository Actions variable** (*Settings → Secrets and
    variables → Actions → Variables* — a variable, not a secret):
 
@@ -250,7 +250,9 @@ both stay green.
    | `PASEO_PROJECT_DIR` | Absolute path of this repo's clone on the runner Mac; agent sessions spawn git worktrees off it |
 
    Three more are optional: `PASEO_MODEL`, `PASEO_THINKING`, and `PASEO_MODE`
-   override the pinned defaults (Opus 5, high effort, bypass mode).
+   override the pinned defaults (Opus 5, high effort, full-access mode). The
+   names are historical — the pipeline used to run on Paseo — and kept so an
+   already-configured repo needs no edit.
 
 Full walkthrough, scope rules, the in-flight cap, and the optional variables:
 [`docs/agents/auto-dispatch.md`](docs/agents/auto-dispatch.md).

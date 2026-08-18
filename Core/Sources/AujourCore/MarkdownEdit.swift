@@ -16,9 +16,21 @@ public struct MarkdownEdit: Equatable, Sendable {
     /// What goes there instead.
     public let replacement: String
 
-    public init(range: NSRange, replacement: String) {
+    /// Where to leave the cursor once it is in, in the offsets the text will
+    /// have *after* the edit — or `nil` for an edit that has no opinion, which
+    /// leaves the cursor wherever the editor was already holding it.
+    ///
+    /// Ticking a box has no opinion: a box ticked halfway through a sentence
+    /// must not take the caret out of the sentence. A formatting control always
+    /// has one, because the characters it wrote went in around the very place
+    /// the user is writing — bold with a word selected has to leave that word
+    /// selected, and not the two stars it just put in front of it.
+    public let selection: NSRange?
+
+    public init(range: NSRange, replacement: String, selection: NSRange? = nil) {
         self.range = range
         self.replacement = replacement
+        self.selection = selection
     }
 }
 
@@ -37,8 +49,7 @@ extension EntryMarkdown {
     /// between them. Past the end of what was read it is the last line, which
     /// is where a tap at the bottom of an Entry lands.
     public func tickingTheBox(at index: Int) -> MarkdownEdit? {
-        let line = lines.first { index < $0.paragraph.upperBound } ?? lines.last
-        guard let line, line.box.length > 0 else { return nil }
+        guard let line = line(holding: index), line.box.length > 0 else { return nil }
         guard case .taskItem(let isDone) = line.block else { return nil }
 
         return MarkdownEdit(

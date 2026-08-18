@@ -339,70 +339,8 @@ struct DrawnMarkdownDrawingTests {
 
     // MARK: - A real text view to tap in
 
-    /// The editor as the app builds it — a text view over the markdown
-    /// storage, with the coordinator that answers a finger on a box.
-    @MainActor
-    private final class Tapped {
-        /// Standing in for the Entry the editor is bound to: what the app
-        /// would be saving. `nil` until something tells it anything.
-        private final class Entry { var text: String? }
-
-        let textView: UITextView
-        let coordinator: MarkdownEditor.Coordinator
-        /// Held because a layout manager keeps neither its delegate nor its
-        /// text storage alive.
-        let glyphs: MarkdownGlyphs
-        let storage: MarkdownTextStorage
-
-        private let entry = Entry()
-
-        var written: String? { entry.text }
-
-        init(holding source: String, styling: MarkdownStyling) {
-            let storage = MarkdownTextStorage(styling: styling)
-            let layoutManager = MarkdownLayoutManager()
-            let container = NSTextContainer(
-                size: CGSize(width: 350, height: CGFloat.greatestFiniteMagnitude)
-            )
-            let glyphs = MarkdownGlyphs()
-
-            layoutManager.delegate = glyphs
-            storage.addLayoutManager(layoutManager)
-            layoutManager.addTextContainer(container)
-            container.widthTracksTextView = true
-
-            let textView = UITextView(
-                frame: CGRect(x: 0, y: 0, width: 350, height: 400), textContainer: container
-            )
-            textView.textContainerInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
-
-            self.textView = textView
-            self.storage = storage
-            self.glyphs = glyphs
-
-            let entry = self.entry
-            coordinator = MarkdownEditor.Coordinator(
-                text: Binding(get: { entry.text ?? source }, set: { entry.text = $0 })
-            )
-            textView.delegate = coordinator
-            coordinator.ticksBoxes(in: textView)
-
-            storage.setSource(source)
-            layoutManager.ensureLayout(for: container)
-        }
-
-        /// Where the first line's box is: a little in from the top left of the
-        /// text, which is where a finger goes.
-        var firstBox: CGPoint {
-            CGPoint(
-                x: textView.textContainerInset.left + 8,
-                y: textView.textContainerInset.top + 8
-            )
-        }
-    }
-
-    private func editor(holding source: String) -> Tapped {
-        Tapped(holding: source, styling: styling)
+    private func editor(holding source: String) -> OpenEditor {
+        OpenEditor(holding: source, styling: styling)
     }
 
     // MARK: - Laying a day out for real

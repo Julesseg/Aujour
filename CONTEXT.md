@@ -187,7 +187,9 @@ harmless, exactly as Obsidian shows it.
 A list item whose first word is a box: `- [ ]` or `- [x]`. Drawn as a checkbox
 the user taps, and tapping it rewrites one character of the Entry — the file is
 plain markdown before and after, so a task Aujour ticked and a task Obsidian
-ticked are the same file.
+ticked are the same file. A finger on the box is one way to that character and
+the Accessory Row's checkbox control is the other, which is what a box drawn
+over characters rather than built as a view leaves for VoiceOver.
 
 ### Embed
 An Attachment referenced from an Entry, in either of the two spellings a vault
@@ -201,6 +203,30 @@ anywhere in the folder, which is what a wiki embed means and what Obsidian
 does for a markdown link too — so both spellings are searched for the same
 way. Never outside the Journal Root: a target that climbs past it names
 somebody else's file and resolves to nothing.
+
+### Accessory Row
+The formatting bar above the keyboard: headings, bold and italic, lists,
+checkboxes, indenting, and a photograph. On screen exactly while an Entry is
+being written in, and gone with the keyboard — a day being read has neither.
+
+Every control is a shortcut for markdown the user could have typed by hand, so
+each one is a rewrite of the characters that are already there and the Entry is
+plain markdown before and after. A control acts on what the cursor is on: the
+word a caret stands in or the words that are selected for the ones that wrap,
+and every line the selection touches for the ones that are about lines — a line
+with nothing on it included, since a list is most often started on the empty
+line the return key just made.
+
+Each is its own way back: bold inside a bold word takes the marks away, a
+bullet on a list of bullets takes the markers away. Three exceptions earn
+themselves — a heading at another level is re-levelled rather than removed,
+because nobody presses *Heading 2* meaning "not a heading"; bold at the end of
+a bold word steps the cursor out past the closing marks, because that is
+somebody who has finished writing it rather than somebody who wishes they had
+not; and the checkbox goes round three states rather than two — a Task, a Task
+that is done, and neither — because a box is drawn over characters rather than
+being a view, so this is the only way to tick one without a finger on the
+glass.
 
 ### Divergence
 Two versions of one Journal Day that were both written — the Entry edited on

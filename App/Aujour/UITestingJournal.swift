@@ -1,4 +1,7 @@
 import Foundation
+import ImageIO
+import UIKit
+import UniformTypeIdentifiers
 import AujourCore
 
 /// The journal a UI test asked for, or `nil` — which is everybody else.
@@ -15,6 +18,9 @@ import AujourCore
 /// - **A Content Template.** Spawning is most of what M1's Today view does,
 ///   and nothing in the app can set a template until the settings screen
 ///   lands.
+/// - **A photograph.** The system photo picker is another process's screen,
+///   and driving it is the one part of adding a photograph that a UI test
+///   cannot do without becoming a test of that screen.
 /// - **A day two devices wrote.** An unresolved iCloud conflict takes two
 ///   devices, a sync and a moment of bad luck; there is no making one in a
 ///   simulator, and no waiting for one either. So the suite says what iCloud
@@ -55,6 +61,10 @@ enum UITestingJournal {
     /// there before Aujour looked.
     static let vaultNotePathKey = "AUJOUR_UITEST_VAULT_NOTE_AT"
     static let vaultNoteKey = "AUJOUR_UITEST_VAULT_NOTE"
+
+    /// The format of a photograph to hand the editor in place of the one the
+    /// system picker would have come back with — `png`, `jpeg` or `heic`.
+    static let photographKey = "AUJOUR_UITEST_PHOTO"
 
     @MainActor
     static func fromLaunchEnvironment(
@@ -172,6 +182,58 @@ enum UITestingJournal {
         let folder = documentsFolder(named: name)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return folder
+    }
+
+    /// A photograph a UI test means to insert, in the format it asked for —
+    /// or `nil`, which is everybody else, and which is what leaves the system
+    /// picker in charge.
+    ///
+    /// Drawn here rather than carried in the test bundle for the reason the
+    /// picked folder is made here: the runner's files are not the app's, and a
+    /// photograph the app cannot read is not one it could have inserted.
+    static func photographToInsert(
+        _ environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Data? {
+        guard let format = environment[photographKey] else { return nil }
+        let arrivingAs: UTType =
+            switch format {
+            case "png": .png
+            case "heic": .heic
+            default: .jpeg
+            }
+        return photograph(as: arrivingAs)
+    }
+
+    /// A photograph in one format, drawn rather than carried: a few hundred
+    /// bytes of one colour, which is a photograph for every purpose a test has.
+    ///
+    /// Shared with `InsertedPhotographsTests`, which wants the same thing for
+    /// the same reason — what matters about a test's photograph is only the
+    /// format it arrives in.
+    ///
+    /// - Parameter orientation: the EXIF orientation to write, for a test about
+    ///   what survives a conversion. Left out for a photograph with nothing to
+    ///   say about itself.
+    static func photograph(as type: UTType, orientation: Int? = nil) -> Data? {
+        let size = CGSize(width: 40, height: 30)
+        let drawn = UIGraphicsImageRenderer(size: size).image { context in
+            UIColor.systemTeal.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+        }
+
+        guard let image = drawn.cgImage else { return nil }
+        let encoded = NSMutableData()
+        guard
+            let destination = CGImageDestinationCreateWithData(
+                encoded as CFMutableData, type.identifier as CFString, 1, nil
+            )
+        else { return nil }
+        CGImageDestinationAddImage(
+            destination, image,
+            orientation.map { [kCGImagePropertyOrientation: $0] as CFDictionary }
+        )
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return encoded as Data
     }
 
     /// One folder name, not a path: a `/` or a `..` here would put the

@@ -22,7 +22,26 @@ struct EntryView: View {
     /// `market.jpg` in March's day and `market.jpg` in April's are allowed to
     /// be two different photographs.
     @State private var pictures = EmbeddedPictures()
+
+    /// The way a photograph gets into this day: the system picker, and the
+    /// file written into the Journal Root beside the Entry.
+    ///
+    /// Here for the same reason the pictures are, and pointed at the same
+    /// Entry: where a photograph goes is the Attachment Path Template rendered
+    /// for *this* day, and what the embed says is a path from *this* Entry.
+    @State private var photographs = InsertedPhotographs()
+
     @Environment(\.scenePhase) private var scenePhase
+
+    /// The Entry these are all about, as something that can be compared.
+    ///
+    /// Both the day and the editor holding it, because either one changing is
+    /// a different Entry for an embed to be resolved against — and only the
+    /// second happens when the journal is reopened onto a setting the user has
+    /// just changed, which leaves the same day on screen in a new editor.
+    private var entryOnScreen: EntryOnScreen {
+        EntryOnScreen(day: editor.day, editor: ObjectIdentifier(editor))
+    }
 
     var body: some View {
         Group {
@@ -39,14 +58,18 @@ struct EntryView: View {
                 MarkdownEditor(
                     text: $editor.content,
                     pictures: pictures,
+                    photographs: photographs,
                     identifier: "entryEditor",
                     label: "Entry for \(editor.day.spelledOut())"
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // The Entry on screen decides where a relative embed points, so
-                // the pictures follow it — including on the morning an app
-                // left open overnight moves on to today.
-                .onChange(of: editor.day, initial: true) { pictures.look(in: editor) }
+                // both halves of an embed follow it — including on the morning
+                // an app left open overnight moves on to today.
+                .onChange(of: entryOnScreen, initial: true) {
+                    pictures.look(in: editor)
+                    photographs.adds(to: editor)
+                }
                 // The folder is shared, so a photo an Entry names can arrive
                 // after the Entry did. Coming back to the front is when it is
                 // worth looking again for the ones that were not there.
@@ -60,24 +83,60 @@ struct EntryView: View {
                 }
             }
         }
-        // Along the bottom rather than over the text: a save that failed must
-        // be impossible to miss, and equally impossible to be stopped by —
-        // the words are still on screen and still being typed.
+        // Along the bottom rather than over the text: something that could not
+        // be written must be impossible to miss, and equally impossible to be
+        // stopped by — the words are still on screen and still being typed.
         .safeAreaInset(edge: .bottom) {
-            if let problem = editor.saveProblem {
-                UnsavedWordsNotice(problem: StorageProblem(problem))
+            VStack(spacing: 0) {
+                if let problem = editor.saveProblem {
+                    WritingProblemNotice(
+                        problem: StorageProblem(problem),
+                        identifier: "unsavedWordsNotice"
+                    )
+                }
+                if let problem = photographs.problem {
+                    WritingProblemNotice(
+                        problem: problem,
+                        identifier: "photoProblemNotice",
+                        acknowledge: photographs.acknowledge
+                    )
+                }
             }
         }
     }
 }
 
-/// A save that did not land, said where the user is writing.
+/// The Entry a screen is about: which day, and which editor it is open in.
+///
+/// The second half matters because an editor is replaced without the day
+/// changing — reopening the journal after a setting changes does exactly that
+/// — and everything aimed at "the Entry on screen" has to be aimed again when
+/// it is.
+private struct EntryOnScreen: Hashable {
+    let day: JournalDay
+    let editor: ObjectIdentifier
+}
+
+/// Something that could not be written into the folder, said where the user
+/// is writing.
 ///
 /// Silence here is the one failure that costs words: the folder is the
 /// journal (ADR 0001), so an Entry the app could not write is an Entry that
-/// does not exist yet, however full the screen looks.
-private struct UnsavedWordsNotice: View {
+/// does not exist yet, however full the screen looks — and a photograph that
+/// inserted nothing without saying why is the one outcome somebody would sit
+/// and repeat.
+private struct WritingProblemNotice: View {
     let problem: StorageProblem
+
+    /// What a test finds it by: this screen can be saying two of these at
+    /// once, about two different failures.
+    let identifier: String
+
+    /// The way to put it away, for a failure that is about something the user
+    /// asked for once. A save that will not land has none — it is still true
+    /// until the next one lands, and dismissing it would be dismissing the
+    /// only sign that the day is not in the folder.
+    var acknowledge: (() -> Void)?
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -91,10 +150,16 @@ private struct UnsavedWordsNotice: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
+            if let acknowledge {
+                Button("Dismiss", systemImage: "xmark", action: acknowledge)
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier("dismiss\(identifier)")
+            }
         }
         .padding(12)
         .background(.thinMaterial)
-        .accessibilityIdentifier("unsavedWordsNotice")
+        .accessibilityIdentifier(identifier)
     }
 }
 

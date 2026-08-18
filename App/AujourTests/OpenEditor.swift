@@ -33,7 +33,15 @@ final class OpenEditor {
     /// What the Entry has been told, or `nil` if it has been told nothing.
     var written: String? { entry.text }
 
-    init(holding source: String, styling: MarkdownStyling = MarkdownStyling()) {
+    /// - Parameter photographs: the way to add a photograph to the day, for
+    ///   the tests that press that control. Left out, the control is on the
+    ///   row and not offered — which is what an editor with no Entry behind it
+    ///   shows.
+    init(
+        holding source: String,
+        styling: MarkdownStyling = MarkdownStyling(),
+        addingPhotographs photographs: InsertedPhotographs? = nil
+    ) {
         let storage = MarkdownTextStorage(styling: styling)
         let layoutManager = MarkdownLayoutManager()
         let container = NSTextContainer(
@@ -61,7 +69,7 @@ final class OpenEditor {
         )
         textView.delegate = coordinator
         coordinator.ticksBoxes(in: textView)
-        coordinator.formats(in: textView)
+        coordinator.formats(in: textView, addingPhotographs: photographs)
 
         storage.setSource(source)
         layoutManager.ensureLayout(for: container)

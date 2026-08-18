@@ -28,6 +28,15 @@ struct MarkdownEditor: UIViewRepresentable {
     /// which Entry is not a thing a text view knows.
     let pictures: EmbeddedPictures
 
+    /// The way a photograph gets into the day: the picker, and the file
+    /// written into the Journal Root beside the Entry. Aimed at the day on
+    /// screen by the same hand as the pictures above, and for the same reason.
+    ///
+    /// `nil` leaves the row's photograph control on the row and not offered,
+    /// which is what a text view with no Entry behind it — a preview, a test
+    /// of the formatting controls — has to show.
+    let photographs: InsertedPhotographs?
+
     /// What a UI test finds this by, and what VoiceOver calls it. Set on the
     /// text view itself rather than through SwiftUI's accessibility
     /// modifiers, which would describe the wrapper instead of the thing being
@@ -86,7 +95,7 @@ struct MarkdownEditor: UIViewRepresentable {
         pictures.whenOneArrives = { [weak storage] in storage?.aPictureArrived() }
 
         context.coordinator.ticksBoxes(in: textView)
-        context.coordinator.formats(in: textView)
+        context.coordinator.formats(in: textView, addingPhotographs: photographs)
         storage.setSource(text)
         return textView
     }
@@ -99,6 +108,7 @@ struct MarkdownEditor: UIViewRepresentable {
 
         guard let storage = textView.textStorage as? MarkdownTextStorage else { return }
         storage.pictures = pictures
+        context.coordinator.photographs = photographs
 
         // Dynamic Type: the font everything else is derived from has moved, so
         // everything is drawn again. Compared by font rather than by whole
@@ -145,6 +155,11 @@ struct MarkdownEditor: UIViewRepresentable {
         /// The gesture that ticks boxes, kept so that the delegate below can
         /// tell it apart from every gesture a text view has of its own.
         fileprivate var tick: UITapGestureRecognizer?
+
+        /// The way to a photograph, if this editor is over an Entry that could
+        /// hold one. Kept rather than captured, because the row is built once
+        /// and this struct is rebuilt on every keystroke.
+        var photographs: InsertedPhotographs?
 
         init(text: Binding<String>) {
             self.text = text
@@ -203,16 +218,55 @@ struct MarkdownEditor: UIViewRepresentable {
         ///
         /// The text view's own `inputAccessoryView`, which is the whole of how
         /// it comes and goes with the keyboard — see ``MarkdownAccessoryRow``.
-        /// The row is handed a way to say which control was pressed and
-        /// nothing else: what a control writes is Core's, and where it writes
-        /// it is this text view's. Nothing is handed it for the photo control,
-        /// which is why that one is on the row and not yet offered — inserting
-        /// a photograph is the attachment pipeline's (issue #22).
-        func formats(in textView: UITextView) {
-            textView.inputAccessoryView = MarkdownAccessoryRow {
-                [weak self, weak textView] command in
+        /// The row is handed two ways of saying what was pressed and nothing
+        /// else: what a control writes is Core's, and where it writes it is
+        /// this text view's. The photograph control is the one that is not
+        /// punctuation, and it is offered exactly when there is an Entry
+        /// behind this editor for a photograph to be written beside.
+        func formats(in textView: UITextView, addingPhotographs: InsertedPhotographs?) {
+            photographs = addingPhotographs
+            textView.inputAccessoryView = MarkdownAccessoryRow(
+                insertPhoto: addingPhotographs == nil
+                    ? nil
+                    : { [weak self, weak textView] in
+                        guard let self, let textView else { return }
+                        insertAPhotograph(in: textView)
+                    }
+            ) { [weak self, weak textView] command in
                 guard let self, let textView else { return }
                 format(command, in: textView)
+            }
+        }
+
+        /// Puts the picker up, and what comes back into the folder and then
+        /// into the day.
+        ///
+        /// The caret is read before the picker rather than after it: a picker
+        /// is another screen, and it takes the keyboard and the first
+        /// responder with it — so "at the caret" has to mean where the cursor
+        /// was when the control was pressed. The keyboard is asked back
+        /// afterwards, because somebody who has just put a picture in their day
+        /// is somebody who was writing in it.
+        ///
+        /// Internal, and answering with the work it started, so that a test
+        /// can press the control and wait for what it did.
+        @discardableResult
+        func insertAPhotograph(in textView: UITextView) -> Task<Void, Never>? {
+            guard let photographs else { return nil }
+            let caret = textView.selectedRange
+
+            return Task {
+                let added = await photographs.pick(over: textView)
+                // Back to writing either way, including the commonest outcome
+                // of opening a picker — closing it again. Somebody who has
+                // just been to the picker and back was writing before they
+                // went, and the row and the keyboard went with it.
+                textView.becomeFirstResponder()
+
+                guard let added else { return }
+                // Through the same door a tapped control goes through, so the
+                // picture is one undo step and the Entry saves it as typing.
+                apply(added.insertion(into: textView.text, at: caret), in: textView)
             }
         }
 

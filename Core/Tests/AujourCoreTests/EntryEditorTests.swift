@@ -124,6 +124,10 @@ private final class TallyingJournalStore: JournalStore, @unchecked Sendable {
     /// putting a keystroke in the middle of one.
     var whileReading: (@Sendable () async -> Void)?
 
+    /// A path something else gets to first: the folder is shared, so a name
+    /// picked from a listing can be taken by the time the write happens.
+    var beatenToTheName: String?
+
     init(_ files: [String: String] = [:]) {
         folder = InMemoryJournalStore(files)
     }
@@ -149,6 +153,11 @@ private final class TallyingJournalStore: JournalStore, @unchecked Sendable {
 
     func create(_ contents: Data, at relativePath: String) async throws {
         if let refuseWrites { throw refuseWrites }
+        if relativePath == beatenToTheName {
+            // Once: the caller crosses the name off and picks the next.
+            beatenToTheName = nil
+            throw JournalStoreError.fileAlreadyExists(relativePath)
+        }
         writes.append((relativePath, String(decoding: contents, as: UTF8.self)))
         try await folder.create(contents, at: relativePath)
     }
@@ -654,6 +663,117 @@ struct EntryAttachmentTests {
         await session.open()
 
         #expect(await session.editor.attachment(named: "../../../../etc/passwd") == nil)
+    }
+}
+
+// The other direction: a photograph handed to the Entry, which is the only
+// object holding both halves of where it goes — the Journal Day the Attachment
+// Path Template renders for, and the Entry path the embed is written relative
+// to. Which name and which path that comes to is `AttachmentTests`; this is
+// that decision over a folder, and what the folder has in it afterwards.
+@Suite("Adding a photograph to an Entry")
+@MainActor
+struct AddingAnAttachmentTests {
+    private let photograph = Data("a photograph".utf8)
+
+    @Test("it is written under the Attachment Path Template, and the Entry finds it back")
+    func writtenAndFoundAgain() async throws {
+        let session = EditorSession()
+        await session.open()
+
+        let added = try await session.editor.attach(photograph, keeping: .jpeg)
+
+        #expect(added.path == "attachments/2026/03/2026-03-01.jpg")
+        #expect(added.embed == "![](../../attachments/2026/03/2026-03-01.jpg)")
+        // The round trip that matters: what was written is what the embed
+        // written beside it goes on to find.
+        #expect(await session.editor.text(of: added.reference) == "a photograph")
+    }
+
+    // The file goes in before the Entry points at it, so that the embed is a
+    // picture the moment it is on screen rather than a line of punctuation
+    // that becomes one.
+    @Test("the file is in the folder before there is anything pointing at it")
+    func writtenBeforeTheEmbed() async throws {
+        let session = EditorSession()
+        await session.open()
+
+        let added = try await session.editor.attach(photograph, keeping: .png)
+
+        #expect(session.store.writes.map(\.path) == [added.path])
+        // And the Entry is untouched: putting the embed in is the editor's,
+        // through the same door a keystroke goes through.
+        #expect(session.editor.content == "")
+    }
+
+    @Test("a second photograph of the same day is kept beside the first")
+    func aSecondPhotograph() async throws {
+        let session = EditorSession()
+        await session.open()
+
+        let first = try await session.editor.attach(photograph, keeping: .jpeg)
+        let second = try await session.editor.attach(Data("another".utf8), keeping: .jpeg)
+
+        #expect(first.path == "attachments/2026/03/2026-03-01.jpg")
+        #expect(second.path == "attachments/2026/03/2026-03-01-2.jpg")
+        #expect(await session.editor.text(of: first.reference) == "a photograph")
+        #expect(await session.editor.text(of: second.reference) == "another")
+    }
+
+    // The folder is shared, so the listing a name was picked from is a moment
+    // old — and the refusal is the seam's promise that nothing is written over
+    // (ADR 0002), not the write failing.
+    @Test("a name taken since the folder was listed is crossed off, not written over")
+    func beatenToTheName() async throws {
+        let session = EditorSession()
+        await session.open()
+        session.store.beatenToTheName = "attachments/2026/03/2026-03-01.jpg"
+
+        let added = try await session.editor.attach(photograph, keeping: .jpeg)
+
+        #expect(added.path == "attachments/2026/03/2026-03-01-2.jpg")
+        #expect(await session.editor.text(of: added.reference) == "a photograph")
+    }
+
+    @Test("the embed-syntax setting decides what is written, not where the file goes")
+    func wikiEmbeds() async throws {
+        let session = EditorSession(
+            settings: JournalSettings(embedSyntax: .obsidianWikiLink)
+        )
+        await session.open()
+
+        let added = try await session.editor.attach(photograph, keeping: .jpeg)
+
+        #expect(added.path == "attachments/2026/03/2026-03-01.jpg")
+        #expect(added.embed == "![[2026-03-01.jpg]]")
+        #expect(await session.editor.text(of: added.reference) == "a photograph")
+    }
+
+    @Test("an Attachment Path Template that cannot be read writes nothing at all")
+    func aTemplateThatCannotBeRead() async throws {
+        let session = EditorSession(
+            settings: JournalSettings(attachmentPathTemplate: "[photos]/MMMM")
+        )
+        await session.open()
+
+        await #expect(throws: PathTemplateError.unsupportedToken("MMMM")) {
+            try await session.editor.attach(photograph, keeping: .jpeg)
+        }
+        #expect(session.store.writes.isEmpty)
+    }
+
+    // Not reachable from the screen — the row a photograph is added from is up
+    // only while a day is being written in — but it is a sentence rather than
+    // a silence, because a photograph that inserted nothing is the one outcome
+    // a user would repeat.
+    @Test("a day that is not open takes no photograph")
+    func anEntryThatIsNotOpen() async throws {
+        let session = EditorSession()
+
+        await #expect(throws: NoEntryIsOpen()) {
+            try await session.editor.attach(photograph, keeping: .jpeg)
+        }
+        #expect(session.store.writes.isEmpty)
     }
 }
 

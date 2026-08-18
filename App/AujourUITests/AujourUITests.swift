@@ -234,10 +234,9 @@ final class AujourUITests: XCTestCase {
         app.buttons["formatIndent"].tap()
         expect(editor, toHaveValue: "  - [x] **Milk**")
 
-        // The way to a photograph is on the row and is not offered yet: its
-        // flow is the attachment pipeline's (issue #22).
-        XCTAssertTrue(app.buttons["insertPhoto"].exists, "there was no way to a photo on the row")
-        XCTAssertFalse(app.buttons["insertPhoto"].isEnabled)
+        // And the one control on the row that is not punctuation, which has a
+        // test of its own below.
+        XCTAssertTrue(app.buttons["insertPhoto"].isEnabled, "there was no way to a photo")
 
         // And what the row wrote is in the file, exactly as a hand would have
         // typed it — which the relaunch is what proves.
@@ -252,6 +251,99 @@ final class AujourUITests: XCTestCase {
             app.buttons["formatBold"].exists,
             "the formatting row outlived the keyboard it came up with"
         )
+    }
+
+    /// A photograph, from the row to the folder.
+    ///
+    /// Where the file goes, what it is called there and what the embed says
+    /// are decided in Core and tested there against the paths they come out
+    /// as; that the conversion and the write happen at all is
+    /// `InsertedPhotographsTests`, headless. What only a running app can show
+    /// is the rest: the control is live while a day is being written in, what
+    /// it inserts lands where the cursor was, the writing carries on from
+    /// under it, and what is in the file afterwards is the plain markdown
+    /// anybody could have typed.
+    ///
+    /// The picker itself is the one part left out — it is another process's
+    /// screen, and driving it would make this a test of that screen. So the
+    /// suite says which photograph it means at launch and it goes in through
+    /// the same door the picker's would (`UITestingJournal`).
+    func testAPhotographIsInsertedAtTheCaretAndKeptAsAFile() throws {
+        let app = launchApp(photograph: "png")
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        editor.tap()
+        editor.typeText("Walked to the market.")
+
+        let photo = app.buttons["insertPhoto"]
+        XCTAssertTrue(photo.waitForExistence(timeout: 10), "the formatting row never appeared")
+        photo.tap()
+
+        // On a line of its own under the sentence, pointed at the file
+        // relative to the day holding it.
+        let embed = "![](\(todaysPhotograph()))"
+        expect(editor, toHaveValue: "Walked to the market.\n" + embed)
+
+        // And the cursor is after it, so the next sentence is the next
+        // sentence rather than something wedged inside the link.
+        editor.typeText("\nAnd back the long way.")
+        expect(
+            editor,
+            toHaveValue: "Walked to the market.\n" + embed + "\nAnd back the long way."
+        )
+
+        // What is in the file is what was on screen — the write of the photo
+        // itself is what the embed is evidence of, since nothing is inserted
+        // until the file is in the folder.
+        Thread.sleep(forTimeInterval: 4)
+        relaunch(app)
+
+        let reopened = app.textViews["entryEditor"]
+        XCTAssertTrue(reopened.waitForExistence(timeout: 30))
+        XCTAssertEqual(
+            reopened.value as? String,
+            "Walked to the market.\n" + embed + "\nAnd back the long way."
+        )
+    }
+
+    /// The embed-syntax setting: the same photograph, written the way the
+    /// user's vault is written.
+    ///
+    /// What a HEIC becomes on the way in is not asked here — it needs an
+    /// ImageIO and no screen, which is `InsertedPhotographsTests`, in the same
+    /// CI job on the same simulator.
+    func testTheEmbedSyntaxSettingDecidesHowAPhotographIsWritten() throws {
+        let app = launchApp(photograph: "jpeg")
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        openFolderSheet(app)
+        let example = app.staticTexts["embedSyntaxExample"]
+        scrollTo(example, in: app)
+        XCTAssertEqual(example.label, "![](\(todaysPhotograph(named: "jpg")))")
+
+        let wiki = app.buttons["Wiki-style"]
+        scrollTo(wiki, in: app)
+        wiki.tap()
+        // The setting made concrete, on the day the user is in.
+        expect(example, toHaveLabel: "![[\(todaysEntryName()).jpg]]")
+        app.buttons["Done"].tap()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 15), "today never came back")
+        editor.tap()
+        XCTAssertTrue(
+            app.buttons["insertPhoto"].waitForExistence(timeout: 10),
+            "the formatting row never appeared"
+        )
+        app.buttons["insertPhoto"].tap()
+
+        // The file still goes where the Attachment Path Template says — the
+        // setting decides only how the Entry points at it.
+        expect(editor, toHaveValue: "![[\(todaysEntryName()).jpg]]")
     }
 
     func testAPastDayIsFilledInFromTheCalendar() throws {
@@ -580,12 +672,16 @@ final class AujourUITests: XCTestCase {
     ///     launch, so it is the newer of the two.
     ///   - vaultNote: a file the folder already holds that is none of Aujour's
     ///     business — a note the vault made — and the path it sits at.
+    ///   - photograph: the format of the photograph the app hands itself in
+    ///     place of the one the system picker would have come back with —
+    ///     `png`, `jpeg` or `heic`.
     private func launchApp(
         contentTemplate: String = "",
         folderToPick: String? = nil,
         todaysEntry: String? = nil,
         divergedVersion: String? = nil,
-        vaultNote: (at: String, saying: String)? = nil
+        vaultNote: (at: String, saying: String)? = nil,
+        photograph: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["AUJOUR_UITEST_JOURNAL_FOLDER"] = journalFolder
@@ -602,6 +698,9 @@ final class AujourUITests: XCTestCase {
         if let vaultNote {
             app.launchEnvironment["AUJOUR_UITEST_VAULT_NOTE_AT"] = vaultNote.at
             app.launchEnvironment["AUJOUR_UITEST_VAULT_NOTE"] = vaultNote.saying
+        }
+        if let photograph {
+            app.launchEnvironment["AUJOUR_UITEST_PHOTO"] = photograph
         }
         app.launch()
         return app
@@ -731,6 +830,30 @@ final class AujourUITests: XCTestCase {
         Calendar.current.date(
             from: Calendar.current.dateComponents([.year, .month], from: date)
         )!
+    }
+
+    /// Brings something into view in a sheet that scrolls.
+    ///
+    /// The folder sheet answers "where are my files?" in three parts now, and
+    /// the last of them is below the fold on a phone — an element that is
+    /// there and not on screen is one a tap cannot reach.
+    private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) {
+        XCTAssertTrue(element.waitForExistence(timeout: 10), "\(element) never appeared")
+        var swipes = 0
+        while !element.isHittable, swipes < 5 {
+            app.swipeUp()
+            swipes += 1
+        }
+        XCTAssertTrue(element.isHittable, "\(element) never came into view")
+    }
+
+    /// Where today's photograph lands, said the way the Entry points at it —
+    /// the default templates, two folders up and across.
+    private func todaysPhotograph(named extension: String = "png") -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy/MM"
+        return "../../attachments/\(formatter.string(from: Date()))"
+            + "/\(todaysEntryName()).\(`extension`)"
     }
 
     /// The name a day's Entry file carries under the default Path Template —

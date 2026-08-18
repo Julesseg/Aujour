@@ -183,11 +183,12 @@ struct MarkdownAccessoryRowTests {
         #expect(levels.map(\.title) == ["Heading 1", "Heading 2", "Heading 3"])
     }
 
-    // The picker, the file copied into the Journal Root, the embed written at
-    // the caret — all of it is the attachment pipeline's (issue #22). Until it
-    // is there the control is on the row and says it is not ready, which is
-    // better than a button that looks live and does nothing.
-    @Test("the photo control waits until something has said what it does")
+    // The row knows there is a photograph control and nothing about what one
+    // is: the picker, the file written into the Journal Root and the embed at
+    // the caret are `InsertedPhotographs`'s. Handed nothing, the control is on
+    // the row and says it is not ready, which is better than a button that
+    // looks live and does nothing.
+    @Test("the photo control is offered exactly when something can answer it")
     func photographs() throws {
         #expect(try !control("insertPhoto", of: MarkdownAccessoryRow { _ in }).isEnabled)
 

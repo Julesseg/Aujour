@@ -22,6 +22,7 @@ private final class CalendarSession {
         files: [String: String] = [:],
         spawningFrom template: String? = nil,
         settings: JournalSettings = .default,
+        dayData: DayData = DayData(),
         now: Date = instant(2026, 3, 1, 9, 30, in: paris),
         locale: Locale = english
     ) {
@@ -31,6 +32,7 @@ private final class CalendarSession {
             store: store,
             settings: settings,
             spawningFrom: template.map(FixedContentTemplate.init),
+            dayData: dayData,
             timeZone: paris,
             locale: locale,
             now: { self.now }
@@ -319,6 +321,23 @@ struct JournalCalendarBackfillTests {
         #expect(try await session.store.listFiles().isEmpty)
     }
 
+    @Test("a backfilled day's data placeholders are read for that day")
+    func aBackfilledDayReadsItsOwnData() async throws {
+        let session = CalendarSession(
+            spawningFrom: "## Today\n{{events}}\n",
+            dayData: DayData([.events: TheDayThatWasRead()])
+        )
+
+        let editor = try #require(
+            session.calendar.editor(for: JournalDay(year: 2026, month: 2, day: 14))
+        )
+        await editor.open()
+
+        // February 14th's meetings and not March 1st's — a day filled in on
+        // another day is the whole reason the seam is asked about a day.
+        #expect(editor.content == "## Today\n- 2026-02-14\n")
+    }
+
     @Test("the backfilled file is created by the typing, at that day's path")
     func typingIntoABackfilledDayCreatesItsFile() async throws {
         let session = CalendarSession()
@@ -360,5 +379,13 @@ struct JournalCalendarBackfillTests {
         await editor.reopenIfTheDayTurned()
 
         #expect(editor.day == JournalDay(year: 2026, month: 2, day: 14))
+    }
+}
+
+/// A source that answers with the date it was asked about, so that a spawned
+/// Entry says which day the calendar was read for.
+private struct TheDayThatWasRead: DayItemSource {
+    func items(during day: DateInterval) async -> [DayItem] {
+        [DayItem(title: MomentFormat("YYYY-MM-DD").render(day.start, timeZone: paris))]
     }
 }

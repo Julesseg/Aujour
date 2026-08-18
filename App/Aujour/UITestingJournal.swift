@@ -21,6 +21,12 @@ import AujourCore
 /// - **A photograph.** The system photo picker is another process's screen,
 ///   and driving it is the one part of adding a photograph that a UI test
 ///   cannot do without becoming a test of that screen.
+/// - **A day's calendar.** `{{events}}` and `{{reminders}}` read the device's
+///   own, and a simulator's is empty, unaskable and not the test's to seed.
+///   So the suite says what the day held, and everything after that point —
+///   the resolving, the formatting, the spawn — is the app's own code. A
+///   UI-test journal never reaches EventKit at all, which is also what keeps
+///   a permission alert from another process out of the middle of a test.
 /// - **A day two devices wrote.** An unresolved iCloud conflict takes two
 ///   devices, a sync and a moment of bad luck; there is no making one in a
 ///   simulator, and no waiting for one either. So the suite says what iCloud
@@ -45,6 +51,12 @@ enum UITestingJournal {
     /// `templates/` folder an Obsidian vault already keeps them in, so a suite
     /// that lists the folder sees what a real one would.
     static let contentTemplateFile = "templates/Daily.md"
+
+    /// What the day being spawned held, one item per line, as
+    /// `HH:mm Title` — or just `Title` for one the day holds without an hour.
+    /// Read for whichever day is spawned, so a backfill gets them too.
+    static let eventsKey = "AUJOUR_UITEST_EVENTS"
+    static let remindersKey = "AUJOUR_UITEST_REMINDERS"
 
     /// The name of a folder for "Use a custom folder…" to pick, in place of
     /// the Files picker.
@@ -129,8 +141,22 @@ enum UITestingJournal {
                     written,
                     of: root.appending(path: entryPath)
                 )
-            } ?? ICloudVersions()
+            } ?? ICloudVersions(),
+            dayData: dayData(from: environment)
         )
+    }
+
+    /// The day's items a test seeded, as the data placeholders will read them.
+    ///
+    /// Always built, even when the test seeded nothing: what a UI test must
+    /// not have is the *device's* calendar, and an empty day of its own is how
+    /// `{{events}}` renders empty without anybody being asked for a
+    /// permission.
+    private static func dayData(from environment: [String: String]) -> DayData {
+        DayData([
+            .events: ADaySeededByATest(environment[eventsKey]),
+            .reminders: ADaySeededByATest(environment[remindersKey]),
+        ])
     }
 
     /// The journal-shaping settings for one test, kept apart from every other
@@ -290,6 +316,33 @@ enum UITestingJournal {
         URL.documentsDirectory
             .appending(path: "UITests", directoryHint: .isDirectory)
             .appending(path: name, directoryHint: .isDirectory)
+    }
+}
+
+/// A day's events or reminders, said at launch instead of read from the
+/// device.
+///
+/// Written as lines — `09:30 Standup`, or `Bank holiday` for something the day
+/// holds without an hour — and dated onto whichever day is being spawned, so
+/// one seeding serves today's Entry and a backfill alike.
+private struct ADaySeededByATest: DayItemSource {
+    let lines: [Substring]
+
+    init(_ seeded: String?) {
+        self.lines = (seeded ?? "").split(whereSeparator: \.isNewline)
+    }
+
+    func items(during day: DateInterval) async -> [DayItem] {
+        lines.map { line in
+            let clock = line.prefix(5)
+            guard clock.count == 5, clock.dropFirst(2).first == ":",
+                let hour = Int(clock.prefix(2)), let minute = Int(clock.suffix(2))
+            else { return DayItem(title: String(line)) }
+            return DayItem(
+                title: String(line.dropFirst(5).drop(while: { $0 == " " })),
+                time: day.start.addingTimeInterval(TimeInterval(hour * 3600 + minute * 60))
+            )
+        }
     }
 }
 

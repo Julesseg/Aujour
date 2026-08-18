@@ -121,7 +121,9 @@ struct ContentTemplatePlaceholderKindTests {
     @Test("unknown placeholders render empty")
     func unknownPlaceholdersRenderEmpty() {
         #expect(render("a{{nonsense}}b") == "ab")
-        // Data placeholders have no providers yet, so they are unknown today.
+        // A data placeholder rendered without a day's data behind it is one
+        // more name this render cannot answer — see `DataPlaceholderTests`
+        // for the render that can.
         #expect(render("{{events}}{{reminders}}") == "")
     }
 

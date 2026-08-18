@@ -102,6 +102,33 @@ struct DrawnElementsTests {
         #expect(Drawn(source, cursor: NSRange(location: 12, length: 5)).covered == ["- [ ] "])
     }
 
+    // MARK: - Interactive placeholders
+
+    @Test("an unanswered placeholder is drawn as its widget")
+    func placeholderWidgets() {
+        let day = Drawn("{{mood}}\n\nWalked home from {{location}}.")
+        #expect(day.kinds == [.widget(.mood), .widget(.location)])
+        // The whole token, so that answering it takes every character of it
+        // away and leaves no brace behind.
+        #expect(day.covered == ["{{mood}}", "{{location}}"])
+    }
+
+    @Test("the widget gives way to its own markdown at the cursor")
+    func aPlaceholderAtTheCursor() {
+        #expect(Drawn("{{mood}}", caret: 4).elements.isEmpty)
+        #expect(Drawn("{{mood}}", caret: 0).elements.isEmpty)
+        #expect(Drawn("{{mood}}", caret: 8).elements.isEmpty)
+        #expect(Drawn("{{mood}} {{location}}", caret: 2).covered == ["{{location}}"])
+    }
+
+    // The picture stands in for the whole embed, alt text and all, and two
+    // drawings over the same characters is one of them drawn over nothing.
+    @Test("a token inside an embed is part of the picture")
+    func placeholdersInsideAnEmbed() {
+        let day = Drawn("![{{location}}](market.jpg)")
+        #expect(day.kinds == [.picture(target: "market.jpg")])
+    }
+
     @Test("a day nobody is writing in is drawn as a document, all of it")
     func noCursorAtAll() {
         let entry = Drawn("- [x] milk\n\n![a](b.jpg)")
@@ -133,6 +160,7 @@ struct DrawnElementsTests {
             - [ ] milk
             - [x] bread, and ![the market](attachments/market.jpg)
             ![[home.jpg]]
+            - [ ] {{mood}}, walked home from {{location}}
             """
         for caret in 0...(entry as NSString).length {
             let drawn = DrawnElements(

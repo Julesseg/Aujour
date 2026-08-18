@@ -32,6 +32,26 @@ public struct MarkdownEdit: Equatable, Sendable {
         self.replacement = replacement
         self.selection = selection
     }
+
+    /// Where a cursor that was *here* ends up once this edit has gone in —
+    /// what an edit with no opinion of its own leaves it at.
+    ///
+    /// "Where it was" is an offset, and an offset means a different character
+    /// once something before it has been rewritten to a different length.
+    /// Ticking a box never moves anything, because it writes one character
+    /// over one; answering a placeholder writes a sentence where eight
+    /// characters were, and a caret in the paragraph below would be left that
+    /// many characters short of the word somebody was writing.
+    ///
+    /// Only an edit entirely before the cursor moves it. One that reaches into
+    /// the cursor is an edit to the very characters it is on — a formatting
+    /// control, which always says where it wants the cursor left — and this
+    /// leaves that alone rather than guessing.
+    public func cursorLeftWhere(it was: NSRange) -> NSRange {
+        guard range.upperBound <= was.location else { return was }
+        let moved = (replacement as NSString).length - range.length
+        return NSRange(location: was.location + moved, length: was.length)
+    }
 }
 
 extension EntryMarkdown {

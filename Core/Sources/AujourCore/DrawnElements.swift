@@ -1,15 +1,16 @@
 import Foundation
 
 /// The stretches of an Entry the editor draws as something other than their
-/// own characters: a task item's box, and an embed's picture.
+/// own characters: a task item's box, an embed's picture, and an unanswered
+/// interactive placeholder's widget.
 ///
 /// Live preview's other half. ``HiddenSyntax`` says which marks are left out
 /// of the drawing because what they mean is already on screen without them —
 /// nothing takes their place, and the words either side simply close up. This
 /// says which stretches are *stood in for*: `- [x] ` becomes a box the user
-/// can tap, and `![sunset](…)` becomes the picture it names. Both are still
-/// every character of the file, which has not changed and does not know
-/// (ADR 0001).
+/// can tap, `![sunset](…)` becomes the picture it names, and `{{mood}}`
+/// becomes the widget that asks it. All three are still every character of the
+/// file, which has not changed and does not know (ADR 0001).
 ///
 /// The two are kept apart because the invariant that makes hiding safe — only
 /// syntax ever goes undrawn — is not true here, and should not be weakened to
@@ -39,6 +40,15 @@ public struct DrawnElements: Equatable, Sendable {
             /// Entry — resolving it is the app's, which is the layer with a
             /// folder to look in.
             case picture(target: String)
+
+            /// An unanswered interactive placeholder's whole `{{name}}` token:
+            /// the widget that asks it, which the app draws and the user taps
+            /// to answer (``EntryMarkdown/answering(_:in:with:)``).
+            ///
+            /// Answered, there is no token left and so nothing here — which is
+            /// the whole of how a widget goes away, and why nothing has to
+            /// remember that this line was once a question.
+            case widget(InteractivePlaceholder)
         }
 
         public let kind: Kind
@@ -48,9 +58,10 @@ public struct DrawnElements: Equatable, Sendable {
         public let range: NSRange
     }
 
-    /// In the order they appear, and never overlapping — a picture's span and
-    /// a task's marker cannot reach each other, because a marker stops where
-    /// the words begin.
+    /// In the order they appear, and never overlapping. Two drawings over the
+    /// same characters would be one of them drawn over nothing, so where they
+    /// could reach each other — a placeholder's token inside an embed's alt
+    /// text — the one that was found first keeps the stretch.
     public let elements: [Element]
 
     /// Reads a reading: what the editor draws instead of the text, given
@@ -74,6 +85,12 @@ public struct DrawnElements: Equatable, Sendable {
             }
             DrawnElements.pictures(in: line.inlines, of: &text, from: cursor, into: &elements)
         }
+        // After the pictures, so that a token written inside an embed's alt
+        // text is left to the picture that already covers it; and sorted at
+        // the end, because a widget and a picture on the same line are found
+        // in two passes and are drawn in the order they are written.
+        DrawnElements.widgets(of: markdown, in: source, from: cursor, into: &elements)
+        elements.sort { $0.range.location < $1.range.location }
         self.elements = elements
     }
 
@@ -98,6 +115,25 @@ public struct DrawnElements: Equatable, Sendable {
                 .trimmingCharacters(in: .whitespaces)
             guard !target.isEmpty else { continue }
             elements.append(Element(kind: .picture(target: target), range: inline.range))
+        }
+    }
+
+    /// The widgets: one for every registered interactive placeholder still
+    /// waiting to be answered, and none for a token the cursor is in — which
+    /// is a token being edited as the text it is, exactly as a task's marker
+    /// is at the cursor.
+    private static func widgets(
+        of markdown: EntryMarkdown,
+        in source: String,
+        from cursor: NSRange?,
+        into elements: inout [Element]
+    ) {
+        for token in markdown.interactivePlaceholders(in: source) {
+            guard !token.range.isTouched(by: cursor) else { continue }
+            guard !elements.contains(where: {
+                NSIntersectionRange($0.range, token.range).length > 0
+            }) else { continue }
+            elements.append(Element(kind: .widget(token.placeholder), range: token.range))
         }
     }
 }

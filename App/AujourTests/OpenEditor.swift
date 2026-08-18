@@ -13,6 +13,11 @@ import UIKit
 /// it does *not* have is a keyboard, a screen or a run loop — a storage with a
 /// layout manager attached is enough to ask how big anything came out and what
 /// a control did to the text.
+///
+/// A sheet is the one thing it cannot have: an unanswered placeholder's
+/// question is put up by the screen the day is on, so here it is kept instead
+/// (``asked``) and answered by hand, which is the same closure the sheet would
+/// have called.
 @MainActor
 final class OpenEditor {
     /// Standing in for the Entry the editor is bound to: what the app would be
@@ -32,6 +37,10 @@ final class OpenEditor {
 
     /// What the Entry has been told, or `nil` if it has been told nothing.
     var written: String? { entry.text }
+
+    /// The question a tapped widget asked, still waiting for its answer —
+    /// what the screen would be showing a sheet for.
+    private(set) var asked: PlaceholderQuestion?
 
     /// - Parameter photographs: the way to add a photograph to the day, for
     ///   the tests that press that control. Left out, the control is on the
@@ -68,7 +77,8 @@ final class OpenEditor {
             text: Binding(get: { entry.text ?? source }, set: { entry.text = $0 })
         )
         textView.delegate = coordinator
-        coordinator.ticksBoxes(in: textView)
+        coordinator.asks = { [weak self] question in self?.asked = question }
+        coordinator.answersTaps(in: textView)
         coordinator.formats(in: textView, addingPhotographs: photographs)
 
         storage.setSource(source)

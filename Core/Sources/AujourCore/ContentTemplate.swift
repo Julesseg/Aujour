@@ -91,16 +91,6 @@ public struct SpawnContext: Sendable {
     }
 }
 
-/// The placeholders Aujour renders as inline widgets in the editor, and which
-/// therefore survive a spawn as literal `{{name}}` text.
-public enum InteractivePlaceholder: String, CaseIterable, Sendable {
-    case mood
-    case location
-
-    /// The set ``SpawnContext/interactivePlaceholders`` defaults to.
-    public static let registeredNames: Set<String> = Set(allCases.map(\.rawValue))
-}
-
 // MARK: - Resolution
 
 extension SpawnContext {
@@ -259,13 +249,17 @@ extension ContentTemplate {
         var index = start + 2
 
         func skipSpaces() {
-            while index < characters.count, characters[index].isWhitespace { index += 1 }
+            while index < characters.count, PlaceholderSyntax.isSpace(characters[index]) {
+                index += 1
+            }
         }
 
         skipSpaces()
 
         let nameStart = index
-        while index < characters.count, isNameCharacter(characters[index]) { index += 1 }
+        while index < characters.count, PlaceholderSyntax.isNameCharacter(characters[index]) {
+            index += 1
+        }
         guard index > nameStart else { return nil }
         let name = String(characters[nameStart..<index]).lowercased()
 
@@ -311,12 +305,6 @@ extension ContentTemplate {
             ),
             end
         )
-    }
-
-    /// A hyphen is deliberately not a name character: it is how an offset
-    /// starts, and `{{date-1d}}` has to read as "date, minus one day".
-    private static func isNameCharacter(_ character: Character) -> Bool {
-        character.isLetter || character.isNumber || character == "_"
     }
 
     private static func closingBraces(_ characters: [Character], from index: Int) -> Int? {

@@ -417,6 +417,77 @@ final class AujourUITests: XCTestCase {
         )
     }
 
+    /// An interactive placeholder is a question the file itself carries: it
+    /// is a literal `{{mood}}` in the folder until somebody answers it, and a
+    /// widget every time Aujour has the day open.
+    ///
+    /// Which stretches are one, and what answering writes, is decided in Core
+    /// and tested there against the text; that the widget takes a widget's
+    /// room and that a tap on it asks the question is
+    /// `PlaceholderWidgetTests`, headless. What only a running app can show is
+    /// the round trip: a token that was never answered is still literal text
+    /// in the file after the app has closed, another tool has edited the day,
+    /// and Aujour has opened it again — and it is a widget once more, while
+    /// the one that *was* answered is plain markdown that nothing in the day
+    /// remembers was ever a question.
+    func testAnUnansweredPlaceholderSurvivesAndAnsweringOneWritesPlainText() throws {
+        let app = launchApp(contentTemplate: "{{mood}}\n{{location}}\n")
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        // The tokens are the text, character for character: what the editor
+        // draws over them is drawn over them, and every other tool sees this.
+        XCTAssertEqual(editor.value as? String, "{{mood}}\n{{location}}\n")
+
+        // The first line's widget, aimed at by coordinate for the reason a box
+        // is: it is a drawing rather than a view, and nothing was added to the
+        // text to find either (ADR 0001). In points from the corner rather
+        // than as a fraction of the editor, whose height is whatever the
+        // keyboard has left of the screen.
+        editor.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 24, dy: 23))
+            .tap()
+
+        let answer = app.textFields["placeholderAnswerField"]
+        XCTAssertTrue(answer.waitForExistence(timeout: 10), "the widget never asked anything")
+        answer.typeText("Slept badly, better by noon")
+        app.buttons["answerPlaceholder"].tap()
+
+        expect(editor, toHaveValue: "Slept badly, better by noon\n{{location}}\n")
+
+        Thread.sleep(forTimeInterval: 4)
+
+        // And somebody else edits the day while Aujour is closed — Obsidian in
+        // the same vault, or another device's copy arriving. The token it did
+        // not answer is literal text to every one of them, so it comes back
+        // untouched with a line of theirs after it.
+        let elsewhere = "Slept badly, better by noon\n{{location}}\n\nWrote this in Obsidian.\n"
+        app.launchEnvironment["AUJOUR_UITEST_TODAYS_ENTRY"] = elsewhere
+        relaunch(app)
+
+        // Through a real file, written by the app, edited by another tool and
+        // read back: the answer is plain markdown, and the question nobody
+        // answered is still its own twelve characters.
+        let reopened = app.textViews["entryEditor"]
+        XCTAssertTrue(reopened.waitForExistence(timeout: 30))
+        expect(reopened, toHaveValue: elsewhere)
+
+        // And it is a widget again, from the text alone — a second line down,
+        // where the token that survived the round trip stands.
+        reopened.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 24, dy: 45))
+            .tap()
+        XCTAssertTrue(
+            app.textFields["placeholderAnswerField"].waitForExistence(timeout: 10),
+            "the unanswered placeholder did not come back as a widget"
+        )
+
+        // Cancelling writes nothing at all, which is what leaves the token
+        // where it stands for the next time the day is opened.
+        app.buttons["cancelPlaceholder"].tap()
+        expect(reopened, toHaveValue: elsewhere)
+    }
+
     func testAPastDayIsFilledInFromTheCalendar() throws {
         let app = launchApp(contentTemplate: "# {{title}}\n")
         XCTAssertTrue(

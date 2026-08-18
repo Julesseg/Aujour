@@ -311,28 +311,67 @@ final class MarkdownTextStorage: NSTextStorage {
             case .picture(let target):
                 guard let picture = pictures?.picture(for: target) else { return nil }
                 return DrawnMarkdown(.picture(picture), over: element.range)
+            case .widget(let placeholder):
+                return DrawnMarkdown(
+                    .widget(placeholder, tint: styling.box), over: element.range
+                )
             }
         }
     }
 
-    /// The box on the line a tap landed on, and the edit ticking it makes —
-    /// or `nil` for a tap that landed on something else.
+    // MARK: - What a finger landed on
+
+    /// What a tap on a drawing means: the two things in an Entry that answer
+    /// one, and nothing for a tap on anything else.
+    enum TappedDrawing {
+        /// A task's box, and the edit that ticks it.
+        case box(MarkdownEdit)
+        /// An unanswered placeholder's widget, and the token it stands over —
+        /// which is what the answer will take the place of, once there is one.
+        case widget(InteractivePlaceholder.Token)
+    }
+
+    /// What the drawing at this character is, if it is one a tap means
+    /// anything to.
     ///
     /// Asked of the storage because the storage is what knows both halves: the
-    /// text the edit is about, and whether a box is drawn there at all. A tap
-    /// on a task line whose markdown is showing — the cursor is in it — is a
-    /// tap on words, and moves the caret like any other.
-    func tickingTheBox(at character: Int) -> MarkdownEdit? {
-        guard character < backing.length else { return nil }
-        guard
+    /// text the tap is about, and whether anything is drawn there at all. A
+    /// tap on a line whose markdown is showing — the cursor is in it — is a
+    /// tap on words, and moves the caret like any other. So is a tap on a
+    /// picture, which is drawn over an Entry but is not a control.
+    func tapping(at character: Int) -> TappedDrawing? {
+        guard character < backing.length,
             let drawn = backing.attribute(.drawnMarkdown, at: character, effectiveRange: nil)
-                as? DrawnMarkdown,
-            drawn.isTappable
+                as? DrawnMarkdown
         else { return nil }
-        // The line it is on and no more of the day than that — the same
-        // stretch a keystroke there would have cost.
-        let reading = EntryMarkdown(backing.string, around: drawn.text)
-        return reading.tickingTheBox(at: drawn.text.location)
+
+        switch drawn.kind {
+        case .taskBox:
+            // The line it is on and no more of the day than that — the same
+            // stretch a keystroke there would have cost.
+            let reading = EntryMarkdown(backing.string, around: drawn.text)
+            return reading.tickingTheBox(at: drawn.text.location).map(TappedDrawing.box)
+        case .widget(let placeholder, _):
+            return .widget(
+                InteractivePlaceholder.Token(placeholder: placeholder, range: drawn.text)
+            )
+        case .picture:
+            return nil
+        }
+    }
+
+    /// The edit that answers the placeholder whose widget was tapped, or `nil`
+    /// if its token is not there any more.
+    ///
+    /// Read again from the text rather than trusted from the tap, because a
+    /// sheet is up for as long as somebody is answering it and the Entry goes
+    /// on living underneath: a version arriving from iCloud replaces the whole
+    /// text, and the characters the widget was standing over are then somebody
+    /// else's words. Core answers only where that placeholder's token really
+    /// is, so the worst an old tap can do is nothing.
+    func answering(_ asked: InteractivePlaceholder.Token, with answer: String) -> MarkdownEdit? {
+        let reading = EntryMarkdown(backing.string, around: asked.range)
+        return reading.answering(asked, in: backing.string, with: answer)
     }
 
     /// Has the layout make its glyphs again over stretches whose styling has

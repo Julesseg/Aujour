@@ -173,10 +173,10 @@ a caret editing that emphasis.
 
 ### Drawn Element
 A stretch of an Entry the editor draws as something other than its own
-characters: a Task's box, and an Embed's picture. Live Preview's other half —
-where hiding leaves a mark out of the drawing because what it means is already
-on screen without it, a Drawn Element is *stood in for*, and something takes
-its place.
+characters: a Task's box, an Embed's picture, and an unanswered interactive
+Placeholder's Widget. Live Preview's other half — where hiding leaves a mark
+out of the drawing because what it means is already on screen without it, a
+Drawn Element is *stood in for*, and something takes its place.
 
 Held to the same cursor rule, and for the same reason: a stretch is only stood
 in for while the cursor is away from it, so the markdown is on screen wherever
@@ -209,6 +209,23 @@ anywhere in the folder, which is what a wiki embed means and what Obsidian
 does for a markdown link too — so both spellings are searched for the same
 way. Never outside the Journal Root: a target that climbs past it names
 somebody else's file and resolves to nothing.
+
+### Widget
+What an unanswered interactive Placeholder is drawn as: a pill carrying the
+placeholder's name, standing where its `{{name}}` token is written and tapped
+to answer it. Answering replaces the token with plain markdown — the words the
+widget handed over, and nothing else — after which there is no token, and so
+no widget.
+
+Nothing anywhere records which questions are outstanding, because the token is
+the record. An unanswered one is literal text: harmless in Obsidian, untouched
+by every tool that is not Aujour, and a widget again the next time Aujour opens
+the day — the same answer read from the same characters. Cancelling therefore
+writes nothing at all, and a token the cursor is in is text like any other,
+which is how one is answered by typing over it.
+
+Adding a placeholder is registering it: the machinery is by name, and what is
+left is the pill's word and what answering it asks.
 
 ### Accessory Row
 The formatting bar above the keyboard: headings, bold and italic, lists,

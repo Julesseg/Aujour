@@ -287,6 +287,78 @@ public final class EntryEditor {
         return try? await store.read(at: named)
     }
 
+    // MARK: - Adding a photograph to it
+
+    /// Writes a file into the Journal Root for this Entry to point at, and
+    /// answers the embed that points at it.
+    ///
+    /// The Entry is asked for the same reason it is asked to find one: an
+    /// Attachment's whole address is relative to the file holding the embed,
+    /// and nothing but this object has both the Journal Day the Attachment
+    /// Path Template is rendered for and the Entry path the reference is
+    /// written from. What is left for the app is the two halves that need a
+    /// device — the picker, and turning what comes back into bytes a folder
+    /// can keep (``AttachmentFormat``).
+    ///
+    /// The file is written *before* the Entry points at it, deliberately. An
+    /// embed naming a file that is not there is drawn as its own markdown
+    /// (``EmbedTarget``), so the other order would put a line of punctuation
+    /// in front of the user and turn it into a photograph a moment later — and
+    /// would leave that line behind for good on the write that failed.
+    ///
+    /// Nothing is written over. The path is one the folder does not hold, and
+    /// a folder that has gained a file there since it was listed refuses the
+    /// write (``JournalStore/create(_:at:)``) rather than replacing it, which
+    /// is answered here by picking the next name and trying again.
+    ///
+    /// - Returns: where the file went, and the markdown to put at the cursor —
+    ///   which the editor writes in through the same door a keystroke goes
+    ///   through, so that it is one undo step and the Entry saves it as
+    ///   typing.
+    /// - Throws: `NoEntryIsOpen` for an Entry that is not on screen,
+    ///   `PathTemplateError` for an Attachment Path Template that cannot be
+    ///   read, and whatever the folder throws for a write it will not take.
+    public func attach(
+        _ contents: Data,
+        keeping format: AttachmentFormat
+    ) async throws -> Attachment {
+        guard state.isEditing, let entryPath else { throw NoEntryIsOpen() }
+        // A stored template that cannot be read names no folder to write into,
+        // and falling back to the default would scatter this user's photographs
+        // across two folders. A sentence for them instead, as with the Path
+        // Template (ADR 0002).
+        let folders = try AttachmentPathTemplate(settings.attachmentPathTemplate)
+
+        var taken = Set(try await store.listFiles())
+        // The listing is a moment old by the time the write happens, and the
+        // folder is shared — so a refusal is a name to cross off and try past,
+        // and not the write failing. Bounded, because a folder that says
+        // something is already at every name in turn is a folder answering
+        // something other than the truth, and the refusal is better handed on
+        // than retried for ever.
+        var refusals = 0
+        while true {
+            let attachment = try Attachment(
+                format,
+                writtenOn: day,
+                under: folders,
+                embeddedIn: entryPath,
+                as: settings.embedSyntax,
+                beside: taken
+            )
+            do {
+                try await store.create(contents, at: attachment.path)
+                return attachment
+            } catch JournalStoreError.fileAlreadyExists(let occupied) {
+                refusals += 1
+                guard refusals < 8 else {
+                    throw JournalStoreError.fileAlreadyExists(occupied)
+                }
+                taken.insert(attachment.path)
+            }
+        }
+    }
+
     // MARK: - The file changing underneath
 
     /// Shows what this day's file says now, unless there are words on screen
@@ -440,6 +512,23 @@ public final class EntryEditor {
         } catch {
             saveProblem = error
         }
+    }
+}
+
+/// Asked to add an Attachment to an Entry that is not open.
+///
+/// Not reachable from the screen — the accessory row a photograph is added
+/// from is up only while an Entry is being written in — and said in the two
+/// sentences every other storage failure is said in rather than as a silence,
+/// because a photograph that appeared to insert nothing is the one outcome a
+/// user would repeat.
+public struct NoEntryIsOpen: LocalizedError, Hashable, Sendable {
+    public init() {}
+
+    public var errorDescription: String? { "Aujour hasn't opened this day yet." }
+
+    public var recoverySuggestion: String? {
+        "Nothing has been changed. Wait for the day to open, then add your photo again."
     }
 }
 

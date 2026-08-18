@@ -460,14 +460,9 @@ final class Journal {
     /// back — they are the user's, in their folder, to move or keep or delete
     /// in Files or in Obsidian (ADR 0002).
     ///
-    /// Adopting is a write to the settings and nothing more; what makes the
-    /// journal reshape itself around the new template is the same observation
-    /// that reshapes it when the iPad changes the template. That observation
-    /// runs while `update` is still on the stack, which is what leaves
-    /// `reopening` holding a task to wait on here — so a caller that gets an
-    /// outcome back is looking at a journal that has already reopened onto the
-    /// new shape. Cleared first, so that a change the settings did not
-    /// actually make waits on nothing.
+    /// Adopting is a write to the settings and nothing more — see
+    /// ``adopt(_:)`` — so a caller that gets an outcome back is looking at a
+    /// journal that has already reopened onto the new shape.
     @discardableResult
     func changeThePathTemplate(
         to template: PathTemplate,
@@ -478,10 +473,72 @@ final class Journal {
             outcome = await JournalMigration(over: store).carryOut(plan)
         }
 
-        reopening = nil
-        settingsStore.update { $0.pathTemplate = template.format }
-        await reopening?.value
+        await adopt { $0.pathTemplate = template.format }
         return outcome
+    }
+
+    /// Writes a journal-shaping settings change, and waits for the journal to
+    /// have reopened around it.
+    ///
+    /// Adopting a setting is a write to the settings and nothing more; what
+    /// makes the journal reshape itself is the same observation that reshapes
+    /// it when the iPad changes one. That observation runs while `update` is
+    /// still on the stack, which is what leaves `reopening` holding a task to
+    /// wait on here — so a caller that gets control back is looking at a
+    /// journal that has already reopened. Cleared first, so that a change the
+    /// settings did not actually make waits on nothing.
+    private func adopt(_ change: (inout JournalSettings) -> Void) async {
+        reopening = nil
+        settingsStore.update(change)
+        await reopening?.value
+    }
+
+    // MARK: - How embeds are written
+
+    /// The embed syntax in force — which of the two spellings a photograph
+    /// added to a day is written in.
+    var embedSyntax: EmbedSyntax { settings.embedSyntax }
+
+    /// What an embed written into today's Entry would look like, under the
+    /// templates in force.
+    ///
+    /// The setting made concrete on the day the user is actually in, the way
+    /// the entry path is: two spellings described in words are two spellings
+    /// somebody has to imagine, and this is the line that would go in the file.
+    ///
+    /// `nil` for templates that cannot be read, which is a sentence the entry
+    /// path field is already showing.
+    var exampleEmbed: String? {
+        guard let entries = try? PathTemplate(settings.pathTemplate),
+            let folders = try? AttachmentPathTemplate(settings.attachmentPathTemplate),
+            let example = try? Attachment(
+                .jpeg,
+                writtenOn: dayOnScreen,
+                under: folders,
+                embeddedIn: entries.render(dayOnScreen),
+                as: settings.embedSyntax,
+                beside: []
+            )
+        else { return nil }
+        return example.embed
+    }
+
+    /// Changes which spelling Aujour writes. Nothing already in the folder
+    /// moves or is rewritten: both spellings are drawn as the picture they
+    /// name whichever wrote them, and this decides only what goes in next.
+    ///
+    /// Today's words are written first, for the reason every other settings
+    /// change writes them first: adopting one reopens the journal, and the
+    /// Entry on screen is replaced when it does. A save that will not go stops
+    /// the change rather than costing the sentence being typed.
+    func changeTheEmbedSyntax(to syntax: EmbedSyntax) async {
+        guard syntax != settings.embedSyntax else { return }
+        folderProblem = nil
+        if let unsaved = await saveWhatIsOnScreenWhereItBelongsNow() {
+            folderProblem = StorageProblem(unsaved)
+            return
+        }
+        await adopt { $0.embedSyntax = syntax }
     }
 
     /// Writes what is on screen to the file it belongs to right now, before

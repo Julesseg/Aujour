@@ -29,10 +29,12 @@ final class MarkdownAccessoryRow: UIInputView {
     /// nothing about the text they are for.
     private let format: (MarkdownFormatting) -> Void
 
-    /// What inserting a photograph does, once something has said — the
-    /// attachment pipeline (issue #22) is what will. Until then the control is
-    /// there and is not offered: a button that looks live and does nothing is
-    /// worse than one that says it is not ready.
+    /// What inserting a photograph does — the picker, the file written into
+    /// the Journal Root, the embed at the caret, all of it
+    /// ``InsertedPhotographs``'s. Nothing, for a row over a text view with no
+    /// Entry behind it: the control is there and is not offered, because a
+    /// button that looks live and does nothing is worse than one that says it
+    /// is not ready.
     private let insertPhoto: (() -> Void)?
 
     init(insertPhoto: (() -> Void)? = nil, format: @escaping (MarkdownFormatting) -> Void) {
@@ -171,10 +173,11 @@ final class MarkdownAccessoryRow: UIInputView {
     /// The way to a photograph, which is the one control here that does not
     /// write punctuation.
     ///
-    /// Its flow — the picker, the file copied into the Journal Root under the
-    /// Attachment Path Template, the embed written at the caret — is the
-    /// attachment pipeline's (issue #22). This is the affordance it arrives
-    /// at, in the row where somebody writing would look for it.
+    /// Only the affordance, in the row where somebody writing would look for
+    /// it. What it sets going — the picker, the file copied into the Journal
+    /// Root under the Attachment Path Template, the embed written at the caret
+    /// — belongs to whoever handed the row a way to do it, exactly as what a
+    /// formatting control writes belongs to Core.
     private func photograph() -> UIButton {
         let button = button("photo.badge.plus", "Insert photo", "insertPhoto") {
             [weak self] in self?.insertPhoto?()

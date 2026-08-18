@@ -169,6 +169,15 @@ private struct JournalFolderSheet: View {
                         // which is the button's own business.
                         Divider()
                         EntryPathSection(journal: journal)
+                        // And the third part of the same answer: the one line
+                        // Aujour writes into a day that is not the user's own
+                        // words. On screen in every state for the reason the
+                        // entry path is — changing a journal-shaping setting
+                        // reopens the journal, and a section that came and went
+                        // with that would vanish under the finger that changed
+                        // it.
+                        Divider()
+                        EmbedSyntaxSection(journal: journal)
                     }
                     .frame(maxWidth: .infinity)
                 }

@@ -253,6 +253,21 @@ default `[attachments]/YYYY/MM` — and are referenced
 relatively from Entries. Embeds are written in standard markdown syntax by
 default (Obsidian wiki-style available as a setting); Aujour renders both.
 
+An Attachment is named after the Journal Day it was added to —
+`2026-03-14.jpg`, then `2026-03-14-2.jpg` for the next one that day — so that
+a folder of them sorts the way the journal does, and so that the name a wiki
+embed is resolved by across the whole vault is one that could only be this
+journal's. Nothing is ever written over: neither the path nor the name is one
+the folder already holds, because an embed whose path names nothing is looked
+for by name and a photograph sharing a name with somebody's note is a
+photograph the editor might draw the wrong one of.
+
+The formats kept are the ones anything can open — JPEG, PNG, GIF. Anything
+else is converted to JPEG on the way in, HEIC first among them: it is what an
+iPhone camera writes and what the same folder opened on a Windows laptop
+cannot show. That conversion is the one edit Aujour makes to somebody's
+photograph.
+
 ### Journal Settings
 The settings that shape the Journal itself: Path Template, Content Template,
 Attachment Path Template, embed syntax, and Rollover Hour. Two devices may

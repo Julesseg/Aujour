@@ -30,9 +30,50 @@ public struct DayItem: Hashable, Sendable {
     /// an hour — an all-day event, a reminder with a date and no time.
     public var time: Date?
 
-    public init(title: String, time: Date? = nil) {
+    /// Whether the day already saw it through — a reminder that was ticked.
+    ///
+    /// It is the day's finished business that makes this worth carrying: a
+    /// Monday written up on Tuesday held everything Monday's list held, and
+    /// writing what got done as though it were still to do would be putting
+    /// something untrue in somebody's journal. Nothing that cannot be done
+    /// ever sets it, and a format whose lines say nothing about doneness
+    /// writes those lines the same either way.
+    public var isDone: Bool
+
+    public init(title: String, time: Date? = nil, isDone: Bool = false) {
         self.title = title
         self.time = time
+        self.isDone = isDone
+    }
+
+    /// An item, or nothing at all for one with no name.
+    ///
+    /// For a source reading somebody's calendar, where a nameless event is a
+    /// real thing to find: written out, it would be a bullet with nothing
+    /// after it — a line in a journal saying only that a line was written.
+    public init?(named title: String?, at time: Date? = nil, isDone: Bool = false) {
+        let named = (title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !named.isEmpty else { return nil }
+        self.init(title: named, time: time, isDone: isDone)
+    }
+}
+
+extension Array where Element == DayItem {
+    /// The day in the order it happened: earliest first, and the items the day
+    /// holds without an hour after them.
+    ///
+    /// For sources whose answers arrive in no order of their own — a
+    /// reminders list is a set of things to do and not a timetable. One that
+    /// *has* an order has a real one, and ``DataPlaceholderFormat`` writes
+    /// items out in the order it is given them.
+    public func throughTheDay() -> [DayItem] {
+        sorted { mine, theirs in
+            switch (mine.time, theirs.time) {
+            case (let mine?, let theirs?): mine < theirs
+            case (_?, nil): true
+            case (nil, _): false
+            }
+        }
     }
 }
 
@@ -86,6 +127,14 @@ public struct DataPlaceholderFormat: Hashable, Sendable {
     /// list in Obsidian.
     public var linePrefix: String
 
+    /// What a line starts with when the day already saw that item through.
+    ///
+    /// The same marker with its box ticked, for the placeholders whose lines
+    /// have a box; the same marker unchanged for the ones that do not, which
+    /// is what leaves an event — a thing that happens rather than a thing to
+    /// do — with nothing to say about it.
+    public var donePrefix: String
+
     /// The format an item's time is written in, before its title — or `nil`
     /// to leave times out, for somebody who wants the day's shape without its
     /// timetable.
@@ -103,12 +152,19 @@ public struct DataPlaceholderFormat: Hashable, Sendable {
     /// can say so here.
     public var whenEmpty: String
 
+    /// - Parameter donePrefix: the marker for an item already done, or `nil`
+    ///   for one that reads the same either way — which is the default, and
+    ///   what a placeholder with no boxes in its lines wants.
     public init(
         linePrefix: String = "- ",
+        donePrefix: String? = nil,
         timeFormat: MomentFormat? = MomentFormat("HH:mm"),
         whenEmpty: String = ""
     ) {
         self.linePrefix = linePrefix
+        // Resolved here rather than kept as an absence, so that two formats
+        // are equal exactly when they write a day the same way.
+        self.donePrefix = donePrefix ?? linePrefix
         self.timeFormat = timeFormat
         self.whenEmpty = whenEmpty
     }
@@ -121,7 +177,9 @@ public struct DataPlaceholderFormat: Hashable, Sendable {
     public func render(_ items: [DayItem], timeZone: TimeZone, locale: Locale) -> String {
         guard !items.isEmpty else { return whenEmpty }
         return items.map { item in
-            linePrefix + time(of: item, timeZone: timeZone, locale: locale) + oneLine(item.title)
+            (item.isDone ? donePrefix : linePrefix)
+                + time(of: item, timeZone: timeZone, locale: locale)
+                + oneLine(item.title)
         }
         .joined(separator: "\n")
     }
@@ -142,43 +200,41 @@ public struct DataPlaceholderFormat: Hashable, Sendable {
 }
 
 extension DataPlaceholderFormat {
-    /// What a calendar event's line looks like: a plain list item.
-    public static let events = DataPlaceholderFormat()
-
-    /// What a reminder's line looks like: a Task, unticked.
+    /// What a placeholder's lines look like before anybody has said otherwise.
     ///
-    /// A reminder is a thing to do, and the box is the one character of
-    /// markdown that says so — tickable where the user is writing, and the
-    /// same task in Obsidian.
-    public static let reminders = DataPlaceholderFormat(linePrefix: "- [ ] ")
+    /// The one place the kinds differ by name, so that adding a placeholder is
+    /// a case here and nowhere else: an event is a plain list item, and a
+    /// reminder is a Task, unticked — a thing to do, and the box is the one
+    /// character of markdown that says so, tickable where the user is writing
+    /// and the same task in Obsidian.
+    public static func `default`(for placeholder: DataPlaceholder) -> DataPlaceholderFormat {
+        switch placeholder {
+        case .events: DataPlaceholderFormat()
+        case .reminders: DataPlaceholderFormat(linePrefix: "- [ ] ", donePrefix: "- [x] ")
+        }
+    }
 }
 
 /// The formatting settings for every data placeholder there is.
+///
+/// Every placeholder always has a format — one it was given or the default for
+/// its kind — so that two of these are equal exactly when they would write a
+/// day the same way. Which is what a settings seam needs of them: a write of
+/// the value already held must be no news to anybody (ADR 0003).
 public struct DataPlaceholderFormatting: Hashable, Sendable {
-    public var events: DataPlaceholderFormat
-    public var reminders: DataPlaceholderFormat
+    private var formats: [DataPlaceholder: DataPlaceholderFormat]
 
-    public init(
-        events: DataPlaceholderFormat = .events,
-        reminders: DataPlaceholderFormat = .reminders
-    ) {
-        self.events = events
-        self.reminders = reminders
+    public init(_ formats: [DataPlaceholder: DataPlaceholderFormat] = [:]) {
+        self.formats = Dictionary(
+            uniqueKeysWithValues: DataPlaceholder.allCases.map { placeholder in
+                (placeholder, formats[placeholder] ?? .default(for: placeholder))
+            }
+        )
     }
 
     public subscript(placeholder: DataPlaceholder) -> DataPlaceholderFormat {
-        get {
-            switch placeholder {
-            case .events: events
-            case .reminders: reminders
-            }
-        }
-        set {
-            switch placeholder {
-            case .events: events = newValue
-            case .reminders: reminders = newValue
-            }
-        }
+        get { formats[placeholder] ?? .default(for: placeholder) }
+        set { formats[placeholder] = newValue }
     }
 
     public static let `default` = DataPlaceholderFormatting()
@@ -216,21 +272,16 @@ public struct DayData: Sendable {
         }
     }
 
-    /// What one placeholder renders as for a Journal Day.
+    /// What one placeholder renders as for the Entry being spawned.
     ///
     /// A placeholder with no source at all renders empty rather than as an
     /// empty day: nothing was asked and nothing answered, so there is no day
     /// with nothing in it to report — it is a placeholder Aujour cannot
     /// resolve, and those render empty like every other unknown name.
-    func text(
-        for placeholder: DataPlaceholder,
-        on day: JournalDay,
-        formattedBy formatting: DataPlaceholderFormatting,
-        timeZone: TimeZone,
-        locale: Locale
-    ) async -> String {
+    func text(for placeholder: DataPlaceholder, at spawn: SpawnContext) async -> String {
         guard let source = sources[placeholder] else { return "" }
-        let items = await source.items(during: day.span(in: timeZone))
-        return formatting[placeholder].render(items, timeZone: timeZone, locale: locale)
+        let items = await source.items(during: spawn.day.span(in: spawn.timeZone))
+        return spawn.dataFormatting[placeholder]
+            .render(items, timeZone: spawn.timeZone, locale: spawn.locale)
     }
 }

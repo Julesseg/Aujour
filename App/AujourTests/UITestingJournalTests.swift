@@ -45,7 +45,7 @@ struct UITestingJournalTests {
         let editor = try #require(journal.today)
         #expect(editor.content.hasPrefix("# "))
 
-        try? FileManager.default.removeItem(at: root.url)
+        removeTheFolderItJournaledInto(journal)
     }
 
     @Test("the day a test seeded is what the data placeholders spawn from")
@@ -69,9 +69,7 @@ struct UITestingJournalTests {
                 == "## Today\n- 09:30 Standup\n- Bank holiday\n\n## To do\n- [ ] 18:00 Bread"
         )
 
-        if case .open(let root, _) = journal.state {
-            try? FileManager.default.removeItem(at: root.url)
-        }
+        removeTheFolderItJournaledInto(journal)
     }
 
     @Test("a launch that seeded no calendar spawns the placeholders empty")
@@ -89,8 +87,14 @@ struct UITestingJournalTests {
         // that stopped for a permission alert would stop for it every time.
         #expect(try #require(journal.today).content == "ab")
 
-        if case .open(let root, _) = journal.state {
-            try? FileManager.default.removeItem(at: root.url)
-        }
+        removeTheFolderItJournaledInto(journal)
+    }
+
+    /// A test's journal folder is inside the app's own Documents, which
+    /// outlives the test — so each one takes its folder away with it, or the
+    /// next run opens a journal the last one wrote.
+    private func removeTheFolderItJournaledInto(_ journal: Journal) {
+        guard case .open(let root, _) = journal.state else { return }
+        try? FileManager.default.removeItem(at: root.url)
     }
 }

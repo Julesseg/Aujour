@@ -276,7 +276,7 @@ struct EntryEditorOpeningTests {
     @Test("a spawned day's data placeholders are read for that day and formatted")
     func aSpawnedDayReadsItsOwnData() async throws {
         var settings = JournalSettings.default
-        settings.dataPlaceholders.events.timeFormat = MomentFormat("h:mm a")
+        settings.dataPlaceholders[.events].timeFormat = MomentFormat("h:mm a")
         // A backfill: the 28th of February, opened on the 1st of March. The
         // meetings have to be the 28th's.
         let session = EditorSession(
@@ -297,7 +297,7 @@ struct EntryEditorOpeningTests {
     @Test("a day whose data has nothing in it spawns per the formatting settings")
     func anEmptyDaySpawnsItsEmptyText() async throws {
         var settings = JournalSettings.default
-        settings.dataPlaceholders.events.whenEmpty = "_nothing in the calendar_"
+        settings.dataPlaceholders[.events].whenEmpty = "_nothing in the calendar_"
         let session = EditorSession(
             spawningFrom: "## Today\n{{events}}\n",
             settings: settings,

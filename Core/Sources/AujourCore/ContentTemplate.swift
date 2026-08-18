@@ -73,29 +73,12 @@ extension ContentTemplate {
         let placeholders = dataPlaceholders
         guard !placeholders.isEmpty else { return render(at: spawn) }
 
-        // Read out of the context before the reads, so that what the tasks
-        // capture is four values and not the context they are about to be
-        // written back into.
-        let day = spawn.day
-        let formatting = spawn.dataFormatting
-        let timeZone = spawn.timeZone
-        let locale = spawn.locale
-
         var resolved = spawn
         await withTaskGroup(of: (DataPlaceholder, String).self) { group in
             for placeholder in placeholders {
-                group.addTask {
-                    (
-                        placeholder,
-                        await data.text(
-                            for: placeholder,
-                            on: day,
-                            formattedBy: formatting,
-                            timeZone: timeZone,
-                            locale: locale
-                        )
-                    )
-                }
+                // The context the reads are *about*, captured before the one
+                // they are being written back into starts changing.
+                group.addTask { (placeholder, await data.text(for: placeholder, at: spawn)) }
             }
             for await (placeholder, text) in group { resolved.data[placeholder] = text }
         }

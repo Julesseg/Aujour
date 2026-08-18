@@ -6,9 +6,9 @@
 	     INFOPLIST_KEY_* build settings. What lives here is the three keys
 	     that make the journal a folder the user owns rather than app storage
 	     they cannot see — together they are what "the files are the journal"
-	     (ADR 0001) looks like from the Files app — and the two sentences the
-	     system says on Aujour's behalf when a Content Template asks for the
-	     day's calendar.
+	     (ADR 0001) looks like from the Files app — and, at the end, the two
+	     sentences the system says on Aujour's behalf when a Content Template
+	     asks for the day's calendar.
 
 	     The pair below publishes the app's own Documents folder under "On My
 	     iPhone", which is where a journal starts when iCloud Drive is off
@@ -31,21 +31,6 @@
 	     Apple only re-reads this when the app's version changes, so a change
 	     here needs MARKETING_VERSION or CURRENT_PROJECT_VERSION bumped with
 	     it, or the folder keeps its old visibility. -->
-	<!-- What the system alert says when {{events}} or {{reminders}} is in
-	     somebody's Content Template. Written out here rather than as build
-	     settings for the same reason as the pair above: a usage description
-	     that does not reach the bundle is a crash the moment access is asked
-	     for, and there is no build error to see it coming.
-
-	     Full access, and it is the read half that is wanted: Aujour never
-	     writes an event or a reminder — it copies the day's into the entry
-	     being spawned, as markdown, and from then on they are words in the
-	     user's file like any other. -->
-	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Aujour fills in {{events}} with the day's calendar events when it starts a new entry. Your calendar is only ever read, and what it says goes no further than the markdown file for that day.</string>
-	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>Aujour fills in {{reminders}} with the day's reminders when it starts a new entry. Your reminders are only ever read, and what they say goes no further than the markdown file for that day.</string>
-
 	<key>NSUbiquitousContainers</key>
 	<dict>
 		<key>iCloud.com.julesseguin.aujour</key>
@@ -58,5 +43,21 @@
 			<string>Any</string>
 		</dict>
 	</dict>
+
+	<!-- What the system alert says when {{events}} or {{reminders}} is in
+	     somebody's Content Template. Written out here rather than as build
+	     settings for the same reason as the file-sharing pair at the top: a
+	     usage description that does not reach the bundle is a crash the
+	     moment access is asked for, and there is no build error to see it
+	     coming.
+
+	     Full access, and it is the read half that is wanted: Aujour never
+	     writes an event or a reminder — it copies the day's into the entry
+	     being spawned, as markdown, and from then on they are words in the
+	     user's file like any other. -->
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Aujour fills in {{events}} with the day's calendar events when it starts a new entry. Your calendar is only ever read, and what it says goes no further than the markdown file for that day.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Aujour fills in {{reminders}} with the day's reminders when it starts a new entry. Your reminders are only ever read, and what they say goes no further than the markdown file for that day.</string>
 </dict>
 </plist>

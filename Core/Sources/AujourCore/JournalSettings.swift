@@ -119,7 +119,7 @@ enum JournalSettingsKey {
     static let embedSyntax = "aujour.journal.embedSyntax"
     static let rolloverHour = "aujour.journal.rolloverHour"
 
-    /// Where one data placeholder's three formatting fields are kept — one key
+    /// Where one data placeholder's formatting fields are kept — one key
     /// each, under the placeholder's own name, so that a phone changing how
     /// events read and an iPad changing how reminders read leave both edits
     /// alive (ADR 0003).
@@ -130,6 +130,7 @@ enum JournalSettingsKey {
     struct DataPlaceholderKeys {
         let prefix: String
         var linePrefix: String { "\(prefix).linePrefix" }
+        var donePrefix: String { "\(prefix).donePrefix" }
         var timeFormat: String { "\(prefix).timeFormat" }
         var whenEmpty: String { "\(prefix).whenEmpty" }
     }
@@ -141,7 +142,7 @@ extension DataPlaceholderFormat {
     /// down with it.
     ///
     /// An *empty* stored value is obeyed rather than treated as missing: the
-    /// empty string is a real answer for all three of these — no marker at
+    /// empty string is a real answer for every one of these — no marker at
     /// all, no time, nothing on an empty day.
     fileprivate init(
         storedValues: (String) -> String?,
@@ -150,6 +151,7 @@ extension DataPlaceholderFormat {
     ) {
         self.init(
             linePrefix: storedValues(keys.linePrefix) ?? fallback.linePrefix,
+            donePrefix: storedValues(keys.donePrefix) ?? fallback.donePrefix,
             // Which is what makes the empty pattern mean "leave the times
             // out": an absent key is a setting nobody has touched, and an
             // empty one is somebody having turned times off.
@@ -166,6 +168,9 @@ extension DataPlaceholderFormat {
         var changes: [(key: String, value: String?)] = []
         if linePrefix != previous.linePrefix {
             changes.append((keys.linePrefix, linePrefix))
+        }
+        if donePrefix != previous.donePrefix {
+            changes.append((keys.donePrefix, donePrefix))
         }
         if timeFormat != previous.timeFormat {
             changes.append((keys.timeFormat, timeFormat?.pattern ?? ""))
@@ -192,16 +197,21 @@ extension JournalSettings: SettingsGroup {
             .flatMap(EmbedSyntax.init(rawValue:)) ?? fallback.embedSyntax
         self.rolloverHour = storedValues(JournalSettingsKey.rolloverHour)
             .flatMap(Int.init).flatMap(RolloverHour.init(hour:)) ?? fallback.rolloverHour
+        // Over every placeholder there is, exactly as `changedValues` writes
+        // them back: a placeholder added later is read and written by the same
+        // two loops, and cannot end up storable but unreadable.
         self.dataPlaceholders = DataPlaceholderFormatting(
-            events: DataPlaceholderFormat(
-                storedValues: storedValues,
-                at: JournalSettingsKey.dataPlaceholder(.events),
-                or: fallback.dataPlaceholders.events
-            ),
-            reminders: DataPlaceholderFormat(
-                storedValues: storedValues,
-                at: JournalSettingsKey.dataPlaceholder(.reminders),
-                or: fallback.dataPlaceholders.reminders
+            Dictionary(
+                uniqueKeysWithValues: DataPlaceholder.allCases.map { placeholder in
+                    (
+                        placeholder,
+                        DataPlaceholderFormat(
+                            storedValues: storedValues,
+                            at: JournalSettingsKey.dataPlaceholder(placeholder),
+                            or: fallback.dataPlaceholders[placeholder]
+                        )
+                    )
+                }
             )
         )
     }

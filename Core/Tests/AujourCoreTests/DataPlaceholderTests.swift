@@ -195,7 +195,7 @@ struct DataPlaceholderEmptyTests {
     @Test("a day with no items renders what the formatting settings say")
     func anEmptyDayRendersItsEmptyText() async {
         var formatting = DataPlaceholderFormatting.default
-        formatting.events.whenEmpty = "_nothing in the calendar_"
+        formatting[.events].whenEmpty = "_nothing in the calendar_"
 
         let rendered = await ContentTemplate("## Today\n{{events}}\n").render(
             at: spawn(formatting),
@@ -232,7 +232,7 @@ struct DataPlaceholderEmptyTests {
     @Test("a placeholder with no source at all renders empty, like any unknown name")
     func aPlaceholderWithNoSourceRendersEmpty() async {
         var formatting = DataPlaceholderFormatting.default
-        formatting.reminders.whenEmpty = "_nothing to do_"
+        formatting[.reminders].whenEmpty = "_nothing to do_"
 
         let rendered = await ContentTemplate("a{{reminders}}b").render(
             at: spawn(formatting),
@@ -409,10 +409,60 @@ struct DataPlaceholderFormatTests {
 
     @Test("the defaults are a list for events and a task list for reminders")
     func theDefaultsSayWhatEachKindIs() {
-        #expect(DataPlaceholderFormatting.default[.events] == .events)
-        #expect(DataPlaceholderFormatting.default[.reminders] == .reminders)
-        #expect(DataPlaceholderFormat.events.linePrefix == "- ")
-        #expect(DataPlaceholderFormat.reminders.linePrefix == "- [ ] ")
+        for placeholder in DataPlaceholder.allCases {
+            #expect(DataPlaceholderFormatting.default[placeholder] == .default(for: placeholder))
+        }
+        #expect(DataPlaceholderFormat.default(for: .events).linePrefix == "- ")
+        #expect(DataPlaceholderFormat.default(for: .reminders).linePrefix == "- [ ] ")
+    }
+
+    @Test("a format written for one placeholder leaves the others at their defaults")
+    func settingOnePlaceholderLeavesTheRest() {
+        var formatting = DataPlaceholderFormatting.default
+        formatting[.events].linePrefix = "* "
+
+        #expect(formatting[.events].linePrefix == "* ")
+        #expect(formatting[.reminders] == .default(for: .reminders))
+        // And a format handed in is the same value as one set afterwards: two
+        // of these are equal exactly when they would write a day alike.
+        #expect(formatting == DataPlaceholderFormatting([.events: formatting[.events]]))
+    }
+
+    @Test("a done item takes the done marker, and events have nothing to say about it")
+    func doneItemsTakeTheirOwnMarker() {
+        let done = [DayItem(title: "Buy bread", isDone: true), DayItem(title: "Call back")]
+
+        #expect(
+            DataPlaceholderFormat.default(for: .reminders)
+                .render(done, timeZone: paris, locale: english)
+                == "- [x] Buy bread\n- [ ] Call back"
+        )
+        // An event is a thing that happened rather than a thing to do, so its
+        // lines read the same either way.
+        #expect(
+            DataPlaceholderFormat.default(for: .events)
+                .render(done, timeZone: paris, locale: english)
+                == "- Buy bread\n- Call back"
+        )
+    }
+
+    @Test("the day's items can be put in the order the day happened in")
+    func itemsSortThroughTheDay() {
+        let unordered = [
+            DayItem(title: "All day"),
+            DayItem(title: "Evening", time: at(18)),
+            DayItem(title: "Morning", time: at(9)),
+        ]
+
+        #expect(unordered.throughTheDay().map(\.title) == ["Morning", "Evening", "All day"])
+    }
+
+    @Test("a nameless item is no item at all")
+    func namelessItemsAreNotItems() {
+        #expect(DayItem(named: nil) == nil)
+        #expect(DayItem(named: "   \n ") == nil)
+        // And a name with room around it is written without it.
+        #expect(DayItem(named: "  Standup  ")?.title == "Standup")
     }
 }
 

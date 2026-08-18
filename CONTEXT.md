@@ -141,6 +141,21 @@ Three kinds:
 Photos are deliberately *not* a placeholder: that day's photos are offered by
 a suggestion panel and inserted as Attachments where the user chooses.
 
+### Day Data
+What the device can say about a Journal Day, as everything above it sees: one
+source per data placeholder, each answering a stretch of wall-clock time with
+the day's items — a title, and the hour it sits at where it has one. The
+second seam between the domain and the device, and the Journal Store's
+opposite number: the domain asks what a day held and never learns whether the
+answer came from EventKit, from a fake, or from nowhere.
+
+Reading through it cannot fail, which is the whole of its shape. A permission
+the user refused, a device with no such data and a genuinely empty day all
+arrive as no items — never as an error — so no Entry ever fails to appear
+because a calendar would not answer. Asking *for* a permission is a separate
+act on the same seam, done before a day is opened rather than while one is
+being spawned.
+
 ### Styled Source
 How the editor shows an Entry: the markdown drawn as what it means — headings
 large, emphasis slanted, list markers set apart, quotes in somebody else's
@@ -306,11 +321,11 @@ photograph.
 The settings that shape the Journal itself: Path Template, Content Template,
 Attachment Path Template, embed syntax, Rollover Hour, and how each data
 placeholder is written out — the marker its items' lines start with, the
-format their times take, and what it says on a day that held nothing. Two
-devices may not disagree about these — different Path Templates would write the
-same Journal Day to two paths — so they travel between the user's devices
-through iCloud key-value storage (ADR 0003). No settings are ever written into the
-Journal Root.
+marker for one the day already saw through, the format their times take, and
+what it says on a day that held nothing. Two devices may not disagree about
+these — different Path Templates would write the same Journal Day to two paths
+— so they travel between the user's devices through iCloud key-value storage
+(ADR 0003). No settings are ever written into the Journal Root.
 
 ### Device Settings
 The settings that belong to one device: theme, editor font, and the time of

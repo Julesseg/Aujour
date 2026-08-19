@@ -168,8 +168,10 @@ private struct WritingProblemNotice: View {
 #Preview("An unwritten day") {
     let today = JournalDay.current(at: .now, in: .current, rolloverHour: .midnight)
     let editor = EntryEditor(
-        store: InMemoryJournalStore(),
-        settings: JournalSettings(contentTemplate: "# {{title}}\n\nWoke at {{time}}.\n")
+        // The template is a file in the folder now (ADR 0005), so the folder
+        // this preview journals into is one that holds it.
+        store: InMemoryJournalStore(["templates/Daily.md": "# {{title}}\n\nWoke at {{time}}.\n"]),
+        settings: JournalSettings(contentTemplateFile: "templates/Daily.md")
     )
 
     NavigationStack {

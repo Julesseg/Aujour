@@ -36,8 +36,15 @@ enum UITestingJournal {
     /// suite drives the app from another target and imports nothing from it.
     static let folderKey = "AUJOUR_UITEST_JOURNAL_FOLDER"
 
-    /// The Content Template new Entries are spawned from.
+    /// The markdown a Content Template file holds. Seeded into the folder as
+    /// a file, and named by the settings — which is what a Content Template is
+    /// (ADR 0005).
     static let contentTemplateKey = "AUJOUR_UITEST_CONTENT_TEMPLATE"
+
+    /// Where that file is seeded, inside the test's own journal folder. The
+    /// `templates/` folder an Obsidian vault already keeps them in, so a suite
+    /// that lists the folder sees what a real one would.
+    static let contentTemplateFile = "templates/Daily.md"
 
     /// The name of a folder for "Use a custom folder…" to pick, in place of
     /// the Files picker.
@@ -73,11 +80,12 @@ enum UITestingJournal {
         guard let folder = environment[folderKey], isAFolderName(folder) else { return nil }
 
         let settings = settingsStore(for: folder)
+        let root = documentsFolder(named: folder)
         if let contentTemplate = environment[contentTemplateKey] {
-            settings.update { $0.contentTemplate = contentTemplate }
+            seed(contentTemplate, at: contentTemplateFile, under: root)
+            settings.update { $0.contentTemplateFile = contentTemplateFile }
         }
 
-        let root = documentsFolder(named: folder)
         let entryPath = todaysEntryPath(rolloverHour: settings.settings.rolloverHour)
         if let written = environment[todaysEntryKey] {
             seed(written, at: entryPath, under: root)

@@ -550,25 +550,41 @@ final class Journal {
 
     // MARK: - What a day starts as, when it turns, and where its photos go
 
-    /// The Content Template in force — what a day nobody has written yet
-    /// starts as.
-    var contentTemplate: String { settings.contentTemplate }
+    /// The file new Entries are spawned from, as a path inside the journal
+    /// folder — or empty for none, which is a blank page (ADR 0005).
+    var contentTemplateFile: String { settings.contentTemplateFile }
 
-    /// Changes what an unwritten day starts as.
+    /// The markdown files in the journal folder, oldest question first: which
+    /// of them could be the template?
     ///
-    /// Nothing already in the folder is touched. A Content Template is what a
-    /// day is *spawned* from, and a day with a file has stopped being spawned
-    /// from anything — it is its file, and only its file (ADR 0001). So this
-    /// is a setting about days not yet written, including the one on screen
-    /// if it is still one of them.
+    /// Every file, not the Entries: a template lives wherever the user keeps
+    /// their templates, which in an Obsidian vault is a folder of its own.
+    /// Asked of the folder each time rather than remembered, because the
+    /// folder is the truth and somebody may have added the file in Obsidian
+    /// while this app was open (ADR 0001).
+    ///
+    /// Empty for a folder that will not answer — a list nobody can choose
+    /// from, which is what the screen says.
+    func markdownFilesInTheFolder() async -> [String] {
+        guard let store, let files = try? await store.listFiles() else { return [] }
+        return files.filter { $0.hasSuffix(".md") }.sorted()
+    }
+
+    /// Points new Entries at a template file, or at none.
+    ///
+    /// Nothing already in the folder is touched, and the file itself is only
+    /// ever read. A Content Template is what a day is *spawned* from, and a
+    /// day with a file has stopped being spawned from anything — it is its
+    /// file, and only its file (ADR 0001). So this is a setting about days not
+    /// yet written, including the one on screen if it is still one of them.
     ///
     /// Today's words are written first, as every settings change writes them
     /// first: adopting one reopens the journal. Which is also what makes the
     /// exception safe — a day that has words has a file by the time the
     /// journal comes back, so it is re-read rather than spawned again, and a
-    /// template changed mid-sentence cannot take the sentence with it.
-    func changeTheContentTemplate(to template: String) async {
-        await change { $0.contentTemplate = template }
+    /// template chosen mid-sentence cannot take the sentence with it.
+    func changeTheContentTemplateFile(to path: String) async {
+        await change { $0.contentTemplateFile = path }
     }
 
     /// When the current Journal Day advances.

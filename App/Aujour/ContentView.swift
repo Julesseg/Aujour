@@ -11,8 +11,7 @@ import AujourCore
 /// indistinguishable from a day nobody wrote on (ADR 0001).
 struct ContentView: View {
     @State private var journal: Journal
-    @State private var showingJournalFolder = false
-    @State private var showingJournalSettings = false
+    @State private var showingTheJournalItself = false
     @State private var showingCalendar = false
     @Environment(\.scenePhase) private var scenePhase
 
@@ -57,16 +56,14 @@ struct ContentView: View {
                                     .accessibilityIdentifier("openCalendar")
                                 }
                                 ToolbarItem(placement: .topBarTrailing) {
-                                    Button("Journal folder", systemImage: "folder") {
-                                        showingJournalFolder = true
+                                    // One way in for the folder and every
+                                    // setting over it, because they are one
+                                    // answer: this is your journal, and this
+                                    // is what Aujour will do with it.
+                                    Button("Your journal", systemImage: "folder.badge.gearshape") {
+                                        showingTheJournalItself = true
                                     }
-                                    .accessibilityIdentifier("journalFolderInfo")
-                                }
-                                ToolbarItem(placement: .topBarTrailing) {
-                                    Button("Journal settings", systemImage: "gearshape") {
-                                        showingJournalSettings = true
-                                    }
-                                    .accessibilityIdentifier("openJournalSettings")
+                                    .accessibilityIdentifier("openTheJournalSheet")
                                 }
                             }
                     } else {
@@ -88,14 +85,12 @@ struct ContentView: View {
             // reason: choosing a folder closes the journal it was opened from
             // and opens another, and a sheet that lives inside one state is a
             // sheet that vanishes mid-decision.
-            // Outside the states for the reason the folder sheet is: every
-            // setting on it reopens the journal, and a sheet that lived
-            // inside `.open` would close under the finger that changed one.
-            .sheet(isPresented: $showingJournalSettings) {
+            // Outside the states rather than inside `.open`: choosing a
+            // folder closes the journal it was opened from and opens another,
+            // and every setting on the sheet reopens it too — a sheet that
+            // lived inside one state is a sheet that vanishes mid-decision.
+            .sheet(isPresented: $showingTheJournalItself) {
                 JournalSettingsSheet(journal: journal)
-            }
-            .sheet(isPresented: $showingJournalFolder) {
-                JournalFolderSheet(journal: journal)
                     // Counted again on the way in: the number from launch is
                     // one edit out of date the moment today's Entry is
                     // created.
@@ -134,164 +129,6 @@ struct ContentView: View {
     }
 }
 
-/// Where the journal lives, said the way the user would find it in the Files
-/// app — and the way to put it somewhere else.
-///
-/// Behind a button rather than on the screen: it is the promise the app is
-/// built on — these are your files, and here is where they are — and it is
-/// also not what anyone opens a journal to read.
-///
-/// It takes the whole Journal rather than the folder it is currently over,
-/// because choosing a folder closes one journal and opens another: the sheet
-/// has to still be there, and still be saying something true, while that
-/// happens.
-private struct JournalFolderSheet: View {
-    let journal: Journal
-
-    /// Whether the Files picker is up.
-    @State private var picking = false
-
-    @Environment(\.dismiss) private var dismiss
-
-    /// "iPhone" or "iPad" — the app runs on both, and the Files app names the
-    /// on-device folder after whichever one this is.
-    private var device: String { UIDevice.current.model }
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 16) {
-                // Scrolled, so that the two buttons stay where they are and
-                // reachable however long the folder's path runs — a sheet
-                // that has pushed its own actions off the bottom is a folder
-                // the user cannot change.
-                ScrollView {
-                    VStack(spacing: 16) {
-                        whereTheJournalIs
-                        if let problem = journal.folderProblem {
-                            FolderProblemNotice(problem: problem, identifier: "folderProblem")
-                        }
-                        // The other half of "where are my files?": the folder
-                        // above, and the shape of the paths inside it.
-                        //
-                        // On screen whatever state the journal is in, and not
-                        // only while it is open — changing the entry path
-                        // closes the journal and opens it again, and a
-                        // section that came and went with that would take the
-                        // migration it is showing with it. What a journal
-                        // that is not open cannot do is *change* the path,
-                        // which is the button's own business.
-                        Divider()
-                        EntryPathSection(journal: journal)
-                        // And the third part of the same answer: the one line
-                        // Aujour writes into a day that is not the user's own
-                        // words. On screen in every state for the reason the
-                        // entry path is — changing a journal-shaping setting
-                        // reopens the journal, and a section that came and went
-                        // with that would vanish under the finger that changed
-                        // it.
-                        Divider()
-                        EmbedSyntaxSection(journal: journal)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                waysToPointItSomewhereElse
-            }
-            .padding()
-            .navigationTitle("Your journal folder")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-        // Full height rather than half: the sheet answers "where are my
-        // files?" in two parts now, and the entry path — a field, what it
-        // renders, and the button that changes it — is the part that would be
-        // below the fold.
-        .presentationDetents([.large])
-    }
-
-    @ViewBuilder
-    private var whereTheJournalIs: some View {
-        switch journal.state {
-        case .opening:
-            ProgressView("Opening your journal")
-
-        case .open(let root, let entryCount):
-            Image(systemName: root.location.symbolName(onDevice: device))
-                .font(.system(size: 44))
-                .foregroundStyle(.tint)
-
-            Text(root.location.name(onDevice: device))
-                .font(.title3.weight(.semibold))
-                .multilineTextAlignment(.center)
-                .accessibilityIdentifier("journalRootLocation")
-
-            Text(root.location.promise(onDevice: device))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-
-            if let entryCount {
-                Text(entryCount == 1 ? "1 entry" : "\(entryCount) entries")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("journalEntryCount")
-            }
-
-            Text(root.url.path(percentEncoded: false))
-                .font(.caption2.monospaced())
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
-                .textSelection(.enabled)
-                .accessibilityIdentifier("journalRootPath")
-
-        case .unavailable(let problem):
-            // The same two sentences the screen behind is showing. Said here
-            // too, because this is where the folder can be changed, and a
-            // folder that cannot be reached is the likeliest reason to.
-            FolderProblemNotice(problem: problem, identifier: "journalRootProblem")
-        }
-    }
-
-    private var waysToPointItSomewhereElse: some View {
-        VStack(spacing: 12) {
-            Button("Use a custom folder…", systemImage: "folder.badge.plus") {
-                chooseAFolder()
-            }
-            .accessibilityIdentifier("chooseCustomFolder")
-
-            if journal.hasACustomFolder {
-                Button("Use Aujour's own folder", systemImage: "arrow.uturn.backward") {
-                    Task { await journal.useAujoursOwnFolder() }
-                }
-                .accessibilityIdentifier("useAujoursOwnFolder")
-            }
-        }
-        .buttonStyle(.bordered)
-        .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
-            // Only a folder that was picked is news: the other outcome is
-            // mostly the user tapping Cancel, and an error notice for a mind
-            // changed is worse than nothing.
-            guard case .success(let folder) = result else { return }
-            Task { await journal.use(folder) }
-        }
-    }
-
-    private func chooseAFolder() {
-        // The Files picker is another process's screen, and driving it is the
-        // one part of choosing a folder that a UI test cannot do without
-        // becoming a test of that screen. So the UI suite says which folder it
-        // means at launch, and it goes in through the same door the picker's
-        // would — everything after this point is the app's own code.
-        if let folder = UITestingJournal.folderToPick() {
-            Task { await journal.use(folder) }
-            return
-        }
-        picking = true
-    }
-}
 
 extension View {
     /// Says, above a day's Entry, that another version of that day was kept
@@ -375,7 +212,7 @@ struct ParkedFilesNotice: View {
 /// Something that went wrong with a folder, in the two sentences it takes to
 /// say what and what to do — the compact form, for beside the thing it is
 /// about.
-private struct FolderProblemNotice: View {
+struct FolderProblemNotice: View {
     let problem: StorageProblem
 
     /// What a test would find it by — the sheet can show two of these at

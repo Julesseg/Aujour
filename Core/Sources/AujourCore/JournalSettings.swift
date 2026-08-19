@@ -10,11 +10,24 @@ public struct JournalSettings: Equatable, Sendable {
     /// Moment-format path for an Entry, relative to the Journal Root.
     public var pathTemplate: String
 
-    /// The markdown skeleton a new Entry starts from. Empty by default:
-    /// Obsidian ships no daily-note template either, and a blank page is a
-    /// better first Entry than one full of scaffolding the user did not ask
-    /// for.
-    public var contentTemplate: String
+    /// The markdown file a new Entry is spawned from, as a path relative to
+    /// the Journal Root — or empty for none, which is a blank page.
+    ///
+    /// The file and not its text, because the template *is* a file in the
+    /// user's vault: Obsidian's daily notes name one exactly this way, so an
+    /// existing setup points at the file it already has, and editing that file
+    /// in Obsidian is what changes tomorrow's Entry. There is no copy inside
+    /// Aujour to go stale (ADR 0005).
+    ///
+    /// Inside the Journal Root and nowhere else, because this setting travels
+    /// (ADR 0003): a bookmark to a file elsewhere on the device is that
+    /// device's alone, and an iPad that could not find the template would
+    /// start the same day from a different page than the iPhone.
+    ///
+    /// Empty by default: Obsidian ships no daily-note template either, and a
+    /// blank page is a better first Entry than one full of scaffolding the
+    /// user did not ask for.
+    public var contentTemplateFile: String
 
     /// Moment-format folder for Attachments, relative to the Journal Root.
     public var attachmentPathTemplate: String
@@ -28,13 +41,13 @@ public struct JournalSettings: Equatable, Sendable {
 
     public init(
         pathTemplate: String = "YYYY/MM/YYYY-MM-DD",
-        contentTemplate: String = "",
+        contentTemplateFile: String = "",
         attachmentPathTemplate: String = "[attachments]/YYYY/MM",
         embedSyntax: EmbedSyntax = .standardMarkdown,
         rolloverHour: RolloverHour = .midnight
     ) {
         self.pathTemplate = pathTemplate
-        self.contentTemplate = contentTemplate
+        self.contentTemplateFile = contentTemplateFile
         self.attachmentPathTemplate = attachmentPathTemplate
         self.embedSyntax = embedSyntax
         self.rolloverHour = rolloverHour
@@ -90,7 +103,7 @@ public final class JournalSettingsStore {
 
 enum JournalSettingsKey {
     static let pathTemplate = "aujour.journal.pathTemplate"
-    static let contentTemplate = "aujour.journal.contentTemplate"
+    static let contentTemplateFile = "aujour.journal.contentTemplateFile"
     static let attachmentPathTemplate = "aujour.journal.attachmentPathTemplate"
     static let embedSyntax = "aujour.journal.embedSyntax"
     static let rolloverHour = "aujour.journal.rolloverHour"
@@ -103,8 +116,8 @@ extension JournalSettings: SettingsGroup {
         // `.md` — so it is treated as unreadable rather than obeyed.
         self.pathTemplate = storedValues(JournalSettingsKey.pathTemplate)
             .flatMap { $0.isEmpty ? nil : $0 } ?? fallback.pathTemplate
-        self.contentTemplate = storedValues(JournalSettingsKey.contentTemplate)
-            ?? fallback.contentTemplate
+        self.contentTemplateFile = storedValues(JournalSettingsKey.contentTemplateFile)
+            ?? fallback.contentTemplateFile
         self.attachmentPathTemplate = storedValues(JournalSettingsKey.attachmentPathTemplate)
             .flatMap { $0.isEmpty ? nil : $0 } ?? fallback.attachmentPathTemplate
         self.embedSyntax = storedValues(JournalSettingsKey.embedSyntax)
@@ -118,8 +131,8 @@ extension JournalSettings: SettingsGroup {
         if pathTemplate != previous.pathTemplate {
             changes.append((JournalSettingsKey.pathTemplate, pathTemplate))
         }
-        if contentTemplate != previous.contentTemplate {
-            changes.append((JournalSettingsKey.contentTemplate, contentTemplate))
+        if contentTemplateFile != previous.contentTemplateFile {
+            changes.append((JournalSettingsKey.contentTemplateFile, contentTemplateFile))
         }
         if attachmentPathTemplate != previous.attachmentPathTemplate {
             changes.append((JournalSettingsKey.attachmentPathTemplate, attachmentPathTemplate))

@@ -223,7 +223,7 @@ public final class EntryEditor {
             let text =
                 journaled
                 ? try await store.readText(at: path)
-                : spawn(day, from: template)
+                : await spawn(day, from: template)
 
             self.day = day
             entryPath = path
@@ -238,8 +238,8 @@ public final class EntryEditor {
     }
 
     /// The text a day with no file starts as: the Content Template, rendered.
-    private func spawn(_ day: JournalDay, from template: PathTemplate) -> String {
-        ContentTemplate(settings.contentTemplate).render(
+    private func spawn(_ day: JournalDay, from template: PathTemplate) async -> String {
+        ContentTemplate(await contentTemplate()).render(
             at: SpawnContext(
                 day: day,
                 instant: now(),
@@ -249,6 +249,20 @@ public final class EntryEditor {
                 dateFormat: template.entryNameFormat
             )
         )
+    }
+
+    /// The Content Template's markdown: the file the settings name, read out
+    /// of the Journal Root — or nothing at all, which is a blank page.
+    ///
+    /// Nothing is what an unreadable template comes to as well, and
+    /// deliberately: the file is the user's own, sitting in their vault, and
+    /// they may have renamed it, moved it, or not brought it down from iCloud
+    /// yet. A day that refused to open because of it would be a day they
+    /// cannot write in — worse than the blank page they had before they ever
+    /// set one (ADR 0005).
+    private func contentTemplate() async -> String {
+        guard !settings.contentTemplateFile.isEmpty else { return "" }
+        return (try? await store.readText(at: settings.contentTemplateFile)) ?? ""
     }
 
     // MARK: - What this Entry points at

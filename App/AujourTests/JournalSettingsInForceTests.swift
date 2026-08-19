@@ -12,16 +12,20 @@ import AujourCore
 //
 // "Set on another device" is where the values come from throughout: iCloud is
 // the only way a journal-shaping setting reaches a second device (ADR 0003),
-// and until there is a settings screen it is the only way one is set at all.
+// so this is the arriving half. The half where somebody sets one here is the
+// journal sheet, and `JournalSettingsChangeTests`.
 
 @MainActor
 @Suite("The settings the journal is running on")
 struct JournalSettingsInForceTests {
-    @Test("today is spawned from the Content Template the iPad set")
+    @Test("today is spawned from the Content Template file the iPad set")
     func todayIsSpawnedFromTheTemplateInForce() async throws {
         try await withAJournalShapedBy(
-            ["aujour.journal.contentTemplate": "## Morning\n\n## Evening\n"]
+            ["aujour.journal.contentTemplateFile": "templates/Daily.md"]
         ) { aujour in
+            // The file the setting names, in the folder both devices share —
+            // which is the whole of why the setting is a path (ADR 0005).
+            try aujour.root.seed("## Morning\n\n## Evening\n", at: "templates/Daily.md")
             await aujour.journal.open()
 
             // The blank page the app had before anything read the seam would
@@ -65,7 +69,7 @@ struct JournalSettingsInForceTests {
 
             aujour.settings.update {
                 $0.pathTemplate = "[Journal]/YYYY-MM-DD"
-                $0.contentTemplate = "## Morning\n"
+                $0.contentTemplateFile = "templates/Daily.md"
                 $0.attachmentPathTemplate = "[assets]/YYYY"
                 $0.embedSyntax = .obsidianWikiLink
                 $0.rolloverHour = RolloverHour(hour: 4)!
@@ -85,7 +89,9 @@ struct JournalSettingsInForceTests {
             )
             // They went somewhere — this is not a test that passes because
             // nothing was written at all.
-            #expect(aujour.iCloud.stored["aujour.journal.contentTemplate"] == "## Morning\n")
+            #expect(
+                aujour.iCloud.stored["aujour.journal.contentTemplateFile"] == "templates/Daily.md"
+            )
         }
     }
 

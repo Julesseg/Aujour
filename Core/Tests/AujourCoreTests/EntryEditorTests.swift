@@ -40,12 +40,33 @@ private final class EditorSession {
 
     private(set) var editor: EntryEditor!
 
+    /// Where a session's Content Template file sits, when it has one — the
+    /// `templates/` folder an Obsidian vault already keeps them in.
+    static let templateFile = "templates/Daily.md"
+
+    /// What is in the folder that Aujour put there — everything but the
+    /// template, which was the user's file before Aujour ever read it.
+    func whatAujourWrote() async throws -> [String] {
+        try await store.listFiles().filter { $0 != Self.templateFile }.sorted()
+    }
+
+    /// - Parameter template: the markdown a new day is spawned from, seeded
+    ///   into the folder as a file and named by the settings — which is what a
+    ///   Content Template is now (ADR 0005). `nil` for a journal with no
+    ///   template, whose days start blank.
     init(
         files: [String: String] = [:],
+        spawningFrom template: String? = nil,
         settings: JournalSettings = .default,
         now: Date = instant(2026, 3, 1, 9, 30, in: paris),
         autosave timing: AutosaveTiming = .default
     ) {
+        var files = files
+        var settings = settings
+        if let template {
+            files[Self.templateFile] = template
+            settings.contentTemplateFile = Self.templateFile
+        }
         self.store = TallyingJournalStore(files)
         self.now = now
         self.editor = EntryEditor(
@@ -199,9 +220,7 @@ struct EntryEditorOpeningTests {
     @Test("an unwritten day opens on the Content Template, resolved")
     func anUnwrittenDayIsSpawnedFromTheTemplate() async throws {
         let session = EditorSession(
-            settings: JournalSettings(
-                contentTemplate: "# {{title}}\n\nWritten at {{time}}.\n\n{{mood}}\n{{sparkle}}\n"
-            )
+            spawningFrom: "# {{title}}\n\nWritten at {{time}}.\n\n{{mood}}\n{{sparkle}}\n"
         )
 
         await session.open()
@@ -213,13 +232,47 @@ struct EntryEditorOpeningTests {
         )
     }
 
-    @Test("spawning an unwritten day touches nothing on disk")
-    func spawningLeavesNoFile() async throws {
-        let session = EditorSession(settings: JournalSettings(contentTemplate: "# {{title}}\n"))
+    @Test("the template file is read again every time a day is spawned")
+    func aTemplateEditedInTheVaultIsWhatTheNextDayStartsFrom() async throws {
+        let session = EditorSession(spawningFrom: "# {{title}}\n")
+        await session.open()
+        #expect(session.editor.content == "# 2026-03-01\n")
+
+        // Obsidian edits the template file. Aujour holds no copy of it to go
+        // stale — the setting names the file, and the file is read at the
+        // moment a day is spawned (ADR 0005).
+        try await session.store.writeText(
+            "## {{title}}\n\nWoke at {{time}}.\n",
+            at: EditorSession.templateFile
+        )
+        session.now = instant(2026, 3, 2, 9, 30, in: paris)
+        await session.editor.reopenIfTheDayTurned()
+
+        #expect(session.editor.content == "## 2026-03-02\n\nWoke at 09:30.\n")
+    }
+
+    @Test("a template file that is not there leaves the day blank, and open")
+    func aMissingTemplateSpawnsABlankDay() async throws {
+        // The file is the user's, in their own vault: renamed, moved, or not
+        // yet down from iCloud. A day they cannot write in would be a worse
+        // answer than the blank page they had before they set one.
+        let session = EditorSession(
+            settings: JournalSettings(contentTemplateFile: "templates/Gone.md")
+        )
 
         await session.open()
 
-        #expect(try await session.store.listFiles().isEmpty)
+        #expect(session.editor.content == "")
+        #expect(session.editor.state.isEditing)
+    }
+
+    @Test("spawning an unwritten day touches nothing on disk")
+    func spawningLeavesNoFile() async throws {
+        let session = EditorSession(spawningFrom: "# {{title}}\n")
+
+        await session.open()
+
+        #expect(try await session.whatAujourWrote().isEmpty)
         #expect(session.store.writes.isEmpty)
     }
 
@@ -236,16 +289,14 @@ struct EntryEditorOpeningTests {
         await session.type("Home late.")
 
         #expect(session.editor.day == JournalDay(year: 2026, month: 3, day: 1))
-        #expect(try await session.store.listFiles() == ["2026/03/2026-03-01.md"])
+        #expect(try await session.whatAujourWrote() == ["2026/03/2026-03-01.md"])
     }
 
     @Test("the Content Template's dates follow the Entry's own file name")
     func bareDatePlaceholderTracksThePathTemplate() async throws {
         let session = EditorSession(
-            settings: JournalSettings(
-                pathTemplate: "[Journal]/YYYY/MM/DD-MM-YYYY",
-                contentTemplate: "{{date}}"
-            )
+            spawningFrom: "{{date}}",
+            settings: JournalSettings(pathTemplate: "[Journal]/YYYY/MM/DD-MM-YYYY")
         )
 
         await session.open()
@@ -288,12 +339,12 @@ struct EntryEditorOpeningTests {
 struct EntryEditorAutosaveTests {
     @Test("the first edit is what creates the file, at the template's path")
     func theFirstEditSpawnsTheFile() async throws {
-        let session = EditorSession(settings: JournalSettings(contentTemplate: "# {{title}}\n"))
+        let session = EditorSession(spawningFrom: "# {{title}}\n")
 
         await session.open()
         await session.type("# 2026-03-01\n\nWalked to the market.\n")
 
-        #expect(try await session.store.listFiles() == ["2026/03/2026-03-01.md"])
+        #expect(try await session.whatAujourWrote() == ["2026/03/2026-03-01.md"])
         #expect(
             try await session.store.readText(at: "2026/03/2026-03-01.md")
                 == "# 2026-03-01\n\nWalked to the market.\n"
@@ -334,7 +385,7 @@ struct EntryEditorAutosaveTests {
 
     @Test("an edit that puts the text back where it started leaves no file")
     func returningToTheSpawnedTextWritesNothing() async throws {
-        let session = EditorSession(settings: JournalSettings(contentTemplate: "# {{title}}\n"))
+        let session = EditorSession(spawningFrom: "# {{title}}\n")
         await session.open()
         let spawned = session.editor.content
 
@@ -342,7 +393,7 @@ struct EntryEditorAutosaveTests {
         await session.type("# 2026-03-01\nOh, never mind.\n")
 
         #expect(session.store.writes.isEmpty)
-        #expect(try await session.store.listFiles().isEmpty)
+        #expect(try await session.whatAujourWrote().isEmpty)
     }
 
     @Test("going into the background saves at once, without waiting")
@@ -534,9 +585,7 @@ struct EntryEditorExternalChangeTests {
 
     @Test("a day nobody has written on is left as it was spawned")
     func anUnwrittenDayIsNotSpawnedAgain() async throws {
-        let session = EditorSession(
-            settings: JournalSettings(contentTemplate: "# {{title}}\n\nWritten at {{time}}.\n")
-        )
+        let session = EditorSession(spawningFrom: "# {{title}}\n\nWritten at {{time}}.\n")
         await session.open()
         let spawned = session.editor.content
 
@@ -554,7 +603,7 @@ struct EntryEditorExternalChangeTests {
     func anEntryWhoseFileVanishedStaysOnScreen() async throws {
         let session = EditorSession(
             files: ["2026/03/2026-03-01.md": "Walked to the market.\n"],
-            settings: JournalSettings(contentTemplate: "# {{title}}\n")
+            spawningFrom: "# {{title}}\n"
         )
         await session.open()
 

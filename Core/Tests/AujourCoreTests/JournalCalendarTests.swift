@@ -300,8 +300,11 @@ struct JournalCalendarBackfillTests {
 
     @Test("an unwritten past day is spawned with that day's own date")
     func anUnwrittenPastDayIsSpawnedForThatDay() async throws {
+        // The Content Template is a file in the folder now (ADR 0005), so
+        // the journal it is read out of is one that holds it.
         let session = CalendarSession(
-            settings: JournalSettings(contentTemplate: "# {{title}}\n\n{{date}}, written at {{time}}.\n")
+            files: ["templates/Daily.md": "# {{title}}\n\n{{date}}, written at {{time}}.\n"],
+            settings: JournalSettings(contentTemplateFile: "templates/Daily.md")
         )
 
         let editor = try #require(
@@ -312,9 +315,10 @@ struct JournalCalendarBackfillTests {
         // The day being written *about* is February 14th; the clock time is
         // the one it is being written *at*.
         #expect(editor.content == "# 2026-02-14\n\n2026-02-14, written at 09:30.\n")
-        // And still nothing on disk: a day opened and not written on leaves
-        // no husk behind.
-        #expect(try await session.store.listFiles().isEmpty)
+        // And still nothing of that day on disk: a day opened and not written
+        // on leaves no husk behind. What is in the folder is the template it
+        // was spawned from, which was the user's file before Aujour read it.
+        #expect(try await session.store.listFiles() == ["templates/Daily.md"])
     }
 
     @Test("the backfilled file is created by the typing, at that day's path")

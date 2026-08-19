@@ -29,12 +29,12 @@ struct SettingsSeamTests {
                 syncedThrough: SyncedSettingsStorage(iCloud: iCloud, onThisDevice: onThisDevice)
             )
 
-            settings.update { $0.contentTemplate = "## Morning\n\n## Evening\n" }
+            settings.update { $0.contentTemplateFile = "templates/Daily.md" }
 
-            #expect(iCloud.stored["aujour.journal.contentTemplate"] == "## Morning\n\n## Evening\n")
+            #expect(iCloud.stored["aujour.journal.contentTemplateFile"] == "templates/Daily.md")
             #expect(
-                onThisDevice.string(forKey: "aujour.journal.contentTemplate")
-                    == "## Morning\n\n## Evening\n"
+                onThisDevice.string(forKey: "aujour.journal.contentTemplateFile")
+                    == "templates/Daily.md"
             )
         }
     }
@@ -79,14 +79,14 @@ struct SettingsSeamTests {
             let settings = JournalSettingsStore(
                 syncedThrough: SyncedSettingsStorage(iCloud: iCloud, onThisDevice: onThisDevice)
             )
-            settings.update { $0.contentTemplate = "## Morning\n" }
+            settings.update { $0.contentTemplateFile = "templates/Daily.md" }
 
             // The one journal-shaping setting whose empty value is a real
-            // value: no template at all, and a blank first page.
-            settings.update { $0.contentTemplate = "" }
+            // value: no template file at all, and a blank first page.
+            settings.update { $0.contentTemplateFile = "" }
 
-            #expect(iCloud.stored["aujour.journal.contentTemplate"] == "")
-            #expect(onThisDevice.string(forKey: "aujour.journal.contentTemplate") == "")
+            #expect(iCloud.stored["aujour.journal.contentTemplateFile"] == "")
+            #expect(onThisDevice.string(forKey: "aujour.journal.contentTemplateFile") == "")
 
             // And a reminder time removed is removed: `nil` is a key that has
             // to go, not an empty string to be read back as a time.

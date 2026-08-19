@@ -12,30 +12,52 @@ import AujourCore
 @MainActor
 @Suite("Changing what shapes the journal")
 struct JournalSettingsChangeTests {
-    @Test("a new Content Template is what today starts as, when today is still unwritten")
-    func anUnwrittenTodayIsRespawnedFromTheNewTemplate() async throws {
+    @Test("a template file chosen is what today starts from, when today is still unwritten")
+    func anUnwrittenTodayIsRespawnedFromTheChosenTemplate() async throws {
         try await withAJournal { journal, root in
+            try root.seed("## Morning\n\n## Evening\n", at: "templates/Daily.md")
             await journal.open()
             #expect(journal.today?.content == "")
 
-            await journal.changeTheContentTemplate(to: "## Morning\n\n## Evening\n")
+            await journal.changeTheContentTemplateFile(to: "templates/Daily.md")
 
             #expect(journal.today?.content == "## Morning\n\n## Evening\n")
-            // And still nothing in the folder: a day nobody has written is a
-            // day with no file, whatever it is showing (ADR 0001).
+            // And today is still not a file: a day nobody has written on is a
+            // day with nothing on disk, whatever it is showing (ADR 0001).
+            // What is in the folder is the user's own template, which Aujour
+            // read and did not write.
             let inTheFolder = try FileManager.default.contentsOfDirectory(atPath: root.path)
-            #expect(inTheFolder.isEmpty)
+            #expect(inTheFolder == ["templates"])
         }
     }
 
-    @Test("a day already written keeps its words when the Content Template changes")
+    @Test("the markdown files offered as templates are the folder's own")
+    func theTemplatesOfferedAreTheFilesInTheFolder() async throws {
+        try await withAJournal { journal, root in
+            try root.seed("## Morning\n", at: "templates/Daily.md")
+            try root.seed("Walked to the market.\n", at: "2026/03/2026-03-01.md")
+            try root.seed("not a note", at: "attachments/2026/03/photo.jpg")
+            await journal.open()
+
+            // Every markdown file and not a guess at which are templates: an
+            // Obsidian vault keeps them wherever its owner decided, and a day
+            // already written is a fair thing to start another one from.
+            #expect(
+                await journal.markdownFilesInTheFolder()
+                    == ["2026/03/2026-03-01.md", "templates/Daily.md"]
+            )
+        }
+    }
+
+    @Test("a day already written keeps its words when the template file changes")
     func wordsAreNeverReplacedByANewTemplate() async throws {
         try await withAJournal { journal, root in
+            try root.seed("## Morning\n", at: "templates/Daily.md")
             await journal.open()
             let today = try #require(journal.today)
             today.content = "Walked to the market.\n"
 
-            await journal.changeTheContentTemplate(to: "## Morning\n")
+            await journal.changeTheContentTemplateFile(to: "templates/Daily.md")
 
             // The words were written on the way through, and read back from
             // the file — a template is what a day starts as, not what it

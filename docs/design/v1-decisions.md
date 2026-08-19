@@ -46,8 +46,11 @@ records the remaining product decisions and the v1 line.
 
 - **Path syntax:** Moment-format tokens, literals in `[brackets]`, `.md`
   auto-appended — Obsidian daily-notes formats paste over verbatim.
-- **Content Template:** Obsidian core set ({{date}}, {{time}}, {{title}}
-  with `:FORMAT`) plus Aujour placeholders (see CONTEXT.md taxonomy:
+- **Content Template:** a markdown file inside the Journal Root, named by
+  the settings and read at spawn — Obsidian's "Template file location", so
+  an existing daily-notes setup is pointed at rather than pasted in
+  (ADR 0005). Obsidian core set ({{date}}, {{time}}, {{title}} with
+  `:FORMAT`) plus Aujour placeholders (see CONTEXT.md taxonomy:
   core / data / interactive). Unknown placeholders render as empty in
   Aujour and stay harmless literals in Obsidian.
 - **Settings home:** journal-shaping settings sync via iCloud KVS

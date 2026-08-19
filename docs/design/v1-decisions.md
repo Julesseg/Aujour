@@ -46,10 +46,11 @@ records the remaining product decisions and the v1 line.
 
 - **Path syntax:** Moment-format tokens, literals in `[brackets]`, `.md`
   auto-appended — Obsidian daily-notes formats paste over verbatim.
-- **Content Template:** a markdown file inside the Journal Root, named by
-  the settings and read at spawn — Obsidian's "Template file location", so
-  an existing daily-notes setup is pointed at rather than pasted in
-  (ADR 0005). Obsidian core set ({{date}}, {{time}}, {{title}} with
+- **Content Template:** a markdown file the user picks from anywhere on the
+  device and Aujour reads at spawn — Obsidian's "Template file location", so
+  an existing daily-notes setup is pointed at rather than pasted in. Inside
+  the journal folder it syncs as a path; elsewhere it is a per-device
+  bookmark (ADR 0005). Obsidian core set ({{date}}, {{time}}, {{title}} with
   `:FORMAT`) plus Aujour placeholders (see CONTEXT.md taxonomy:
   core / data / interactive). Unknown placeholders render as empty in
   Aujour and stay harmless literals in Obsidian.

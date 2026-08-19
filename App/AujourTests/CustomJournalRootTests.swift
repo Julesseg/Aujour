@@ -479,7 +479,12 @@ private final class Session {
                 lastUsedLocation: { .onThisDevice },
                 rememberLocation: { _ in },
                 customRoot: remembered.customRoot()
-            )
+            ),
+            // Settings and a template of this test's own: the machine running
+            // it has an Aujour with settings of its own, and a template it
+            // spawned days from would be somebody's real one.
+            settings: .inMemory(),
+            templateElsewhere: .unpicked
         )
     }
 }

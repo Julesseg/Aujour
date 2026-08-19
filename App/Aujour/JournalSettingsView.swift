@@ -170,39 +170,18 @@ struct JournalSettingsSheet: View {
 
 /// The file a day nobody has written yet is spawned from.
 ///
-/// A file the user points at rather than a page they type into, because that
-/// is what a Content Template is: a markdown file in their own vault, which
-/// Obsidian's daily notes name the same way and which they very likely
-/// already have. Aujour keeps no copy of it — editing it in Obsidian is what
-/// changes tomorrow's Entry (ADR 0005).
-///
-/// The files offered are the ones inside the journal folder, and only those.
-/// A template anywhere else on the device would be reachable through a
-/// bookmark this device alone holds, and the setting travels — an iPad that
-/// could not find the template would start the same day from a different page
-/// (ADR 0003).
+/// A file the user points at with the system's picker rather than a page they
+/// type into, because that is what a Content Template is: a markdown file they
+/// keep and edit, which Obsidian's daily notes name the same way and which
+/// they very likely already have. It can be anywhere they keep their writing —
+/// beside their entries, in a vault's `Templates` folder, in iCloud Drive —
+/// and Aujour reads it where it lies, every time a day is spawned. There is no
+/// copy here to go stale (ADR 0005).
 private struct ContentTemplateSection: View {
     let journal: Journal
 
-    /// The markdown files in the folder, as of the last time it was asked —
-    /// what there is to choose from, and what says whether the file in force
-    /// is still there.
-    @State private var markdownFiles: [String] = []
-
-    /// Whether the list of files is up.
-    @State private var choosing = false
-
-    /// Whether the folder has been asked yet. Before it has, a template that
-    /// is not in the list is not missing — it is unlooked-for, and saying
-    /// "Aujour can't find this" about it would be a lie that flashes on every
-    /// open.
-    @State private var asked = false
-
-    private var chosen: String { journal.contentTemplateFile }
-
-    private var isMissing: Bool {
-        asked && !chosen.isEmpty && !markdownFiles.contains(chosen)
-    }
+    /// Whether the Files picker is up.
+    @State private var picking = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -211,14 +190,14 @@ private struct ContentTemplateSection: View {
                 .foregroundStyle(.secondary)
 
             Button {
-                choosing = true
+                chooseAFile()
             } label: {
                 HStack {
-                    Text(chosen.isEmpty ? "Choose a template file…" : chosen)
+                    Text(journal.contentTemplateName ?? "Choose a template file…")
                         .font(.callout.monospaced())
                         .multilineTextAlignment(.leading)
                     Spacer()
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "doc.text")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -227,16 +206,29 @@ private struct ContentTemplateSection: View {
             .frame(maxWidth: .infinity)
             .accessibilityIdentifier("contentTemplateFile")
 
-            if isMissing {
+            if journal.theTemplateIsOutOfReach {
+                // The one thing about this setting worth saying out loud: a
+                // template that is set and unreachable is a blank page nobody
+                // asked for.
                 Text(
                     """
-                    Aujour can't find this file in your journal folder. \
-                    New days start blank until it's back.
+                    Aujour can't reach the template file you chose — it may \
+                    have been renamed, moved, or not come down from iCloud \
+                    yet. New days start blank until it's back.
                     """
                 )
                 .font(.caption)
                 .foregroundStyle(.red)
-                .accessibilityIdentifier("contentTemplateMissing")
+                .accessibilityIdentifier("contentTemplateOutOfReach")
+            }
+
+            if journal.contentTemplateName != nil || journal.theTemplateIsOutOfReach {
+                Button("Use no template", systemImage: "xmark") {
+                    Task { await journal.useAsTheContentTemplate(nil) }
+                }
+                .buttonStyle(.borderless)
+                .font(.caption)
+                .accessibilityIdentifier("noContentTemplate")
             }
 
             Text(
@@ -245,109 +237,43 @@ private struct ContentTemplateSection: View {
                 each time — edit it in Obsidian and tomorrow's entry follows. \
                 {{date}}, {{time}} and {{title}} are filled in when the day is \
                 spawned; anything Aujour doesn't know stays as you wrote it. \
-                It has to live inside your journal folder, so your other \
-                devices can find it too.
+                Keep it inside your journal folder and your other devices find \
+                it too; anywhere else, point each device at it once.
                 """
             )
             .font(.caption)
             .foregroundStyle(.secondary)
         }
-        .task(id: journal.contentTemplateFile) { await lookInTheFolder() }
-        .sheet(isPresented: $choosing) {
-            ContentTemplateFileList(
-                files: markdownFiles,
-                chosen: chosen,
-                choose: { path in
-                    choosing = false
-                    Task { await journal.changeTheContentTemplateFile(to: path) }
-                }
-            )
-            // Asked again on the way in: somebody who has just added a
-            // template in Obsidian is exactly the person opening this.
-            .task { await lookInTheFolder() }
+        .fileImporter(isPresented: $picking, allowedContentTypes: Self.markdownFiles) { result in
+            // Only a file that was picked is news: the other outcome is mostly
+            // the user tapping Cancel, and a notice for a mind changed is
+            // worse than nothing.
+            guard case .success(let file) = result else { return }
+            Task { await journal.useAsTheContentTemplate(file) }
         }
     }
 
-    private func lookInTheFolder() async {
-        markdownFiles = await journal.markdownFilesInTheFolder()
-        asked = true
-    }
-}
+    /// What the picker will let them choose: markdown, and the plain text it
+    /// is a kind of — a template written in a plain `.txt` is still a
+    /// template, and a picker that greyed it out would be lying about why.
+    private static let markdownFiles: [UTType] = [
+        UTType(filenameExtension: "md") ?? .plainText,
+        UTType(filenameExtension: "markdown") ?? .plainText,
+        .plainText,
+        .text,
+    ]
 
-/// The markdown files in the journal folder, to pick a template out of.
-///
-/// Every one of them, and not a guess at which are templates: an Obsidian
-/// vault keeps its templates wherever its owner decided, and a list that hid
-/// the file somebody was looking for would be worse than a long one. Searched
-/// rather than filtered for the same reason — a vault holds thousands of
-/// notes, and the way to find one among them is to type its name.
-private struct ContentTemplateFileList: View {
-    let files: [String]
-    let chosen: String
-    let choose: (String) -> Void
-
-    @State private var searchText = ""
-
-    @Environment(\.dismiss) private var dismiss
-
-    private var shown: [String] {
-        guard !searchText.isEmpty else { return files }
-        return files.filter { $0.localizedCaseInsensitiveContains(searchText) }
-    }
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Button {
-                        choose("")
-                    } label: {
-                        row("No template — a blank page", isChosen: chosen.isEmpty)
-                    }
-                    .accessibilityIdentifier("noContentTemplate")
-                }
-
-                Section {
-                    if files.isEmpty {
-                        Text("There are no markdown files in your journal folder yet.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .accessibilityIdentifier("noMarkdownFiles")
-                    }
-                    ForEach(shown, id: \.self) { file in
-                        Button {
-                            choose(file)
-                        } label: {
-                            row(file, isChosen: file == chosen)
-                        }
-                    }
-                }
-            }
-            .searchable(text: $searchText, prompt: "Find a file")
-            .navigationTitle("Template file")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
+    private func chooseAFile() {
+        // The Files picker is another process's screen, and driving it is the
+        // one part of choosing a file that a UI test cannot do without
+        // becoming a test of that screen. So the UI suite says which file it
+        // means at launch, and it goes in through the same door the picker's
+        // would — everything after this point is the app's own code.
+        if let file = UITestingJournal.templateToPick() {
+            Task { await journal.useAsTheContentTemplate(file) }
+            return
         }
-    }
-
-    private func row(_ name: String, isChosen: Bool) -> some View {
-        HStack {
-            Text(name)
-                .font(.callout.monospaced())
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.leading)
-            Spacer()
-            if isChosen {
-                Image(systemName: "checkmark")
-                    .foregroundStyle(.tint)
-            }
-        }
-        .contentShape(Rectangle())
-        .accessibilityIdentifier(name)
+        picking = true
     }
 }
 
@@ -409,7 +335,8 @@ private struct RolloverHourSection: View {
     /// whichever their region is on.
     private static func onTheClock(_ hour: Int) -> String {
         let midnight = Calendar.current.startOfDay(for: Date())
-        let atThatHour = Calendar.current.date(byAdding: .hour, value: hour, to: midnight) ?? midnight
+        let atThatHour =
+            Calendar.current.date(byAdding: .hour, value: hour, to: midnight) ?? midnight
         return atThatHour.formatted(date: .omitted, time: .shortened)
     }
 }

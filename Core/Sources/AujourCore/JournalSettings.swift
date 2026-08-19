@@ -10,19 +10,21 @@ public struct JournalSettings: Equatable, Sendable {
     /// Moment-format path for an Entry, relative to the Journal Root.
     public var pathTemplate: String
 
-    /// The markdown file a new Entry is spawned from, as a path relative to
-    /// the Journal Root — or empty for none, which is a blank page.
+    /// The markdown file a new Entry is spawned from, when that file is inside
+    /// the Journal Root — as a path relative to it, and empty otherwise.
     ///
-    /// The file and not its text, because the template *is* a file in the
-    /// user's vault: Obsidian's daily notes name one exactly this way, so an
-    /// existing setup points at the file it already has, and editing that file
-    /// in Obsidian is what changes tomorrow's Entry. There is no copy inside
-    /// Aujour to go stale (ADR 0005).
+    /// The file and not its text, because the template *is* a file the user
+    /// keeps and edits: Obsidian's daily notes name one the same way, so an
+    /// existing setup is pointed at rather than pasted in, and editing it
+    /// there is what changes tomorrow's Entry (ADR 0005).
     ///
-    /// Inside the Journal Root and nowhere else, because this setting travels
-    /// (ADR 0003): a bookmark to a file elsewhere on the device is that
-    /// device's alone, and an iPad that could not find the template would
-    /// start the same day from a different page than the iPhone.
+    /// Only the in-the-folder case travels, and that is the whole of what this
+    /// field is for. A template the user picked somewhere else on the device
+    /// is reachable only through a security-scoped bookmark, which means
+    /// nothing on their other device — so that one is remembered locally,
+    /// exactly as the Journal Root's own bookmark is (ADR 0003), and this
+    /// stays empty. Where the template is in the vault, both devices find it
+    /// by the same path and neither has to be told twice.
     ///
     /// Empty by default: Obsidian ships no daily-note template either, and a
     /// blank page is a better first Entry than one full of scaffolding the

@@ -346,14 +346,12 @@ final class AujourUITests: XCTestCase {
         expect(editor, toHaveValue: "![[\(todaysEntryName()).jpg]]")
     }
 
-    func testTheTemplateFileChosenIsWhatTheNextDayStartsFrom() throws {
-        // A vault that already keeps its daily-note template in a folder of
-        // its own — which is the setup this is for: pointed at, not pasted in
-        // (ADR 0005). Deliberately no template setting, so what puts one in
-        // force is the app.
-        let app = launchApp(
-            vaultNote: (at: "templates/Daily.md", saying: "## Morning\n\n## Evening\n")
-        )
+    func testATemplateFilePickedAnywhereIsWhatTheNextDayStartsFrom() throws {
+        // A template kept somewhere else entirely — not in the journal folder
+        // — which is the case a file picker is needed for at all (ADR 0005).
+        // Deliberately no template setting, so what puts one in force is the
+        // app.
+        let app = launchApp(templateToPick: "## Morning\n\n## Evening\n")
         XCTAssertTrue(
             app.textViews["entryEditor"].waitForExistence(timeout: 30),
             "today's entry never appeared"
@@ -363,13 +361,6 @@ final class AujourUITests: XCTestCase {
         let chooseTemplate = app.buttons["contentTemplateFile"]
         scrollTo(chooseTemplate, in: app)
         chooseTemplate.tap()
-
-        let theVaultsTemplate = app.buttons["templates/Daily.md"]
-        XCTAssertTrue(
-            theVaultsTemplate.waitForExistence(timeout: 10),
-            "the folder's markdown files were never offered"
-        )
-        theVaultsTemplate.tap()
         app.buttons["Done"].tap()
 
         // Today has not been written in, so today is what the file says.
@@ -377,10 +368,20 @@ final class AujourUITests: XCTestCase {
         XCTAssertTrue(editor.waitForExistence(timeout: 15), "today never came back")
         expect(editor, toHaveValue: "## Morning\n\n## Evening\n")
 
-        // And still the template on the next launch: the setting is kept, and
-        // travels (ADR 0003).
+        // And still the template on the next launch: the file is remembered by
+        // a bookmark, which is what makes a file outside the folder reachable
+        // at all after the app is relaunched.
         relaunch(app)
         expect(editor, toHaveValue: "## Morning\n\n## Evening\n")
+
+        // Until it is asked for no template, which forgets the file and
+        // nothing else: today goes back to the blank page it was.
+        openTheJournalSheet(app)
+        let noTemplate = app.buttons["noContentTemplate"]
+        scrollTo(noTemplate, in: app)
+        noTemplate.tap()
+        app.buttons["Done"].tap()
+        expect(editor, toHaveValue: "")
     }
 
     func testTheRolloverHourChosenIsTheOneStillInForceAfterARelaunch() throws {
@@ -742,6 +743,9 @@ final class AujourUITests: XCTestCase {
     ///     launch, so it is the newer of the two.
     ///   - vaultNote: a file the folder already holds that is none of Aujour's
     ///     business — a note the vault made — and the path it sits at.
+    ///   - templateToPick: the markdown of a template file kept outside the
+    ///     journal folder, for "Choose a template file…" to pick in place of
+    ///     the Files picker.
     ///   - photograph: the format of the photograph the app hands itself in
     ///     place of the one the system picker would have come back with —
     ///     `png`, `jpeg` or `heic`.
@@ -751,6 +755,7 @@ final class AujourUITests: XCTestCase {
         todaysEntry: String? = nil,
         divergedVersion: String? = nil,
         vaultNote: (at: String, saying: String)? = nil,
+        templateToPick: String? = nil,
         photograph: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
@@ -773,6 +778,9 @@ final class AujourUITests: XCTestCase {
         if let vaultNote {
             app.launchEnvironment["AUJOUR_UITEST_VAULT_NOTE_AT"] = vaultNote.at
             app.launchEnvironment["AUJOUR_UITEST_VAULT_NOTE"] = vaultNote.saying
+        }
+        if let templateToPick {
+            app.launchEnvironment["AUJOUR_UITEST_TEMPLATE_TO_PICK"] = templateToPick
         }
         if let photograph {
             app.launchEnvironment["AUJOUR_UITEST_PHOTO"] = photograph

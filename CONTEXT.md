@@ -74,14 +74,16 @@ incoming one is kept beside it as a Parked File. Nothing is ever overwritten,
 and nothing is ever deleted.
 
 ### Content Template
-The markdown file a new Entry is spawned from — a file inside the Journal
-Root, named by the settings as a path relative to it, and read afresh every
-time a day is spawned (ADR 0005). Editing it in Obsidian is what changes
-tomorrow's Entry; Aujour keeps no copy. Placeholders use Obsidian's
-`{{name}}` / `{{name:FORMAT}}` syntax; the Obsidian core set is supported
-verbatim so an Obsidian daily-note template is pointed at unchanged, and
-Aujour-specific placeholders (e.g. {{events}}) extend the same syntax. No
-template, or one that cannot be read, is a blank page.
+The markdown file a new Entry is spawned from — picked with the system's file
+picker from anywhere on the device, and read afresh every time a day is
+spawned (ADR 0005). Editing it in Obsidian is what changes tomorrow's Entry;
+Aujour keeps no copy. Inside the Journal Root it is remembered as a path and
+travels to the user's other devices; anywhere else it is a security-scoped
+bookmark this device holds alone. Placeholders use Obsidian's `{{name}}` /
+`{{name:FORMAT}}` syntax; the Obsidian core set is supported verbatim so an
+Obsidian daily-note template is pointed at unchanged, and Aujour-specific
+placeholders (e.g. {{events}}) extend the same syntax. No template, or one
+that cannot be read, is a blank page.
 
 ### Spawn
 Starting a Journal Day's Entry from the Content Template: the template

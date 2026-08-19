@@ -121,7 +121,8 @@ struct JournalSettingsInForceTests {
                     AujourOverAFolder(
                         journal: Journal(
                             locator: .test(iCloudDocuments: root, folders: folders),
-                            settings: settings
+                            settings: settings,
+                            templateElsewhere: .unpicked
                         ),
                         settings: settings,
                         root: root,

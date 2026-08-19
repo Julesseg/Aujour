@@ -25,7 +25,8 @@ struct PathTemplateChangeTests {
             try iCloud.seed("Rain all day.\n", at: "2026/02/2026-02-28.md")
             let journal = Journal(
                 locator: .test(iCloudDocuments: iCloud, folders: folders),
-                settings: .inMemory()
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
             )
             await journal.open()
 
@@ -52,7 +53,8 @@ struct PathTemplateChangeTests {
             let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
             let journal = Journal(
                 locator: .test(iCloudDocuments: iCloud, folders: folders),
-                settings: .inMemory()
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
             )
             await journal.open()
             // Typed and not yet autosaved — today's Entry is not even a file.
@@ -80,7 +82,8 @@ struct PathTemplateChangeTests {
             try iCloud.seed("What the vault already had.\n", at: "Journal/2026-03-01.md")
             let journal = Journal(
                 locator: .test(iCloudDocuments: iCloud, folders: folders),
-                settings: .inMemory()
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
             )
             await journal.open()
 
@@ -113,7 +116,8 @@ struct PathTemplateChangeTests {
             try iCloud.seed("Rain all day.\n", at: "2026/02/2026-02-28.md")
             let journal = Journal(
                 locator: .test(iCloudDocuments: iCloud, folders: folders),
-                settings: .inMemory()
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
             )
             await journal.open()
 
@@ -141,7 +145,8 @@ struct PathTemplateChangeTests {
             let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
             let journal = Journal(
                 locator: .test(iCloudDocuments: iCloud, folders: folders),
-                settings: .inMemory()
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
             )
             await journal.open()
 
@@ -167,7 +172,8 @@ struct PathTemplateChangeTests {
             let kvs = InMemorySyncedKeyValueStore()
             let journal = Journal(
                 locator: .test(iCloudDocuments: iCloud, folders: folders),
-                settings: JournalSettingsStore(syncedThrough: kvs)
+                settings: JournalSettingsStore(syncedThrough: kvs),
+                templateElsewhere: .unpicked
             )
             await journal.open()
             #expect(journal.state == .open(JournalRoot(url: iCloud.standardizedFileURL, location: .aujoursOwn(.iCloudDrive)), entryCount: 0))

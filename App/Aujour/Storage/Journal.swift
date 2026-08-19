@@ -122,6 +122,11 @@ final class Journal {
     /// done.
     private var reopening: Task<Void, Never>?
 
+    /// The template picked outside the journal folder, if one was — this
+    /// device's own, kept in local storage because a bookmark means nothing on
+    /// another device (ADR 0003, ADR 0005).
+    private let templateElsewhere: BookmarkedTemplateFile
+
     /// What the system is holding besides the file at an Entry's path — iCloud,
     /// unless a test is standing in for it.
     private let versions: any EntryVersions
@@ -156,6 +161,7 @@ final class Journal {
     init(
         locator: JournalRootLocator = .system,
         settings: JournalSettingsStore? = nil,
+        templateElsewhere: BookmarkedTemplateFile = .stored(),
         versions: any EntryVersions = ICloudVersions()
     ) {
         // Made here rather than as a default argument: the store it is over
@@ -164,6 +170,7 @@ final class Journal {
         let settings = settings ?? JournalSettingsStore(syncedThrough: SyncedSettingsStorage())
         self.locator = locator
         self.settingsStore = settings
+        self.templateElsewhere = templateElsewhere
         self.versions = versions
 
         // A Path Template changed on the iPad reshapes what an Entry is here
@@ -192,10 +199,25 @@ final class Journal {
         stopKeepingUpWithTheFolder()
         do {
             let opened = try await Self.openJournal(using: locator, settings: settings)
-            let editor = EntryEditor(store: opened.store, settings: settings)
+            // Made here, once, and handed to both: today's Entry and a day
+            // backfilled from the calendar start from the same file.
+            let template = ContentTemplateFile(
+                insideTheFolder: settings.contentTemplateFile,
+                folder: opened.store,
+                elsewhere: templateElsewhere
+            )
+            let editor = EntryEditor(
+                store: opened.store,
+                settings: settings,
+                spawningFrom: template
+            )
             store = opened.store
             today = editor
-            calendar = JournalCalendar(store: opened.store, settings: settings)
+            calendar = JournalCalendar(
+                store: opened.store,
+                settings: settings,
+                spawningFrom: template
+            )
             folder = opened.folder
             parking = DivergenceParking(store: opened.store, versions: versions)
             state = .open(opened.root, entryCount: opened.entryCount)
@@ -550,41 +572,79 @@ final class Journal {
 
     // MARK: - What a day starts as, when it turns, and where its photos go
 
-    /// The file new Entries are spawned from, as a path inside the journal
-    /// folder — or empty for none, which is a blank page (ADR 0005).
-    var contentTemplateFile: String { settings.contentTemplateFile }
-
-    /// The markdown files in the journal folder, oldest question first: which
-    /// of them could be the template?
-    ///
-    /// Every file, not the Entries: a template lives wherever the user keeps
-    /// their templates, which in an Obsidian vault is a folder of its own.
-    /// Asked of the folder each time rather than remembered, because the
-    /// folder is the truth and somebody may have added the file in Obsidian
-    /// while this app was open (ADR 0001).
-    ///
-    /// Empty for a folder that will not answer — a list nobody can choose
-    /// from, which is what the screen says.
-    func markdownFilesInTheFolder() async -> [String] {
-        guard let store, let files = try? await store.listFiles() else { return [] }
-        return files.filter { $0.hasSuffix(".md") }.sorted()
+    /// What this device spawns new days from, said the way a screen would say
+    /// it — the path inside the folder, the name of the file picked outside
+    /// it, or `nil` for no template, which is a blank page.
+    var contentTemplateName: String? {
+        if let picked = templateElsewhere.name { return picked }
+        if templateElsewhere.isSet {
+            // Bookmarked and unresolvable: renamed, deleted, or on a drive
+            // nobody has plugged in. Said as what it is rather than as no
+            // template at all, since "there is one and Aujour cannot reach it"
+            // is the sentence that explains the blank page.
+            return nil
+        }
+        return settings.contentTemplateFile.isEmpty ? nil : settings.contentTemplateFile
     }
 
-    /// Points new Entries at a template file, or at none.
+    /// Whether a template was picked that Aujour cannot reach right now —
+    /// which is a blank page the user did not ask for, and the one thing about
+    /// this setting worth saying out loud.
+    var theTemplateIsOutOfReach: Bool {
+        templateElsewhere.isSet && templateElsewhere.name == nil
+    }
+
+    /// Points new days at the file the user just picked, or at no file at all.
     ///
-    /// Nothing already in the folder is touched, and the file itself is only
-    /// ever read. A Content Template is what a day is *spawned* from, and a
-    /// day with a file has stopped being spawned from anything — it is its
-    /// file, and only its file (ADR 0001). So this is a setting about days not
-    /// yet written, including the one on screen if it is still one of them.
+    /// Nothing is copied and nothing is written: the file stays where they
+    /// keep it, and Aujour reads it when it spawns a day (ADR 0005). Where it
+    /// sits decides how it is remembered — inside the journal folder it is a
+    /// path their other devices can follow, anywhere else it is a bookmark
+    /// this device holds alone (ADR 0003) — and picking either way forgets the
+    /// other, so there is only ever one template.
     ///
     /// Today's words are written first, as every settings change writes them
-    /// first: adopting one reopens the journal. Which is also what makes the
-    /// exception safe — a day that has words has a file by the time the
-    /// journal comes back, so it is re-read rather than spawned again, and a
-    /// template chosen mid-sentence cannot take the sentence with it.
-    func changeTheContentTemplateFile(to path: String) async {
-        await change { $0.contentTemplateFile = path }
+    /// first: the journal reopens around the change. Which is also what makes
+    /// the day on screen safe — a day that has words has a file by the time
+    /// the journal comes back, so it is re-read rather than spawned again, and
+    /// a template picked mid-sentence cannot take the sentence with it.
+    func useAsTheContentTemplate(_ file: URL?) async {
+        folderProblem = nil
+        if let unsaved = await saveWhatIsOnScreenWhereItBelongsNow() {
+            folderProblem = StorageProblem(unsaved)
+            return
+        }
+
+        let inTheFolder = file.flatMap(pathInsideTheJournalFolder) ?? ""
+        if let file, inTheFolder.isEmpty {
+            templateElsewhere.remember(file)
+        } else {
+            templateElsewhere.forget()
+        }
+
+        // A path is a journal-shaping setting, and adopting one reopens the
+        // journal by itself. A bookmark is not — nothing about the settings
+        // changed — so that reopening is this.
+        if inTheFolder != settings.contentTemplateFile {
+            await adopt { $0.contentTemplateFile = inTheFolder }
+        } else {
+            await open()
+        }
+    }
+
+    /// Where a picked file sits inside the journal folder, or `nil` for one
+    /// that sits outside it.
+    ///
+    /// Compared as standardized paths and on a folder boundary, so that a
+    /// `JournalNotes` folder beside `Journal` is outside it rather than a file
+    /// with a long name inside it.
+    private func pathInsideTheJournalFolder(_ file: URL) -> String? {
+        guard case .open(let root, _) = state else { return nil }
+        let folder = root.url.standardizedFileURL.path(percentEncoded: false)
+        let path = file.standardizedFileURL.path(percentEncoded: false)
+        let inside = folder.hasSuffix("/") ? folder : folder + "/"
+        guard path.hasPrefix(inside) else { return nil }
+        return String(path.dropFirst(inside.count))
     }
 
     /// When the current Journal Day advances.

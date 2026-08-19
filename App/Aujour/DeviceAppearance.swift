@@ -11,7 +11,11 @@ import AujourCore
 ///
 /// The appearance and nothing else for now: accents, editor fonts and the
 /// screen to choose any of them on are M6's, and this is the reader that
-/// makes the seam a real one before there is a screen over it.
+/// makes the seam a real one before there is a screen over it. That screen is
+/// to be handed *this* store rather than one of its own — a settings group
+/// reports its changes to whoever is holding it, and a second
+/// `DeviceSettingsStore` over the same `UserDefaults` would write a theme this
+/// one never hears about.
 @MainActor
 @Observable
 final class DeviceAppearance {

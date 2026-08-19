@@ -123,11 +123,12 @@ struct SettingsSeamTests {
     @Test("without the iCloud entitlement the settings are this device's alone, and work")
     func anUnentitledBuildFallsBackToTheDeviceAndNeverCrashes() async throws {
         try await withADeviceOfItsOwn { onThisDevice in
-            // What an unsigned build has: a store that refuses, because there
-            // is no `com.apple.developer.ubiquity-kvstore-identifier` to read
-            // it with. This is every simulator build the CI job makes.
+            // What an unsigned build has: a store that is there and holds
+            // nothing, because there is no
+            // `com.apple.developer.ubiquity-kvstore-identifier` to reach
+            // iCloud with. This is every simulator build the CI job makes.
             let unentitled = AnICloudThatAnswers()
-            unentitled.reachable = false
+            unentitled.entitled = false
 
             let settings = JournalSettingsStore(
                 syncedThrough: SyncedSettingsStorage(

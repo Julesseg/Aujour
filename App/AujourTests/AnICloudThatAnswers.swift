@@ -25,26 +25,35 @@ func withADeviceOfItsOwn<T>(
 /// on an unsigned build, so a test that wanted to watch a setting arrive from
 /// another device would be watching a store that never answers.
 ///
-/// Behaves the way `NSUbiquitousKeyValueStore` does, down to the part that
-/// matters most here — `synchronize()` says whether there is an entitlement to
-/// reach iCloud with at all.
-final class AnICloudThatAnswers: ICloudKeyValues {
+/// Behaves the way `NSUbiquitousKeyValueStore` does, including the way it
+/// behaves when the app was built without the
+/// `com.apple.developer.ubiquity-kvstore-identifier` entitlement: there is
+/// still a store, and it answers nothing, keeps nothing, and syncs nothing.
+final class AnICloudThatAnswers: ICloudKeyValueStore {
+    /// What iCloud is holding — seeded directly for the settings another
+    /// device left there before this one launched.
     var stored: [String: String] = [:]
 
-    /// Whether this build was entitled to iCloud. `false` is every unsigned
-    /// build, the CI simulator among them.
-    var reachable = true
+    /// Whether this build was entitled to reach iCloud at all. `false` is
+    /// every unsigned build, the CI simulator among them.
+    var entitled = true
 
-    func string(forKey key: String) -> String? { stored[key] }
+    func string(forKey key: String) -> String? { entitled ? stored[key] : nil }
 
-    func set(_ value: String?, forKey key: String) { stored[key] = value }
+    func set(_ value: String?, forKey key: String) {
+        guard entitled else { return }
+        stored[key] = value
+    }
 
-    func removeObject(forKey key: String) { stored[key] = nil }
+    func removeObject(forKey key: String) {
+        guard entitled else { return }
+        stored[key] = nil
+    }
 
-    var dictionaryRepresentation: [String: Any] { stored }
+    var dictionaryRepresentation: [String: Any] { entitled ? stored : [:] }
 
     @discardableResult
-    func synchronize() -> Bool { reachable }
+    func synchronize() -> Bool { entitled }
 
     /// Another device writes, and iCloud says so — values first and the
     /// notice after, which is the order the real one does it in.

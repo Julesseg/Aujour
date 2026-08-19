@@ -27,12 +27,22 @@ final class LocalSettingsStorage: LocalKeyValueStore {
     }
 
     func setString(_ value: String?, forKey key: String) {
-        // A setting turned off is a key that goes. Left behind, a reminder
-        // time the user cleared would be read back and rung.
+        onThisDevice.setString(value, forKey: key)
+    }
+}
+
+extension UserDefaults {
+    /// Writes a setting, or takes it away.
+    ///
+    /// A setting turned off is a key that goes, rather than a key holding
+    /// nothing: left behind, a daily reminder the user cleared would be read
+    /// back and rung. Shared with `SyncedSettingsStorage`, which keeps the
+    /// device's copy of the synced settings the same way.
+    func setString(_ value: String?, forKey key: String) {
         if let value {
-            onThisDevice.set(value, forKey: key)
+            set(value, forKey: key)
         } else {
-            onThisDevice.removeObject(forKey: key)
+            removeObject(forKey: key)
         }
     }
 }

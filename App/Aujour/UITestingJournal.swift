@@ -16,8 +16,8 @@ import AujourCore
 ///   the app's — a temporary directory belonging to the runner is one the app
 ///   cannot write to.
 /// - **A Content Template.** Spawning is most of what M1's Today view does,
-///   and nothing in the app can set a template until the settings screen
-///   lands.
+///   and every test of it would otherwise start by typing a template into the
+///   settings screen — which is a test of that screen, and there is one.
 /// - **A photograph.** The system photo picker is another process's screen,
 ///   and driving it is the one part of adding a photograph that a UI test
 ///   cannot do without becoming a test of that screen.

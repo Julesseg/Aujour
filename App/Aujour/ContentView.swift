@@ -12,6 +12,7 @@ import AujourCore
 struct ContentView: View {
     @State private var journal: Journal
     @State private var showingJournalFolder = false
+    @State private var showingJournalSettings = false
     @State private var showingCalendar = false
     @Environment(\.scenePhase) private var scenePhase
 
@@ -61,6 +62,12 @@ struct ContentView: View {
                                     }
                                     .accessibilityIdentifier("journalFolderInfo")
                                 }
+                                ToolbarItem(placement: .topBarTrailing) {
+                                    Button("Journal settings", systemImage: "gearshape") {
+                                        showingJournalSettings = true
+                                    }
+                                    .accessibilityIdentifier("openJournalSettings")
+                                }
                             }
                     } else {
                         ProgressView("Opening today's entry")
@@ -81,6 +88,12 @@ struct ContentView: View {
             // reason: choosing a folder closes the journal it was opened from
             // and opens another, and a sheet that lives inside one state is a
             // sheet that vanishes mid-decision.
+            // Outside the states for the reason the folder sheet is: every
+            // setting on it reopens the journal, and a sheet that lived
+            // inside `.open` would close under the finger that changed one.
+            .sheet(isPresented: $showingJournalSettings) {
+                JournalSettingsSheet(journal: journal)
+            }
             .sheet(isPresented: $showingJournalFolder) {
                 JournalFolderSheet(journal: journal)
                     // Counted again on the way in: the number from launch is

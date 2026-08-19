@@ -526,19 +526,8 @@ final class Journal {
     /// Changes which spelling Aujour writes. Nothing already in the folder
     /// moves or is rewritten: both spellings are drawn as the picture they
     /// name whichever wrote them, and this decides only what goes in next.
-    ///
-    /// Today's words are written first, for the reason every other settings
-    /// change writes them first: adopting one reopens the journal, and the
-    /// Entry on screen is replaced when it does. A save that will not go stops
-    /// the change rather than costing the sentence being typed.
     func changeTheEmbedSyntax(to syntax: EmbedSyntax) async {
-        guard syntax != settings.embedSyntax else { return }
-        folderProblem = nil
-        if let unsaved = await saveWhatIsOnScreenWhereItBelongsNow() {
-            folderProblem = StorageProblem(unsaved)
-            return
-        }
-        await adopt { $0.embedSyntax = syntax }
+        await change { $0.embedSyntax = syntax }
     }
 
     /// Writes what is on screen to the file it belongs to right now, before
@@ -557,6 +546,80 @@ final class Journal {
         guard let today else { return nil }
         await today.save()
         return today.saveProblem
+    }
+
+    // MARK: - What a day starts as, when it turns, and where its photos go
+
+    /// The Content Template in force — what a day nobody has written yet
+    /// starts as.
+    var contentTemplate: String { settings.contentTemplate }
+
+    /// Changes what an unwritten day starts as.
+    ///
+    /// Nothing already in the folder is touched. A Content Template is what a
+    /// day is *spawned* from, and a day with a file has stopped being spawned
+    /// from anything — it is its file, and only its file (ADR 0001). So this
+    /// is a setting about days not yet written, including the one on screen
+    /// if it is still one of them.
+    ///
+    /// Today's words are written first, as every settings change writes them
+    /// first: adopting one reopens the journal. Which is also what makes the
+    /// exception safe — a day that has words has a file by the time the
+    /// journal comes back, so it is re-read rather than spawned again, and a
+    /// template changed mid-sentence cannot take the sentence with it.
+    func changeTheContentTemplate(to template: String) async {
+        await change { $0.contentTemplate = template }
+    }
+
+    /// When the current Journal Day advances.
+    var rolloverHour: RolloverHour { settings.rolloverHour }
+
+    /// Changes when the day turns.
+    ///
+    /// Today is a different day afterwards for anyone writing between the old
+    /// hour and the new one, so the journal reopens onto whichever day it is
+    /// now — and the words on screen go to the day they were written in
+    /// first, which is the same care the editor takes when a day turns under
+    /// it overnight.
+    ///
+    /// Nothing in the folder moves: every Entry already written is the day
+    /// its path names, whatever hour the journal has since started turning at.
+    func changeTheRolloverHour(to hour: RolloverHour) async {
+        await change { $0.rolloverHour = hour }
+    }
+
+    /// The folder each day's Attachments go into, relative to the Journal
+    /// Root.
+    var attachmentPathTemplate: String { settings.attachmentPathTemplate }
+
+    /// Changes where photographs go from here on.
+    ///
+    /// Nothing already in the folder moves. The photographs a journal holds
+    /// are pointed at from the Entries that embed them, and moving one would
+    /// break the day that names it — so unlike the Path Template there is no
+    /// migration to offer, and this decides only where the next one lands
+    /// (ADR 0002 is about Entries; an Attachment has no such identity).
+    func changeTheAttachmentPathTemplate(to template: AttachmentPathTemplate) async {
+        await change { $0.attachmentPathTemplate = template.format }
+    }
+
+    /// Writes today's words where they belong now, then adopts a
+    /// journal-shaping change — the shape every settings change here has.
+    ///
+    /// A save that will not go stops the change rather than costing the
+    /// sentence being typed: adopting reopens the journal, and the Entry on
+    /// screen is replaced when it does.
+    private func change(_ edit: (inout JournalSettings) -> Void) async {
+        var edited = settings
+        edit(&edited)
+        guard edited != settings else { return }
+
+        folderProblem = nil
+        if let unsaved = await saveWhatIsOnScreenWhereItBelongsNow() {
+            folderProblem = StorageProblem(unsaved)
+            return
+        }
+        await adopt(edit)
     }
 
     /// Counts the Entries in the folder again.

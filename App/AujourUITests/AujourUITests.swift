@@ -346,6 +346,76 @@ final class AujourUITests: XCTestCase {
         expect(editor, toHaveValue: "![[\(todaysEntryName()).jpg]]")
     }
 
+    func testWhatIsTypedAsATemplateIsWhatTheNextDayStartsFrom() throws {
+        // Deliberately without a template: this is the claim that the app has
+        // somewhere to set one, so it has to be set through the app.
+        let app = launchApp()
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        openSettings(app)
+        let template = app.textViews["contentTemplateField"]
+        XCTAssertTrue(template.waitForExistence(timeout: 10), "the template page never appeared")
+        template.tap()
+        template.typeText("## Morning\n\n## Evening\n")
+        XCTAssertEqual(
+            template.value as? String,
+            "## Morning\n\n## Evening\n",
+            "the template page did not take what was typed into it"
+        )
+
+        let use = app.buttons["changeContentTemplate"]
+        scrollTo(use, in: app)
+        XCTAssertTrue(use.isEnabled, "the template typed was not offered as a change")
+        use.tap()
+        app.buttons["Done"].tap()
+
+        // Today has not been written in, so today is what the template says.
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 15), "today never came back")
+        expect(editor, toHaveValue: "## Morning\n\n## Evening\n")
+
+        // And it is still the template on the next launch: a setting typed
+        // here is kept, and travels (ADR 0003).
+        relaunch(app)
+        expect(editor, toHaveValue: "## Morning\n\n## Evening\n")
+    }
+
+    func testTheRolloverHourChosenIsTheOneStillInForceAfterARelaunch() throws {
+        let app = launchApp()
+        openSettings(app)
+
+        // Four in the morning: the night owl's rollover, and the hour the
+        // decision log uses to explain what one is for. Named the way this
+        // device's clock names it rather than spelled into the test — the app
+        // runs in whatever region the simulator is set to, and so does the
+        // runner.
+        let fourInTheMorning = onTheClock(hour: 4)
+        let hour = app.buttons["rolloverHour"]
+        scrollTo(hour, in: app)
+        hour.tap()
+        tapTheOption(labelled: fourInTheMorning, in: app)
+
+        // The setting said as the day it makes, which is what it is for.
+        XCTAssertTrue(
+            app.staticTexts["rolloverHourDay"].waitForExistence(timeout: 10),
+            "the day being written was never shown"
+        )
+
+        relaunch(app)
+        openSettings(app)
+        let afterARelaunch = app.buttons["rolloverHour"]
+        XCTAssertTrue(afterARelaunch.waitForExistence(timeout: 15), "settings never came back")
+        // The end of the label rather than any of it: an hour that merely
+        // appears in "When the day turns, 14:00" is not the hour it turns at.
+        XCTAssertTrue(
+            afterARelaunch.label.hasSuffix(", \(fourInTheMorning)"),
+            "expected the day to still turn at \(fourInTheMorning), got \(afterARelaunch.label)"
+        )
+    }
+
     func testAPastDayIsFilledInFromTheCalendar() throws {
         let app = launchApp(contentTemplate: "# {{title}}\n")
         XCTAssertTrue(
@@ -676,7 +746,7 @@ final class AujourUITests: XCTestCase {
     ///     place of the one the system picker would have come back with —
     ///     `png`, `jpeg` or `heic`.
     private func launchApp(
-        contentTemplate: String = "",
+        contentTemplate: String? = nil,
         folderToPick: String? = nil,
         todaysEntry: String? = nil,
         divergedVersion: String? = nil,
@@ -685,7 +755,12 @@ final class AujourUITests: XCTestCase {
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["AUJOUR_UITEST_JOURNAL_FOLDER"] = journalFolder
-        app.launchEnvironment["AUJOUR_UITEST_CONTENT_TEMPLATE"] = contentTemplate
+        // Only when a test asks for one. Seeded on every launch, it would be
+        // set again on the relaunch that is supposed to prove a template set
+        // through the app is still there.
+        if let contentTemplate {
+            app.launchEnvironment["AUJOUR_UITEST_CONTENT_TEMPLATE"] = contentTemplate
+        }
         if let folderToPick {
             app.launchEnvironment["AUJOUR_UITEST_FOLDER_TO_PICK"] = folderToPick
         }
@@ -716,6 +791,44 @@ final class AujourUITests: XCTestCase {
             app.staticTexts["journalRootLocation"].waitForExistence(timeout: 10),
             "the folder sheet never appeared"
         )
+    }
+
+    /// Opens the sheet holding the settings that shape the journal.
+    private func openSettings(_ app: XCUIApplication) {
+        let settings = app.buttons["openJournalSettings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 30), "the journal never opened")
+        settings.tap()
+        XCTAssertTrue(
+            app.textViews["contentTemplateField"].waitForExistence(timeout: 10),
+            "the settings sheet never appeared"
+        )
+    }
+
+    /// Taps an option in an open menu, found by what it says rather than by
+    /// an identifier: the rows a `Picker` puts in a menu carry their label and
+    /// no identifier of their own.
+    private func tapTheOption(labelled label: String, in app: XCUIApplication) {
+        let option = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", label))
+            .firstMatch
+        XCTAssertTrue(
+            option.waitForExistence(timeout: 10),
+            "the menu never offered \(label) — it offered "
+                + app.buttons.allElementsBoundByIndex.map { "[\($0.label)]" }.joined()
+                + " and menu items "
+                + app.menuItems.allElementsBoundByIndex.map { "[\($0.label)]" }.joined()
+        )
+        option.tap()
+    }
+
+    /// An hour of the day as this device's clock writes it — the same way the
+    /// app writes it, so that a test does not assert an American clock on a
+    /// simulator set to a French one.
+    private func onTheClock(hour: Int) -> String {
+        let midnight = Calendar.current.startOfDay(for: Date())
+        let atThatHour =
+            Calendar.current.date(byAdding: .hour, value: hour, to: midnight) ?? midnight
+        return atThatHour.formatted(date: .omitted, time: .shortened)
     }
 
     /// Replaces what is in the entry path field, and puts the keyboard away.

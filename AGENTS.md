@@ -11,7 +11,7 @@ product decisions in `docs/design/v1-decisions.md`.
 
 When an issue closes as completed (or on a manual re-scan),
 `unblock-dispatch.yml` finds `ready-for-agent` issues that nothing blocks —
-never blocked, or with every `## Blocked by` entry closed — and spawns a T3 Code
+never blocked, or with every `## Blocked by` entry closed — and spawns a Paseo
 agent session for each on the self-hosted Mac runner (capped, umbrella
 `[Epic]`/`Spec:` issues skipped). The session claims its issue with the
 `agent-dispatched` label as its first act — the dispatcher never applies it, so

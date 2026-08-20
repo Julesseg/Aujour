@@ -944,17 +944,34 @@ final class AujourUITests: XCTestCase {
 
     /// Brings something into view in a sheet that scrolls.
     ///
-    /// The folder sheet answers "where are my files?" in three parts now, and
-    /// the last of them is below the fold on a phone — an element that is
-    /// there and not on screen is one a tap cannot reach.
+    /// Steered rather than swiped at: the journal sheet is long, and on a
+    /// small screen one full-speed swipe can carry the thing being looked for
+    /// straight past the visible strip — after which a loop that only ever
+    /// swipes one way is chasing it in the wrong direction. So each swipe asks
+    /// where it has got to, and goes the way that closes the gap.
+    ///
+    /// Swiped on the scroll view and not on the screen, because an iPad
+    /// presents this sheet as a form sheet with the app showing around it, and
+    /// a gesture aimed at the screen is a gesture at whatever is behind.
     private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) {
         XCTAssertTrue(element.waitForExistence(timeout: 10), "\(element) never appeared")
+
+        let sheet = app.scrollViews.firstMatch
+        let scroller = sheet.exists ? sheet : app
         var swipes = 0
-        while !element.isHittable, swipes < 5 {
-            app.swipeUp()
+        while !element.isHittable, swipes < 12 {
+            if element.frame.minY < scroller.frame.minY {
+                scroller.swipeDown(velocity: .slow)
+            } else {
+                scroller.swipeUp(velocity: .slow)
+            }
             swipes += 1
         }
-        XCTAssertTrue(element.isHittable, "\(element) never came into view")
+        XCTAssertTrue(
+            element.isHittable,
+            "\(element) never came into view — it is at \(element.frame), "
+                + "and the sheet it is in is at \(scroller.frame)"
+        )
     }
 
     /// Where today's photograph lands, said the way the Entry points at it —

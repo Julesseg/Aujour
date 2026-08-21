@@ -13,7 +13,11 @@ struct JournalStorageTests {
     func aFreshInstallOpensOntoARealFolder() async throws {
         try await withTemporaryFolder { folders in
             let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
-            let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders), settings: .inMemory())
+            let journal = Journal(
+                locator: .test(iCloudDocuments: iCloud, folders: folders),
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
+            )
 
             await journal.open()
 
@@ -36,7 +40,11 @@ struct JournalStorageTests {
             let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
             try iCloud.seed("Walked to the market.\n", at: "2026/03/2026-03-01.md")
             try iCloud.seed("February's last day.\n", at: "2026/02/2026-02-28.md")
-            let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders), settings: .inMemory())
+            let journal = Journal(
+                locator: .test(iCloudDocuments: iCloud, folders: folders),
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
+            )
 
             await journal.open()
 
@@ -50,7 +58,11 @@ struct JournalStorageTests {
             let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
             let today = JournalDay.current(at: .now, in: .current, rolloverHour: .midnight)
             try iCloud.seed("Walked to the market.\n", at: PathTemplate.default.render(today))
-            let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders), settings: .inMemory())
+            let journal = Journal(
+                locator: .test(iCloudDocuments: iCloud, folders: folders),
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
+            )
 
             await journal.open()
 
@@ -72,7 +84,11 @@ struct JournalStorageTests {
             try iCloud.seed("Not an Entry.\n", at: "notes.md")
             try iCloud.seed("A parked divergence.\n", at: PathTemplate.default.render(earlier)
                 .replacingOccurrences(of: ".md", with: "_1.md"))
-            let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders), settings: .inMemory())
+            let journal = Journal(
+                locator: .test(iCloudDocuments: iCloud, folders: folders),
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
+            )
 
             await journal.open()
             let calendar = try #require(journal.calendar)
@@ -96,7 +112,11 @@ struct JournalStorageTests {
         try await withTemporaryFolder { folders in
             let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
             let root = JournalRoot(url: iCloud.standardizedFileURL, location: .aujoursOwn(.iCloudDrive))
-            let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders), settings: .inMemory())
+            let journal = Journal(
+                locator: .test(iCloudDocuments: iCloud, folders: folders),
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
+            )
             await journal.open()
             #expect(journal.state == .open(root, entryCount: 0))
 
@@ -115,7 +135,11 @@ struct JournalStorageTests {
             let today = JournalDay.current(at: .now, in: .current, rolloverHour: .midnight)
             let entry = PathTemplate.default.render(today)
             try iCloud.seed("Walked to the market.\n", at: entry)
-            let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders), settings: .inMemory())
+            let journal = Journal(
+                locator: .test(iCloudDocuments: iCloud, folders: folders),
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
+            )
 
             await journal.open()
             let editor = try #require(journal.today)
@@ -141,7 +165,11 @@ struct JournalStorageTests {
             let today = JournalDay.current(at: .now, in: .current, rolloverHour: .midnight)
             let earlier = today.adding(days: -2)
             try iCloud.seed("Walked to the market.\n", at: PathTemplate.default.render(today))
-            let journal = Journal(locator: .test(iCloudDocuments: iCloud, folders: folders), settings: .inMemory())
+            let journal = Journal(
+                locator: .test(iCloudDocuments: iCloud, folders: folders),
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
+            )
             await journal.open()
             let calendar = try #require(journal.calendar)
             await calendar.scan()

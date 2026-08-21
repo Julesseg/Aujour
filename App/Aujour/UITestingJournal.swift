@@ -16,8 +16,8 @@ import AujourCore
 ///   the app's — a temporary directory belonging to the runner is one the app
 ///   cannot write to.
 /// - **A Content Template.** Spawning is most of what M1's Today view does,
-///   and nothing in the app can set a template until the settings screen
-///   lands.
+///   and every test of it would otherwise start by typing a template into the
+///   settings screen — which is a test of that screen, and there is one.
 /// - **A photograph.** The system photo picker is another process's screen,
 ///   and driving it is the one part of adding a photograph that a UI test
 ///   cannot do without becoming a test of that screen.
@@ -36,12 +36,24 @@ enum UITestingJournal {
     /// suite drives the app from another target and imports nothing from it.
     static let folderKey = "AUJOUR_UITEST_JOURNAL_FOLDER"
 
-    /// The Content Template new Entries are spawned from.
+    /// The markdown a Content Template file holds. Seeded into the folder as
+    /// a file, and named by the settings — which is what a Content Template is
+    /// (ADR 0005).
     static let contentTemplateKey = "AUJOUR_UITEST_CONTENT_TEMPLATE"
+
+    /// Where that file is seeded, inside the test's own journal folder. The
+    /// `templates/` folder an Obsidian vault already keeps them in, so a suite
+    /// that lists the folder sees what a real one would.
+    static let contentTemplateFile = "templates/Daily.md"
 
     /// The name of a folder for "Use a custom folder…" to pick, in place of
     /// the Files picker.
     static let folderToPickKey = "AUJOUR_UITEST_FOLDER_TO_PICK"
+
+    /// The markdown a template file holds, for "Choose a template file…" to
+    /// pick in place of the Files picker — written *outside* the journal
+    /// folder, which is the case the picker exists for (ADR 0005).
+    static let templateToPickKey = "AUJOUR_UITEST_TEMPLATE_TO_PICK"
 
     /// What today's Entry file already says — a day this device wrote an hour
     /// ago, put there before the app opens the folder.
@@ -73,11 +85,12 @@ enum UITestingJournal {
         guard let folder = environment[folderKey], isAFolderName(folder) else { return nil }
 
         let settings = settingsStore(for: folder)
+        let root = documentsFolder(named: folder)
         if let contentTemplate = environment[contentTemplateKey] {
-            settings.update { $0.contentTemplate = contentTemplate }
+            seed(contentTemplate, at: contentTemplateFile, under: root)
+            settings.update { $0.contentTemplateFile = contentTemplateFile }
         }
 
-        let root = documentsFolder(named: folder)
         let entryPath = todaysEntryPath(rolloverHour: settings.settings.rolloverHour)
         if let written = environment[todaysEntryKey] {
             seed(written, at: entryPath, under: root)
@@ -105,6 +118,12 @@ enum UITestingJournal {
                 customRoot: .stored(key: "\(CustomJournalRoot.bookmarkKey).\(folder)")
             ),
             settings: settings,
+            // Under a key of this test's own, like the folder's bookmark and
+            // for the same reason: a template one test picked must never be
+            // the one the next test opens with.
+            templateElsewhere: .stored(
+                key: "\(BookmarkedTemplateFile.bookmarkKey).\(folder)"
+            ),
             versions: environment[divergedVersionKey].map { written in
                 AVersionFromAnotherDevice(
                     written,
@@ -182,6 +201,31 @@ enum UITestingJournal {
         let folder = documentsFolder(named: name)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return folder
+    }
+
+    /// The template file a UI test means to pick, written if it is not there
+    /// yet — or `nil`, which is everybody else, and which is what leaves the
+    /// Files picker in charge.
+    ///
+    /// Written here for the reason the picked folder is made here: a file
+    /// picked in the Files app always exists, and the runner's own files are
+    /// not somewhere the app can read. It sits beside the test journals rather
+    /// than in one, because a template outside the journal folder is the case
+    /// a picker is needed for at all — one inside it is a path, and needs no
+    /// bookmark.
+    @MainActor
+    static func templateToPick(
+        _ environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> URL? {
+        guard let markdown = environment[templateToPickKey] else { return nil }
+
+        let file = documentsFolder(named: "Templates").appending(path: "Daily.md")
+        try? FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try? Data(markdown.utf8).write(to: file)
+        return file
     }
 
     /// A photograph a UI test means to insert, in the format it asked for —

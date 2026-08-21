@@ -20,6 +20,7 @@ private final class CalendarSession {
 
     init(
         files: [String: String] = [:],
+        spawningFrom template: String? = nil,
         settings: JournalSettings = .default,
         now: Date = instant(2026, 3, 1, 9, 30, in: paris),
         locale: Locale = english
@@ -29,6 +30,7 @@ private final class CalendarSession {
         self.calendar = JournalCalendar(
             store: store,
             settings: settings,
+            spawningFrom: template.map(FixedContentTemplate.init),
             timeZone: paris,
             locale: locale,
             now: { self.now }
@@ -301,7 +303,7 @@ struct JournalCalendarBackfillTests {
     @Test("an unwritten past day is spawned with that day's own date")
     func anUnwrittenPastDayIsSpawnedForThatDay() async throws {
         let session = CalendarSession(
-            settings: JournalSettings(contentTemplate: "# {{title}}\n\n{{date}}, written at {{time}}.\n")
+            spawningFrom: "# {{title}}\n\n{{date}}, written at {{time}}.\n"
         )
 
         let editor = try #require(

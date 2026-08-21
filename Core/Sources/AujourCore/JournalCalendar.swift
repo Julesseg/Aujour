@@ -95,6 +95,9 @@ public final class JournalCalendar {
 
     @ObservationIgnored private let store: any JournalStore
     @ObservationIgnored private let settings: JournalSettings
+
+    /// Where a day spawned from this calendar reads its Content Template.
+    private let template: (any ContentTemplateSource)?
     @ObservationIgnored private let timeZone: TimeZone
     @ObservationIgnored private let locale: Locale
     @ObservationIgnored private let now: @MainActor () -> Date
@@ -118,15 +121,20 @@ public final class JournalCalendar {
     ///   - now: the wall clock. Read on every question rather than once, so a
     ///     calendar left on screen overnight moves "today" when it is asked
     ///     again.
+    /// - Parameter template: where a backfilled day's markdown is spawned
+    ///   from — handed on to every editor this calendar makes, so a day filled
+    ///   in from here starts from the same template today does.
     public init(
         store: any JournalStore,
         settings: JournalSettings = .default,
+        spawningFrom template: (any ContentTemplateSource)? = nil,
         timeZone: TimeZone = .current,
         locale: Locale = .current,
         now: @escaping @MainActor () -> Date = { Date() }
     ) {
         self.store = store
         self.settings = settings
+        self.template = template
         self.timeZone = timeZone
         self.locale = locale
         self.now = now
@@ -229,6 +237,7 @@ public final class JournalCalendar {
         return EntryEditor(
             store: store,
             settings: settings,
+            spawningFrom: template,
             timeZone: timeZone,
             locale: locale,
             day: day,

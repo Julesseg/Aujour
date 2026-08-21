@@ -91,6 +91,11 @@ public final class EntryEditor {
 
     @ObservationIgnored private let store: any JournalStore
     @ObservationIgnored private let settings: JournalSettings
+
+    /// Where the markdown an unwritten day starts from is read — the file the
+    /// user pointed at, wherever they keep it (ADR 0005). `nil` for a journal
+    /// with no template, whose days start blank.
+    @ObservationIgnored private let template: (any ContentTemplateSource)?
     @ObservationIgnored private let timeZone: TimeZone
     @ObservationIgnored private let locale: Locale
     /// The day this editor stays on, if it was made for a particular one.
@@ -122,8 +127,9 @@ public final class EntryEditor {
 
     /// - Parameters:
     ///   - store: the folder this Journal lives in.
-    ///   - settings: the Path Template, Content Template and Rollover Hour
-    ///     that shape which file this is and what it starts as.
+    ///   - settings: the Path Template and Rollover Hour that shape which file
+    ///     this is and which day it is for.
+    ///   - template: where the markdown an unwritten day starts from is read.
     ///   - timeZone: the zone the Journal Day and the template's dates are
     ///     read in.
     ///   - locale: picks month and weekday names in the Content Template.
@@ -140,6 +146,7 @@ public final class EntryEditor {
     public init(
         store: any JournalStore,
         settings: JournalSettings = .default,
+        spawningFrom template: (any ContentTemplateSource)? = nil,
         timeZone: TimeZone = .current,
         locale: Locale = .current,
         day pinnedDay: JournalDay? = nil,
@@ -151,6 +158,7 @@ public final class EntryEditor {
     ) {
         self.store = store
         self.settings = settings
+        self.template = template
         self.timeZone = timeZone
         self.locale = locale
         self.pinnedDay = pinnedDay
@@ -223,7 +231,7 @@ public final class EntryEditor {
             let text =
                 journaled
                 ? try await store.readText(at: path)
-                : spawn(day, from: template)
+                : await spawn(day, from: template)
 
             self.day = day
             entryPath = path
@@ -238,8 +246,8 @@ public final class EntryEditor {
     }
 
     /// The text a day with no file starts as: the Content Template, rendered.
-    private func spawn(_ day: JournalDay, from template: PathTemplate) -> String {
-        ContentTemplate(settings.contentTemplate).render(
+    private func spawn(_ day: JournalDay, from template: PathTemplate) async -> String {
+        ContentTemplate(await contentTemplate()).render(
             at: SpawnContext(
                 day: day,
                 instant: now(),
@@ -249,6 +257,13 @@ public final class EntryEditor {
                 dateFormat: template.entryNameFormat
             )
         )
+    }
+
+    /// The Content Template's markdown, read wherever the file lives — or
+    /// nothing at all, which is a blank page, and which is also what an
+    /// unreadable template comes to (ADR 0005).
+    private func contentTemplate() async -> String {
+        await template?.markdown() ?? ""
     }
 
     // MARK: - What this Entry points at

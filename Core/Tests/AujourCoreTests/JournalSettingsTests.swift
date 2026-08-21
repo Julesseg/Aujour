@@ -14,8 +14,8 @@ struct JournalSettingsDefaultsTests {
         #expect(settings.rolloverHour == .midnight)
         #expect(settings.embedSyntax == .standardMarkdown)
         // Obsidian ships no daily-note template either: a new Entry is blank
-        // until the user writes one.
-        #expect(settings.contentTemplate.isEmpty)
+        // until the user points at a file to spawn from.
+        #expect(settings.contentTemplateFile.isEmpty)
     }
 
     @Test("an unreadable value falls back to that field's default, leaving the others intact")
@@ -40,16 +40,17 @@ struct JournalSettingsDefaultsTests {
         kvs.receiveFromAnotherDevice([
             JournalSettingsKey.pathTemplate: "",
             JournalSettingsKey.attachmentPathTemplate: "",
-            JournalSettingsKey.contentTemplate: "",
+            JournalSettingsKey.contentTemplateFile: "",
         ])
 
         let settings = JournalSettingsStore(syncedThrough: kvs).settings
 
-        // An empty Path Template would name every Entry `.md`; an empty
-        // Content Template is simply a blank new Entry, which is legitimate.
+        // An empty Path Template would name every Entry `.md`; no Content
+        // Template file at all is simply a blank new Entry, which is
+        // legitimate.
         #expect(settings.pathTemplate == JournalSettings.default.pathTemplate)
         #expect(settings.attachmentPathTemplate == JournalSettings.default.attachmentPathTemplate)
-        #expect(settings.contentTemplate.isEmpty)
+        #expect(settings.contentTemplateFile.isEmpty)
     }
 }
 
@@ -63,7 +64,7 @@ struct JournalSettingsSyncTests {
 
         thisDevice.update {
             $0.pathTemplate = "[journal]/YYYY-MM-DD"
-            $0.contentTemplate = "# {{date}}\n\n"
+            $0.contentTemplateFile = "templates/Daily.md"
             $0.attachmentPathTemplate = "[media]/YYYY"
             $0.embedSyntax = .obsidianWikiLink
             $0.rolloverHour = RolloverHour(hour: 4)!

@@ -33,13 +33,13 @@ final class AujourUITests: XCTestCase {
 
         // Asking iCloud for the app's container is slow the first time on a
         // device, so this is a wait rather than an assertion about a frame.
-        let folderInfo = app.buttons["journalFolderInfo"]
+        let theJournal = app.buttons["openTheJournalSheet"]
         XCTAssertTrue(
-            folderInfo.waitForExistence(timeout: 30),
+            theJournal.waitForExistence(timeout: 30),
             "the app did not settle on a journal folder — it is showing: "
                 + app.staticTexts.allElementsBoundByIndex.map { $0.label }.joined(separator: " / ")
         )
-        folderInfo.tap()
+        theJournal.tap()
 
         let location = app.staticTexts["journalRootLocation"]
         XCTAssertTrue(location.waitForExistence(timeout: 5))
@@ -76,7 +76,7 @@ final class AujourUITests: XCTestCase {
         // And none of it is a file: a day nobody wrote on leaves no husk
         // behind, which the next launch is what proves.
         relaunch(app)
-        XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "0 entries")
+        XCTAssertEqual(entryCountAfterOpeningTheJournalSheet(app), "0 entries")
     }
 
     func testWhatIsTypedIsStillThereAfterARelaunch() throws {
@@ -96,7 +96,7 @@ final class AujourUITests: XCTestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, "Walked to the market.")
-        XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
+        XCTAssertEqual(entryCountAfterOpeningTheJournalSheet(app), "1 entry")
     }
 
     /// The claim the editor is worth nothing without: it draws markdown, and
@@ -141,7 +141,7 @@ final class AujourUITests: XCTestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, entry)
-        XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
+        XCTAssertEqual(entryCountAfterOpeningTheJournalSheet(app), "1 entry")
     }
 
     /// A checkbox is the one thing in an Entry that answers a tap, and the
@@ -186,7 +186,7 @@ final class AujourUITests: XCTestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, "- [x] Milk\n- [ ] Bread")
-        XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
+        XCTAssertEqual(entryCountAfterOpeningTheJournalSheet(app), "1 entry")
     }
 
     /// The formatting row above the keyboard: the marks a journal is written
@@ -320,7 +320,7 @@ final class AujourUITests: XCTestCase {
             "today's entry never appeared"
         )
 
-        openFolderSheet(app)
+        openTheJournalSheet(app)
         let example = app.staticTexts["embedSyntaxExample"]
         scrollTo(example, in: app)
         XCTAssertEqual(example.label, "![](\(todaysPhotograph(named: "jpg")))")
@@ -344,6 +344,77 @@ final class AujourUITests: XCTestCase {
         // The file still goes where the Attachment Path Template says — the
         // setting decides only how the Entry points at it.
         expect(editor, toHaveValue: "![[\(todaysEntryName()).jpg]]")
+    }
+
+    func testATemplateFilePickedAnywhereIsWhatTheNextDayStartsFrom() throws {
+        // A template kept somewhere else entirely — not in the journal folder
+        // — which is the case a file picker is needed for at all (ADR 0005).
+        // Deliberately no template setting, so what puts one in force is the
+        // app.
+        let app = launchApp(templateToPick: "## Morning\n\n## Evening\n")
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        openTheJournalSheet(app)
+        let chooseTemplate = app.buttons["contentTemplateFile"]
+        scrollTo(chooseTemplate, in: app)
+        chooseTemplate.tap()
+        app.buttons["Done"].tap()
+
+        // Today has not been written in, so today is what the file says.
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 15), "today never came back")
+        expect(editor, toHaveValue: "## Morning\n\n## Evening\n")
+
+        // And still the template on the next launch: the file is remembered by
+        // a bookmark, which is what makes a file outside the folder reachable
+        // at all after the app is relaunched.
+        relaunch(app)
+        expect(editor, toHaveValue: "## Morning\n\n## Evening\n")
+
+        // Until it is asked for no template, which forgets the file and
+        // nothing else: today goes back to the blank page it was.
+        openTheJournalSheet(app)
+        let noTemplate = app.buttons["noContentTemplate"]
+        scrollTo(noTemplate, in: app)
+        noTemplate.tap()
+        app.buttons["Done"].tap()
+        expect(editor, toHaveValue: "")
+    }
+
+    func testTheRolloverHourChosenIsTheOneStillInForceAfterARelaunch() throws {
+        let app = launchApp()
+        openTheJournalSheet(app)
+
+        // Four in the morning: the night owl's rollover, and the hour the
+        // decision log uses to explain what one is for. Named the way this
+        // device's clock names it rather than spelled into the test — the app
+        // runs in whatever region the simulator is set to, and so does the
+        // runner.
+        let fourInTheMorning = onTheClock(hour: 4)
+        let hour = app.buttons["rolloverHour"]
+        scrollTo(hour, in: app)
+        hour.tap()
+        tapTheOption(labelled: fourInTheMorning, in: app)
+
+        // The setting said as the day it makes, which is what it is for.
+        XCTAssertTrue(
+            app.staticTexts["rolloverHourDay"].waitForExistence(timeout: 10),
+            "the day being written was never shown"
+        )
+
+        relaunch(app)
+        openTheJournalSheet(app)
+        let afterARelaunch = app.buttons["rolloverHour"]
+        XCTAssertTrue(afterARelaunch.waitForExistence(timeout: 15), "settings never came back")
+        // The end of the label rather than any of it: an hour that merely
+        // appears in "When the day turns, 14:00" is not the hour it turns at.
+        XCTAssertTrue(
+            afterARelaunch.label.hasSuffix(", \(fourInTheMorning)"),
+            "expected the day to still turn at \(fourInTheMorning), got \(afterARelaunch.label)"
+        )
     }
 
     func testAPastDayIsFilledInFromTheCalendar() throws {
@@ -440,7 +511,7 @@ final class AujourUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 4)
 
         // Where a journal nobody has moved lives.
-        openFolderSheet(app)
+        openTheJournalSheet(app)
         XCTAssertEqual(app.staticTexts["journalRootLocation"].label, aujoursOwnFolder)
         XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
 
@@ -466,7 +537,7 @@ final class AujourUITests: XCTestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, "Written in the folder I picked.")
-        openFolderSheet(app)
+        openTheJournalSheet(app)
         XCTAssertEqual(app.staticTexts["journalRootLocation"].label, vault)
         XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
 
@@ -515,7 +586,7 @@ final class AujourUITests: XCTestCase {
 
         // The Parked File is beside the journal and not in it: one day
         // written, one entry, whatever else is in the folder (ADR 0002).
-        XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
+        XCTAssertEqual(entryCountAfterOpeningTheJournalSheet(app), "1 entry")
         app.buttons["Done"].tap()
 
         // Dismissible, because the file itself is the lasting notice.
@@ -533,7 +604,7 @@ final class AujourUITests: XCTestCase {
             "today's entry never appeared"
         )
 
-        openFolderSheet(app)
+        openTheJournalSheet(app)
         XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
         typeEntryPath("[Journal]/YYYY-MM-DD", into: app)
 
@@ -568,7 +639,7 @@ final class AujourUITests: XCTestCase {
         // journal-shaping setting does (ADR 0003).
         relaunch(app)
         XCTAssertTrue(app.textViews["entryEditor"].waitForExistence(timeout: 30))
-        XCTAssertEqual(entryCountAfterOpeningTheFolderSheet(app), "1 entry")
+        XCTAssertEqual(entryCountAfterOpeningTheJournalSheet(app), "1 entry")
         XCTAssertEqual(app.textFields["entryPathField"].value as? String, "[Journal]/YYYY-MM-DD")
     }
 
@@ -579,7 +650,7 @@ final class AujourUITests: XCTestCase {
             "today's entry never appeared"
         )
 
-        openFolderSheet(app)
+        openTheJournalSheet(app)
         typeEntryPath("[Journal]/YYYY-MM-DD", into: app)
         app.buttons["changeEntryPath"].tap()
         XCTAssertTrue(
@@ -620,7 +691,7 @@ final class AujourUITests: XCTestCase {
             "today's entry never appeared"
         )
 
-        openFolderSheet(app)
+        openTheJournalSheet(app)
         typeEntryPath("[Journal]/YYYY-MM-DD", into: app)
         app.buttons["changeEntryPath"].tap()
 
@@ -672,20 +743,29 @@ final class AujourUITests: XCTestCase {
     ///     launch, so it is the newer of the two.
     ///   - vaultNote: a file the folder already holds that is none of Aujour's
     ///     business — a note the vault made — and the path it sits at.
+    ///   - templateToPick: the markdown of a template file kept outside the
+    ///     journal folder, for "Choose a template file…" to pick in place of
+    ///     the Files picker.
     ///   - photograph: the format of the photograph the app hands itself in
     ///     place of the one the system picker would have come back with —
     ///     `png`, `jpeg` or `heic`.
     private func launchApp(
-        contentTemplate: String = "",
+        contentTemplate: String? = nil,
         folderToPick: String? = nil,
         todaysEntry: String? = nil,
         divergedVersion: String? = nil,
         vaultNote: (at: String, saying: String)? = nil,
+        templateToPick: String? = nil,
         photograph: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["AUJOUR_UITEST_JOURNAL_FOLDER"] = journalFolder
-        app.launchEnvironment["AUJOUR_UITEST_CONTENT_TEMPLATE"] = contentTemplate
+        // Only when a test asks for one. Seeded on every launch, it would be
+        // set again on the relaunch that is supposed to prove a template set
+        // through the app is still there.
+        if let contentTemplate {
+            app.launchEnvironment["AUJOUR_UITEST_CONTENT_TEMPLATE"] = contentTemplate
+        }
         if let folderToPick {
             app.launchEnvironment["AUJOUR_UITEST_FOLDER_TO_PICK"] = folderToPick
         }
@@ -699,6 +779,9 @@ final class AujourUITests: XCTestCase {
             app.launchEnvironment["AUJOUR_UITEST_VAULT_NOTE_AT"] = vaultNote.at
             app.launchEnvironment["AUJOUR_UITEST_VAULT_NOTE"] = vaultNote.saying
         }
+        if let templateToPick {
+            app.launchEnvironment["AUJOUR_UITEST_TEMPLATE_TO_PICK"] = templateToPick
+        }
         if let photograph {
             app.launchEnvironment["AUJOUR_UITEST_PHOTO"] = photograph
         }
@@ -706,16 +789,43 @@ final class AujourUITests: XCTestCase {
         return app
     }
 
-    /// Opens the sheet that says where the journal is kept and offers to move
-    /// it.
-    private func openFolderSheet(_ app: XCUIApplication) {
-        let folderInfo = app.buttons["journalFolderInfo"]
-        XCTAssertTrue(folderInfo.waitForExistence(timeout: 30), "the journal never opened")
-        folderInfo.tap()
+    /// Opens the one sheet: where the journal is kept, and every setting that
+    /// shapes what goes into it.
+    private func openTheJournalSheet(_ app: XCUIApplication) {
+        let theJournal = app.buttons["openTheJournalSheet"]
+        XCTAssertTrue(theJournal.waitForExistence(timeout: 30), "the journal never opened")
+        theJournal.tap()
         XCTAssertTrue(
             app.staticTexts["journalRootLocation"].waitForExistence(timeout: 10),
-            "the folder sheet never appeared"
+            "the journal sheet never appeared"
         )
+    }
+
+    /// Taps an option in an open menu, found by what it says rather than by
+    /// an identifier: the rows a `Picker` puts in a menu carry their label and
+    /// no identifier of their own.
+    private func tapTheOption(labelled label: String, in app: XCUIApplication) {
+        let option = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", label))
+            .firstMatch
+        XCTAssertTrue(
+            option.waitForExistence(timeout: 10),
+            "the menu never offered \(label) — it offered "
+                + app.buttons.allElementsBoundByIndex.map { "[\($0.label)]" }.joined()
+                + " and menu items "
+                + app.menuItems.allElementsBoundByIndex.map { "[\($0.label)]" }.joined()
+        )
+        option.tap()
+    }
+
+    /// An hour of the day as this device's clock writes it — the same way the
+    /// app writes it, so that a test does not assert an American clock on a
+    /// simulator set to a French one.
+    private func onTheClock(hour: Int) -> String {
+        let midnight = Calendar.current.startOfDay(for: Date())
+        let atThatHour =
+            Calendar.current.date(byAdding: .hour, value: hour, to: midnight) ?? midnight
+        return atThatHour.formatted(date: .omitted, time: .shortened)
     }
 
     /// Replaces what is in the entry path field, and puts the keyboard away.
@@ -746,10 +856,10 @@ final class AujourUITests: XCTestCase {
         app.launch()
     }
 
-    private func entryCountAfterOpeningTheFolderSheet(_ app: XCUIApplication) -> String {
-        let folderInfo = app.buttons["journalFolderInfo"]
-        guard folderInfo.waitForExistence(timeout: 30) else { return "the journal never opened" }
-        folderInfo.tap()
+    private func entryCountAfterOpeningTheJournalSheet(_ app: XCUIApplication) -> String {
+        let theJournal = app.buttons["openTheJournalSheet"]
+        guard theJournal.waitForExistence(timeout: 30) else { return "the journal never opened" }
+        theJournal.tap()
 
         let entryCount = app.staticTexts["journalEntryCount"]
         guard entryCount.waitForExistence(timeout: 5) else { return "no entry count was shown" }
@@ -834,17 +944,34 @@ final class AujourUITests: XCTestCase {
 
     /// Brings something into view in a sheet that scrolls.
     ///
-    /// The folder sheet answers "where are my files?" in three parts now, and
-    /// the last of them is below the fold on a phone — an element that is
-    /// there and not on screen is one a tap cannot reach.
+    /// Steered rather than swiped at: the journal sheet is long, and on a
+    /// small screen one full-speed swipe can carry the thing being looked for
+    /// straight past the visible strip — after which a loop that only ever
+    /// swipes one way is chasing it in the wrong direction. So each swipe asks
+    /// where it has got to, and goes the way that closes the gap.
+    ///
+    /// Swiped on the scroll view and not on the screen, because an iPad
+    /// presents this sheet as a form sheet with the app showing around it, and
+    /// a gesture aimed at the screen is a gesture at whatever is behind.
     private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) {
         XCTAssertTrue(element.waitForExistence(timeout: 10), "\(element) never appeared")
+
+        let sheet = app.scrollViews.firstMatch
+        let scroller = sheet.exists ? sheet : app
         var swipes = 0
-        while !element.isHittable, swipes < 5 {
-            app.swipeUp()
+        while !element.isHittable, swipes < 12 {
+            if element.frame.minY < scroller.frame.minY {
+                scroller.swipeDown(velocity: .slow)
+            } else {
+                scroller.swipeUp(velocity: .slow)
+            }
             swipes += 1
         }
-        XCTAssertTrue(element.isHittable, "\(element) never came into view")
+        XCTAssertTrue(
+            element.isHittable,
+            "\(element) never came into view — it is at \(element.frame), "
+                + "and the sheet it is in is at \(scroller.frame)"
+        )
     }
 
     /// Where today's photograph lands, said the way the Entry points at it —

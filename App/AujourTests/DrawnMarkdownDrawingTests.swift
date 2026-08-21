@@ -48,6 +48,10 @@ struct DrawnMarkdownDrawingTests {
                 found.append((text, isDone ? "ticked box" : "empty box"))
             case .picture:
                 found.append((text, "picture"))
+            case .widget(let placeholder, _):
+                // Which is `PlaceholderWidgetTests`' subject, and here only so
+                // that a day holding one is described rather than dropped.
+                found.append((text, "\(placeholder.rawValue) widget"))
             }
         }
         return found
@@ -105,15 +109,22 @@ struct DrawnMarkdownDrawingTests {
 
     // MARK: - Ticking one
 
+    /// The edit a tap at this character would make, or `nil` where it would
+    /// land on something that is not a box.
+    private func ticking(_ entry: MarkdownTextStorage, at character: Int) -> MarkdownEdit? {
+        guard case .box(let edit) = entry.tapping(at: character) else { return nil }
+        return edit
+    }
+
     @Test("tapping a box asks for the one character that ticks it")
     func tickingABox() {
         let entry = storage(holding: "- [ ] milk\n- [x] bread", cursor: nil)
         #expect(
-            entry.tickingTheBox(at: 0)
+            ticking(entry, at: 0)
                 == MarkdownEdit(range: NSRange(location: 3, length: 1), replacement: "x")
         )
         #expect(
-            entry.tickingTheBox(at: 11)
+            ticking(entry, at: 11)
                 == MarkdownEdit(range: NSRange(location: 14, length: 1), replacement: " ")
         )
     }
@@ -123,22 +134,22 @@ struct DrawnMarkdownDrawingTests {
     @Test("a tap that is not on a box is not a tick")
     func tappingElsewhere() {
         let entry = storage(holding: "- [ ] milk", cursor: nil)
-        #expect(entry.tickingTheBox(at: 3) == nil)
-        #expect(entry.tickingTheBox(at: 7) == nil)
-        #expect(entry.tickingTheBox(at: 400) == nil)
+        #expect(ticking(entry, at: 3) == nil)
+        #expect(ticking(entry, at: 7) == nil)
+        #expect(ticking(entry, at: 400) == nil)
     }
 
     // A line showing its own markdown has no box on it to tap: the cursor is
     // in it, and the brackets are there to be edited by hand.
     @Test("a task at the cursor has no box to tap")
     func tappingATaskBeingEdited() {
-        #expect(storage(holding: "- [ ] milk", caret: 2).tickingTheBox(at: 0) == nil)
+        #expect(ticking(storage(holding: "- [ ] milk", caret: 2), at: 0) == nil)
     }
 
     @Test("ticking a box changes one character of the entry and nothing else")
     func tickingRewritesTheText() {
         let entry = storage(holding: "# Sunday\n\n- [ ] milk\n- [x] bread", cursor: nil)
-        let edit = try! #require(entry.tickingTheBox(at: 10))
+        let edit = try! #require(ticking(entry, at: 10))
         entry.replaceCharacters(in: edit.range, with: edit.replacement)
 
         #expect(entry.string == "# Sunday\n\n- [x] milk\n- [x] bread")
@@ -149,7 +160,7 @@ struct DrawnMarkdownDrawingTests {
     @Test("a tap on the box ticks it, and leaves the caret where it was")
     func tappingTheBox() {
         let entry = editor(holding: "- [ ] Milk\n- [ ] Bread\n")
-        #expect(entry.coordinator.tickTheBox(in: entry.textView, at: entry.firstBox))
+        #expect(entry.coordinator.tapped(in: entry.textView, at: entry.firstBox))
 
         #expect(entry.textView.text == "- [x] Milk\n- [ ] Bread\n")
         // And the Entry hears about it, which is what saves it.
@@ -157,7 +168,7 @@ struct DrawnMarkdownDrawingTests {
         #expect(entry.textView.selectedRange == NSRange(location: 0, length: 0))
 
         // And again, the other way.
-        #expect(entry.coordinator.tickTheBox(in: entry.textView, at: entry.firstBox))
+        #expect(entry.coordinator.tapped(in: entry.textView, at: entry.firstBox))
         #expect(entry.written == "- [ ] Milk\n- [ ] Bread\n")
     }
 
@@ -167,7 +178,7 @@ struct DrawnMarkdownDrawingTests {
     @Test("a tick can be undone, like any other edit")
     func undoingATick() throws {
         let entry = editor(holding: "- [ ] Milk\n")
-        entry.coordinator.tickTheBox(in: entry.textView, at: entry.firstBox)
+        entry.coordinator.tapped(in: entry.textView, at: entry.firstBox)
         #expect(entry.textView.text == "- [x] Milk\n")
 
         let undo = try #require(entry.textView.undoManager)
@@ -185,12 +196,12 @@ struct DrawnMarkdownDrawingTests {
         var beside = entry.firstBox
         beside.x += 120
 
-        #expect(!entry.coordinator.tickTheBox(in: entry.textView, at: beside))
+        #expect(!entry.coordinator.tapped(in: entry.textView, at: beside))
         #expect(entry.written == nil)
 
         // And well below the last line, which is where a tap on the empty
         // space under a short entry lands.
-        #expect(!entry.coordinator.tickTheBox(in: entry.textView, at: CGPoint(x: 20, y: 400)))
+        #expect(!entry.coordinator.tapped(in: entry.textView, at: CGPoint(x: 20, y: 400)))
         #expect(entry.written == nil)
     }
 

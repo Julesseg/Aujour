@@ -31,6 +31,15 @@ struct EntryView: View {
     /// for *this* day, and what the embed says is a path from *this* Entry.
     @State private var photographs = InsertedPhotographs()
 
+    /// The unanswered placeholder whose widget was tapped, while it is being
+    /// answered — and `nil` the rest of the time, which is nearly always.
+    ///
+    /// Here rather than inside the editor because a sheet needs a view
+    /// hierarchy to come up in, and the editor is a text view: what it can do
+    /// with a finger on a widget is say which question was asked, and hand
+    /// over the way to write the answer back into the Entry.
+    @State private var question: PlaceholderQuestion?
+
     @Environment(\.scenePhase) private var scenePhase
 
     /// The Entry these are all about, as something that can be compared.
@@ -59,10 +68,16 @@ struct EntryView: View {
                     text: $editor.content,
                     pictures: pictures,
                     photographs: photographs,
+                    asks: { question = $0 },
                     identifier: "entryEditor",
                     label: "Entry for \(editor.day.spelledOut())"
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Answering writes plain markdown where the token stood, and
+                // cancelling writes nothing at all — so an unanswered
+                // placeholder is still literal text in the file, and still a
+                // widget the next time the day is opened.
+                .sheet(item: $question) { PlaceholderAnswerSheet(question: $0) }
                 // The Entry on screen decides where a relative embed points, so
                 // both halves of an embed follow it — including on the morning
                 // an app left open overnight moves on to today.

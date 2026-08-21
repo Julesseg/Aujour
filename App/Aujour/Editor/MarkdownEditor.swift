@@ -37,6 +37,12 @@ struct MarkdownEditor: UIViewRepresentable {
     /// of the formatting controls — has to show.
     let photographs: InsertedPhotographs?
 
+    /// Asks an unanswered placeholder's question, because a finger landed on
+    /// its widget. What that looks like is a sheet, and a sheet is put up
+    /// where there is a view hierarchy to put it in — which is the screen the
+    /// day is on, not the text view the token is in.
+    let asks: (PlaceholderQuestion) -> Void
+
     /// What a UI test finds this by, and what VoiceOver calls it. Set on the
     /// text view itself rather than through SwiftUI's accessibility
     /// modifiers, which would describe the wrapper instead of the thing being
@@ -94,7 +100,8 @@ struct MarkdownEditor: UIViewRepresentable {
         storage.pictures = pictures
         pictures.whenOneArrives = { [weak storage] in storage?.aPictureArrived() }
 
-        context.coordinator.ticksBoxes(in: textView)
+        context.coordinator.asks = asks
+        context.coordinator.answersTaps(in: textView)
         context.coordinator.formats(in: textView, addingPhotographs: photographs)
         storage.setSource(text)
         return textView
@@ -102,8 +109,10 @@ struct MarkdownEditor: UIViewRepresentable {
 
     func updateUIView(_ textView: UITextView, context: Context) {
         // The coordinator outlives this struct, which is rebuilt on every
-        // keystroke; the binding it writes back through has to be this one.
+        // keystroke; the binding it writes back through has to be this one,
+        // and so does the way to the sheet.
         context.coordinator.text = $text
+        context.coordinator.asks = asks
         textView.accessibilityLabel = label
 
         guard let storage = textView.textStorage as? MarkdownTextStorage else { return }
@@ -148,13 +157,19 @@ struct MarkdownEditor: UIViewRepresentable {
     final class Coordinator: NSObject, UITextViewDelegate {
         var text: Binding<String>
 
+        /// Puts an unanswered placeholder's question in front of the user.
+        /// Nothing at all until the editor is on screen, and rebuilt with the
+        /// view it writes back through.
+        var asks: ((PlaceholderQuestion) -> Void)?
+
         /// Kept for as long as the text view is, because the layout manager
         /// holds its delegate weakly.
         let glyphs = MarkdownGlyphs()
 
-        /// The gesture that ticks boxes, kept so that the delegate below can
-        /// tell it apart from every gesture a text view has of its own.
-        fileprivate var tick: UITapGestureRecognizer?
+        /// The gesture that answers a tap on a drawing, kept so that the
+        /// delegate below can tell it apart from every gesture a text view has
+        /// of its own.
+        fileprivate var drawingTap: UITapGestureRecognizer?
 
         /// The way to a photograph, if this editor is over an Entry that could
         /// hold one. Kept rather than captured, because the row is built once
@@ -165,51 +180,82 @@ struct MarkdownEditor: UIViewRepresentable {
             self.text = text
         }
 
-        // MARK: - Ticking a box
+        // MARK: - Tapping a box or a widget
 
-        /// Makes the boxes tappable.
+        /// Makes the boxes and the widgets tappable.
         ///
         /// A gesture of its own rather than the text view's own tap, because
         /// the two want opposite things from the same finger: a tap on a box
         /// should tick it and leave the caret where it was, and a tap on
         /// anything else should put the caret there. So this one is offered
-        /// first, answers only over a box, and the text view's tap waits to
-        /// see whether it did.
+        /// first, answers only over a drawing, and the text view's tap waits
+        /// to see whether it did.
         ///
-        /// A finger is the only way to *this*, and deliberately so: a box is
-        /// painted glyphs, not a view, so VoiceOver and Switch Control reach
-        /// the line's `- [ ] ` as text and nothing they can activate. What
-        /// answers for them is the accessory row's checkbox control, which
-        /// goes round all three states of a task — made, ticked, and neither —
-        /// so a box can be ticked by somebody who never aims at one.
-        func ticksBoxes(in textView: UITextView) {
-            let tick = UITapGestureRecognizer(target: self, action: #selector(tickTheBoxTapped))
-            tick.delegate = self
-            self.tick = tick
-            textView.addGestureRecognizer(tick)
+        /// A finger is the only way to *this*, and deliberately so: a box and
+        /// a widget are painted glyphs, not views, so VoiceOver and Switch
+        /// Control reach the line's `- [ ] ` and its `{{mood}}` as text and
+        /// nothing they can activate. For a box what answers for them is the
+        /// accessory row's checkbox control, which goes round all three states
+        /// of a task. For a placeholder it is the token itself: it is literal
+        /// text in an editable text view, so answering one without ever
+        /// aiming at a pill is selecting those characters and typing the
+        /// answer over them — which is the same edit the widget makes, and
+        /// exactly what somebody in Obsidian would do with it.
+        func answersTaps(in textView: UITextView) {
+            let tap = UITapGestureRecognizer(target: self, action: #selector(drawingTapped))
+            tap.delegate = self
+            drawingTap = tap
+            textView.addGestureRecognizer(tap)
         }
 
-        /// Ticks or unticks the box the tap landed on.
+        /// Answers the drawing the tap landed on: a box is ticked, a widget
+        /// asks its question.
         ///
-        /// One character of the Entry changes, and the file is plain markdown
-        /// before and after — a task Aujour ticked and a task Obsidian ticked
-        /// are the same file (ADR 0001).
-        @objc private func tickTheBoxTapped(_ tap: UITapGestureRecognizer) {
+        /// Ticking changes one character of the Entry, and the file is plain
+        /// markdown before and after — a task Aujour ticked and a task
+        /// Obsidian ticked are the same file (ADR 0001).
+        @objc private func drawingTapped(_ tap: UITapGestureRecognizer) {
             guard let textView = tap.view as? UITextView else { return }
-            tickTheBox(in: textView, at: tap.location(in: textView))
+            tapped(in: textView, at: tap.location(in: textView))
         }
 
-        /// Ticks the box at this point, and says whether there was one.
+        /// Answers the drawing at this point, and says whether there was one.
         ///
-        /// Internal so that both halves of a tap — finding the box under a
-        /// finger, and the rewrite it makes — can be asked for without a
-        /// simulator; the gesture above is then the only part left that needs
-        /// one.
+        /// Internal so that both halves of a tap — finding the drawing under a
+        /// finger, and what it does — can be asked for without a simulator;
+        /// the gesture above is then the only part left that needs one.
         @discardableResult
-        func tickTheBox(in textView: UITextView, at point: CGPoint) -> Bool {
-            guard let edit = box(in: textView, under: point) else { return false }
-            apply(edit, in: textView)
-            return true
+        func tapped(in textView: UITextView, at point: CGPoint) -> Bool {
+            switch drawing(in: textView, under: point) {
+            case .box(let edit):
+                apply(edit, in: textView)
+                return true
+            case .widget(let token):
+                ask(token, in: textView)
+                return true
+            case nil:
+                return false
+            }
+        }
+
+        /// Puts the placeholder's question up, with the way back into this
+        /// Entry attached to it.
+        ///
+        /// The way back is a closure rather than a range handed over, because
+        /// what an answer means is "rewrite the token that is there now": the
+        /// storage reads the text again when the answer arrives, and an Entry
+        /// that has moved on underneath the sheet is simply left alone.
+        private func ask(_ token: InteractivePlaceholder.Token, in textView: UITextView) {
+            asks?(
+                PlaceholderQuestion(placeholder: token.placeholder) {
+                    [weak self, weak textView] answer in
+                    guard let self, let textView,
+                        let storage = storage(of: textView),
+                        let edit = storage.answering(token, with: answer)
+                    else { return }
+                    apply(edit, in: textView)
+                }
+            )
         }
 
         // MARK: - The accessory row
@@ -317,13 +363,13 @@ struct MarkdownEditor: UIViewRepresentable {
             }
 
             textView.textStorage.replaceCharacters(in: edit.range, with: edit.replacement)
-            // Where the edit says, or back where it was. Ticking something off
-            // is not a claim about where the user was writing, and a caret
-            // that jumped to the box would reveal that line's markdown under
-            // the finger that just tapped it — while a formatting control
-            // wrote its characters around the very place they are writing, and
-            // has to hand the words back.
-            put(edit.selection ?? selection, in: textView)
+            // Where the edit says, or back where it was. Ticking a box and
+            // answering a widget are not claims about where the user was
+            // writing, and a caret that jumped to either would reveal that
+            // line's markdown under the finger that just tapped it — while a
+            // formatting control wrote its characters around the very place
+            // they are writing, and has to hand the words back.
+            put(edit.selection ?? edit.cursorLeftWhere(it: selection), in: textView)
             // The text view announces what it was told to change, not what
             // this told its storage — so the Entry is told here, and hears
             // about a tick exactly as it hears about a keystroke.
@@ -363,12 +409,15 @@ struct MarkdownEditor: UIViewRepresentable {
             storage(of: textView)?.cursor = cursorIfSomebodyIsWriting(in: textView)
         }
 
-        /// The edit a tap at this point would make, or `nil` for a tap that
+        /// What a tap at this point would answer, or `nil` for a tap that
         /// landed on words.
         ///
         /// All this adds to the layout manager's answer is the one thing only
         /// a text view knows: where its text starts, which its inset moved.
-        private func box(in textView: UITextView, under point: CGPoint) -> MarkdownEdit? {
+        private func drawing(
+            in textView: UITextView,
+            under point: CGPoint
+        ) -> MarkdownTextStorage.TappedDrawing? {
             guard let storage = textView.textStorage as? MarkdownTextStorage,
                 let layout = textView.layoutManager as? MarkdownLayoutManager
             else { return nil }
@@ -380,9 +429,9 @@ struct MarkdownEditor: UIViewRepresentable {
             guard let drawn = layout.drawnMarkdown(under: inText, in: textView.textContainer)
             else { return nil }
             // Whether that drawing is one a tap means anything to is the
-            // storage's to say, along with what the tap changes — a picture is
+            // storage's to say, along with what the tap does — a picture is
             // drawn over an Entry too, and is not a control.
-            return storage.tickingTheBox(at: drawn.text.location)
+            return storage.tapping(at: drawn.text.location)
         }
 
         func textViewDidChange(_ textView: UITextView) {
@@ -461,11 +510,11 @@ extension MarkdownEditor.Coordinator: UIGestureRecognizerDelegate {
     /// takes.
     func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
         guard let textView = gesture.view as? UITextView else { return false }
-        return box(in: textView, under: gesture.location(in: textView)) != nil
+        return drawing(in: textView, under: gesture.location(in: textView)) != nil
     }
 
-    /// A single tap in the Entry goes to the box first, and to the text view
-    /// only if there was no box under it.
+    /// A single tap in the Entry goes to the drawing first, and to the text
+    /// view only if there was none under it.
     ///
     /// Said here rather than by calling `require(toFail:)` on the text view's
     /// own recognizers, because there is no moment at which they are all
@@ -477,7 +526,9 @@ extension MarkdownEditor.Coordinator: UIGestureRecognizerDelegate {
         _ gesture: UIGestureRecognizer,
         shouldBeRequiredToFailBy other: UIGestureRecognizer
     ) -> Bool {
-        guard gesture === tick, let tap = other as? UITapGestureRecognizer else { return false }
+        guard gesture === drawingTap, let tap = other as? UITapGestureRecognizer else {
+            return false
+        }
         // Single taps only: a double tap selects a word and a triple selects a
         // line, and neither is a thing a checkbox has an opinion about.
         return tap.numberOfTapsRequired == 1

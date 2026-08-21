@@ -7,29 +7,6 @@ product decisions in `docs/design/v1-decisions.md`.
 
 ## Agent skills
 
-### Auto-dispatch of ready issues
-
-When an issue closes as completed (or on a manual re-scan),
-`unblock-dispatch.yml` finds `ready-for-agent` issues that nothing blocks —
-never blocked, or with every `## Blocked by` entry closed — and spawns a Paseo
-agent session for each on the self-hosted Mac runner (capped, umbrella
-`[Epic]`/`Spec:` issues skipped). The session claims its issue with the
-`agent-dispatched` label as its first act — the dispatcher never applies it, so
-the label cannot mark an issue as claimed when the runner was down and no
-session ever started. See `docs/agents/auto-dispatch.md`.
-
-### Conflict watch
-
-A pull request that conflicts with its base gets *no* CI checks at all —
-GitHub cannot build the merge commit — so it looks exactly like a PR whose
-CI has not started, and stalls unnoticed. `conflict-watch.yml` sweeps open
-PRs whenever `main` moves (plus daily) and labels the conflicted ones
-`has-conflicts` with a comment explaining the silence. It cannot run on
-`pull_request`, since that is the trigger that does not fire.
-
-With several agents in flight at once this is routine, so `/implement`
-merges `origin/main` in before opening a PR rather than waiting to be told.
-
 ### Issue tracker
 
 Issues live in GitHub Issues (`gh` CLI); external PRs are not a triage
@@ -44,26 +21,6 @@ ready-for-agent, ready-for-human, wontfix). See `docs/agents/triage-labels.md`.
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See
 `docs/agents/domain.md`.
-
-### Permission prompts — don't "fix" them by editing the allow list
-
-`.claude/settings.json` is loaded and its `defaultMode` takes effect, but the
-`allow` list does **not** stop the prompts that scheduled check-ins produce.
-Each `send_later` trigger bakes a `session_context.allowed_tools` snapshot at
-creation time, and that snapshot contains **no MCP tools at all** — so a woken
-check-in has neither `mcp__github__*` (to read CI) nor `send_later` (to re-arm)
-pre-approved, and asks the human every time. Nothing written in this repo
-changes that snapshot.
-
-Four commits were spent adding tool names, server names, and guessed server
-names to `allow` before this was understood. `defaultMode` is the only lever
-here; it is set to `bypassPermissions`. If prompts return, fix the trigger's
-`allowed_tools`, or stop arming check-ins — do not add another `allow` entry.
-
-Note on MCP rule names: connector servers are keyed by **UUID**, not display
-name, so `mcp__Figma` and `mcp__Google_Calendar` never matched anything and
-have been removed. Check `mcpServers` in the session's MCP config for the real
-key before writing any `mcp__…` rule.
 
 ## Conventions
 

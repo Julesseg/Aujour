@@ -98,6 +98,11 @@ public final class JournalCalendar {
 
     /// Where a day spawned from this calendar reads its Content Template.
     private let template: (any ContentTemplateSource)?
+
+    /// Handed on to every editor this calendar opens, so a day filled in from
+    /// here reads its own day's calendar rather than nothing at all.
+    @ObservationIgnored private let dayData: DayData
+
     @ObservationIgnored private let timeZone: TimeZone
     @ObservationIgnored private let locale: Locale
     @ObservationIgnored private let now: @MainActor () -> Date
@@ -115,6 +120,8 @@ public final class JournalCalendar {
     ///   - settings: the Path Template that says which files are Entries, the
     ///     Content Template a backfilled day is spawned from, and the
     ///     Rollover Hour that decides which day is today.
+    ///   - dayData: where a backfilled day's data placeholders read that day
+    ///     from — the same seam today's Entry spawns through.
     ///   - timeZone: the zone the Journal Day is read in.
     ///   - locale: picks the month and weekday names, and the day the week
     ///     starts on.
@@ -128,6 +135,7 @@ public final class JournalCalendar {
         store: any JournalStore,
         settings: JournalSettings = .default,
         spawningFrom template: (any ContentTemplateSource)? = nil,
+        dayData: DayData = DayData(),
         timeZone: TimeZone = .current,
         locale: Locale = .current,
         now: @escaping @MainActor () -> Date = { Date() }
@@ -135,6 +143,7 @@ public final class JournalCalendar {
         self.store = store
         self.settings = settings
         self.template = template
+        self.dayData = dayData
         self.timeZone = timeZone
         self.locale = locale
         self.now = now
@@ -238,6 +247,7 @@ public final class JournalCalendar {
             store: store,
             settings: settings,
             spawningFrom: template,
+            dayData: dayData,
             timeZone: timeZone,
             locale: locale,
             day: day,

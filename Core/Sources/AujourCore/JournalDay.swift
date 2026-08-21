@@ -76,6 +76,23 @@ public struct JournalDay: Hashable, Comparable, Sendable, CustomStringConvertibl
         return calendar.startOfDay(for: noon(in: calendar))
     }
 
+    /// The stretch of wall-clock time this Journal Day covers in `timeZone` —
+    /// its own midnight to the next.
+    ///
+    /// The calendar date's stretch and not the Rollover Hour's, deliberately.
+    /// The Rollover Hour decides which day somebody is *writing*; the day they
+    /// are writing *about* is a calendar date, and it is the one their
+    /// calendar app draws. At 1 AM under a 4 AM rollover the Entry is
+    /// yesterday's, and so are the meetings in it — which is right, and would
+    /// not be if this ran 4 AM to 4 AM and pulled tomorrow morning's alarm
+    /// into the day being written.
+    public func span(in timeZone: TimeZone) -> DateInterval {
+        DateInterval(
+            start: startOfDay(in: timeZone),
+            end: adding(days: 1).startOfDay(in: timeZone)
+        )
+    }
+
     /// This Journal Day at the same wall-clock time as `other`.
     ///
     /// Spawning a template needs exactly this pairing: a backfilled Entry's

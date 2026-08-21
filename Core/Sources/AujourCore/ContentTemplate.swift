@@ -10,6 +10,10 @@ import Foundation
 ///   Obsidian's `{{yesterday}}` and `{{tomorrow}}`) resolve to text, exactly
 ///   as Obsidian's daily-notes templates do, so an existing template pastes
 ///   over unchanged.
+/// - **Data placeholders** — ``DataPlaceholder``'s names resolve to whatever
+///   the day's ``DayData`` made of them, which `render(at:reading:)` reads
+///   before rendering. Left to the plain `render(at:)`, they render empty like
+///   any other name Aujour cannot answer.
 /// - **Interactive placeholders** — the names in
 ///   ``SpawnContext/interactivePlaceholders`` pass through as the literal text
 ///   the user wrote. The editor owns them from there; until one is answered it
@@ -31,7 +35,11 @@ public struct ContentTemplate: Hashable, Sendable {
         self.segments = ContentTemplate.parse(source)
     }
 
-    /// The Entry's starting content.
+    /// The Entry's starting content, from what the spawn already knows.
+    ///
+    /// Nothing is read from the device here, so a data placeholder renders
+    /// whatever ``SpawnContext/data`` holds for it — which is nothing, unless
+    /// `render(at:reading:)` filled it in first.
     public func render(at spawn: SpawnContext) -> String {
         var rendered = ""
         for segment in segments {
@@ -43,6 +51,55 @@ public struct ContentTemplate: Hashable, Sendable {
             }
         }
         return rendered
+    }
+}
+
+// MARK: - Reading the day's data
+
+extension ContentTemplate {
+    /// The Entry's starting content, with the day's data read into it first.
+    ///
+    /// Only the placeholders this template actually names are read, so a
+    /// template that never mentions the calendar costs nothing to spawn — and
+    /// the ones it does name are read at the same time as each other, because
+    /// waiting for the reminders after the events is waiting twice for an
+    /// Entry that has to be on screen.
+    ///
+    /// Cannot fail and cannot come back empty-handed: a source with nothing to
+    /// say — no permission, no items, no source at all — is a placeholder that
+    /// renders per its formatting, and the rest of the template is untouched
+    /// either way.
+    public func render(at spawn: SpawnContext, reading data: DayData) async -> String {
+        let placeholders = dataPlaceholders
+        guard !placeholders.isEmpty else { return render(at: spawn) }
+
+        var resolved = spawn
+        await withTaskGroup(of: (DataPlaceholder, String).self) { group in
+            for placeholder in placeholders {
+                // The context the reads are *about*, captured before the one
+                // they are being written back into starts changing.
+                group.addTask { (placeholder, await data.text(for: placeholder, at: spawn)) }
+            }
+            for await (placeholder, text) in group { resolved.data[placeholder] = text }
+        }
+        return render(at: resolved)
+    }
+
+    /// The data placeholders this template names — which is exactly what a
+    /// spawn has to go and read, and nothing more.
+    ///
+    /// Only the bare ones. `{{events:FORMAT}}` is not a placeholder at all by
+    /// the rule ``SpawnContext`` resolves by, so reading a calendar for it
+    /// would be reading a calendar for a piece of text.
+    public var dataPlaceholders: Set<DataPlaceholder> {
+        var named: Set<DataPlaceholder> = []
+        for segment in segments {
+            guard case .placeholder(let placeholder) = segment, placeholder.isBare,
+                let name = DataPlaceholder(rawValue: placeholder.name)
+            else { continue }
+            named.insert(name)
+        }
+        return named
     }
 }
 
@@ -69,6 +126,16 @@ public struct SpawnContext: Sendable {
     public var dateFormat: MomentFormat
     /// Names that pass through as literal text for the editor to own.
     public var interactivePlaceholders: Set<String>
+    /// How each data placeholder's items are written into the Entry.
+    public var dataFormatting: DataPlaceholderFormatting
+    /// What each data placeholder renders as, already read from the day's
+    /// data and already formatted.
+    ///
+    /// Resolved before rendering rather than during it, because reading a
+    /// calendar takes waiting and putting a template together does not. A
+    /// name missing from here renders empty — which is what a build with no
+    /// sources installed, and a spawn that never went looking, both come to.
+    public var data: [DataPlaceholder: String]
 
     /// Defaults describe a spawn on the current device with Obsidian's own
     /// default date format and the interactive placeholders v1 registers.
@@ -79,7 +146,9 @@ public struct SpawnContext: Sendable {
         timeZone: TimeZone = .current,
         locale: Locale = .current,
         dateFormat: MomentFormat = MomentFormat("YYYY-MM-DD"),
-        interactivePlaceholders: Set<String> = InteractivePlaceholder.registeredNames
+        interactivePlaceholders: Set<String> = InteractivePlaceholder.registeredNames,
+        dataFormatting: DataPlaceholderFormatting = .default,
+        data: [DataPlaceholder: String] = [:]
     ) {
         self.day = day
         self.instant = instant
@@ -88,6 +157,8 @@ public struct SpawnContext: Sendable {
         self.locale = locale
         self.dateFormat = dateFormat
         self.interactivePlaceholders = interactivePlaceholders
+        self.dataFormatting = dataFormatting
+        self.data = data
     }
 }
 
@@ -122,7 +193,13 @@ extension SpawnContext {
         case let name where interactivePlaceholders.contains(name):
             return placeholder.raw
         default:
-            return ""
+            // A data placeholder renders what the day's data made of it, and
+            // every other name renders empty — including a data name carrying
+            // an offset or a `:FORMAT`, which by the rule above is not a
+            // placeholder at all.
+            guard placeholder.isBare, let name = DataPlaceholder(rawValue: placeholder.name)
+            else { return "" }
+            return data[name] ?? ""
         }
     }
 

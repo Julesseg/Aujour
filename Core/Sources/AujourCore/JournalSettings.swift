@@ -1,6 +1,6 @@
 /// The settings that shape the Journal itself: where Entries and Attachments
-/// land, what a new Entry starts from, how embeds are written, and when the
-/// Journal Day turns.
+/// land, what a new Entry starts from, how its data placeholders are written
+/// out, how embeds are written, and when the Journal Day turns.
 ///
 /// These are the settings two devices may not disagree about — an iPhone and
 /// an iPad with different Path Templates would write the same day to two
@@ -41,18 +41,27 @@ public struct JournalSettings: Equatable, Sendable {
     /// When the current Journal Day advances.
     public var rolloverHour: RolloverHour
 
+    /// How `{{events}}` and `{{reminders}}` are written into a spawned Entry.
+    ///
+    /// Journal-shaping like the rest, and for the same reason: what these say
+    /// ends up as characters in the file, so an iPhone and an iPad spawning
+    /// one template must not write the same day two ways.
+    public var dataPlaceholders: DataPlaceholderFormatting
+
     public init(
         pathTemplate: String = "YYYY/MM/YYYY-MM-DD",
         contentTemplateFile: String = "",
         attachmentPathTemplate: String = "[attachments]/YYYY/MM",
         embedSyntax: EmbedSyntax = .standardMarkdown,
-        rolloverHour: RolloverHour = .midnight
+        rolloverHour: RolloverHour = .midnight,
+        dataPlaceholders: DataPlaceholderFormatting = .default
     ) {
         self.pathTemplate = pathTemplate
         self.contentTemplateFile = contentTemplateFile
         self.attachmentPathTemplate = attachmentPathTemplate
         self.embedSyntax = embedSyntax
         self.rolloverHour = rolloverHour
+        self.dataPlaceholders = dataPlaceholders
     }
 
     /// The defaults from the product decision log: an Obsidian daily-notes
@@ -109,6 +118,68 @@ enum JournalSettingsKey {
     static let attachmentPathTemplate = "aujour.journal.attachmentPathTemplate"
     static let embedSyntax = "aujour.journal.embedSyntax"
     static let rolloverHour = "aujour.journal.rolloverHour"
+
+    /// Where one data placeholder's formatting fields are kept — one key
+    /// each, under the placeholder's own name, so that a phone changing how
+    /// events read and an iPad changing how reminders read leave both edits
+    /// alive (ADR 0003).
+    static func dataPlaceholder(_ placeholder: DataPlaceholder) -> DataPlaceholderKeys {
+        DataPlaceholderKeys(prefix: "aujour.journal.\(placeholder.rawValue)")
+    }
+
+    struct DataPlaceholderKeys {
+        let prefix: String
+        var linePrefix: String { "\(prefix).linePrefix" }
+        var donePrefix: String { "\(prefix).donePrefix" }
+        var timeFormat: String { "\(prefix).timeFormat" }
+        var whenEmpty: String { "\(prefix).whenEmpty" }
+    }
+}
+
+extension DataPlaceholderFormat {
+    /// Read back from storage, field by field, each falling back to its own
+    /// default — so a hand-edited value cannot take the rest of the format
+    /// down with it.
+    ///
+    /// An *empty* stored value is obeyed rather than treated as missing: the
+    /// empty string is a real answer for every one of these — no marker at
+    /// all, no time, nothing on an empty day.
+    fileprivate init(
+        storedValues: (String) -> String?,
+        at keys: JournalSettingsKey.DataPlaceholderKeys,
+        or fallback: DataPlaceholderFormat
+    ) {
+        self.init(
+            linePrefix: storedValues(keys.linePrefix) ?? fallback.linePrefix,
+            donePrefix: storedValues(keys.donePrefix) ?? fallback.donePrefix,
+            // Which is what makes the empty pattern mean "leave the times
+            // out": an absent key is a setting nobody has touched, and an
+            // empty one is somebody having turned times off.
+            timeFormat: storedValues(keys.timeFormat).map { $0.isEmpty ? nil : MomentFormat($0) }
+                ?? fallback.timeFormat,
+            whenEmpty: storedValues(keys.whenEmpty) ?? fallback.whenEmpty
+        )
+    }
+
+    fileprivate func changedValues(
+        from previous: DataPlaceholderFormat,
+        at keys: JournalSettingsKey.DataPlaceholderKeys
+    ) -> [(key: String, value: String?)] {
+        var changes: [(key: String, value: String?)] = []
+        if linePrefix != previous.linePrefix {
+            changes.append((keys.linePrefix, linePrefix))
+        }
+        if donePrefix != previous.donePrefix {
+            changes.append((keys.donePrefix, donePrefix))
+        }
+        if timeFormat != previous.timeFormat {
+            changes.append((keys.timeFormat, timeFormat?.pattern ?? ""))
+        }
+        if whenEmpty != previous.whenEmpty {
+            changes.append((keys.whenEmpty, whenEmpty))
+        }
+        return changes
+    }
 }
 
 extension JournalSettings: SettingsGroup {
@@ -126,6 +197,23 @@ extension JournalSettings: SettingsGroup {
             .flatMap(EmbedSyntax.init(rawValue:)) ?? fallback.embedSyntax
         self.rolloverHour = storedValues(JournalSettingsKey.rolloverHour)
             .flatMap(Int.init).flatMap(RolloverHour.init(hour:)) ?? fallback.rolloverHour
+        // Over every placeholder there is, exactly as `changedValues` writes
+        // them back: a placeholder added later is read and written by the same
+        // two loops, and cannot end up storable but unreadable.
+        self.dataPlaceholders = DataPlaceholderFormatting(
+            Dictionary(
+                uniqueKeysWithValues: DataPlaceholder.allCases.map { placeholder in
+                    (
+                        placeholder,
+                        DataPlaceholderFormat(
+                            storedValues: storedValues,
+                            at: JournalSettingsKey.dataPlaceholder(placeholder),
+                            or: fallback.dataPlaceholders[placeholder]
+                        )
+                    )
+                }
+            )
+        )
     }
 
     func changedValues(from previous: JournalSettings) -> [(key: String, value: String?)] {
@@ -144,6 +232,12 @@ extension JournalSettings: SettingsGroup {
         }
         if rolloverHour != previous.rolloverHour {
             changes.append((JournalSettingsKey.rolloverHour, String(rolloverHour.hour)))
+        }
+        for placeholder in DataPlaceholder.allCases {
+            changes += dataPlaceholders[placeholder].changedValues(
+                from: previous.dataPlaceholders[placeholder],
+                at: JournalSettingsKey.dataPlaceholder(placeholder)
+            )
         }
         return changes
     }

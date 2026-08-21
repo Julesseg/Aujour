@@ -127,6 +127,14 @@ final class Journal {
     /// another device (ADR 0003, ADR 0005).
     private let templateElsewhere: BookmarkedTemplateFile
 
+    /// Where the Content Template's data placeholders read the day from —
+    /// EventKit, unless a test is standing in for it.
+    ///
+    /// Held for the life of the Journal rather than made per spawn: it is a
+    /// connection to the calendar, and one is enough for every day the user
+    /// opens.
+    private let dayData: DayData
+
     /// What the system is holding besides the file at an Entry's path — iCloud,
     /// unless a test is standing in for it.
     private let versions: any EntryVersions
@@ -155,14 +163,20 @@ final class Journal {
     /// The reading of `folder.changes` that is currently running.
     private var keepingUpWithTheFolder: Task<Void, Never>?
 
-    /// - Parameter settings: the journal-shaping settings today's Entry is
-    ///   spawned and saved by, and the seam they arrive through from the
-    ///   user's other devices (ADR 0003).
+    /// - Parameters:
+    ///   - settings: the journal-shaping settings today's Entry is spawned and
+    ///     saved by, and the seam they arrive through from the user's other
+    ///     devices (ADR 0003).
+    ///   - dayData: where `{{events}}` and `{{reminders}}` read the day being
+    ///     spawned from. The user's own calendar and reminders, unless a test
+    ///     says otherwise — a UI test journals into a folder of its own and
+    ///     reads a calendar of its own with it.
     init(
         locator: JournalRootLocator = .system,
         settings: JournalSettingsStore? = nil,
         templateElsewhere: BookmarkedTemplateFile = .stored(),
-        versions: any EntryVersions = ICloudVersions()
+        versions: any EntryVersions = ICloudVersions(),
+        dayData: DayData = EventKitDayData().dayData
     ) {
         // Made here rather than as a default argument: the store it is over
         // reads iCloud, which is main-actor work, and a default argument is
@@ -172,6 +186,7 @@ final class Journal {
         self.settingsStore = settings
         self.templateElsewhere = templateElsewhere
         self.versions = versions
+        self.dayData = dayData
 
         // A Path Template changed on the iPad reshapes what an Entry is here
         // too (ADR 0002), and so does one changed on this device — which is
@@ -209,14 +224,16 @@ final class Journal {
             let editor = EntryEditor(
                 store: opened.store,
                 settings: settings,
-                spawningFrom: template
+                spawningFrom: template,
+                dayData: dayData
             )
             store = opened.store
             today = editor
             calendar = JournalCalendar(
                 store: opened.store,
                 settings: settings,
-                spawningFrom: template
+                spawningFrom: template,
+                dayData: dayData
             )
             folder = opened.folder
             parking = DivergenceParking(store: opened.store, versions: versions)
@@ -226,6 +243,17 @@ final class Journal {
             // was closed is settled on the way in, not shown and then swapped
             // out from under the user.
             await settleAnyDivergence(before: editor)
+            // Whatever the day's data placeholders need asking for, asked
+            // here — before the day is spawned rather than during it, which is
+            // what keeps a system permission alert out from in front of an
+            // Entry that is meant to be appearing (`DayItemSource.prepare()`).
+            // Only what this Content Template names is ever asked about, so a
+            // journal with no `{{events}}` in it never mentions the calendar —
+            // which means reading the template file here, as a spawn would
+            // (ADR 0005), rather than guessing at what it says.
+            await dayData.prepare(
+                for: ContentTemplate(await template.markdown() ?? "").dataPlaceholders
+            )
             await editor.open()
             keepUpWith(opened.folder.changes)
         } catch {

@@ -16,6 +16,12 @@ struct JournalSettingsDefaultsTests {
         // Obsidian ships no daily-note template either: a new Entry is blank
         // until the user points at a file to spawn from.
         #expect(settings.contentTemplateFile.isEmpty)
+        // Events are a list, reminders are a task list, and a day with
+        // nothing in it leaves nothing behind.
+        #expect(settings.dataPlaceholders == .default)
+        #expect(settings.dataPlaceholders[.reminders].linePrefix == "- [ ] ")
+        #expect(settings.dataPlaceholders[.reminders].donePrefix == "- [x] ")
+        #expect(settings.dataPlaceholders[.events].whenEmpty.isEmpty)
     }
 
     @Test("an unreadable value falls back to that field's default, leaving the others intact")
@@ -68,6 +74,9 @@ struct JournalSettingsSyncTests {
             $0.attachmentPathTemplate = "[media]/YYYY"
             $0.embedSyntax = .obsidianWikiLink
             $0.rolloverHour = RolloverHour(hour: 4)!
+            $0.dataPlaceholders[.events].linePrefix = "* "
+            $0.dataPlaceholders[.events].whenEmpty = "_a quiet day_"
+            $0.dataPlaceholders[.reminders].timeFormat = nil
         }
 
         // A second store over the same seam is the other device: it sees
@@ -76,6 +85,41 @@ struct JournalSettingsSyncTests {
         #expect(otherDevice.settings == thisDevice.settings)
         #expect(otherDevice.settings.rolloverHour == RolloverHour(hour: 4)!)
         #expect(otherDevice.settings.embedSyntax == .obsidianWikiLink)
+        // Including the one stored as an empty value: "leave the times out"
+        // has to survive the trip as itself and not as the default it looks
+        // like an absence of.
+        #expect(otherDevice.settings.dataPlaceholders[.reminders].timeFormat == nil)
+        #expect(otherDevice.settings.dataPlaceholders[.events].whenEmpty == "_a quiet day_")
+    }
+
+    @Test("a data placeholder's formatting is one key per field, like the rest")
+    func dataPlaceholderFieldsAreWrittenSeparately() {
+        let kvs = InMemorySyncedKeyValueStore()
+        let store = JournalSettingsStore(syncedThrough: kvs)
+
+        store.update { $0.dataPlaceholders[.events].whenEmpty = "_nothing today_" }
+
+        // So that an iPad changing how reminders read, at the same moment,
+        // still has changed how reminders read (ADR 0003).
+        #expect(kvs.writtenKeys == [JournalSettingsKey.dataPlaceholder(.events).whenEmpty])
+    }
+
+    @Test("an unreadable data-placeholder field leaves the others standing")
+    func oneCorruptDataFieldFallsBackAlone() {
+        let kvs = InMemorySyncedKeyValueStore()
+        kvs.receiveFromAnotherDevice([
+            JournalSettingsKey.dataPlaceholder(.events).linePrefix: "* ",
+            // Not a Moment format anybody meant, which Moment renders as the
+            // literal text it is — never a reason to lose the line prefix
+            // beside it.
+            JournalSettingsKey.dataPlaceholder(.events).timeFormat: "!!!",
+        ])
+
+        let settings = JournalSettingsStore(syncedThrough: kvs).settings
+
+        #expect(settings.dataPlaceholders[.events].linePrefix == "* ")
+        #expect(settings.dataPlaceholders[.events].timeFormat == MomentFormat("!!!"))
+        #expect(settings.dataPlaceholders[.reminders] == .default(for: .reminders))
     }
 
     @Test("only the fields that changed are written, so another device's edits survive")

@@ -96,6 +96,11 @@ public final class EntryEditor {
     /// user pointed at, wherever they keep it (ADR 0005). `nil` for a journal
     /// with no template, whose days start blank.
     @ObservationIgnored private let template: (any ContentTemplateSource)?
+
+    /// What the device can say about the day being spawned — the calendar,
+    /// the reminders. Empty unless the app installed something.
+    @ObservationIgnored private let dayData: DayData
+
     @ObservationIgnored private let timeZone: TimeZone
     @ObservationIgnored private let locale: Locale
     /// The day this editor stays on, if it was made for a particular one.
@@ -130,6 +135,9 @@ public final class EntryEditor {
     ///   - settings: the Path Template and Rollover Hour that shape which file
     ///     this is and which day it is for.
     ///   - template: where the markdown an unwritten day starts from is read.
+    ///   - dayData: where the Content Template's data placeholders read the
+    ///     day from. Nowhere, by default — which is a spawn in which
+    ///     `{{events}}` renders empty, and every test that is not about them.
     ///   - timeZone: the zone the Journal Day and the template's dates are
     ///     read in.
     ///   - locale: picks month and weekday names in the Content Template.
@@ -147,6 +155,7 @@ public final class EntryEditor {
         store: any JournalStore,
         settings: JournalSettings = .default,
         spawningFrom template: (any ContentTemplateSource)? = nil,
+        dayData: DayData = DayData(),
         timeZone: TimeZone = .current,
         locale: Locale = .current,
         day pinnedDay: JournalDay? = nil,
@@ -159,6 +168,7 @@ public final class EntryEditor {
         self.store = store
         self.settings = settings
         self.template = template
+        self.dayData = dayData
         self.timeZone = timeZone
         self.locale = locale
         self.pinnedDay = pinnedDay
@@ -246,16 +256,24 @@ public final class EntryEditor {
     }
 
     /// The text a day with no file starts as: the Content Template, rendered.
+    ///
+    /// The waiting in here is the template being read and then the day's data
+    /// — the calendar, the reminders — and the second of those is waiting the
+    /// seam promises is short whatever the state of the permission behind it
+    /// (``DayItemSource``). A template that names no data placeholder waits
+    /// for nothing at all.
     private func spawn(_ day: JournalDay, from template: PathTemplate) async -> String {
-        ContentTemplate(await contentTemplate()).render(
+        await ContentTemplate(contentTemplate()).render(
             at: SpawnContext(
                 day: day,
                 instant: now(),
                 title: template.entryName(for: day),
                 timeZone: timeZone,
                 locale: locale,
-                dateFormat: template.entryNameFormat
-            )
+                dateFormat: template.entryNameFormat,
+                dataFormatting: settings.dataPlaceholders
+            ),
+            reading: dayData
         )
     }
 

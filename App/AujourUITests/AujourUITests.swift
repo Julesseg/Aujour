@@ -795,6 +795,47 @@ final class AujourUITests: XCTestCase {
         expect(editor, toHaveValue: "Written in Obsidian.")
     }
 
+    func testTheDaysEventsAndRemindersAreSpawnedIntoTodaysEntry() throws {
+        let app = launchApp(
+            contentTemplate: "## Today\n{{events}}\n\n## To do\n{{reminders}}\n",
+            events: "09:30 Standup\nBank holiday",
+            reminders: "18:00 Buy bread"
+        )
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        // The day, written into the Entry as plain markdown: a list of what
+        // was on, and a task list of what to do — which is the file, and the
+        // same file in Obsidian.
+        let spawned = try XCTUnwrap(editor.value as? String)
+        XCTAssertTrue(
+            spawned.contains("- 09:30 Standup"),
+            "the day's events were not spawned into the entry, got: \(spawned)"
+        )
+        XCTAssertTrue(
+            spawned.contains("- Bank holiday"),
+            "an all-day event should be written without an hour, got: \(spawned)"
+        )
+        XCTAssertTrue(
+            spawned.contains("- [ ] 18:00 Buy bread"),
+            "a reminder should arrive as a task, got: \(spawned)"
+        )
+    }
+
+    func testADayWithNothingInItSpawnsWithoutBreakingTheTemplate() throws {
+        // No calendar seeded at all — which is also what a refused permission
+        // looks like from here: the placeholders render empty, and the entry
+        // appears anyway.
+        let app = launchApp(contentTemplate: "# {{title}}\n\n## Today\n{{events}}\n")
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        let spawned = try XCTUnwrap(editor.value as? String)
+        XCTAssertEqual(spawned, "# \(todaysEntryName())\n\n## Today\n\n")
+    }
+
     // MARK: - Driving the app
 
     /// Launches the app onto a journal folder of this test's own.
@@ -820,6 +861,11 @@ final class AujourUITests: XCTestCase {
     ///   - photograph: the format of the photograph the app hands itself in
     ///     place of the one the system picker would have come back with —
     ///     `png`, `jpeg` or `heic`.
+    ///   - events: what the day being spawned holds in the calendar, one per
+    ///     line as `HH:mm Title` — or `Title` for something with no hour. The
+    ///     simulator's own calendar is empty and unaskable, so this is the
+    ///     only way a data placeholder has anything to render.
+    ///   - reminders: the same, for the day's reminders.
     private func launchApp(
         contentTemplate: String? = nil,
         folderToPick: String? = nil,
@@ -827,7 +873,9 @@ final class AujourUITests: XCTestCase {
         divergedVersion: String? = nil,
         vaultNote: (at: String, saying: String)? = nil,
         templateToPick: String? = nil,
-        photograph: String? = nil
+        photograph: String? = nil,
+        events: String? = nil,
+        reminders: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["AUJOUR_UITEST_JOURNAL_FOLDER"] = journalFolder
@@ -855,6 +903,12 @@ final class AujourUITests: XCTestCase {
         }
         if let photograph {
             app.launchEnvironment["AUJOUR_UITEST_PHOTO"] = photograph
+        }
+        if let events {
+            app.launchEnvironment["AUJOUR_UITEST_EVENTS"] = events
+        }
+        if let reminders {
+            app.launchEnvironment["AUJOUR_UITEST_REMINDERS"] = reminders
         }
         app.launch()
         return app

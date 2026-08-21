@@ -121,7 +121,18 @@ Three kinds:
   `{{date-1d:YYYY-MM-DD}}`; an offset shifts when a placeholder is measured,
   never what it renders.
 - **Data placeholders** ({{events}}, {{reminders}}, {{workout}}, …) — resolved
-  at spawn from on-device data, formatted per user settings.
+  at spawn from on-device data, formatted per user settings. Resolved for the
+  Entry's *Journal Day* — a Monday filled in on Tuesday gets Monday's meetings
+  — and what lands in the file is plain markdown, so an Entry read in Obsidian
+  needs nothing resolved again.
+
+  What they read is asked for through a seam and never fetched by the domain
+  itself, which is what lets a day with no calendar be a day with nothing in
+  it rather than a failure: a permission the user refused, a device with no
+  such data, and a genuinely empty day all render per the formatting settings,
+  and none of them stops the Entry appearing. Asking *for* the permission is a
+  separate act, done before a day is opened — a spawn waiting on a system
+  alert would be an Entry that does not appear until somebody answered one.
 - **Interactive placeholders** ({{mood}}, {{location}}, …) — remain literal
   `{{name}}` text in the file until answered; Aujour renders them as inline
   widgets in the editor, and answering one replaces it with plain markdown
@@ -129,6 +140,21 @@ Three kinds:
 
 Photos are deliberately *not* a placeholder: that day's photos are offered by
 a suggestion panel and inserted as Attachments where the user chooses.
+
+### Day Data
+What the device can say about a Journal Day, as everything above it sees: one
+source per data placeholder, each answering a stretch of wall-clock time with
+the day's items — a title, and the hour it sits at where it has one. The
+second seam between the domain and the device, and the Journal Store's
+opposite number: the domain asks what a day held and never learns whether the
+answer came from EventKit, from a fake, or from nowhere.
+
+Reading through it cannot fail, which is the whole of its shape. A permission
+the user refused, a device with no such data and a genuinely empty day all
+arrive as no items — never as an error — so no Entry ever fails to appear
+because a calendar would not answer. Asking *for* a permission is a separate
+act on the same seam, done before a day is opened rather than while one is
+being spawned.
 
 ### Styled Source
 How the editor shows an Entry: the markdown drawn as what it means — headings
@@ -293,11 +319,13 @@ photograph.
 
 ### Journal Settings
 The settings that shape the Journal itself: Path Template, Content Template,
-Attachment Path Template, embed syntax, and Rollover Hour. Two devices may
-not disagree about these — different Path Templates would write the same
-Journal Day to two paths — so they travel between the user's devices through
-iCloud key-value storage (ADR 0003). No settings are ever written into the
-Journal Root.
+Attachment Path Template, embed syntax, Rollover Hour, and how each data
+placeholder is written out — the marker its items' lines start with, the
+marker for one the day already saw through, the format their times take, and
+what it says on a day that held nothing. Two devices may not disagree about
+these — different Path Templates would write the same Journal Day to two paths
+— so they travel between the user's devices through iCloud key-value storage
+(ADR 0003). No settings are ever written into the Journal Root.
 
 ### Device Settings
 The settings that belong to one device: theme, editor font, and the time of

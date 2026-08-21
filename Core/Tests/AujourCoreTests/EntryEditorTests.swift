@@ -51,6 +51,8 @@ private final class EditorSession {
         files: [String: String] = [:],
         spawningFrom template: String? = nil,
         settings: JournalSettings = .default,
+        dayData: DayData = DayData(),
+        day: JournalDay? = nil,
         now: Date = instant(2026, 3, 1, 9, 30, in: paris),
         autosave timing: AutosaveTiming = .default
     ) {
@@ -61,8 +63,10 @@ private final class EditorSession {
             store: store,
             settings: settings,
             spawningFrom: self.template,
+            dayData: dayData,
             timeZone: paris,
             locale: english,
+            day: day,
             autosave: timing,
             // Strongly, deliberately: the session and its editor are made
             // together and die together at the end of a test, and an unowned
@@ -267,6 +271,42 @@ struct EntryEditorOpeningTests {
 
         #expect(session.editor.content == "")
         #expect(session.editor.state.isEditing)
+    }
+
+    @Test("a spawned day's data placeholders are read for that day and formatted")
+    func aSpawnedDayReadsItsOwnData() async throws {
+        var settings = JournalSettings.default
+        settings.dataPlaceholders[.events].timeFormat = MomentFormat("h:mm a")
+        // A backfill: the 28th of February, opened on the 1st of March. The
+        // meetings have to be the 28th's.
+        let session = EditorSession(
+            spawningFrom: "# {{title}}\n\n## Today\n{{events}}\n",
+            settings: settings,
+            dayData: DayData([.events: ADayInTheCalendar()]),
+            day: JournalDay(year: 2026, month: 2, day: 28)
+        )
+
+        await session.open()
+
+        #expect(
+            session.editor.content
+                == "# 2026-02-28\n\n## Today\n- 9:00 am 2026-02-28\n"
+        )
+    }
+
+    @Test("a day whose data has nothing in it spawns per the formatting settings")
+    func anEmptyDaySpawnsItsEmptyText() async throws {
+        var settings = JournalSettings.default
+        settings.dataPlaceholders[.events].whenEmpty = "_nothing in the calendar_"
+        let session = EditorSession(
+            spawningFrom: "## Today\n{{events}}\n",
+            settings: settings,
+            dayData: DayData([.events: ADayInTheCalendar(holding: [])])
+        )
+
+        await session.open()
+
+        #expect(session.editor.content == "## Today\n_nothing in the calendar_\n")
     }
 
     @Test("spawning an unwritten day touches nothing on disk")
@@ -848,5 +888,21 @@ struct AutosaveTimingTests {
         #expect(timing.pause(afterWaiting: .seconds(4)) == .seconds(1))
         #expect(timing.pause(afterWaiting: .seconds(5)) == .zero)
         #expect(timing.pause(afterWaiting: .seconds(9)) == .zero)
+    }
+}
+
+/// A calendar holding one meeting at nine in the morning of whichever day it
+/// is asked about — so the Entry says which day was read.
+private struct ADayInTheCalendar: DayItemSource {
+    var holding: [String]? = nil
+
+    func items(during day: DateInterval) async -> [DayItem] {
+        if let holding {
+            return holding.map { DayItem(title: $0) }
+        }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = paris
+        let nine = calendar.date(byAdding: .hour, value: 9, to: day.start)!
+        return [DayItem(title: MomentFormat("YYYY-MM-DD").render(day.start, timeZone: paris), time: nine)]
     }
 }

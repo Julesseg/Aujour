@@ -6,9 +6,10 @@
 	     INFOPLIST_KEY_* build settings. What lives here is the three keys
 	     that make the journal a folder the user owns rather than app storage
 	     they cannot see — together they are what "the files are the journal"
-	     (ADR 0001) looks like from the Files app — and, at the end, the two
+	     (ADR 0001) looks like from the Files app — and, at the end, the
 	     sentences the system says on Aujour's behalf when a Content Template
-	     asks for the day's calendar.
+	     asks for the day's calendar and when the panel asks for the day's
+	     photographs.
 
 	     The pair below publishes the app's own Documents folder under "On My
 	     iPhone", which is where a journal starts when iCloud Drive is off
@@ -59,5 +60,16 @@
 	<string>Aujour fills in {{events}} with the day's calendar events when it starts a new entry. Your calendar is only ever read, and what it says goes no further than the markdown file for that day.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>Aujour fills in {{reminders}} with the day's reminders when it starts a new entry. Your reminders are only ever read, and what they say goes no further than the markdown file for that day.</string>
+
+	<!-- And what it says when somebody asks the suggestions panel to show the
+	     photographs from the day they are writing. Here rather than as a build
+	     setting for the same reason as the two above.
+
+	     Asked for by that panel and by nothing else: adding a photo with the
+	     button above the keyboard goes through the system picker, which runs
+	     in a process of its own and needs no permission at all. Saying no
+	     costs the panel and nothing more. -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Aujour offers you the photos from the day you're writing about, so adding one is a single tap. Your library is only ever read, and a photo goes nowhere but the journal folder on your device when you choose it.</string>
 </dict>
 </plist>

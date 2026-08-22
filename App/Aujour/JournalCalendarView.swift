@@ -44,7 +44,7 @@ struct JournalCalendarView: View {
         .navigationTitle("Your journal")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $opened) { opened in
-            EntryView(editor: opened.editor)
+            EntryView(editor: opened.editor, photographsFrom: journal.photoLibrary)
                 .parkedFilesNotice(from: journal, for: opened.day)
                 // With its year: a day reached from the calendar can be years
                 // back, and every February has a 14th.

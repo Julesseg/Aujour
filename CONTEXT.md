@@ -139,7 +139,7 @@ Three kinds:
   text. Unanswered ones are harmless literal text in Obsidian.
 
 Photos are deliberately *not* a placeholder: that day's photos are offered by
-a suggestion panel and inserted as Attachments where the user chooses.
+Photo Suggestions and inserted as Attachments where the user chooses.
 
 ### Day Data
 What the device can say about a Journal Day, as everything above it sees: one
@@ -316,6 +316,26 @@ else is converted to JPEG on the way in, HEIC first among them: it is what an
 iPhone camera writes and what the same folder opened on a Windows laptop
 cannot show. That conversion is the one edit Aujour makes to somebody's
 photograph.
+
+### Photo Suggestions
+The day's own photographs, offered under the day being written: "N photos from
+this day", a strip of thumbnails, and one tap that adds one. What it offers is
+the photographs taken during the Entry's *Journal Day* — midnight to midnight
+where the device is, the same stretch Day Data reads — so a Monday filled in on
+Friday is offered Monday's. A tap goes through the attachment pipeline like any
+other photograph, so the file lands under the Attachment Path Template and the
+Entry points at it in the embed syntax in force.
+
+Read through a seam, like Day Data and for the same reasons: reading never
+fails and never asks, so a device with no library, a permission refused and a
+day the camera missed all arrive as nothing to offer — which is a panel that is
+simply absent, never a notice and never a journal that would not open.
+
+This is the one thing in Aujour that asks for the photo library, and it asks
+because the user tapped the offer to look, never because a day was opened.
+Saying no costs the panel and nothing else: adding a photo from the Accessory
+Row goes through the system picker, which runs in a process of its own and
+needs no permission at all.
 
 ### Journal Settings
 The settings that shape the Journal itself: Path Template, Content Template,

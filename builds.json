@@ -1,0 +1,32 @@
+[
+  {
+    "pr": 68,
+    "title": "chore(agents): one skill set, mirrored from the source that owns it",
+    "sha": "2e8fc43",
+    "time": "2026-08-22T17:05:01.908Z"
+  },
+  {
+    "pr": 67,
+    "title": "feat(photos): the day's own pictures, offered where the day is written",
+    "sha": "ddddd63",
+    "time": "2026-08-22T16:40:59.706Z"
+  },
+  {
+    "pr": 61,
+    "title": "feat(placeholders): write the day into an entry, through a seam it cannot fail at",
+    "sha": "3a5856f",
+    "time": "2026-08-21T21:09:47.982Z"
+  },
+  {
+    "pr": 63,
+    "title": "feat(editor): the questions a day carries, answered where they stand",
+    "sha": "2d33c0e",
+    "time": "2026-08-21T17:55:59.113Z"
+  },
+  {
+    "pr": 66,
+    "title": "feat(app): the settings seam, the page that changes it, and a template file",
+    "sha": "d434b72",
+    "time": "2026-08-21T15:11:25.405Z"
+  }
+]

@@ -56,6 +56,11 @@ public enum PhotoLibraryAccess: Hashable, Sendable {
 ///   that is simply absent. Nothing about a photo library ever reaches the
 ///   user as a journal that would not open (ADR 0001).
 ///
+/// That second promise is about what is *offered*. A photograph somebody has
+/// tapped is a different thing: they asked for it to go in the day, and one
+/// that would not come is the app failing at the thing that was asked — which
+/// is said where a photograph is added, and not here.
+///
 /// The two byte-shaped members are here and not on a seam of their own because
 /// they are the same library answering about the same photograph, and a second
 /// object to say that would be a second thing to keep in step. What those bytes
@@ -144,13 +149,12 @@ public final class PhotoSuggestions {
     /// that, and so is an app left open overnight moving on to today.
     @ObservationIgnored private var lookingFor: JournalDay?
 
-    /// Suggestions with no library behind them: nothing to offer, ever.
-    public init() {
-        self.library = nil
-        self.timeZone = .current
-    }
-
-    public init(from library: any PhotoLibrary, in timeZone: TimeZone = .current) {
+    /// - Parameters:
+    ///   - library: where the day's photographs are read from. `nil` is
+    ///     suggestions with no library behind them — nothing to offer, ever,
+    ///     which is what a preview and a test of something else want.
+    ///   - timeZone: where the day's midnight is measured.
+    public init(from library: (any PhotoLibrary)? = nil, in timeZone: TimeZone = .current) {
         self.library = library
         self.timeZone = timeZone
     }
@@ -162,6 +166,15 @@ public final class PhotoSuggestions {
     /// to the front — a photograph taken five minutes ago is exactly the one
     /// somebody came back to write about.
     public func look(for day: JournalDay) async {
+        // A different day is a different set of photographs, and the library
+        // takes a moment to answer about it — so the last day's go now rather
+        // than when the answer lands. Otherwise the morning an app left open
+        // overnight moves on would offer yesterday's photographs over today's
+        // Entry, and a tap in that window would put one of them in it.
+        //
+        // Only on a *different* day: looking again at the same one — coming
+        // back to the front — must not blink the strip away and back.
+        if lookingFor != day { state = .nothingToOffer }
         lookingFor = day
         guard let library else { return offer(.nothingToOffer, for: day) }
 

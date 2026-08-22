@@ -36,7 +36,7 @@ struct SuggestedPhotographTests {
         photographs.adds(to: day)
 
         let open = OpenEditor(holding: "Walked to the market.")
-        open.coordinator.aims(photographs, at: open.textView)
+        open.coordinator.insertsPhotographs(from: photographs, into: open.textView)
 
         await photographs.insert(theMarket, from: suggestions)
 
@@ -61,7 +61,7 @@ struct SuggestedPhotographTests {
         photographs.adds(to: day)
 
         let open = OpenEditor(holding: "# Saturday\n\nWalked to the market.")
-        open.coordinator.aims(photographs, at: open.textView)
+        open.coordinator.insertsPhotographs(from: photographs, into: open.textView)
         // Where a text view that nobody has touched says its caret is.
         open.cursor(at: 0)
 
@@ -82,7 +82,7 @@ struct SuggestedPhotographTests {
         photographs.adds(to: day)
 
         let open = OpenEditor(holding: "Milk")
-        open.coordinator.aims(photographs, at: open.textView)
+        open.coordinator.insertsPhotographs(from: photographs, into: open.textView)
 
         await photographs.insert(theMarket, from: suggestions)
 
@@ -99,7 +99,7 @@ struct SuggestedPhotographTests {
         photographs.adds(to: day)
 
         let open = OpenEditor(holding: "Milk")
-        open.coordinator.aims(photographs, at: open.textView)
+        open.coordinator.insertsPhotographs(from: photographs, into: open.textView)
         await photographs.insert(theMarket, from: suggestions)
 
         let undo = try #require(open.textView.undoManager)
@@ -121,7 +121,7 @@ struct SuggestedPhotographTests {
         photographs.adds(to: day)
 
         let open = OpenEditor(holding: "Milk")
-        open.coordinator.aims(photographs, at: open.textView)
+        open.coordinator.insertsPhotographs(from: photographs, into: open.textView)
 
         await photographs.insert(theMarket, from: suggestions)
 
@@ -138,7 +138,7 @@ struct SuggestedPhotographTests {
         photographs.adds(to: day)
 
         let open = OpenEditor(holding: "Milk")
-        open.coordinator.aims(photographs, at: open.textView)
+        open.coordinator.insertsPhotographs(from: photographs, into: open.textView)
 
         await photographs.insert(theMarket, from: suggestions)
 

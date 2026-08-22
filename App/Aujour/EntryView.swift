@@ -57,9 +57,7 @@ struct EntryView: View {
     ///   every test of something else want.
     init(editor: EntryEditor, photographsFrom library: (any PhotoLibrary)? = nil) {
         self.editor = editor
-        _suggestions = State(
-            wrappedValue: library.map { PhotoSuggestions(from: $0) } ?? PhotoSuggestions()
-        )
+        _suggestions = State(wrappedValue: PhotoSuggestions(from: library))
     }
 
     /// The Entry these are all about, as something that can be compared.
@@ -148,8 +146,20 @@ struct EntryView: View {
                 // Under the notices and nearest the keyboard, which is where
                 // the thumbs already are — and above nothing at all on the
                 // days it has nothing to offer.
-                PhotoSuggestionsPanel(suggestions: suggestions) { photograph in
-                    Task { await photographs.insert(photograph, from: suggestions) }
+                //
+                // Only over a day that can be written in. The panel keeps what
+                // it last found, so a folder that stopped opening under an
+                // Entry that was on screen would otherwise leave a strip of
+                // photographs beside the notice saying so — an offer the app
+                // could not keep, since there is no Entry left to add one to.
+                if editor.state.isEditing {
+                    PhotoSuggestionsPanel(
+                        suggestions: suggestions,
+                        insert: { photograph in
+                            Task { await photographs.insert(photograph, from: suggestions) }
+                        },
+                        isAddingOne: photographs.isAddingOne
+                    )
                 }
             }
         }

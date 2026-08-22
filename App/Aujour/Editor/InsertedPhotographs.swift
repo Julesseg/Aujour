@@ -62,6 +62,16 @@ final class InsertedPhotographs {
     /// one read before the picker took the screen.
     @ObservationIgnored var writesTheEmbed: ((Attachment) -> Void)?
 
+    /// Whether a photograph from the suggestions panel is on its way into the
+    /// day right now.
+    ///
+    /// A photograph that is only in iCloud takes seconds to come down, and a
+    /// strip of thumbnails is easy to tap twice — which without this would be
+    /// two files in the folder and two embeds in the day for one photograph
+    /// somebody wanted once. The panel dims itself while it is true, so the
+    /// wait is something they can see rather than a tap that did nothing.
+    private(set) var isAddingOne = false
+
     /// Where a photograph comes from. The system picker in the app, and a
     /// photograph a test already has in a test — which is what lets everything
     /// after the picker be asked for headlessly, since the picker itself is
@@ -102,6 +112,9 @@ final class InsertedPhotographs {
     /// take it. Only the last of those is news, and it is the one that sets
     /// ``problem``.
     func pick(over view: UIView) async -> Attachment? {
+        // Before the picker rather than after it, unlike everything else here:
+        // a picker put up over a day that is not open is a screen somebody has
+        // to dismiss to be told nothing happened.
         guard entry != nil else { return nil }
         problem = nil
 
@@ -123,7 +136,13 @@ final class InsertedPhotographs {
     /// somebody changing their mind; tapping a photograph and getting nothing
     /// is the app failing to do the one thing that was asked, and an iCloud
     /// library that has not finished downloading is exactly when it happens.
+    ///
+    /// One at a time — see ``isAddingOne``.
     func insert(_ photograph: DayPhotograph, from suggestions: PhotoSuggestions) async {
+        guard !isAddingOne else { return }
+        isAddingOne = true
+        defer { isAddingOne = false }
+
         problem = nil
         guard let contents = await suggestions.contents(of: photograph) else {
             problem = StorageProblem(ThePhotographWouldNotCome())

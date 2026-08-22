@@ -28,6 +28,11 @@ struct PhotoSuggestionsPanel: View {
     /// photographs are read elsewhere: this is the strip.
     let insert: (DayPhotograph) -> Void
 
+    /// Whether one is already on its way into the day. A photograph that is
+    /// only in iCloud takes seconds to come down, and a strip that looked
+    /// exactly the same throughout would be one somebody taps again.
+    var isAddingOne = false
+
     var body: some View {
         switch suggestions.state {
         case .nothingToOffer:
@@ -84,11 +89,21 @@ struct PhotoSuggestionsPanel: View {
             }
             .padding(.vertical, 8)
             .background(.thinMaterial)
+            .opacity(isAddingOne ? 0.5 : 1)
+            // The taps are refused underneath this too (``InsertedPhotographs``),
+            // because a strip is easy to hit twice and this is only what says
+            // so.
+            .disabled(isAddingOne)
         }
     }
 
     /// A thumb's worth of photograph, and what the strip is as tall as.
-    static let square: CGFloat = 64
+    ///
+    /// `nonisolated` because it is also what the library sizes a thumbnail
+    /// against, and that happens off the main actor — a square drawn at one
+    /// size and fetched at another is somebody's whole photograph decoded and
+    /// thrown away, once per square.
+    nonisolated static let square: CGFloat = 64
 
     /// "3 photos from this day" — the day's own count, because the panel is
     /// about the day on screen and not about today.

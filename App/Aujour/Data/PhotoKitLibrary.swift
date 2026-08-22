@@ -120,10 +120,17 @@ struct PhotoKitLibrary: PhotoLibrary {
         }
     }
 
-    /// A hundred and twenty points at the densest screen Aujour runs on —
-    /// enough for a strip of squares that are sharp, and nowhere near enough
-    /// to be worth caching.
-    private static let thumbnailSize = CGSize(width: 360, height: 360)
+    /// The strip's square at the densest screen Aujour runs on — sharp there
+    /// and everywhere below it, and nowhere near enough to be worth caching.
+    ///
+    /// In pixels, which is what PhotoKit means by a target size, and derived
+    /// from the points the panel draws rather than guessed: a thumbnail
+    /// fetched larger than the square it goes in is a decode and a downscale
+    /// of somebody's whole photograph, once per square in the strip.
+    private static let thumbnailSize = CGSize(
+        width: PhotoSuggestionsPanel.square * 3,
+        height: PhotoSuggestionsPanel.square * 3
+    )
 
     private static func asset(_ photograph: DayPhotograph) -> PHAsset? {
         PHAsset.fetchAssets(withLocalIdentifiers: [photograph.id], options: nil).firstObject

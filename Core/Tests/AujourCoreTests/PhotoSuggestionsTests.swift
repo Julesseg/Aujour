@@ -163,6 +163,47 @@ struct PhotoSuggestionsTests {
         #expect(suggestions.state == .offering([april]))
     }
 
+    // The morning an app left open overnight moves on. Yesterday's strip must
+    // not still be there while the library is being read about today: a tap in
+    // that window would write yesterday's photograph into today's Entry.
+    @Test("the last day's photographs go the moment a different day is looked at")
+    func theLastDaysPhotographsGoAtOnce() async {
+        let march = DayPhotograph(id: "march", takenAt: instant(2026, 3, 14, 11, in: paris))
+        let library = ALibrary(holding: [march])
+        let suggestions = PhotoSuggestions(from: library, in: paris)
+        await suggestions.look(for: JournalDay(year: 2026, month: 3, day: 14))
+        #expect(suggestions.state == .offering([march]))
+
+        library.holdsItsAnswer = true
+        let today = Task { await suggestions.look(for: JournalDay(year: 2026, month: 3, day: 15)) }
+        while library.read.count < 2 { await Task.yield() }
+
+        #expect(suggestions.state == .nothingToOffer)
+
+        library.answerNow()
+        await today.value
+    }
+
+    // And looking again at the same day does not: coming back to the front
+    // re-reads the library, and a strip that blinked away and back every time
+    // would be a strip nobody could tap.
+    @Test("looking again at the same day leaves what is on screen alone")
+    func lookingAgainAtTheSameDay() async {
+        let march = DayPhotograph(id: "march", takenAt: instant(2026, 3, 14, 11, in: paris))
+        let library = ALibrary(holding: [march])
+        let suggestions = PhotoSuggestions(from: library, in: paris)
+        await suggestions.look(for: JournalDay(year: 2026, month: 3, day: 14))
+
+        library.holdsItsAnswer = true
+        let again = Task { await suggestions.look(for: JournalDay(year: 2026, month: 3, day: 14)) }
+        while library.read.count < 2 { await Task.yield() }
+
+        #expect(suggestions.state == .offering([march]))
+
+        library.answerNow()
+        await again.value
+    }
+
     // MARK: - No library at all
 
     // A preview, and a test of something else. Nothing to offer, and nothing

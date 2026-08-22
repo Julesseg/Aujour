@@ -105,9 +105,11 @@ enum UITestingJournal {
     /// are two different claims rather than the same one twice.
     static let photoLibraryKey = "AUJOUR_UITEST_PHOTO_LIBRARY"
 
-    /// Where the library permission stands before the test starts —
-    /// `allowed`, which is the default and what leaves every other test free
-    /// of it, `undecided` for the offer to look, or `refused`.
+    /// Where the library permission stands before the test starts, and what
+    /// the user says if they are asked — `allowed`, which is the default and
+    /// what leaves every other test free of it; `undecided` for somebody who
+    /// says yes to the offer to look; `refuses` for somebody who says no to
+    /// it; and `refused` for somebody who said no some launch ago.
     ///
     /// There is no reaching the device's own library from a UI test: it would
     /// be a system alert in the middle of one, and a simulator's library is
@@ -387,25 +389,31 @@ private final class ALibrarySeededByATest: PhotoLibrary, @unchecked Sendable {
     private let permission = NSLock()
     private var standing: PhotoLibraryAccess
 
+    /// What the user says when the alert that is not there comes up.
+    private let whenAsked: PhotoLibraryAccess
+
     init(_ environment: [String: String]) {
         self.taken = Self.days(environment[UITestingJournal.photoLibraryKey])
+        let seeded = environment[UITestingJournal.photoLibraryAccessKey]
         self.standing =
-            switch environment[UITestingJournal.photoLibraryAccessKey] {
-            case "undecided": .undecided
+            switch seeded {
+            case "undecided", "refuses": .undecided
             case "refused": .refused
             default: .allowed
             }
+        self.whenAsked = seeded == "refuses" ? .refused : .allowed
     }
 
     var access: PhotoLibraryAccess {
         permission.withLock { standing }
     }
 
-    /// The user says yes. A test that means a refusal seeds one, because a
-    /// refusal that has to be tapped is a system alert and there is none here.
+    /// What the user says, seeded — there is no system alert here to tap, and
+    /// there is deliberately none: it belongs to another process, and driving
+    /// it would make every test of this panel a test of that alert.
     func ask() async -> PhotoLibraryAccess {
         permission.withLock {
-            if standing == .undecided { standing = .allowed }
+            if standing == .undecided { standing = whenAsked }
             return standing
         }
     }

@@ -440,28 +440,36 @@ final class AujourUITests: XCTestCase {
     /// Saying no costs the panel and nothing else. The photo button above the
     /// keyboard goes through the system picker, which runs in a process of its
     /// own and needs no permission at all.
+    ///
+    /// The library has a photograph from today in it throughout, so what is
+    /// being watched is the refusal and not an empty camera roll.
     func testARefusedLibraryLeavesNoPanelAndTheManualInsertWorking() throws {
         let app = launchApp(
             photograph: "png",
             photoLibrary: todaysEntryName(),
-            photoLibraryAccess: "refused"
+            photoLibraryAccess: "refuses"
         )
 
         let editor = app.textViews["entryEditor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
-        editor.tap()
 
-        // Absent, and silent with it: nothing about a photo library belongs in
-        // front of somebody who is writing.
+        let offer = app.buttons["showPhotoSuggestions"]
+        XCTAssertTrue(offer.waitForExistence(timeout: 10), "the panel never offered to look")
+        offer.tap()
+
+        // Absent, and silent with it: they answered the question that was put
+        // to them, and nothing about a photo library belongs in front of
+        // somebody who is writing.
         XCTAssertFalse(
             app.staticTexts["photoSuggestions"].waitForExistence(timeout: 3),
             "a refused library was read anyway"
         )
-        XCTAssertFalse(
-            app.buttons["showPhotoSuggestions"].exists,
-            "a library already refused was offered again"
-        )
+        // And it does not come back: the way past a refusal is Settings, not
+        // an app that asks again every time the day is opened.
+        XCTAssertFalse(offer.exists, "a library already refused was offered again")
 
+        // The other door, which never needed the library at all.
+        editor.tap()
         let photo = app.buttons["insertPhoto"]
         XCTAssertTrue(photo.waitForExistence(timeout: 10), "the formatting row never appeared")
         photo.tap()
@@ -990,8 +998,10 @@ final class AujourUITests: XCTestCase {
     ///     can answer, so this is the only way the suggestions panel has
     ///     anything to offer.
     ///   - photoLibraryAccess: where the library permission stands before the
-    ///     test starts — `allowed`, which is the default, `undecided` for the
-    ///     panel's offer to look, or `refused`.
+    ///     test starts, and what the user says if they are asked — `allowed`,
+    ///     which is the default; `undecided` for somebody who says yes to the
+    ///     panel's offer to look; `refuses` for somebody who says no to it;
+    ///     `refused` for somebody who said no some launch ago.
     ///   - events: what the day being spawned holds in the calendar, one per
     ///     line as `HH:mm Title` — or `Title` for something with no hour. The
     ///     simulator's own calendar is empty and unaskable, so this is the

@@ -236,9 +236,11 @@ both stay green.
    under a `## Blocked by` heading in issue bodies — that's what the dispatcher
    scans for. An issue with no blockers qualifies too, and starts on the next
    issue close or a manual run of `unblock-dispatch.yml`.
-2. **Add an `/implement` skill** at `.claude/skills/implement/` — the dispatch
-   prompt is just `/implement issue #<N>`, so the skill is what tells the
-   session how to work. Not shipped with this template.
+2. **Keep the `/label-and-implement-with-pr` skill** at
+   `.claude/skills/label-and-implement-with-pr/` — the dispatch prompt is
+   just `/label-and-implement-with-pr issue #<N>`, so the skill is what tells
+   the session how to work: claim the issue, call `/implement`, open the PR.
+   Shipped in this repo, mirrored from the maintainer's personal skill set.
 3. **Register a self-hosted macOS runner** (repo → Settings → Actions →
    Runners) on a Mac with the Paseo daemon running and `gh` + `claude` logged
    in.

@@ -14,6 +14,15 @@ import AujourCore
 struct EntryView: View {
     @Bindable var editor: EntryEditor
 
+    /// The day's own photographs, offered under it — read out of the device's
+    /// library for the Journal Day on screen.
+    ///
+    /// Here rather than one per journal, like the pictures and the picker
+    /// above and below it: a day reached from the calendar is pushed on top of
+    /// today and both screens stay alive, so one panel between them would be
+    /// showing the wrong day's photographs the moment the user came back.
+    @State private var suggestions: PhotoSuggestions
+
     /// The pictures this Entry's embeds point at, read out of the same folder
     /// the Entry came from.
     ///
@@ -41,6 +50,17 @@ struct EntryView: View {
     @State private var question: PlaceholderQuestion?
 
     @Environment(\.scenePhase) private var scenePhase
+
+    /// - Parameter library: where this day's suggested photographs are read
+    ///   from — the device's, unless a test or a preview says otherwise.
+    ///   `nil` is a panel that never appears, which is what a preview and
+    ///   every test of something else want.
+    init(editor: EntryEditor, photographsFrom library: (any PhotoLibrary)? = nil) {
+        self.editor = editor
+        _suggestions = State(
+            wrappedValue: library.map { PhotoSuggestions(from: $0) } ?? PhotoSuggestions()
+        )
+    }
 
     /// The Entry these are all about, as something that can be compared.
     ///
@@ -84,12 +104,21 @@ struct EntryView: View {
                 .onChange(of: entryOnScreen, initial: true) {
                     pictures.look(in: editor)
                     photographs.adds(to: editor)
+                    // And the day's own photographs, which are the Journal
+                    // Day's and not today's — a Monday filled in on Friday is
+                    // offered Monday's.
+                    Task { await suggestions.look(for: editor.day) }
                 }
                 // The folder is shared, so a photo an Entry names can arrive
                 // after the Entry did. Coming back to the front is when it is
                 // worth looking again for the ones that were not there.
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .active { pictures.lookAgainForWhatWasMissing() }
+                    guard phase == .active else { return }
+                    pictures.lookAgainForWhatWasMissing()
+                    // And the library has moved on too: a photograph taken
+                    // five minutes ago is exactly the one somebody came back
+                    // to write about.
+                    Task { await suggestions.look(for: editor.day) }
                 }
 
             case .unavailable(let error):
@@ -115,6 +144,12 @@ struct EntryView: View {
                         identifier: "photoProblemNotice",
                         acknowledge: photographs.acknowledge
                     )
+                }
+                // Under the notices and nearest the keyboard, which is where
+                // the thumbs already are — and above nothing at all on the
+                // days it has nothing to offer.
+                PhotoSuggestionsPanel(suggestions: suggestions) { photograph in
+                    Task { await photographs.insert(photograph, from: suggestions) }
                 }
             }
         }

@@ -44,7 +44,7 @@ struct ContentView: View {
                     // — but a blank page is the one thing this screen must
                     // never be, so the unreachable case is the spinner.
                     if let today = journal.today {
-                        EntryView(editor: today)
+                        EntryView(editor: today, photographsFrom: journal.photoLibrary)
                             .parkedFilesNotice(from: journal, for: today.day)
                             .navigationTitle(today.day.spelledOut())
                             .navigationBarTitleDisplayMode(.inline)

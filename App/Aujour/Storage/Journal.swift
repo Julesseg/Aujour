@@ -135,6 +135,14 @@ final class Journal {
     /// opens.
     private let dayData: DayData
 
+    /// Where the suggestions panel reads the day's photographs — the device's
+    /// photo library, unless a test is standing in for it.
+    ///
+    /// Held here and handed to the screens rather than made by them, for the
+    /// reason the calendar is: it is the device, and a UI test may not have
+    /// the device's own.
+    let photoLibrary: any PhotoLibrary
+
     /// What the system is holding besides the file at an Entry's path — iCloud,
     /// unless a test is standing in for it.
     private let versions: any EntryVersions
@@ -171,12 +179,17 @@ final class Journal {
     ///     spawned from. The user's own calendar and reminders, unless a test
     ///     says otherwise — a UI test journals into a folder of its own and
     ///     reads a calendar of its own with it.
+    ///   - photoLibrary: where the suggestions panel reads the day's
+    ///     photographs from. The device's own, unless a test says otherwise —
+    ///     and for the same reason as the calendar, since a real library would
+    ///     put a system permission alert in the middle of a UI test.
     init(
         locator: JournalRootLocator = .system,
         settings: JournalSettingsStore? = nil,
         templateElsewhere: BookmarkedTemplateFile = .stored(),
         versions: any EntryVersions = ICloudVersions(),
-        dayData: DayData = EventKitDayData().dayData
+        dayData: DayData = EventKitDayData().dayData,
+        photoLibrary: any PhotoLibrary = PhotoKitLibrary()
     ) {
         // Made here rather than as a default argument: the store it is over
         // reads iCloud, which is main-actor work, and a default argument is
@@ -187,6 +200,7 @@ final class Journal {
         self.templateElsewhere = templateElsewhere
         self.versions = versions
         self.dayData = dayData
+        self.photoLibrary = photoLibrary
 
         // A Path Template changed on the iPad reshapes what an Entry is here
         // too (ADR 0002), and so does one changed on this device — which is

@@ -346,6 +346,137 @@ final class AujourUITests: XCTestCase {
         expect(editor, toHaveValue: "![[\(todaysEntryName()).jpg]]")
     }
 
+    /// The suggestions panel: the library asked for because a finger landed on
+    /// the offer, the day's own photographs behind it, and one tap that writes
+    /// one into the folder and points the Entry at it.
+    ///
+    /// The library itself is the part left out, for the reason the picker is:
+    /// a simulator's is empty, and asking a real one would put a system alert
+    /// from another process in the middle of a test. So the suite says which
+    /// days the camera has something from and everything after that — the day
+    /// query, the panel, the attachment pipeline — is the app's own code
+    /// (`UITestingJournal`).
+    func testTheDaysPhotographsAreOfferedAndOneTapInsertsOne() throws {
+        let app = launchApp(
+            photoLibrary: "\(todaysEntryName()) 09:15\n\(todaysEntryName()) 18:40",
+            photoLibraryAccess: "undecided"
+        )
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        // Nothing has been asked for yet, and nothing has been read: the
+        // library permission is this panel's alone, and it is asked for
+        // because somebody said to look.
+        let offer = app.buttons["showPhotoSuggestions"]
+        XCTAssertTrue(offer.waitForExistence(timeout: 10), "the panel never offered to look")
+        XCTAssertFalse(
+            app.staticTexts["photoSuggestions"].exists,
+            "the day's photographs were read before anybody was asked"
+        )
+        offer.tap()
+
+        let headline = app.staticTexts["photoSuggestions"]
+        XCTAssertTrue(headline.waitForExistence(timeout: 10), "the panel never filled in")
+        XCTAssertEqual(headline.label, "2 photos from this day")
+
+        editor.tap()
+        editor.typeText("Walked to the market.")
+
+        let photo = app.buttons["photoSuggestion0"]
+        XCTAssertTrue(photo.waitForExistence(timeout: 10), "the strip had no photographs in it")
+        photo.tap()
+
+        // The same pipeline the picker's photograph goes through: under the
+        // Attachment Path Template for this day, pointed at relatively, and on
+        // a line of its own after the sentence the caret was in.
+        let embed = "![](\(todaysPhotograph(named: "jpg")))"
+        expect(editor, toHaveValue: "Walked to the market.\n" + embed)
+
+        // And what is in the file is what was on screen — nothing is inserted
+        // until the photograph is in the folder.
+        Thread.sleep(forTimeInterval: 4)
+        relaunch(app)
+
+        let reopened = app.textViews["entryEditor"]
+        XCTAssertTrue(reopened.waitForExistence(timeout: 30))
+        XCTAssertEqual(reopened.value as? String, "Walked to the market.\n" + embed)
+    }
+
+    /// A day filled in later is offered *its* photographs, and today is not
+    /// offered them — which is the whole of the panel being about the Journal
+    /// Day rather than about now.
+    func testADayFilledInLaterIsOfferedItsOwnPhotographs() throws {
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let app = launchApp(
+            contentTemplate: "# {{title}}\n",
+            photoLibrary: entryName(for: yesterday)
+        )
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        // Today's camera roll is empty, so today has no panel — even though
+        // the library has a photograph in it.
+        XCTAssertFalse(
+            app.staticTexts["photoSuggestions"].waitForExistence(timeout: 3),
+            "today was offered a photograph from another day"
+        )
+
+        openCalendar(app, showingTheMonthOf: yesterday)
+        let cell = app.buttons["day-\(entryName(for: yesterday))"]
+        XCTAssertTrue(cell.waitForExistence(timeout: 10), "yesterday was not on the calendar")
+        cell.tap()
+
+        let headline = app.staticTexts["photoSuggestions"]
+        XCTAssertTrue(
+            headline.waitForExistence(timeout: 15),
+            "the day being written about was offered nothing"
+        )
+        XCTAssertEqual(headline.label, "1 photo from this day")
+    }
+
+    /// Saying no costs the panel and nothing else. The photo button above the
+    /// keyboard goes through the system picker, which runs in a process of its
+    /// own and needs no permission at all.
+    ///
+    /// The library has a photograph from today in it throughout, so what is
+    /// being watched is the refusal and not an empty camera roll.
+    func testARefusedLibraryLeavesNoPanelAndTheManualInsertWorking() throws {
+        let app = launchApp(
+            photograph: "png",
+            photoLibrary: todaysEntryName(),
+            photoLibraryAccess: "refuses"
+        )
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        let offer = app.buttons["showPhotoSuggestions"]
+        XCTAssertTrue(offer.waitForExistence(timeout: 10), "the panel never offered to look")
+        offer.tap()
+
+        // Absent, and silent with it: they answered the question that was put
+        // to them, and nothing about a photo library belongs in front of
+        // somebody who is writing.
+        XCTAssertFalse(
+            app.staticTexts["photoSuggestions"].waitForExistence(timeout: 3),
+            "a refused library was read anyway"
+        )
+        // And it does not come back: the way past a refusal is Settings, not
+        // an app that asks again every time the day is opened.
+        XCTAssertFalse(offer.exists, "a library already refused was offered again")
+
+        // The other door, which never needed the library at all.
+        editor.tap()
+        let photo = app.buttons["insertPhoto"]
+        XCTAssertTrue(photo.waitForExistence(timeout: 10), "the formatting row never appeared")
+        photo.tap()
+
+        expect(editor, toHaveValue: "![](\(todaysPhotograph()))")
+    }
+
     func testATemplateFilePickedAnywhereIsWhatTheNextDayStartsFrom() throws {
         // A template kept somewhere else entirely — not in the journal folder
         // — which is the case a file picker is needed for at all (ADR 0005).
@@ -861,6 +992,16 @@ final class AujourUITests: XCTestCase {
     ///   - photograph: the format of the photograph the app hands itself in
     ///     place of the one the system picker would have come back with —
     ///     `png`, `jpeg` or `heic`.
+    ///   - photoLibrary: the days the device's camera roll holds a photograph
+    ///     from, one per line as `YYYY-MM-DD` or `YYYY-MM-DD HH:mm`. The
+    ///     simulator's library is empty and behind a system alert nothing here
+    ///     can answer, so this is the only way the suggestions panel has
+    ///     anything to offer.
+    ///   - photoLibraryAccess: where the library permission stands before the
+    ///     test starts, and what the user says if they are asked — `allowed`,
+    ///     which is the default; `undecided` for somebody who says yes to the
+    ///     panel's offer to look; `refuses` for somebody who says no to it;
+    ///     `refused` for somebody who said no some launch ago.
     ///   - events: what the day being spawned holds in the calendar, one per
     ///     line as `HH:mm Title` — or `Title` for something with no hour. The
     ///     simulator's own calendar is empty and unaskable, so this is the
@@ -874,6 +1015,8 @@ final class AujourUITests: XCTestCase {
         vaultNote: (at: String, saying: String)? = nil,
         templateToPick: String? = nil,
         photograph: String? = nil,
+        photoLibrary: String? = nil,
+        photoLibraryAccess: String? = nil,
         events: String? = nil,
         reminders: String? = nil
     ) -> XCUIApplication {
@@ -903,6 +1046,12 @@ final class AujourUITests: XCTestCase {
         }
         if let photograph {
             app.launchEnvironment["AUJOUR_UITEST_PHOTO"] = photograph
+        }
+        if let photoLibrary {
+            app.launchEnvironment["AUJOUR_UITEST_PHOTO_LIBRARY"] = photoLibrary
+        }
+        if let photoLibraryAccess {
+            app.launchEnvironment["AUJOUR_UITEST_PHOTO_LIBRARY_ACCESS"] = photoLibraryAccess
         }
         if let events {
             app.launchEnvironment["AUJOUR_UITEST_EVENTS"] = events

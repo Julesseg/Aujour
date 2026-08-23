@@ -27,6 +27,11 @@ import AujourCore
 ///   the resolving, the formatting, the spawn — is the app's own code. A
 ///   UI-test journal never reaches EventKit at all, which is also what keeps
 ///   a permission alert from another process out of the middle of a test.
+/// - **A day's photographs.** The suggestions panel reads the device's photo
+///   library, which in a simulator is empty and behind a system alert nothing
+///   in the suite can answer. So the test says which days the camera has
+///   something from, and everything after that — which of them belong to the
+///   day on screen, the panel, the tap — is the app's own code.
 /// - **A day two devices wrote.** An unresolved iCloud conflict takes two
 ///   devices, a sync and a moment of bad luck; there is no making one in a
 ///   simulator, and no waiting for one either. So the suite says what iCloud
@@ -90,6 +95,28 @@ enum UITestingJournal {
     /// system picker would have come back with — `png`, `jpeg` or `heic`.
     static let photographKey = "AUJOUR_UITEST_PHOTO"
 
+    /// The days the device's photo library holds a photograph from, one per
+    /// line as `YYYY-MM-DD` — or `YYYY-MM-DD HH:mm` for one taken at an hour
+    /// the test cares about. One photograph each, drawn rather than carried.
+    ///
+    /// Which photographs a day is offered is the whole of the suggestions
+    /// panel, so a test says them by the day they were taken on: that is how
+    /// "today's photographs" and "the photographs of a day filled in later"
+    /// are two different claims rather than the same one twice.
+    static let photoLibraryKey = "AUJOUR_UITEST_PHOTO_LIBRARY"
+
+    /// Where the library permission stands before the test starts, and what
+    /// the user says if they are asked — `allowed`, which is the default and
+    /// what leaves every other test free of it; `undecided` for somebody who
+    /// says yes to the offer to look; `refuses` for somebody who says no to
+    /// it; and `refused` for somebody who said no some launch ago.
+    ///
+    /// There is no reaching the device's own library from a UI test: it would
+    /// be a system alert in the middle of one, and a simulator's library is
+    /// nobody's day. So this stands in, and everything after the answer — the
+    /// panel, the day query, the tap — is the app's own code.
+    static let photoLibraryAccessKey = "AUJOUR_UITEST_PHOTO_LIBRARY_ACCESS"
+
     @MainActor
     static func fromLaunchEnvironment(
         _ environment: [String: String] = ProcessInfo.processInfo.environment
@@ -142,7 +169,8 @@ enum UITestingJournal {
                     of: root.appending(path: entryPath)
                 )
             } ?? ICloudVersions(),
-            dayData: dayData(from: environment)
+            dayData: dayData(from: environment),
+            photoLibrary: ALibrarySeededByATest(environment)
         )
     }
 
@@ -342,6 +370,89 @@ private struct ADaySeededByATest: DayItemSource {
                 title: String(line.dropFirst(5).drop(while: { $0 == " " })),
                 time: day.start.addingTimeInterval(TimeInterval(hour * 3600 + minute * 60))
             )
+        }
+    }
+}
+
+/// The device's photo library, said at launch instead of read.
+///
+/// Always built, even when the test seeded nothing — what a UI test must not
+/// have is the *device's* library, and an empty one of its own is how the
+/// suggestions panel is absent without anybody being asked for a permission.
+///
+/// A class, and unchecked, because being asked has to stick: the panel reads
+/// where the permission stands again every time the app comes back to the
+/// front, and a library that forgot it had been allowed would offer to look
+/// all over again.
+private final class ALibrarySeededByATest: PhotoLibrary, @unchecked Sendable {
+    private let taken: [Date]
+    private let permission = NSLock()
+    private var standing: PhotoLibraryAccess
+
+    /// What the user says when the alert that is not there comes up.
+    private let whenAsked: PhotoLibraryAccess
+
+    init(_ environment: [String: String]) {
+        self.taken = Self.days(environment[UITestingJournal.photoLibraryKey])
+        let seeded = environment[UITestingJournal.photoLibraryAccessKey]
+        self.standing =
+            switch seeded {
+            case "undecided", "refuses": .undecided
+            case "refused": .refused
+            default: .allowed
+            }
+        self.whenAsked = seeded == "refuses" ? .refused : .allowed
+    }
+
+    var access: PhotoLibraryAccess {
+        permission.withLock { standing }
+    }
+
+    /// What the user says, seeded — there is no system alert here to tap, and
+    /// there is deliberately none: it belongs to another process, and driving
+    /// it would make every test of this panel a test of that alert.
+    func ask() async -> PhotoLibraryAccess {
+        permission.withLock {
+            if standing == .undecided { standing = whenAsked }
+            return standing
+        }
+    }
+
+    func photographs(during span: DateInterval) async -> [DayPhotograph] {
+        guard access == .allowed else { return [] }
+        return
+            taken
+            .filter { $0 >= span.start && $0 < span.end }
+            .map { DayPhotograph(id: "seeded-\($0.timeIntervalSince1970)", takenAt: $0) }
+    }
+
+    func thumbnail(of photograph: DayPhotograph) async -> Data? {
+        UITestingJournal.photograph(as: .jpeg)
+    }
+
+    func contents(of photograph: DayPhotograph) async -> Data? {
+        UITestingJournal.photograph(as: .jpeg)
+    }
+
+    /// `2026-03-14`, or `2026-03-14 09:30` — and noon for one that says only
+    /// which day, which is a photograph in the middle of it wherever the
+    /// device is.
+    private static func days(_ seeded: String?) -> [Date] {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        return (seeded ?? "").split(whereSeparator: \.isNewline).compactMap { line in
+            let said = line.split(separator: " ", maxSplits: 1)
+            let date = said[0].split(separator: "-").compactMap { Int($0) }
+            guard date.count == 3 else { return nil }
+            let clock = said.count > 1 ? said[1].split(separator: ":").compactMap { Int($0) } : []
+
+            var components = DateComponents()
+            components.year = date[0]
+            components.month = date[1]
+            components.day = date[2]
+            components.hour = clock.count == 2 ? clock[0] : 12
+            components.minute = clock.count == 2 ? clock[1] : 0
+            return calendar.date(from: components)
         }
     }
 }

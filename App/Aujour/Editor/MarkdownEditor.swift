@@ -117,7 +117,7 @@ struct MarkdownEditor: UIViewRepresentable {
 
         guard let storage = textView.textStorage as? MarkdownTextStorage else { return }
         storage.pictures = pictures
-        context.coordinator.photographs = photographs
+        context.coordinator.insertsPhotographs(from: photographs, into: textView)
 
         // Dynamic Type: the font everything else is derived from has moved, so
         // everything is drawn again. Compared by font rather than by whole
@@ -270,7 +270,7 @@ struct MarkdownEditor: UIViewRepresentable {
         /// punctuation, and it is offered exactly when there is an Entry
         /// behind this editor for a photograph to be written beside.
         func formats(in textView: UITextView, addingPhotographs: InsertedPhotographs?) {
-            photographs = addingPhotographs
+            insertsPhotographs(from: addingPhotographs, into: textView)
             textView.inputAccessoryView = MarkdownAccessoryRow(
                 insertPhoto: addingPhotographs == nil
                     ? nil
@@ -281,6 +281,42 @@ struct MarkdownEditor: UIViewRepresentable {
             ) { [weak self, weak textView] command in
                 guard let self, let textView else { return }
                 format(command, in: textView)
+            }
+        }
+
+        /// Points both ways into a photograph at this text view — the control
+        /// on the row, which is already here, and the suggestions panel, which
+        /// is not.
+        ///
+        /// The panel is a view beside this one and has no caret to insert at,
+        /// so the way into the text is handed to it: it says which photograph,
+        /// and where an embed goes stays the text view's. The edit is the one a
+        /// tapped control makes, so a suggested picture is one undo step and
+        /// the Entry saves it as typing.
+        ///
+        /// Called again whenever the editor is handed different ones, because
+        /// the text view is built once and this struct is rebuilt on every
+        /// keystroke.
+        func insertsPhotographs(
+            from addingPhotographs: InsertedPhotographs?,
+            into textView: UITextView
+        ) {
+            // Once each, and not once per keystroke: this runs from
+            // `updateUIView`, which runs on every character typed, and the
+            // way in is the same way in until the day on screen changes.
+            guard addingPhotographs !== photographs else { return }
+            photographs = addingPhotographs
+            addingPhotographs?.writesTheEmbed = { [weak self, weak textView] attachment in
+                guard let self, let textView else { return }
+                // Where the caret is if somebody is writing there, and the end
+                // of the day if nobody is: a text view reports a caret at its
+                // very start whether or not anyone is in it, and a panel tapped
+                // over a day nobody has touched would put the picture above the
+                // first line.
+                let caret =
+                    cursorIfSomebodyIsWriting(in: textView)
+                    ?? NSRange(location: (textView.text as NSString).length, length: 0)
+                apply(attachment.insertion(into: textView.text, at: caret), in: textView)
             }
         }
 

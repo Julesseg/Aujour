@@ -49,14 +49,30 @@ struct EntryView: View {
     /// over the way to write the answer back into the Entry.
     @State private var question: PlaceholderQuestion?
 
+    /// Where the `{{location}}` widget reads the place from, for whichever
+    /// sheet this Entry puts up.
+    ///
+    /// Held rather than reached for, like the library the photographs come
+    /// from: the device's location is the app's to hand over, and a UI test
+    /// journals against one that is said rather than found.
+    private let places: (any Places)?
+
     @Environment(\.scenePhase) private var scenePhase
 
     /// - Parameter library: where this day's suggested photographs are read
     ///   from — the device's, unless a test or a preview says otherwise.
     ///   `nil` is a panel that never appears, which is what a preview and
     ///   every test of something else want.
-    init(editor: EntryEditor, photographsFrom library: (any PhotoLibrary)? = nil) {
+    ///   - places: where a `{{location}}` widget reads the place from — the
+    ///     device's, unless a test or a preview says otherwise. `nil` is a
+    ///     widget with nothing on offer, which is a place typed instead.
+    init(
+        editor: EntryEditor,
+        photographsFrom library: (any PhotoLibrary)? = nil,
+        placesFrom places: (any Places)? = nil
+    ) {
         self.editor = editor
+        self.places = places
         _suggestions = State(wrappedValue: PhotoSuggestions(from: library))
     }
 
@@ -95,7 +111,9 @@ struct EntryView: View {
                 // cancelling writes nothing at all — so an unanswered
                 // placeholder is still literal text in the file, and still a
                 // widget the next time the day is opened.
-                .sheet(item: $question) { PlaceholderAnswerSheet(question: $0) }
+                .sheet(item: $question) {
+                    PlaceholderAnswerSheet(question: $0, from: places)
+                }
                 // The Entry on screen decides where a relative embed points, so
                 // both halves of an embed follow it — including on the morning
                 // an app left open overnight moves on to today.

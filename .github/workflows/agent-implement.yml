@@ -121,9 +121,10 @@ jobs:
 
           # --detach: the session runs under the Paseo daemon, so it outlives
           # this job; progress is visible in the Paseo apps. The prompt invokes
-          # the /implement skill, which carries the full workflow instructions —
-          # starting with claiming the issue with the `agent-dispatched` label,
-          # which nothing else applies (see docs/agents/auto-dispatch.md).
+          # the /label-and-implement-with-pr skill, which carries the full
+          # workflow instructions — starting with claiming the issue with the
+          # `agent-dispatched` label, which nothing else applies, and ending
+          # with a pull request (see docs/agents/auto-dispatch.md).
           paseo run --detach \
             --provider claude \
             --model "$MODEL" \
@@ -131,4 +132,4 @@ jobs:
             --mode "$MODE" \
             --cwd "$PROJECT_DIR" \
             --worktree "claude/issue-${ISSUE}" \
-            "/implement issue #${ISSUE}"
+            "/label-and-implement-with-pr issue #${ISSUE}"

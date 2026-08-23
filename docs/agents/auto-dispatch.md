@@ -17,12 +17,26 @@ Two workflows split detection from execution:
    every blocker now closed. For each, it fires `agent-implement.yml` with the
    issue number and comments on the issue.
 2. **`agent-implement.yml`** (self-hosted Mac runner) re-checks the issue, then
-   runs `paseo run --detach --worktree claude/issue-<N> … "/implement issue #<N>"`.
-   The `/implement` skill in the repo's Claude config carries the workflow
-   instructions — claim the issue with the `agent-dispatched` label, implement
-   per AGENTS.md, push, open a PR that closes the issue. `--detach` means the
-   session runs under the Paseo daemon and outlives the (short) runner job;
-   `--worktree` keeps parallel sessions from clobbering one checkout.
+   runs `paseo run --detach --worktree claude/issue-<N> … "/label-and-implement-with-pr issue #<N>"`.
+   The `/label-and-implement-with-pr` skill carries the workflow instructions —
+   claim the issue with the `agent-dispatched` label, run `/implement` to build
+   it per AGENTS.md, then merge the base branch in, push, and open a PR that
+   closes the issue. `--detach` means the session runs under the Paseo daemon
+   and outlives the (short) runner job; `--worktree` keeps parallel sessions
+   from clobbering one checkout.
+
+   That skill ships in this repo, at `.claude/skills/`, alongside a mirror of
+   the maintainer's personal skill set. The personal copies under
+   `~/.claude/skills/` are the source of truth; the repo copies exist so a
+   dispatched session finds the skill in any clone, on any machine, without
+   depending on how that machine's Claude config happens to be set up. When
+   the personal set changes, re-copy it here.
+
+   The mirror excludes the `paseo*` skills, which the Paseo app installs and
+   updates itself (they carry a `.paseo-managed-files.json`). A committed copy
+   of a file something else rewrites goes stale without anyone noticing, and
+   they are machine tooling rather than project workflow. Leave them out on
+   every re-sync.
 
 ### Who applies `agent-dispatched`
 
@@ -116,11 +130,13 @@ rejects an unknown one outright.
   dispatcher only ever considers issues carrying it. The `agent-dispatched`
   label, by contrast, is created automatically on first dispatch — the
   dispatcher creates it ahead of the session that will apply it.
-- **Keep the `/implement` skill** at `.claude/skills/implement/`. The dispatch
-  prompt is just `/implement issue #<N>`, so the skill is what actually tells
-  the session how to work — including claiming the issue with the
-  `agent-dispatched` label. Without it a dispatched session receives an
-  unresolvable slash command.
+- **Keep the `/label-and-implement-with-pr` skill** at
+  `.claude/skills/label-and-implement-with-pr/`, along with the `/implement`
+  skill it calls. The dispatch prompt is just
+  `/label-and-implement-with-pr issue #<N>`, so the skill is what actually
+  tells the session how to work — including claiming the issue with the
+  `agent-dispatched` label and opening the PR. Without it a dispatched session
+  receives an unresolvable slash command.
 - **Use the `## Blocked by` convention** in issue bodies. The dispatcher parses
   `- #N` bullets under that exact heading:
 

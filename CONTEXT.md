@@ -138,6 +138,12 @@ Three kinds:
   widgets in the editor, and answering one replaces it with plain markdown
   text. Unanswered ones are harmless literal text in Obsidian.
 
+  {{mood}} is answered by a **Mood Rating**: one of five marks, written down
+  as `Today's mood: 4/5`. The sentence is the whole record — nothing anywhere
+  stores the number — so the scale is fixed at five and cannot change under
+  entries already written on it. A scale of the user's own naming is
+  `{{scale:Name}}`, which is roadmap rather than v1.
+
 Photos are deliberately *not* a placeholder: that day's photos are offered by
 Photo Suggestions and inserted as Attachments where the user chooses.
 

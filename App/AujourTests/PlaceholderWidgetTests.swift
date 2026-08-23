@@ -107,7 +107,10 @@ struct PlaceholderWidgetTests {
     func answeringAWidget() throws {
         let entry = editor(holding: "{{mood}}\nWalked home.\n")
         entry.coordinator.tapped(in: entry.textView, at: entry.firstBox)
-        try #require(entry.asked).answered("Today's mood: 4/5")
+        // The sentence the rating widget hands over, asked for rather than
+        // copied: what a mood is written down as is Core's, and this is the
+        // test that it arrives in the file that way.
+        try #require(entry.asked).answered(try #require(MoodRating(4)).answer)
 
         #expect(entry.textView.text == "Today's mood: 4/5\nWalked home.\n")
         #expect(entry.written == "Today's mood: 4/5\nWalked home.\n")

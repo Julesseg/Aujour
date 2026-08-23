@@ -579,12 +579,16 @@ final class AujourUITests: XCTestCase {
             .withOffset(CGVector(dx: 24, dy: 23))
             .tap()
 
-        let answer = app.textFields["placeholderAnswerField"]
-        XCTAssertTrue(answer.waitForExistence(timeout: 10), "the widget never asked anything")
-        answer.typeText("Slept badly, better by noon")
-        app.buttons["answerPlaceholder"].tap()
+        // {{mood}} is rated rather than typed: five marks, and the one pressed
+        // is the whole answer. What lands in the file is a sentence, which is
+        // the only thing the folder ends up holding.
+        let fourOutOfFive = app.buttons["moodRating4"]
+        XCTAssertTrue(
+            fourOutOfFive.waitForExistence(timeout: 10), "the widget never asked anything"
+        )
+        fourOutOfFive.tap()
 
-        expect(editor, toHaveValue: "Slept badly, better by noon\n{{location}}\n")
+        expect(editor, toHaveValue: "Today's mood: 4/5\n{{location}}\n")
 
         Thread.sleep(forTimeInterval: 4)
 
@@ -592,7 +596,7 @@ final class AujourUITests: XCTestCase {
         // the same vault, or another device's copy arriving. The token it did
         // not answer is literal text to every one of them, so it comes back
         // untouched with a line of theirs after it.
-        let elsewhere = "Slept badly, better by noon\n{{location}}\n\nWrote this in Obsidian.\n"
+        let elsewhere = "Today's mood: 4/5\n{{location}}\n\nWrote this in Obsidian.\n"
         app.launchEnvironment["AUJOUR_UITEST_TODAYS_ENTRY"] = elsewhere
         relaunch(app)
 
@@ -617,6 +621,24 @@ final class AujourUITests: XCTestCase {
         // where it stands for the next time the day is opened.
         app.buttons["cancelPlaceholder"].tap()
         expect(reopened, toHaveValue: elsewhere)
+
+        // And answering it in words writes those words and nothing around
+        // them. {{location}} is answered by typing until the place picker
+        // lands, and a placeholder nobody has drawn a widget for is answered
+        // this way for as long as that is true — so this is the path that has
+        // to keep working, whatever any one placeholder grows into.
+        reopened.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 24, dy: 45))
+            .tap()
+        let inWords = app.textFields["placeholderAnswerField"]
+        XCTAssertTrue(inWords.waitForExistence(timeout: 10), "the widget never asked again")
+        inWords.typeText("the long way home")
+        app.buttons["answerPlaceholder"].tap()
+
+        expect(
+            reopened,
+            toHaveValue: "Today's mood: 4/5\nthe long way home\n\nWrote this in Obsidian.\n"
+        )
     }
 
     func testAPastDayIsFilledInFromTheCalendar() throws {

@@ -139,9 +139,9 @@ extension EntryMarkdown {
     /// anywhere that this line was once a question.
     ///
     /// The answer goes in exactly as it was handed over. What a placeholder
-    /// says once it is answered — "Today's mood: 4/5", a place name — is the
-    /// widget's to word, and this is the part that is the same for all of
-    /// them.
+    /// says once it is answered — "Today's mood: 4/5" (``MoodRating``), a
+    /// place name — is that placeholder's own to word, and this is the part
+    /// that is the same for all of them.
     ///
     /// - Parameters:
     ///   - asked: the token the user was answering, as it was when they were

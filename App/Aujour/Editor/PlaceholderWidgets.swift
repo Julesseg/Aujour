@@ -83,14 +83,67 @@ struct PlaceholderAnswerSheet: View {
 
     @ViewBuilder private var answering: some View {
         switch question.placeholder {
-        // The rating widget is #26's and the place picker is #27's. Until
-        // each lands its placeholder is answered in words, which is also what
-        // any placeholder registered later is answered in until somebody
-        // draws it something better — a widget nobody has designed yet is a
-        // question that can still be answered, not one that does nothing.
-        case .mood: PlaceholderAnsweredInWords(question: question)
+        case .mood: MoodAnsweredByRating(question: question)
+        // The place picker is #27's. Until it lands {{location}} is answered
+        // in words, which is also what any placeholder registered later is
+        // answered in until somebody draws it something better — a widget
+        // nobody has designed yet is a question that can still be answered,
+        // not one that does nothing.
         case .location: PlaceholderAnsweredInWords(question: question)
         }
+    }
+}
+
+/// Answering {{mood}} by rating the day.
+///
+/// One tap and the question is gone. The marks are the whole of the form —
+/// there is no second field to fill and nothing to check over — so a
+/// confirmation button would be a press that could only ever repeat the one
+/// before it. That is the same bargain a task's box makes, and it is undone the
+/// same way: the answer is an edit in the Entry's own undo stack, so a mark
+/// pressed by mistake is taken back the way a line typed by mistake is.
+///
+/// What each mark writes is ``AujourCore/MoodRating``'s, and it lives in Core
+/// rather than here because the sentence outlives the sheet: what a tap leaves
+/// behind is a line of the user's journal, read afterwards by everything that
+/// has never heard of this screen (ADR 0001).
+private struct MoodAnsweredByRating: View {
+    let question: PlaceholderQuestion
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Text("How was the day?")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 12) {
+                ForEach(MoodRating.all, id: \.value) { rating in
+                    Button { answer(rating) } label: {
+                        Image(systemName: "\(rating.value).circle.fill")
+                            .font(.system(size: 44))
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .buttonStyle(.plain)
+                    // The marks are numbers on screen and numbers to
+                    // VoiceOver, because the sentence they write is one:
+                    // nothing here claims to know what a 4 felt like.
+                    .accessibilityLabel(
+                        "\(rating.value) out of \(MoodRating.scale.upperBound)"
+                    )
+                    .accessibilityIdentifier("moodRating\(rating.value)")
+                }
+            }
+            .foregroundStyle(.tint)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+    }
+
+    private func answer(_ rating: MoodRating) {
+        question.answered(rating.answer)
+        dismiss()
     }
 }
 

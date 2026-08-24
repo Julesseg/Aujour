@@ -163,6 +163,13 @@ resolve fails the run before any session exists.
   tells the session how to work — including claiming the issue with the
   `agent-dispatched` label and opening the PR. Without it a dispatched session
   receives an unresolvable slash command.
+
+  `/implement` must **not** carry `disable-model-invocation: true`, unlike most
+  of its siblings in the mirrored set. `/label-and-implement-with-pr` reaches it
+  through the Skill tool rather than a user prompt, which is exactly what that
+  flag refuses; with it set, every dispatched session hits the refusal halfway
+  through and falls back to improvising against AGENTS.md. Keep the flag off in
+  both the repo copy and the personal one, or a re-sync reintroduces it.
 - **Use the `## Blocked by` convention** in issue bodies. The dispatcher parses
   `- #N` bullets under that exact heading:
 

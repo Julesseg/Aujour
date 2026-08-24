@@ -63,7 +63,21 @@ struct PlaceholderQuestion: Identifiable {
 struct PlaceholderAnswerSheet: View {
     let question: PlaceholderQuestion
 
+    /// Where the device says it is, for the one placeholder that asks — the
+    /// device's own, unless a test or a preview says otherwise.
+    ///
+    /// Handed to the sheet rather than reached for inside it, like every other
+    /// seam in the app: a UI test may not have the device's, and a widget that
+    /// went looking for one itself would put a system alert in the middle of
+    /// one.
+    let places: (any Places)?
+
     @Environment(\.dismiss) private var dismiss
+
+    init(question: PlaceholderQuestion, from places: (any Places)? = nil) {
+        self.question = question
+        self.places = places
+    }
 
     var body: some View {
         NavigationStack {
@@ -77,19 +91,23 @@ struct PlaceholderAnswerSheet: View {
                     }
                 }
         }
-        .presentationDetents([.medium])
+        // Half the screen to begin with, and draggable to all of it: the
+        // place widget's list of somewhere-you-might-be is longer than a
+        // rating is, and a sheet that could only ever be half is one nobody
+        // can read the bottom of.
+        .presentationDetents([.medium, .large])
         .accessibilityIdentifier("placeholderAnswer")
     }
 
     @ViewBuilder private var answering: some View {
         switch question.placeholder {
-        // The rating widget is #26's and the place picker is #27's. Until
-        // each lands its placeholder is answered in words, which is also what
-        // any placeholder registered later is answered in until somebody
-        // draws it something better — a widget nobody has designed yet is a
-        // question that can still be answered, not one that does nothing.
+        // The rating widget is #26's. Until it lands, mood is answered in
+        // words — which is also what any placeholder registered later is
+        // answered in until somebody draws it something better, because a
+        // widget nobody has designed yet is a question that can still be
+        // answered rather than one that does nothing.
         case .mood: PlaceholderAnsweredInWords(question: question)
-        case .location: PlaceholderAnsweredInWords(question: question)
+        case .location: PlaceholderAnsweredWithAPlace(question: question, from: places)
         }
     }
 }

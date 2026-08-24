@@ -17,13 +17,14 @@ Two workflows split detection from execution:
    every blocker now closed. For each, it fires `agent-implement.yml` with the
    issue number and comments on the issue.
 2. **`agent-implement.yml`** (self-hosted Mac runner) re-checks the issue, then
-   runs `paseo run --detach --worktree claude/issue-<N> … "/label-and-implement-with-pr issue #<N>"`.
+   fetches the Mac clone's remotes and runs `paseo run --detach --new-branch
+   claude/issue-<N> --base origin/main … "/label-and-implement-with-pr issue #<N>"`.
    The `/label-and-implement-with-pr` skill carries the workflow instructions —
    claim the issue with the `agent-dispatched` label, run `/implement` to build
    it per AGENTS.md, then merge the base branch in, push, and open a PR that
    closes the issue. `--detach` means the session runs under the Paseo daemon
-   and outlives the (short) runner job; `--worktree` keeps parallel sessions
-   from clobbering one checkout.
+   and outlives the (short) runner job; the worktree flags keep parallel
+   sessions from clobbering one checkout.
 
    That skill ships in this repo, at `.claude/skills/`, alongside a mirror of
    the maintainer's personal skill set. The personal copies under
@@ -89,20 +90,44 @@ holding the label.
 - If a session gives up, it removes the issue's `agent-dispatched` label and
   comments — which frees a slot and makes the issue eligible again.
 
-### Model, reasoning effort, and permission mode
+### Where sessions branch from
 
-Sessions default to **Opus 5 at high reasoning effort, in bypass mode**. Three
-optional repository Actions variables override that without touching the
-workflow (Settings → Secrets and variables → Actions → Variables):
+Every session starts on a fresh branch cut from **`origin/main`**, and the spawn
+step fetches the Mac's clone immediately beforehand.
+
+Both halves matter. Paseo branches off a ref in the clone at
+`PASEO_PROJECT_DIR` and never fetches on its own, so left alone a session
+inherits whatever that clone last saw. Nothing updates its local `main` — the
+runner only ever adds worktrees — so it drifts further behind with every merge,
+and sessions were starting from a `main` over a hundred commits stale. Basing on
+the remote-tracking ref sidesteps the local branch entirely; fetching first is
+what keeps that ref from being stale in its own right.
+
+This does not replace the skill's own `git fetch origin main` and merge before
+it opens the PR. Other sessions land work while a long one runs, so the base
+still moves underfoot. Starting current just means a session reads today's code
+on its first pass instead of rediscovering it at merge time.
+
+Override the base with the `PASEO_BASE` repository Actions variable — any ref in
+the clone, e.g. `origin/release`. An unresolvable one fails the run outright
+rather than quietly branching somewhere else.
+
+### Model, reasoning effort, permission mode, and base
+
+Sessions default to **Opus 5 at high reasoning effort, in bypass mode, branched
+off `origin/main`**. Four optional repository Actions variables override that
+without touching the workflow (Settings → Secrets and variables → Actions →
+Variables):
 
 | Variable         | Default              | Passed as    |
 | ---------------- | -------------------- | ------------ |
 | `PASEO_MODEL`    | `claude-opus-5`      | `--model`    |
 | `PASEO_THINKING` | `high`               | `--thinking` |
 | `PASEO_MODE`     | `bypassPermissions`  | `--mode`     |
+| `PASEO_BASE`     | `origin/main`        | `--base`     |
 
 Leave a variable unset (or set it empty) to fall back to the default — unlike
-`PASEO_PROJECT_DIR`, none of the three are required. The defaults are pinned in
+`PASEO_PROJECT_DIR`, none of the four are required. The defaults are pinned in
 the workflow rather than inherited from the Paseo daemon, whose own defaults
 move as new models ship.
 
@@ -121,8 +146,9 @@ the daemon times it out.
 anyway rather than erroring, which would leave a typo'd variable silently
 running every issue on the wrong model. So the spawn step checks the pair
 against `paseo provider models claude --json` first and fails red — listing the
-valid values — instead of dispatching. `--mode` needs no such check; the CLI
-rejects an unknown one outright.
+valid values — instead of dispatching. `--mode` and `--base` need no such
+check; the CLI rejects an unknown mode outright, and a base ref it cannot
+resolve fails the run before any session exists.
 
 ## Repo prerequisites
 
@@ -137,6 +163,13 @@ rejects an unknown one outright.
   tells the session how to work — including claiming the issue with the
   `agent-dispatched` label and opening the PR. Without it a dispatched session
   receives an unresolvable slash command.
+
+  `/implement` must **not** carry `disable-model-invocation: true`, unlike most
+  of its siblings in the mirrored set. `/label-and-implement-with-pr` reaches it
+  through the Skill tool rather than a user prompt, which is exactly what that
+  flag refuses; with it set, every dispatched session hits the refusal halfway
+  through and falls back to improvising against AGENTS.md. Keep the flag off in
+  both the repo copy and the personal one, or a re-sync reintroduces it.
 - **Use the `## Blocked by` convention** in issue bodies. The dispatcher parses
   `- #N` bullets under that exact heading:
 
@@ -165,7 +198,9 @@ rejects an unknown one outright.
 3. **Point at the checkout**: set the repository Actions **variable**
    `PASEO_PROJECT_DIR` to the absolute path of this repo's clone on the Mac
    (Settings → Secrets and variables → Actions → Variables). Sessions spawn
-   worktrees off this clone.
+   worktrees off this clone, and the spawn step fetches it first, so its
+   `origin` must be reachable unattended as the runner's user (an SSH key with
+   no passphrase prompt, or a stored credential helper).
 4. **`gh` and `claude` logged in**: sessions read issues with `gh` and run on
    the Claude CLI's subscription login, so both must be authenticated for the
    account the daemon runs under.

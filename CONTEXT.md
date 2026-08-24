@@ -138,6 +138,27 @@ Three kinds:
   widgets in the editor, and answering one replaces it with plain markdown
   text. Unanswered ones are harmless literal text in Obsidian.
 
+  {{mood}} is answered by a **Mood Rating**: one of five marks, spelled `4/5`
+  so that the scale travels with the number. The line in the file is the whole
+  record — nothing anywhere stores the rating — so the scale is fixed at five
+  and cannot change under entries already written on it. A scale of the user's
+  own naming is `{{scale:Name}}`, which is roadmap rather than v1.
+
+### Answer Format
+The words an answered interactive placeholder is written down as, with a
+`{value}` slot where the answer goes: `{{mood:Woke up feeling {value}}}`
+becomes `Woke up feeling 4/5`. A placeholder written bare carries its own
+default format — `Today's mood: {value}` for {{mood}}, `{value}` for
+{{location}} — so there is one rule rather than a sentence hidden in the app:
+what a token writes is a pattern with the answer in its slot.
+
+The slot is spelled out rather than punctuation because a journal is markdown:
+a bare `*` would read as emphasis half the time it was written. Spaces and
+capitals inside the braces are allowed, as in a placeholder's own name, and
+`\{value}` is the escape. A pattern with no slot cannot say where the answer
+goes, so the token falls back to its default rather than writing words with
+the answer dropped out of them.
+
 Photos are deliberately *not* a placeholder: that day's photos are offered by
 Photo Suggestions and inserted as Attachments where the user chooses.
 

@@ -123,6 +123,11 @@ struct JournalSettingsSheet: View {
                     .font(.footnote)
                     .foregroundStyle(.tertiary)
             }
+            // The whole row and not only the words on it: a plain button is
+            // hit-tested against what it draws, and the middle of this one is
+            // the gap the spacer opened — a finger landing there would be a
+            // finger landing on nothing.
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("openHowItLooks")

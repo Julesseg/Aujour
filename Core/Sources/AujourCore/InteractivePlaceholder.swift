@@ -40,6 +40,26 @@ public enum InteractivePlaceholder: String, CaseIterable, Sendable {
 
     /// The set ``SpawnContext/interactivePlaceholders`` defaults to.
     public static let registeredNames: Set<String> = Set(allCases.map(\.rawValue))
+
+    /// How this placeholder is written down when its token carries no
+    /// `:FORMAT` of its own.
+    ///
+    /// A format like any other, which is the whole trick: `{{mood}}` writing
+    /// "Today's mood: 4/5" and `{{mood:Woke up feeling {value}}}` writing "Woke
+    /// up feeling 4/5" are one rule applied twice, not a sentence in the app
+    /// and a feature beside it. The default is where a placeholder says what it
+    /// means when nobody has worded it — a rating needs its subject and its
+    /// scale spelled out, and a place name is already a sentence's worth of
+    /// words on its own.
+    ///
+    /// A `switch` with no `default:`, so a placeholder registered later does
+    /// not compile until somebody has decided what it says.
+    public var defaultFormat: AnswerFormat {
+        switch self {
+        case .mood: AnswerFormat(unchecked: "Today's mood: {value}")
+        case .location: AnswerFormat(unchecked: "{value}")
+        }
+    }
 }
 
 extension InteractivePlaceholder {
@@ -49,14 +69,37 @@ extension InteractivePlaceholder {
 
         /// The whole token, braces and all, in the source's own UTF-16
         /// offsets — because the whole of it is what a widget stands in front
-        /// of and what an answer takes the place of.
+        /// of and what an answer takes the place of. A token that carries a
+        /// format covers that too: the format is part of the question, and
+        /// goes when the question is answered.
         public let range: NSRange
+
+        /// The `:FORMAT` this token was written with, or `nil` for one written
+        /// bare — and for one whose format has nowhere to put an answer, which
+        /// comes to the same thing (``AnswerFormat/init(_:)``).
+        public let format: AnswerFormat?
 
         /// Made outside Core by the editor, which reads a token's range back
         /// off the drawing standing over it and asks for it to be answered.
-        public init(placeholder: InteractivePlaceholder, range: NSRange) {
+        ///
+        /// The format defaults to none because the editor does not carry one:
+        /// it names *which* question was asked, and how the answer is worded is
+        /// read afresh from the text when it arrives — the same reading that
+        /// checks the token is still there at all.
+        public init(
+            placeholder: InteractivePlaceholder,
+            range: NSRange,
+            format: AnswerFormat? = nil
+        ) {
             self.placeholder = placeholder
             self.range = range
+            self.format = format
+        }
+
+        /// The plain markdown this token becomes, for an answer: the format it
+        /// was written with, or the placeholder's default, filled in.
+        public func written(_ answer: String) -> String {
+            (format ?? placeholder.defaultFormat).filled(with: answer)
         }
     }
 }
@@ -77,11 +120,12 @@ extension EntryMarkdown {
     /// text, and not a token that would be found or missed depending on how
     /// much of the day the editor happened to re-read.
     ///
-    /// Only the bare `{{name}}` shape, with or without spaces inside the
-    /// braces — the same shapes a spawn passes through untouched
-    /// (`InteractivePlaceholderTokenTests`). An offset or a `:FORMAT` belongs
-    /// to {{date}} and {{time}}, which are resolved when the Entry is spawned
-    /// and are never a widget.
+    /// The `{{name}}` and `{{name:FORMAT}}` shapes, with or without spaces
+    /// inside the outer braces — the same shapes a spawn passes through
+    /// untouched
+    /// (`InteractivePlaceholderTokenTests`). A `±Nunit` offset is not one of
+    /// them: it belongs to {{date}} and {{time}}, which are resolved when the
+    /// Entry is spawned and are never a widget.
     ///
     /// - Parameter source: the text this was read from, which is where the
     ///   names are spelled out.
@@ -138,10 +182,17 @@ extension EntryMarkdown {
     /// reformatted, nothing else in the day moves, and there is no record kept
     /// anywhere that this line was once a question.
     ///
-    /// The answer goes in exactly as it was handed over. What a placeholder
-    /// says once it is answered — "Today's mood: 4/5", a place name — is the
-    /// widget's to word, and this is the part that is the same for all of
-    /// them.
+    /// What goes in is the answer worded by the token's own format — the
+    /// `:FORMAT` it was written with, or the placeholder's default. So the
+    /// widget hands over the bare thing the user chose ("4/5", a place name)
+    /// and never a sentence, and the sentence is the file's own business.
+    ///
+    /// Worded here, from the token read back out of the text, rather than by
+    /// the caller from the token it was holding — for the same reason the
+    /// token is read again at all. A sheet is open while the Entry goes on
+    /// living, and a day that arrived from another device while it was up may
+    /// word its questions differently; the answer belongs to the token that is
+    /// there now.
     ///
     /// - Parameters:
     ///   - asked: the token the user was answering, as it was when they were
@@ -167,7 +218,7 @@ extension EntryMarkdown {
         // No opinion about the cursor, for the same reason ticking a box has
         // none: the user was tapping a widget, not writing at it, and a caret
         // that jumped to the answer would leave the sentence they were in.
-        return MarkdownEdit(range: token.range, replacement: answer)
+        return MarkdownEdit(range: token.range, replacement: token.written(answer))
     }
 }
 
@@ -177,6 +228,7 @@ extension InteractivePlaceholder {
     private enum Unit {
         static let openBrace: UInt16 = 0x7B
         static let closeBrace: UInt16 = 0x7D
+        static let colon: UInt16 = 0x3A
     }
 
     /// Reads one `{{name}}` starting at `start`, or `nil` for braces that are
@@ -198,6 +250,23 @@ extension InteractivePlaceholder {
         let name = String(decoding: units[nameStart..<index], as: UTF16.self).lowercased()
 
         index = skippingSpaces(units, from: index, to: end)
+
+        // The format runs to the token's own closing braces, and everything in
+        // between is words: a sentence is where somebody writes a colon or an
+        // apostrophe, and none of it means anything to the scan.
+        var format: AnswerFormat?
+        if index < end, units[index] == Unit.colon {
+            guard
+                let close = PlaceholderSyntax.closingBraces(
+                    in: units[(index + 1)..<end],
+                    open: Unit.openBrace,
+                    close: Unit.closeBrace
+                )
+            else { return nil }
+            format = AnswerFormat(String(decoding: units[(index + 1)..<close], as: UTF16.self))
+            index = close
+        }
+
         guard index + 1 < end,
             units[index] == Unit.closeBrace, units[index + 1] == Unit.closeBrace,
             // Registered or not is the whole of what makes a token a widget:
@@ -206,7 +275,9 @@ extension InteractivePlaceholder {
             let placeholder = InteractivePlaceholder(rawValue: name)
         else { return nil }
 
-        return Token(placeholder: placeholder, range: NSRange(start..<(index + 2)))
+        return Token(
+            placeholder: placeholder, range: NSRange(start..<(index + 2)), format: format
+        )
     }
 
     /// One UTF-16 unit as the shared rules read it, or `nil` for half of a
@@ -279,5 +350,41 @@ enum PlaceholderSyntax {
     /// The whitespace allowed inside the braces, as in `{{ date }}`.
     static func isSpace(_ character: Character) -> Bool {
         character.isWhitespace
+    }
+
+    /// Where a token's closing `}}` is, counting from just after the `:` that
+    /// opened its format — or `nil` for a format nothing closes.
+    ///
+    /// The third thing both readers have to agree about, and the one that only
+    /// matters once a format can hold braces of its own: `{{mood:Woke up
+    /// feeling {value}}}` ends in three of them, and the first two are the
+    /// slot's, not the token's. So braces the format opened are counted and
+    /// closed, and the `}}` that ends the token is the first pair outside them.
+    ///
+    /// Generic over the units because the two readers walk different ones —
+    /// ``ContentTemplate`` characters, the editor's scan UTF-16 — which is the
+    /// same reason this is here rather than written out twice.
+    static func closingBraces<Units: Collection>(
+        in units: Units,
+        open: Units.Element,
+        close: Units.Element
+    ) -> Units.Index? where Units.Element: Equatable {
+        var depth = 0
+        var cursor = units.startIndex
+
+        while cursor < units.endIndex {
+            let next = units.index(after: cursor)
+            if units[cursor] == open {
+                depth += 1
+            } else if units[cursor] == close {
+                if depth > 0 {
+                    depth -= 1
+                } else if next < units.endIndex, units[next] == close {
+                    return cursor
+                }
+            }
+            cursor = next
+        }
+        return nil
     }
 }

@@ -16,8 +16,10 @@ import Foundation
 ///   any other name Aujour cannot answer.
 /// - **Interactive placeholders** — the names in
 ///   ``SpawnContext/interactivePlaceholders`` pass through as the literal text
-///   the user wrote. The editor owns them from there; until one is answered it
-///   is harmless literal text in Obsidian too.
+///   the user wrote, `{{mood}}` and `{{mood:FORMAT}}` alike. The editor owns
+///   them from there; until one is answered it is harmless literal text in
+///   Obsidian too. An offset is the one shape that does not pass through,
+///   because it is not one the editor will ever stand a widget over.
 /// - **Anything else** renders empty, per the v1 decision that an unrecognised
 ///   placeholder leaves no debris in the file.
 ///
@@ -190,7 +192,12 @@ extension SpawnContext {
             return title
         case "date", "time":
             return renderShifted(placeholder)
-        case let name where interactivePlaceholders.contains(name):
+        // A name the user answers passes through as the literal text they
+        // wrote, format and all — but only in the shapes the editor will find
+        // again, which is what keeps a token that survives the spawn from being
+        // one no widget ever stands over. An offset is not one of them.
+        case let name
+        where interactivePlaceholders.contains(name) && placeholder.offset == nil:
             return placeholder.raw
         default:
             // A data placeholder renders what the day's data made of it, and
@@ -384,12 +391,10 @@ extension ContentTemplate {
         )
     }
 
+    /// Shared with the editor's own scan, so a token the spawn passes through
+    /// is one the editor closes in the same place — which is what keeps a
+    /// format holding braces of its own (`{value}`) readable by both.
     private static func closingBraces(_ characters: [Character], from index: Int) -> Int? {
-        var cursor = index
-        while cursor + 1 < characters.count {
-            if characters[cursor] == "}", characters[cursor + 1] == "}" { return cursor }
-            cursor += 1
-        }
-        return nil
+        PlaceholderSyntax.closingBraces(in: characters[index...], open: "{", close: "}")
     }
 }

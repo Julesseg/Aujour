@@ -101,56 +101,65 @@ struct PlaceholderAnswerSheet: View {
 
     @ViewBuilder private var answering: some View {
         switch question.placeholder {
-        // The rating widget is #26's. Until it lands, mood is answered in
-        // words — which is also what any placeholder registered later is
-        // answered in until somebody draws it something better, because a
-        // widget nobody has designed yet is a question that can still be
-        // answered rather than one that does nothing.
-        case .mood: PlaceholderAnsweredInWords(question: question)
+        // Both of v1's placeholders are drawn their own way. There is no
+        // fallback arm and no `default:`, so a placeholder registered later
+        // does not compile until somebody has decided what answering it looks
+        // like — which is the one thing no amount of reading the text can say.
+        case .mood: MoodAnsweredByRating(question: question)
         case .location: PlaceholderAnsweredWithAPlace(question: question, from: places)
         }
     }
 }
 
-/// Answering a placeholder by typing the answer.
+/// Answering {{mood}} by rating the day.
 ///
-/// What goes in the file is what was typed and nothing around it: the token is
-/// replaced by plain markdown, so the line reads afterwards as a line somebody
-/// wrote, and every other tool sees exactly that.
-private struct PlaceholderAnsweredInWords: View {
+/// One tap and the question is gone. The marks are the whole of the form —
+/// there is no second field to fill and nothing to check over — so a
+/// confirmation button would be a press that could only ever repeat the one
+/// before it. That is the same bargain a task's box makes, and it is undone the
+/// same way: the answer is an edit in the Entry's own undo stack, so a mark
+/// pressed by mistake is taken back the way a line typed by mistake is.
+///
+/// What each mark writes is ``AujourCore/MoodRating``'s, and it lives in Core
+/// rather than here because the sentence outlives the sheet: what a tap leaves
+/// behind is a line of the user's journal, read afterwards by everything that
+/// has never heard of this screen (ADR 0001).
+private struct MoodAnsweredByRating: View {
     let question: PlaceholderQuestion
 
-    @State private var answer = ""
-    @FocusState private var writing: Bool
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        Form {
-            // One line, not a paragraph: a return in the middle of an answer
-            // would break the line the token stands on in two.
-            TextField(question.placeholder.title, text: $answer)
-                .focused($writing)
-                .submitLabel(.done)
-                .onSubmit(answerIt)
-                .accessibilityIdentifier("placeholderAnswerField")
-        }
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Add", action: answerIt)
-                    .disabled(nothingTyped)
-                    .accessibilityIdentifier("answerPlaceholder")
+        VStack(spacing: 24) {
+            Text("How was the day?")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 12) {
+                ForEach(MoodRating.all, id: \.value) { rating in
+                    Button { answer(rating) } label: {
+                        Image(systemName: "\(rating.value).circle.fill")
+                            .font(.system(size: 44))
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .buttonStyle(.plain)
+                    // The marks are numbers on screen and numbers to
+                    // VoiceOver, because the sentence they write is one:
+                    // nothing here claims to know what a 4 felt like.
+                    .accessibilityLabel(
+                        "\(rating.value) out of \(MoodRating.scale.upperBound)"
+                    )
+                    .accessibilityIdentifier("moodRating\(rating.value)")
+                }
             }
+            .foregroundStyle(.tint)
         }
-        .onAppear { writing = true }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
     }
 
-    private var nothingTyped: Bool {
-        answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private func answerIt() {
-        guard !nothingTyped else { return }
-        question.answered(answer.trimmingCharacters(in: .whitespacesAndNewlines))
+    private func answer(_ rating: MoodRating) {
+        question.answered(rating.answer)
         dismiss()
     }
 }

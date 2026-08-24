@@ -150,7 +150,15 @@ struct ContentView: View {
                 // The last chance to write: there is no next second to save in
                 // once the app is out of the way, and the debounce the editor
                 // is holding would be spent in it.
-                Task { await journal.today?.save() }
+                //
+                // And then the reminder, in that order and never the other
+                // way: whether today still needs asking about is decided by
+                // whether today's Entry is a file, and the words that would
+                // make it one are the ones being saved here.
+                Task {
+                    await journal.today?.save()
+                    await journal.reconsiderTheDailyReminder()
+                }
             case .active:
                 // What coming back to the front means for a journal that is
                 // files in a folder — a new day, and a folder that moved on
@@ -308,19 +316,19 @@ struct StorageProblemNotice: View {
 // Previews journal into a scratch folder rather than into whatever this Mac's
 // iCloud Drive holds, so each one shows the state it is named after.
 #Preview("Journaling into iCloud Drive") {
-    ContentView(journal: Journal(locator: .preview(.iCloudDrive), settings: .inMemory()))
+    ContentView(journal: Journal.inAPreview(over: .preview(.iCloudDrive)))
 }
 
 #Preview("Journaling on the device") {
-    ContentView(journal: Journal(locator: .preview(.onThisDevice), settings: .inMemory()))
+    ContentView(journal: Journal.inAPreview(over: .preview(.onThisDevice)))
 }
 
 #Preview("Journaling into a folder of the user's own") {
-    ContentView(journal: Journal(locator: .previewCustomFolder, settings: .inMemory()))
+    ContentView(journal: Journal.inAPreview(over: .previewCustomFolder))
 }
 
 #Preview("Nowhere to journal") {
-    ContentView(journal: Journal(locator: .preview(nil), settings: .inMemory()))
+    ContentView(journal: Journal.inAPreview(over: .preview(nil)))
 }
 
 extension JournalRootLocator {

@@ -169,6 +169,24 @@ final class Journal {
     /// unless a test is standing in for it.
     private let versions: any EntryVersions
 
+    /// The settings that belong to this device alone — the theme, the editor's
+    /// font, and the time of the daily reminder (ADR 0003).
+    ///
+    /// Made once for the whole install and handed out rather than made by
+    /// whoever needs one: two stores over the same `UserDefaults` would each
+    /// write settings the other never hears about, and the appearance is read
+    /// through this one too.
+    let deviceSettings: DeviceSettingsStore
+
+    /// One gentle nudge a day, at a time the user chose — and none on a day
+    /// whose Entry is already in the folder.
+    ///
+    /// Here rather than beside the screen that sets it, because what it has to
+    /// decide is a question about the journal: which day is current under this
+    /// Rollover Hour, and whether that day's Entry file exists. Everything
+    /// below that reopens or re-reads the folder tells it so.
+    let dailyReminder: DailyReminder
+
     /// How a day written twice is settled, over the open folder.
     private var parking: DivergenceParking?
 
@@ -208,6 +226,14 @@ final class Journal {
     ///   - places: where the `{{location}}` widget reads the place from. The
     ///     device's own, unless a test says otherwise — and for the same
     ///     reason as the library.
+    ///   - deviceSettings: the settings that stay on this device — the theme,
+    ///     the editor's font and the daily reminder's time. One per install,
+    ///     and handed in rather than made here so that everything reading them
+    ///     reads the same one.
+    ///   - nudges: where the daily reminder is booked — the device's
+    ///     notification centre, unless a test says otherwise, since a
+    ///     permission alert from another process is not something a UI test
+    ///     can answer.
     init(
         locator: JournalRootLocator = .system,
         settings: JournalSettingsStore? = nil,
@@ -215,12 +241,17 @@ final class Journal {
         versions: any EntryVersions = ICloudVersions(),
         dayData: DayData = EventKitDayData().dayData,
         photoLibrary: any PhotoLibrary = PhotoKitLibrary(),
-        places: any Places = CoreLocationPlaces()
+        places: any Places = CoreLocationPlaces(),
+        deviceSettings: DeviceSettingsStore? = nil,
+        nudges: any Nudges = DeviceNudges()
     ) {
         // Made here rather than as a default argument: the store it is over
         // reads iCloud, which is main-actor work, and a default argument is
         // evaluated wherever the caller happens to be.
         let settings = settings ?? JournalSettingsStore(syncedThrough: SyncedSettingsStorage())
+        // For the same reason: `UserDefaults` is read on the main actor.
+        let deviceSettings =
+            deviceSettings ?? DeviceSettingsStore(storedOn: LocalSettingsStorage())
         self.locator = locator
         self.settingsStore = settings
         self.templateElsewhere = templateElsewhere
@@ -228,6 +259,8 @@ final class Journal {
         self.dayData = dayData
         self.photoLibrary = photoLibrary
         self.places = places
+        self.deviceSettings = deviceSettings
+        self.dailyReminder = DailyReminder(settings: deviceSettings, nudges: nudges)
 
         // A Path Template changed on the iPad reshapes what an Entry is here
         // too (ADR 0002), and so does one changed on this device — which is
@@ -312,6 +345,13 @@ final class Journal {
             parking = nil
             state = .unavailable(StorageProblem(error))
         }
+        // After both outcomes, because both are news to it: a folder that
+        // opened is one it can ask which days are written, and a folder that
+        // did not is one where the reminder still has to be booked for the
+        // days it knows nothing about. A Rollover Hour or a Path Template
+        // changed anywhere reaches here too — every settings change reopens
+        // the journal, and both of those decide which day a nudge is about.
+        await reconsiderTheDailyReminder()
     }
 
     /// The way in to a day that already has a file — what a search result is
@@ -377,6 +417,9 @@ final class Journal {
         if let today { await settleAnyDivergence(before: today) }
         await today?.reloadIfClean()
         await calendar?.scan()
+        // A day written in Obsidian on the other side of the split, or arriving
+        // from the iPad, is a day with no reason left to be asked about.
+        await reconsiderTheDailyReminder()
     }
 
     /// Settles the day this editor is over if two devices wrote it, and
@@ -463,6 +506,36 @@ final class Journal {
         keepingUpWithTheFolder = nil
         folder?.stopWatching()
         folder = nil
+    }
+
+    // MARK: - The daily reminder
+
+    /// Sets the time to be nudged at, or turns the reminder off with `nil`, and
+    /// leaves the device holding what should be pending afterwards.
+    ///
+    /// The two together, because they are one thing the user asked for: a time
+    /// chosen and nothing booked is a reminder that would not arrive until the
+    /// next launch, and a reminder turned off that is still pending is the one
+    /// failure this setting must not have.
+    func remindMeDaily(at time: TimeOfDay?) async {
+        await dailyReminder.remind(at: time)
+        await reconsiderTheDailyReminder()
+    }
+
+    /// Works out what the reminder should have pending and books exactly that.
+    ///
+    /// Called from every direction that can have changed the answer: the
+    /// journal opening or reopening, the folder changing underneath, the app
+    /// coming back to the front, and the app going away — which is the moment
+    /// today's words have just been written, and so the moment today's nudge
+    /// stops being worth sending.
+    ///
+    /// It is the Journal that knows all of them, which is why the reminder is
+    /// held here: what it has to decide is a question about a folder — which
+    /// day is current under this Rollover Hour, and whether that day's Entry
+    /// file exists — even though the time it asks at never leaves this device.
+    func reconsiderTheDailyReminder() async {
+        await dailyReminder.reconsider(over: store, journal: settings)
     }
 
     /// Whether the Journal is pointed at a folder the user picked.
@@ -864,6 +937,26 @@ extension JournalSettingsStore {
     /// change theirs.
     static func inMemory() -> JournalSettingsStore {
         JournalSettingsStore(syncedThrough: InMemorySyncedKeyValueStore())
+    }
+}
+
+extension Journal {
+    /// A Journal for a preview: settings, device settings and a notification
+    /// centre that all live and die with the canvas.
+    ///
+    /// All three in one place because a preview reaches all three — opening a
+    /// journal reads the settings, spawns today and books the daily reminder —
+    /// and the machine drawing the canvas has an Aujour of its own. A preview
+    /// that read `UserDefaults` would be showing somebody's real Path Template
+    /// and their real reminder, and one that booked a nudge would go on
+    /// delivering it after the canvas was closed.
+    static func inAPreview(over locator: JournalRootLocator) -> Journal {
+        Journal(
+            locator: locator,
+            settings: .inMemory(),
+            deviceSettings: DeviceSettingsStore(storedOn: InMemoryLocalKeyValueStore()),
+            nudges: ADeviceThatIsNeverRung()
+        )
     }
 }
 

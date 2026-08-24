@@ -252,7 +252,7 @@ private struct IndicatorsProblemNotice: View {
                     )
                 )
             ),
-            journal: Journal(locator: .preview(.onThisDevice), settings: .inMemory())
+            journal: Journal.inAPreview(over: .preview(.onThisDevice))
         )
     }
 }
@@ -261,7 +261,7 @@ private struct IndicatorsProblemNotice: View {
     NavigationStack {
         JournalCalendarView(
             calendar: JournalCalendar(store: InMemoryJournalStore()),
-            journal: Journal(locator: .preview(.onThisDevice), settings: .inMemory())
+            journal: Journal.inAPreview(over: .preview(.onThisDevice))
         )
     }
 }

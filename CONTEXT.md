@@ -426,3 +426,25 @@ The settings that belong to one device: theme, editor font, and the time of
 the daily reminder. Nothing here shapes what is written into the Journal, so
 a dark-themed iPhone and a light-themed iPad are not in disagreement. Device
 Settings stay on the device that set them and never reach the synced seam.
+
+### Daily Reminder
+One notification a day, at a time the user chose — and the only thing Aujour
+ever puts in front of somebody who is not looking at it. Off until a time is
+chosen, so a fresh install has never nudged anybody who did not ask it to,
+and a Device Setting: a phone that buzzes at nine and an iPad that never does
+are not in disagreement about anything.
+
+Skipped, silently, on a day whose Entry file already exists — Rollover Hour
+respected, so the day a nudge is about is the day answering it would write,
+and a nudge arriving at 1 AM under a 4 AM rollover asks after yesterday's
+date. A notification saying "you have already done this" is the nagging the
+reminder exists not to be, so the skip is a nudge that is not there rather
+than one with different words.
+
+What is pending is a week of them rather than the next one, because the days
+worth asking about are exactly the days the app was not opened, and a single
+pending nudge would go quiet after the first one nobody answered. The whole
+week is worked out afresh whenever Aujour learns something — a launch, a day
+written, a folder that changed underneath — and booked as a replacement for
+whatever was pending, which is what leaves no room for a notification of any
+other kind.

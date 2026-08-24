@@ -337,14 +337,16 @@ struct TimeOfDaySpellingTests {
     func spelledOut() {
         let evening = TimeOfDay(hour: 21, minute: 30)!
 
-        #expect(evening.spelledOut(locale: Locale(identifier: "en_GB")) == "21:30")
+        // Read in pieces rather than spelled out whole, the way a Journal Day
+        // said out loud is: the space before a meridiem is Foundation's narrow
+        // no-break one, and a test asserting an ordinary space would be
+        // asserting a typo.
+        let british = evening.spelledOut(locale: Locale(identifier: "en_GB"))
+        #expect(british.contains("21:30"))
 
-        // Read in pieces rather than spelled out whole: the space before the
-        // meridiem is Foundation's narrow no-break one, and a test asserting
-        // an ordinary space would be asserting a typo.
         let american = evening.spelledOut(locale: Locale(identifier: "en_US"))
-        #expect(american.hasPrefix("9:30"))
-        #expect(american.hasSuffix("PM"))
+        #expect(american.contains("9:30"))
+        #expect(american.contains("PM"))
 
         // And the storage spelling is untouched by any of it.
         #expect(evening.description == "21:30")

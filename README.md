@@ -251,8 +251,13 @@ both stay green.
    | --- | --- |
    | `PASEO_PROJECT_DIR` | Absolute path of this repo's clone on the runner Mac; agent sessions spawn git worktrees off it |
 
-   Three more are optional: `PASEO_MODEL`, `PASEO_THINKING`, and `PASEO_MODE`
-   override the pinned defaults (Opus 5, high effort, bypass mode).
+   The clone needs to be able to `git fetch origin` unattended as the runner's
+   user — the spawn step refreshes it so each session branches off the current
+   `origin/main` rather than the clone's own stale `main`.
+
+   Four more are optional: `PASEO_MODEL`, `PASEO_THINKING`, `PASEO_MODE`, and
+   `PASEO_BASE` override the pinned defaults (Opus 5, high effort, bypass mode,
+   `origin/main`).
 
 Full walkthrough, scope rules, the in-flight cap, and the optional variables:
 [`docs/agents/auto-dispatch.md`](docs/agents/auto-dispatch.md).

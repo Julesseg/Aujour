@@ -274,6 +274,28 @@ which is how one is answered by typing over it.
 Adding a placeholder is registering it: the machinery is by name, and what is
 left is the pill's word and what answering it asks.
 
+### Place
+Somewhere the device can name: what a `{{location}}` Widget offers, and — once
+it is confirmed — the plain text that stands where the token did. A name and,
+in the picker only, enough of an address to tell it from the other place of
+the same name two streets over. Never a coordinate: nobody writes one in their
+journal.
+
+The device answers with two kinds at once — the named places around it,
+nearest first and each with how far off it is, and the area they all sit in.
+Which of them the Widget leads with is the one judgement here: the named place
+leads only when it is close enough to be where somebody *is*, and otherwise
+the area does, because a specific place that is merely nearby is a wrong
+answer somebody would confirm with one tap. Vague and right beats specific and
+wrong. Everything found is in the picker either way, and how far off anything
+was goes no further than that decision.
+
+The place is *offered*, never assumed. A device nobody has been asked about is
+offered to be looked at; a device that will not say, or that was refused, is a
+widget with nothing under it and a field the place is typed into instead. None
+of those is a failure and none is said out loud — the question in front of the
+user is where they were, and they already know the answer.
+
 ### Accessory Row
 The formatting bar above the keyboard: headings, bold and italic, lists,
 checkboxes, indenting, and a photograph. On screen exactly while an Entry is

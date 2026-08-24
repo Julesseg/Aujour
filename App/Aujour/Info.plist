@@ -8,8 +8,8 @@
 	     they cannot see — together they are what "the files are the journal"
 	     (ADR 0001) looks like from the Files app — and, at the end, the
 	     sentences the system says on Aujour's behalf when a Content Template
-	     asks for the day's calendar and when the panel asks for the day's
-	     photographs.
+	     asks for the day's calendar, when the panel asks for the day's
+	     photographs, and when a {{location}} widget asks where the device is.
 
 	     The pair below publishes the app's own Documents folder under "On My
 	     iPhone", which is where a journal starts when iCloud Drive is off
@@ -71,5 +71,16 @@
 	     costs the panel and nothing more. -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Aujour offers you the photos from the day you're writing about, so adding one is a single tap. Your library is only ever read, and a photo goes nowhere but the journal folder on your device when you choose it.</string>
+
+	<!-- And what it says when somebody taps a {{location}} widget and asks
+	     Aujour to find the place they are in. Here rather than as a build
+	     setting for the same reason as the ones above.
+
+	     When in use, and only ever once per question: the widget asks because
+	     a finger landed on it and somebody is looking at the answer. There is
+	     nothing Aujour would do with a location in the background, and saying
+	     no costs the offer and nothing else — the place is typed instead. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Aujour offers the place you're in when you tap a {{location}} widget, so you don't have to type it. It's only ever asked for while you're looking at the answer, and the place goes nowhere but the markdown file for that day.</string>
 </dict>
 </plist>

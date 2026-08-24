@@ -63,7 +63,21 @@ struct PlaceholderQuestion: Identifiable {
 struct PlaceholderAnswerSheet: View {
     let question: PlaceholderQuestion
 
+    /// Where the device says it is, for the one placeholder that asks — the
+    /// device's own, unless a test or a preview says otherwise.
+    ///
+    /// Handed to the sheet rather than reached for inside it, like every other
+    /// seam in the app: a UI test may not have the device's, and a widget that
+    /// went looking for one itself would put a system alert in the middle of
+    /// one.
+    let places: (any Places)?
+
     @Environment(\.dismiss) private var dismiss
+
+    init(question: PlaceholderQuestion, from places: (any Places)? = nil) {
+        self.question = question
+        self.places = places
+    }
 
     var body: some View {
         NavigationStack {
@@ -77,19 +91,22 @@ struct PlaceholderAnswerSheet: View {
                     }
                 }
         }
-        .presentationDetents([.medium])
+        // Half the screen to begin with, and draggable to all of it: the
+        // place widget's list of somewhere-you-might-be is longer than a
+        // rating is, and a sheet that could only ever be half is one nobody
+        // can read the bottom of.
+        .presentationDetents([.medium, .large])
         .accessibilityIdentifier("placeholderAnswer")
     }
 
     @ViewBuilder private var answering: some View {
         switch question.placeholder {
+        // Both of v1's placeholders are drawn their own way. There is no
+        // fallback arm and no `default:`, so a placeholder registered later
+        // does not compile until somebody has decided what answering it looks
+        // like — which is the one thing no amount of reading the text can say.
         case .mood: MoodAnsweredByRating(question: question)
-        // The place picker is #27's. Until it lands {{location}} is answered
-        // in words, which is also what any placeholder registered later is
-        // answered in until somebody draws it something better — a widget
-        // nobody has designed yet is a question that can still be answered,
-        // not one that does nothing.
-        case .location: PlaceholderAnsweredInWords(question: question)
+        case .location: PlaceholderAnsweredWithAPlace(question: question, from: places)
         }
     }
 }
@@ -143,49 +160,6 @@ private struct MoodAnsweredByRating: View {
 
     private func answer(_ rating: MoodRating) {
         question.answered(rating.answer)
-        dismiss()
-    }
-}
-
-/// Answering a placeholder by typing the answer.
-///
-/// What goes in the file is what was typed and nothing around it: the token is
-/// replaced by plain markdown, so the line reads afterwards as a line somebody
-/// wrote, and every other tool sees exactly that.
-private struct PlaceholderAnsweredInWords: View {
-    let question: PlaceholderQuestion
-
-    @State private var answer = ""
-    @FocusState private var writing: Bool
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        Form {
-            // One line, not a paragraph: a return in the middle of an answer
-            // would break the line the token stands on in two.
-            TextField(question.placeholder.title, text: $answer)
-                .focused($writing)
-                .submitLabel(.done)
-                .onSubmit(answerIt)
-                .accessibilityIdentifier("placeholderAnswerField")
-        }
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Add", action: answerIt)
-                    .disabled(nothingTyped)
-                    .accessibilityIdentifier("answerPlaceholder")
-            }
-        }
-        .onAppear { writing = true }
-    }
-
-    private var nothingTyped: Bool {
-        answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private func answerIt() {
-        guard !nothingTyped else { return }
-        question.answered(answer.trimmingCharacters(in: .whitespacesAndNewlines))
         dismiss()
     }
 }

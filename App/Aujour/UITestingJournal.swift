@@ -32,6 +32,11 @@ import AujourCore
 ///   in the suite can answer. So the test says which days the camera has
 ///   something from, and everything after that — which of them belong to the
 ///   day on screen, the panel, the tap — is the app's own code.
+/// - **A place to be.** The `{{location}}` widget reads where the device is,
+///   which in a simulator is a coordinate somebody set in a menu and behind a
+///   system alert nothing in the suite can answer. So the test says which
+///   places are around, and everything after that — the offer, the picker,
+///   the answer written into the file — is the app's own code.
 /// - **A day two devices wrote.** An unresolved iCloud conflict takes two
 ///   devices, a sync and a moment of bad luck; there is no making one in a
 ///   simulator, and no waiting for one either. So the suite says what iCloud
@@ -62,6 +67,24 @@ enum UITestingJournal {
     /// Read for whichever day is spawned, so a backfill gets them too.
     static let eventsKey = "AUJOUR_UITEST_EVENTS"
     static let remindersKey = "AUJOUR_UITEST_REMINDERS"
+
+    /// The places around the device, one per line as `Name` — or
+    /// `Name | Region` for one whose row says where it is. In the order they
+    /// are offered, which is nearest first: the widget offers the first and
+    /// the rest are what tapping to change is for.
+    static let placesKey = "AUJOUR_UITEST_PLACES"
+
+    /// Where the location permission stands before the test starts, and what
+    /// the user says if they are asked — `allowed`, which is the default and
+    /// what leaves every other test free of it; `undecided` for somebody who
+    /// says yes to the offer to look; `refuses` for somebody who says no to
+    /// it; and `refused` for somebody who said no some launch ago.
+    ///
+    /// There is no reaching CoreLocation from a UI test: it would be a system
+    /// alert in the middle of one, and a simulator is nowhere. So this stands
+    /// in, and everything after the answer — the offer, the picker, the
+    /// answer — is the app's own code.
+    static let placesAccessKey = "AUJOUR_UITEST_PLACES_ACCESS"
 
     /// The name of a folder for "Use a custom folder…" to pick, in place of
     /// the Files picker.
@@ -170,7 +193,8 @@ enum UITestingJournal {
                 )
             } ?? ICloudVersions(),
             dayData: dayData(from: environment),
-            photoLibrary: ALibrarySeededByATest(environment)
+            photoLibrary: ALibrarySeededByATest(environment),
+            places: PlacesSeededByATest(environment)
         )
     }
 
@@ -454,6 +478,84 @@ private final class ALibrarySeededByATest: PhotoLibrary, @unchecked Sendable {
             components.minute = clock.count == 2 ? clock[1] : 0
             return calendar.date(from: components)
         }
+    }
+}
+
+/// The places around the device, said at launch instead of found.
+///
+/// Always built, even when the test seeded nothing — what a UI test must not
+/// have is the *device's* location, and nowhere of its own is how the widget
+/// offers nothing without anybody being asked for a permission.
+///
+/// A class, and unchecked, because being asked has to stick: a device that
+/// forgot it had been allowed would offer to look all over again the next time
+/// a widget was tapped.
+private final class PlacesSeededByATest: Places, @unchecked Sendable {
+    private let around: Surroundings
+    private let permission = NSLock()
+    private var standing: PlaceAccess
+
+    /// What the user says when the alert that is not there comes up.
+    private let whenAsked: PlaceAccess
+
+    init(_ environment: [String: String]) {
+        self.around = Self.surroundings(environment[UITestingJournal.placesKey])
+        let seeded = environment[UITestingJournal.placesAccessKey]
+        self.standing =
+            switch seeded {
+            case "undecided", "refuses": .undecided
+            case "refused": .refused
+            default: .allowed
+            }
+        self.whenAsked = seeded == "refuses" ? .refused : .allowed
+    }
+
+    var access: PlaceAccess {
+        permission.withLock { standing }
+    }
+
+    /// What the user says, seeded — there is no system alert here to tap, and
+    /// there is deliberately none: it belongs to another process, and driving
+    /// it would make every test of this widget a test of that alert.
+    func ask() async -> PlaceAccess {
+        permission.withLock {
+            if standing == .undecided { standing = whenAsked }
+            return standing
+        }
+    }
+
+    func around() async -> Surroundings {
+        guard access == .allowed else { return Surroundings() }
+        return around
+    }
+
+    /// `Café de Flore`, or `Café de Flore | Paris` for one whose row says
+    /// where it is. In the order they were written, which is the order they
+    /// are offered in.
+    ///
+    /// All of them named places the device is standing in, and no area at all:
+    /// which of the two leads the offer is
+    /// `AujourCore.Surroundings.toOffer`'s, decided in metres and tested
+    /// there. What a seeded launch is for is everything after that — the
+    /// sheet, the picker, the answer reaching the file.
+    private static func surroundings(_ seeded: String?) -> Surroundings {
+        Surroundings(
+            named: (seeded ?? "").split(whereSeparator: \.isNewline).enumerated()
+                .compactMap { at, line in
+                    let said = line.split(separator: "|", maxSplits: 1).map {
+                        $0.trimmingCharacters(in: .whitespaces)
+                    }
+                    guard let name = said.first, !name.isEmpty else { return nil }
+                    return NearbyPlace(
+                        place: Place(
+                            id: "seeded-\(at)",
+                            name: name,
+                            region: said.count > 1 && !said[1].isEmpty ? said[1] : nil
+                        ),
+                        metresAway: 0
+                    )
+                }
+        )
     }
 }
 

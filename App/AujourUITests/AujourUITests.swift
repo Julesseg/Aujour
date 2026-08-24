@@ -622,23 +622,164 @@ final class AujourUITests: XCTestCase {
         app.buttons["cancelPlaceholder"].tap()
         expect(reopened, toHaveValue: elsewhere)
 
-        // And answering it in words writes those words and nothing around
-        // them. {{location}} is answered by typing until the place picker
-        // lands, and a placeholder nobody has drawn a widget for is answered
-        // this way for as long as that is true — so this is the path that has
-        // to keep working, whatever any one placeholder grows into.
-        reopened.coordinate(withNormalizedOffset: .zero)
+    }
+
+    /// The `{{location}}` widget's own half: the device is asked where it is,
+    /// the place it names is what the widget offers, and a different one is a
+    /// tap away in the list under it.
+    ///
+    /// Which places those are, and when there are none to offer, is decided in
+    /// Core and tested there against places that are said rather than found.
+    /// What only a running app can show is the round trip through the file:
+    /// the offer confirmed with one tap, a different place chosen from the
+    /// picker, and both landing in the day as plain markdown that nothing
+    /// remembers was ever a question.
+    func testTheLocationWidgetOffersAPlaceAndAPickerForADifferentOne() throws {
+        let app = launchApp(
+            contentTemplate: "{{location}}\n{{location}}\n",
+            places: "Cafe de Flore | Boulevard Saint-Germain\nLes Deux Magots | Place Saint-Germain",
+            placesAccess: "allowed"
+        )
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        XCTAssertEqual(editor.value as? String, "{{location}}\n{{location}}\n")
+
+        // The second line's widget first, and the first line's after — because
+        // answering one takes a widget's height out of the line it stood on,
+        // and everything below it moves up. Widgets are drawings rather than
+        // views, aimed at by coordinate like every other one, so the way to
+        // tap two of them is bottom up.
+        editor.coordinate(withNormalizedOffset: .zero)
             .withOffset(CGVector(dx: 24, dy: 45))
             .tap()
-        let inWords = app.textFields["placeholderAnswerField"]
-        XCTAssertTrue(inWords.waitForExistence(timeout: 10), "the widget never asked again")
-        inWords.typeText("the long way home")
+
+        // Changed rather than confirmed: the picker is the places around, and
+        // tapping one puts it where the offer was.
+        let different = app.buttons["nearbyPlace.Les Deux Magots"]
+        XCTAssertTrue(
+            different.waitForExistence(timeout: 10),
+            "the picker never offered a different place"
+        )
+        different.tap()
+        expect(app.textFields["placeholderAnswerField"], toHaveValue: "Les Deux Magots")
+        app.buttons["answerPlaceholder"].tap()
+        expect(editor, toHaveValue: "{{location}}\nLes Deux Magots\n")
+
+        // And the one above it is simply confirmed: the widget asked the
+        // device where it was, and the nearest place it named is already in
+        // the field.
+        editor.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 24, dy: 23))
+            .tap()
+
+        let answer = app.textFields["placeholderAnswerField"]
+        XCTAssertTrue(answer.waitForExistence(timeout: 10), "the widget never asked anything")
+        expect(answer, toHaveValue: "Cafe de Flore")
         app.buttons["answerPlaceholder"].tap()
 
-        expect(
-            reopened,
-            toHaveValue: "Today's mood: 4/5\nthe long way home\n\nWrote this in Obsidian.\n"
+        // Plain place text, both of them, in a file every other tool reads as
+        // two lines somebody typed.
+        expect(editor, toHaveValue: "Cafe de Flore\nLes Deux Magots\n")
+    }
+
+    /// Opening the sheet asks the device nothing.
+    ///
+    /// A `{{location}}` token in somebody's template must not mean a system
+    /// permission alert the first time they tap a word in their own sentence.
+    /// So the sheet offers to look, the looking happens because they said to,
+    /// and only then is there a place in the field.
+    func testTheLocationWidgetOffersToLookBeforeItAsksAnything() throws {
+        let app = launchApp(
+            contentTemplate: "{{location}}\n",
+            places: "Cafe de Flore | Boulevard Saint-Germain",
+            placesAccess: "undecided"
         )
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        editor.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 24, dy: 23))
+            .tap()
+
+        // Nothing found and nothing offered: the device has not been asked.
+        let look = app.buttons["findMyPlace"]
+        XCTAssertTrue(look.waitForExistence(timeout: 10), "the widget never offered to look")
+        XCTAssertNotEqual(
+            app.textFields["placeholderAnswerField"].value as? String,
+            "Cafe de Flore",
+            "a place was offered before anybody was asked for the permission"
+        )
+
+        // And now they said to look.
+        look.tap()
+        expect(app.textFields["placeholderAnswerField"], toHaveValue: "Cafe de Flore")
+        app.buttons["answerPlaceholder"].tap()
+
+        expect(editor, toHaveValue: "Cafe de Flore\n")
+    }
+
+    /// A device that will not say where it is costs the offer and nothing
+    /// else.
+    ///
+    /// The acceptance criterion, and the thing a permission-shaped feature
+    /// most often gets wrong: no crash, no alert, no notice in front of
+    /// somebody who is writing — and above all, a question that is still
+    /// answerable. The token stays exactly where it stood until they answer
+    /// it, and typing the place is how they do.
+    func testALocationWidgetOnADeviceThatWillNotSayIsStillAnswered() throws {
+        let app = launchApp(
+            contentTemplate: "{{location}}\n",
+            // Places to offer, and a refusal that means none of them is.
+            places: "Cafe de Flore | Boulevard Saint-Germain",
+            placesAccess: "refused"
+        )
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        XCTAssertEqual(editor.value as? String, "{{location}}\n")
+
+        editor.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 24, dy: 23))
+            .tap()
+
+        let answer = app.textFields["placeholderAnswerField"]
+        XCTAssertTrue(answer.waitForExistence(timeout: 10), "the widget never asked anything")
+        // Nothing offered, and nothing asked for either: somebody who said no
+        // is not asked again by a widget. Said as "not the seeded place"
+        // rather than "empty", because an empty field answers with its own
+        // prompt.
+        XCTAssertNotEqual(answer.value as? String, "Cafe de Flore")
+        XCTAssertFalse(
+            app.buttons["findMyPlace"].exists,
+            "a refused device was offered to be looked at again"
+        )
+        XCTAssertEqual(
+            app.buttons.matching(
+                NSPredicate(format: "identifier BEGINSWITH %@", "nearbyPlace.")
+            ).count,
+            0,
+            "a refused device offered places anyway"
+        )
+
+        // Cancelling writes nothing at all, so the token is still the question
+        // it was — which is the second half of degrading gracefully.
+        app.buttons["cancelPlaceholder"].tap()
+        expect(editor, toHaveValue: "{{location}}\n")
+
+        // And it is answered by typing, exactly as it would have been if there
+        // had never been a device to ask.
+        editor.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 24, dy: 23))
+            .tap()
+        let typed = app.textFields["placeholderAnswerField"]
+        XCTAssertTrue(typed.waitForExistence(timeout: 10), "the widget never came back")
+        typed.tap()
+        typed.typeText("The kitchen table")
+        app.buttons["answerPlaceholder"].tap()
+
+        expect(editor, toHaveValue: "The kitchen table\n")
     }
 
     func testAPastDayIsFilledInFromTheCalendar() throws {
@@ -1040,7 +1181,9 @@ final class AujourUITests: XCTestCase {
         photoLibrary: String? = nil,
         photoLibraryAccess: String? = nil,
         events: String? = nil,
-        reminders: String? = nil
+        reminders: String? = nil,
+        places: String? = nil,
+        placesAccess: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["AUJOUR_UITEST_JOURNAL_FOLDER"] = journalFolder
@@ -1080,6 +1223,12 @@ final class AujourUITests: XCTestCase {
         }
         if let reminders {
             app.launchEnvironment["AUJOUR_UITEST_REMINDERS"] = reminders
+        }
+        if let places {
+            app.launchEnvironment["AUJOUR_UITEST_PLACES"] = places
+        }
+        if let placesAccess {
+            app.launchEnvironment["AUJOUR_UITEST_PLACES_ACCESS"] = placesAccess
         }
         app.launch()
         return app

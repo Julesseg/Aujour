@@ -110,11 +110,13 @@ extension PhotographedStop {
     /// How close two positions have to be to be the same place.
     ///
     /// A hundred and fifty metres: a building and its terrace and the pavement
-    /// outside it, not the next café along. Wider than
-    /// ``Surroundings/armsReach``, and deliberately — that one decides whether
-    /// somebody is *in* a named place, which is a claim about them; this one
-    /// only decides whether to spend one lookup or two, and splitting a park
-    /// into four rows is the worse of the two mistakes it can make.
+    /// outside it, not the next café along.
+    ///
+    /// Generous, deliberately. All this decides is whether to spend one lookup
+    /// or two, and of the two mistakes it can make — a park split into four
+    /// rows, or a park and the café across from it gathered as one — the first
+    /// is the worse. Whichever name comes back, the picker holds the rest and
+    /// the field holds everything else.
     public static let sameSpot: Double = 150
 }
 

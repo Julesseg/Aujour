@@ -79,10 +79,12 @@ public struct NearbyPlace: Hashable, Sendable {
 /// it, and the area they all sit in.
 ///
 /// Two answers rather than one, because they are two different kinds of true.
-/// A café has a name somebody would actually write; a neighbourhood is vaguer
-/// and never wrong. Which of them leads the offer is
-/// ``Surroundings/toOffer``'s to decide, and that decision is the whole reason
-/// the two arrive apart.
+/// A café has a name somebody would actually write; a town is vaguer and never
+/// wrong. What is made of the pair of them is decided above — a list to offer
+/// for today (``Surroundings/toOffer``) or the one name a spot goes by
+/// (``Surroundings/bestKnownAs``) — and those two want the pair in different
+/// orders, which is the whole reason they arrive apart rather than already
+/// ranked.
 public struct Surroundings: Hashable, Sendable {
     /// The places with names of their own, nearest first.
     public let named: [NearbyPlace]
@@ -98,34 +100,67 @@ public struct Surroundings: Hashable, Sendable {
 
     /// The places to offer, the first being the one the widget offers.
     ///
-    /// The nearest named place leads only when it is close enough to be where
-    /// somebody actually *is*; otherwise the area does, and the named place is
-    /// one tap away in the list behind it.
+    /// The area leads, always — which in practice is the town, since that is
+    /// what a fix reverse-geocodes to. Then the named places around it,
+    /// nearest first, as far as ``asManyAsAreWorthOffering``.
     ///
-    /// That rule is the whole of the judgement here, and it exists because of
-    /// what the two mistakes cost. Standing in a café, "Café de Flore" is the
-    /// answer and offering "Saint-Germain" wastes the widget. Standing in a
-    /// street with a pharmacy fifty doors down, "Pharmacie du Marché" is a
-    /// wrong answer somebody would confirm with one tap — and a wrong answer
-    /// written into somebody's journal is the one thing this must never do.
-    /// Vague and right beats specific and wrong, so the specific one has to
-    /// earn the lead by being close.
+    /// Leading with the town rather than with whatever happens to be nearest
+    /// is the whole of the judgement here, and it is about what the two
+    /// mistakes cost. Confirming the offer is one tap, so the offer has to be
+    /// somewhere the user certainly was. "Paris" is that on every day of the
+    /// year; "Pharmacie du Marché", picked because it was the nearest thing
+    /// with a name, is a place somebody may only have walked past — and a
+    /// wrong answer written into somebody's journal is the one thing this must
+    /// never do. Vague and right beats specific and wrong.
     ///
-    /// Everything found is in the list either way: the picker is what "none of
-    /// these" is for, and the field under it is what "none of these either" is
-    /// for.
+    /// It is also the answer most often wanted. A journal line says where the
+    /// day was spent, and that is far more often a town than a shopfront; the
+    /// café is one tap down the list for the days it *is* the answer.
+    ///
+    /// The field under the picker is what "none of these" is for.
     public var toOffer: [Place] {
         let places = named.map(\.place)
-        guard let area else { return places }
-        guard let nearest = named.first else { return [area] }
-
-        return nearest.metresAway <= Self.armsReach
-            ? [nearest.place, area] + places.dropFirst()
-            : [area] + places
+        guard let area else { return Array(places.prefix(Self.asManyAsAreWorthOffering)) }
+        return Array(([area] + places).prefix(Self.asManyAsAreWorthOffering))
     }
 
-    /// How close a named place has to be to be *where somebody is* rather than
-    /// merely near them — and so to lead the offer instead of the area.
+    /// How many places are worth offering from around the device.
+    ///
+    /// Five, counting the town: a list somebody reads at a glance while a
+    /// sentence waits, not a directory of everything with a name within a
+    /// couple of minutes' walk. What falls off the end is the furthest, which
+    /// is the least likely to be where anybody was.
+    ///
+    /// The number lives here rather than in whatever asked the map, because it
+    /// is a judgement about a picker on a screen and not about what a search
+    /// can return.
+    static let asManyAsAreWorthOffering = 5
+
+    /// The one thing this spot is best called — a single name rather than a
+    /// list, for somewhere the user is not.
+    ///
+    /// This is what a position out of the day's photographs is put through,
+    /// and it is deliberately *not* ``toOffer``'s rule. The two are asked
+    /// different questions. Around the device, the question is "what shall I
+    /// offer you for today", and a list led by the town is the safe answer.
+    /// Around a photograph, the question is "what is this one place", the
+    /// answer is one row among the day's other stops, and answering "Paris"
+    /// for every one of them would collapse a day of places into a single
+    /// useless line.
+    ///
+    /// A photograph also earns the specific answer in a way a live fix cannot.
+    /// Somebody stood there and took a picture, so a café a few metres off is
+    /// where they were rather than somewhere they might have walked past —
+    /// which is exactly what ``armsReach`` is measuring. Beyond it there is no
+    /// such claim, and the town takes over.
+    public var bestKnownAs: Place? {
+        guard let nearest = named.first else { return area }
+        return nearest.metresAway <= Self.armsReach ? nearest.place : (area ?? nearest.place)
+    }
+
+    /// How close a named place has to be to be *where somebody was* rather
+    /// than merely near them — and so to be what a spot is called instead of
+    /// the town.
     ///
     /// A hundred metres: across a square, not across a neighbourhood.
     static let armsReach: Double = 100

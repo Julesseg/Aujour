@@ -58,10 +58,10 @@ public struct SuggestedPlaces: Hashable, Sendable, Identifiable {
 /// photographs from that Monday already know better, so for any day but the
 /// one being lived they go first and the live fix falls in behind them.
 ///
-/// That is the same rule ``Surroundings/toOffer`` is made of, applied one
+/// That is the same principle ``Surroundings/toOffer`` is made of, applied one
 /// level up: a wrong answer somebody would confirm with one tap is the one
-/// thing this must never do, and recency is exactly what tells the two apart
-/// here.
+/// thing this must never do. There the safe answer is the town; here it is the
+/// day's own photographs, and recency is what tells the two apart.
 ///
 /// ## Two permissions, either of which is enough
 ///

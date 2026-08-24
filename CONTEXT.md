@@ -272,16 +272,27 @@ photos" — because where a suggestion came from is worth seeing: one is a claim
 about this minute and the other about the day being written, and which of them
 to trust is the user's to judge. A heading with nothing under it is not drawn.
 
-Two judgements sit over that. Between a named place and the area it is in, the
-named one leads only when it is close enough to be where somebody *was* —
-otherwise the area does, because a specific place that is merely nearby is a
-wrong answer somebody would confirm with one tap, and vague and right beats
-specific and wrong. Between the day's photographs and the live fix, the fix
-leads only for a day still being lived: a Monday written up on Friday would
-otherwise be offered Friday's street as where somebody was on Monday, and the
-photographs from that Monday already know better. Everything found is in the
-picker either way, and a place found both ways is offered once, under the
+Two judgements sit over that, and both are the same principle: a wrong answer
+somebody would confirm with one tap is the one thing this must never do, so
+vague and right beats specific and wrong.
+
+Under "Near you" the town leads, always, and no more than five places are
+offered counting it. "Paris" is right on every day of the year, whereas the
+nearest thing with a name may be somewhere the user only walked past — and a
+town is more often what a journal line wanted anyway. The café is one tap down
+the list for the days it is the answer.
+
+Between the day's photographs and the live fix, the fix leads only for a day
+still being lived: a Monday written up on Friday would otherwise be offered
+Friday's street as where somebody was on Monday, and the photographs from that
+Monday already know better. A place found both ways is offered once, under the
 heading that found it best.
+
+A photographed Stop is named the other way round, and deliberately: the nearest
+named place wins where it is close enough to be where the picture was taken
+from, and only past that does the town take over. Somebody stood there and took
+a picture, which earns the specific answer in a way a live fix cannot — and
+answering "Paris" for every Stop would collapse a day of places into one line.
 
 The offer rides two permissions and needs neither. Somebody who refused the
 device's location is still offered the places their day's pictures were taken —

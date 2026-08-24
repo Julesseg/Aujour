@@ -609,11 +609,12 @@ private final class PlacesSeededByATest: Places, @unchecked Sendable {
     /// where it is. In the order they were written, which is the order they
     /// are offered in.
     ///
-    /// All of them named places the device is standing in, and no area at all:
-    /// which of the two leads the offer is
-    /// `AujourCore.Surroundings.toOffer`'s, decided in metres and tested
-    /// there. What a seeded launch is for is everything after that — the
-    /// sheet, the picker, the answer reaching the file.
+    /// All of them named places, and no town at all — so a seeded launch
+    /// offers exactly what it wrote, in the order it wrote it. Which place
+    /// leads when there *is* a town, and how many of them are worth offering,
+    /// are `AujourCore.Surroundings.toOffer`'s and tested there. What a seeded
+    /// launch is for is everything after that — the sheet, the picker, the
+    /// answer reaching the file.
     private static func surroundings(_ seeded: String?) -> Surroundings {
         Surroundings(
             named: (seeded ?? "").split(whereSeparator: \.isNewline).enumerated()

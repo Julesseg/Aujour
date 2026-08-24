@@ -22,11 +22,12 @@ import AujourCore
 /// - **The address the coordinate reverse-geocodes to** — the neighbourhood,
 ///   or the town. Vaguer, and always there.
 ///
-/// Which of them the widget leads with is not decided here. That is
-/// ``AujourCore/Surroundings/toOffer``, unit-tested in metres a test can name
-/// — because "vague and right beats specific and wrong" is a rule about
-/// somebody's journal rather than about CoreLocation, and a rule that could
-/// only be checked by standing in a café is one nobody checks.
+/// What is done with the pair of them is not decided here — how many are worth
+/// offering, which leads, and what a lone position is best called are all
+/// ``AujourCore/Surroundings``'s, unit-tested against places that are said
+/// rather than found. They are rules about somebody's journal rather than
+/// about CoreLocation, and a rule that could only be checked by standing in a
+/// café is one nobody checks.
 ///
 /// ## Asking, and being answered
 ///
@@ -129,6 +130,33 @@ final class CoreLocationPlaces: NSObject, Places, CLLocationManagerDelegate, @un
         return Surroundings(named: await pointsOfInterest, area: await address)
     }
 
+    /// What stands at a position one of the day's photographs was taken at.
+    ///
+    /// The same two lookups as ``around()``, put through
+    /// ``AujourCore/Surroundings/bestKnownAs`` rather than the list the widget
+    /// offers for today: this is one row among the day's other stops, and
+    /// answering with the town for every one of them would collapse a day of
+    /// places into a single useless line. The named place wins where it is
+    /// close enough to be where the picture was taken from, and the town takes
+    /// over past that. The rule lives above this line and is unit-tested in
+    /// metres a test can name; all this adds is which coordinate to ask
+    /// about.
+    ///
+    /// Deliberately not gated on ``access``. Neither lookup asks CoreLocation
+    /// where this device is — both are questions about a coordinate, put to a
+    /// map server, and the coordinate came out of the user's own photo library
+    /// rather than out of the radios. So somebody who refused the location
+    /// permission and allowed the library is still offered the places their
+    /// day's photographs were taken, which is the whole reason the widget
+    /// rides both.
+    func place(at position: Coordinate) async -> Place? {
+        let there = CLLocation(latitude: position.latitude, longitude: position.longitude)
+
+        async let pointsOfInterest = pointsOfInterest(around: there)
+        async let address = address(of: there)
+        return Surroundings(named: await pointsOfInterest, area: await address).bestKnownAs
+    }
+
     // MARK: - Where the device is
 
     /// One fix, or `nil` for a device that would not give one.
@@ -182,8 +210,6 @@ final class CoreLocationPlaces: NSObject, Places, CLLocationManagerDelegate, @un
                 return NearbyPlace(place: place, metresAway: here.distance(from: item.location))
             }
             .sorted { $0.metresAway < $1.metresAway }
-            .prefix(Self.asManyAsAreWorthOffering)
-            .map { $0 }
     }
 
     /// The address a fix reverse-geocodes to, as one place — the
@@ -285,10 +311,6 @@ final class CoreLocationPlaces: NSObject, Places, CLLocationManagerDelegate, @un
     /// minutes on foot: far enough to find the café on the corner, near enough
     /// that nothing in the list is somewhere the user was not.
     private static let aShortWalk: CLLocationDistance = 250
-
-    /// How many places the picker shows. A list somebody reads at arm's length
-    /// while a sentence waits, not a directory.
-    private static let asManyAsAreWorthOffering = 8
 
     /// How long a fix is waited for before the widget offers nothing.
     private static let longEnoughForAFix: Double = 10

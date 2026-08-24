@@ -849,6 +849,137 @@ final class AujourUITests: XCTestCase {
         expect(editor, toHaveValue: "The kitchen table\n")
     }
 
+    /// A day filled in later is offered the places *its own* photographs were
+    /// taken, ahead of the street the phone happens to be standing in now.
+    ///
+    /// The whole of what this issue is about, and the round trip only a
+    /// running app can show: yesterday's pictures read for the positions they
+    /// carry, the positions gathered and named, the two sources drawn under
+    /// their own headings, the name landing in the field, and plain markdown
+    /// in the file afterwards. Which places come out of which positions is
+    /// decided in Core and tested there against a library and a map that are
+    /// said rather than read.
+    func testADayFilledInLaterIsOfferedThePlacesItsOwnPhotographsWereTakenIn() throws {
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let app = launchApp(
+            contentTemplate: "{{location}}\n",
+            // Four pictures of one lunch, which is one place and not four.
+            photoLibrary: """
+                \(entryName(for: yesterday)) 11:04 @ 48.85419,2.33262
+                \(entryName(for: yesterday)) 11:20 @ 48.85421,2.33266
+                \(entryName(for: yesterday)) 11:35 @ 48.85417,2.33259
+                \(entryName(for: yesterday)) 12:02 @ 48.85420,2.33263
+                """,
+            // Where the phone is standing today, which for yesterday's entry
+            // is the wrong answer however confidently it is offered.
+            places: "Gare du Nord | Paris",
+            placesAccess: "allowed",
+            placesAt: "48.85419,2.33262 | Cafe de Flore | Boulevard Saint-Germain"
+        )
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        openCalendar(app, showingTheMonthOf: yesterday)
+        let cell = app.buttons["day-\(entryName(for: yesterday))"]
+        XCTAssertTrue(cell.waitForExistence(timeout: 10), "yesterday was not on the calendar")
+        cell.tap()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "yesterday's entry never appeared")
+        XCTAssertEqual(editor.value as? String, "{{location}}\n")
+
+        editor.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 24, dy: 23))
+            .tap()
+
+        // Yesterday's café, worked out from yesterday's photographs — and the
+        // one the phone is standing in today behind it rather than in front.
+        let photographed = app.buttons["nearbyPlace.Cafe de Flore"]
+        XCTAssertTrue(
+            photographed.waitForExistence(timeout: 20),
+            "the day's own photographs were not offered as a place"
+        )
+        XCTAssertTrue(
+            app.buttons["nearbyPlace.Gare du Nord"].exists,
+            "the live fix stopped being offered at all"
+        )
+
+        // Four photographs of one café is one row, not four.
+        XCTAssertEqual(
+            app.buttons.matching(
+                NSPredicate(format: "identifier == %@", "nearbyPlace.Cafe de Flore")
+            ).count,
+            1,
+            "the same place was offered once per photograph"
+        )
+
+        // Each under its own heading, so somebody can see which of the two
+        // ways a suggestion was arrived at.
+        XCTAssertTrue(
+            app.staticTexts["From photos"].exists,
+            "the day's own places were not drawn under their own heading"
+        )
+        XCTAssertTrue(
+            app.staticTexts["Near you"].exists,
+            "the live fix was not drawn under its own heading"
+        )
+
+        // Already in the field, because it is the offer: the day's own place
+        // leads for a day that is not today.
+        expect(app.textFields["placeholderAnswerField"], toHaveValue: "Cafe de Flore")
+
+        app.buttons["answerPlaceholder"].tap()
+
+        // Plain place text, exactly as confirming a nearby place writes it —
+        // nothing in the file remembers this was ever a question, and nothing
+        // of the photograph it was worked out from comes along with it.
+        expect(editor, toHaveValue: "Cafe de Flore\n")
+    }
+
+    /// Refusing one of the two permissions does not refuse the other.
+    ///
+    /// A device that will not say where it is still has the day's own
+    /// photographs, and naming the position one of them carries is a question
+    /// about the map rather than about this device — so the offer survives a
+    /// refused location, which is half the reason it rides both.
+    func testARefusedDeviceIsStillOfferedThePlacesItsPhotographsWereTakenIn() throws {
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let app = launchApp(
+            contentTemplate: "{{location}}\n",
+            photoLibrary: "\(entryName(for: yesterday)) 11:04 @ 48.85419,2.33262",
+            places: "Gare du Nord | Paris",
+            placesAccess: "refused",
+            placesAt: "48.85419,2.33262 | Cafe de Flore | Boulevard Saint-Germain"
+        )
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        openCalendar(app, showingTheMonthOf: yesterday)
+        let cell = app.buttons["day-\(entryName(for: yesterday))"]
+        XCTAssertTrue(cell.waitForExistence(timeout: 10), "yesterday was not on the calendar")
+        cell.tap()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "yesterday's entry never appeared")
+
+        editor.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 24, dy: 23))
+            .tap()
+
+        XCTAssertTrue(
+            app.buttons["nearbyPlace.Cafe de Flore"].waitForExistence(timeout: 20),
+            "a refused device lost the places its own photographs were taken in"
+        )
+        XCTAssertFalse(
+            app.buttons["nearbyPlace.Gare du Nord"].exists,
+            "a refused device was read anyway"
+        )
+    }
+
     func testAPastDayIsFilledInFromTheCalendar() throws {
         let app = launchApp(contentTemplate: "# {{title}}\n")
         XCTAssertTrue(
@@ -924,6 +1055,113 @@ final class AujourUITests: XCTestCase {
         XCTAssertFalse(
             app.textViews["entryEditor"].waitForExistence(timeout: 3),
             "tomorrow was opened for editing"
+        )
+    }
+
+    // MARK: - Sending a day somewhere
+
+    // The acceptance-level claim of exporting: both forms are on offer over a
+    // day, and choosing one reaches the system share sheet. What is *in*
+    // either file — the markdown byte for byte, the page with the marks left
+    // off it — is drawn and read back headlessly in `SharedEntryTests` and
+    // `EntryPaperTests`; what only a running app can show is the offer and
+    // the sheet.
+    func testADayIsOfferedAsAPDFAndAsPlainTextThroughTheShareSheet() throws {
+        let app = launchApp(contentTemplate: "# {{title}}\n\nWalked to the market.\n")
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        let share = app.buttons["shareEntry"]
+        XCTAssertTrue(share.waitForExistence(timeout: 10), "today's entry offered no way to share it")
+        share.tap()
+
+        XCTAssertTrue(
+            app.buttons["shareAsPDF"].waitForExistence(timeout: 5),
+            "the share menu did not offer a PDF"
+        )
+        XCTAssertTrue(app.buttons["shareAsPlainText"].exists, "the share menu did not offer plain text")
+
+        app.buttons["shareAsPlainText"].tap()
+
+        // The system's own screen, over the file Aujour wrote. That it came
+        // up at all is the claim here; *what* is in the file — the day's own
+        // characters, named after the day — is proven byte for byte and
+        // headlessly in `SharedEntryTests`, which is where a claim about a
+        // file belongs.
+        let sheet = app.otherElements["ActivityListView"]
+        XCTAssertTrue(
+            sheet.waitForExistence(timeout: 20),
+            "the share sheet never came up — the screen is showing: "
+                + app.staticTexts.allElementsBoundByIndex.map { $0.label }.joined(separator: " / ")
+        )
+
+        // And the day is exactly where it was afterwards: an export is a copy
+        // handed to something else, and nothing about it touches the Entry
+        // (ADR 0001).
+        dismissTheShareSheet(app)
+        let stillThere = try XCTUnwrap(app.textViews["entryEditor"].value as? String)
+        XCTAssertTrue(
+            stillThere.contains("Walked to the market."),
+            "sharing the day changed it: \(stillThere)"
+        )
+    }
+
+    // "Works for any day, from history as well as today": the offer is on the
+    // Entry's own screen, so a day reached from the calendar has it too.
+    func testADayFilledInFromHistoryCanBeSentAsWell() throws {
+        let app = launchApp(contentTemplate: "# {{title}}\n")
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        openCalendar(app, showingTheMonthOf: yesterday)
+
+        let cell = app.buttons["day-\(entryName(for: yesterday))"]
+        XCTAssertTrue(cell.waitForExistence(timeout: 10), "yesterday was not on the calendar")
+        cell.tap()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), "yesterday's entry never opened")
+
+        let share = app.buttons["shareEntry"]
+        XCTAssertTrue(
+            share.waitForExistence(timeout: 10),
+            "a day reached from the calendar offered no way to share it"
+        )
+        share.tap()
+        XCTAssertTrue(
+            app.buttons["shareAsPDF"].waitForExistence(timeout: 5),
+            "the share menu did not offer a PDF for a day from history"
+        )
+
+        app.buttons["shareAsPDF"].tap()
+
+        XCTAssertTrue(
+            app.otherElements["ActivityListView"].waitForExistence(timeout: 30),
+            "the share sheet never came up for a day from history"
+        )
+    }
+
+    /// Puts the system share sheet away, whichever way this device offers.
+    ///
+    /// The Close button where the activity controller draws one, and a swipe
+    /// down where it does not — the sheet is presented by SwiftUI and is
+    /// dismissible either way, and which of them is on screen differs between
+    /// the two device families the suite runs on.
+    private func dismissTheShareSheet(_ app: XCUIApplication) {
+        let close = app.buttons["Close"]
+        if close.waitForExistence(timeout: 5), close.isHittable {
+            close.tap()
+        } else {
+            app.swipeDown(velocity: .fast)
+        }
+        XCTAssertTrue(
+            app.otherElements["ActivityListView"].waitForNonExistence(timeout: 10),
+            "the share sheet would not go away"
         )
     }
 
@@ -1326,7 +1564,8 @@ final class AujourUITests: XCTestCase {
         events: String? = nil,
         reminders: String? = nil,
         places: String? = nil,
-        placesAccess: String? = nil
+        placesAccess: String? = nil,
+        placesAt: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["AUJOUR_UITEST_JOURNAL_FOLDER"] = journalFolder
@@ -1375,6 +1614,9 @@ final class AujourUITests: XCTestCase {
         }
         if let placesAccess {
             app.launchEnvironment["AUJOUR_UITEST_PLACES_ACCESS"] = placesAccess
+        }
+        if let placesAt {
+            app.launchEnvironment["AUJOUR_UITEST_PLACES_AT"] = placesAt
         }
         app.launch()
         return app

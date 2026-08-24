@@ -306,26 +306,78 @@ Adding a placeholder is registering it: the machinery is by name, and what is
 left is the pill's word and what answering it asks.
 
 ### Place
-Somewhere the device can name: what a `{{location}}` Widget offers, and — once
-it is confirmed — the plain text that stands where the token did. A name and,
-in the picker only, enough of an address to tell it from the other place of
-the same name two streets over. Never a coordinate: nobody writes one in their
-journal.
+Somewhere that can be named: what a `{{location}}` Widget offers, and — once
+it is confirmed — the plain text that stands where the token did. A name, and
+in the picker only, enough of an address to tell it from the other place of the
+same name two streets over. Never a coordinate: nobody writes one in their
+journal. What is written is the name and nothing else, whichever of the two
+ways below found it.
 
-The device answers with two kinds at once — the named places around it,
-nearest first and each with how far off it is, and the area they all sit in.
-Which of them the Widget leads with is the one judgement here: the named place
-leads only when it is close enough to be where somebody *is*, and otherwise
-the area does, because a specific place that is merely nearby is a wrong
-answer somebody would confirm with one tap. Vague and right beats specific and
-wrong. Everything found is in the picker either way, and how far off anything
-was goes no further than that decision.
+The Widget is about the Journal Day rather than about now, so it reads two
+things at once. **Where the day was photographed**: the positions that day's
+own pictures carry, gathered into Stops and named one apiece. **Where the
+device is now**: the named places around it, nearest first and each with how
+far off it is, and the area they all sit in.
 
-The place is *offered*, never assumed. A device nobody has been asked about is
-offered to be looked at; a device that will not say, or that was refused, is a
-widget with nothing under it and a field the place is typed into instead. None
-of those is a failure and none is said out loud — the question in front of the
-user is where they were, and they already know the answer.
+The two are offered apart rather than run together — "Near you" and "From
+photos" — because where a suggestion came from is worth seeing: one is a claim
+about this minute and the other about the day being written, and which of them
+to trust is the user's to judge. A heading with nothing under it is not drawn.
+
+Two judgements sit over that, and both are the same principle: a wrong answer
+somebody would confirm with one tap is the one thing this must never do, so
+vague and right beats specific and wrong.
+
+Under "Near you" the town leads, always, and no more than five places are
+offered counting it. "Paris" is right on every day of the year, whereas the
+nearest thing with a name may be somewhere the user only walked past — and a
+town is more often what a journal line wanted anyway. The café is one tap down
+the list for the days it is the answer.
+
+Between the day's photographs and the live fix, the fix leads only for a day
+still being lived: a Monday written up on Friday would otherwise be offered
+Friday's street as where somebody was on Monday, and the photographs from that
+Monday already know better. A place found both ways is offered once, under the
+heading that found it best.
+
+A photographed Stop is named the other way round, and deliberately: the nearest
+named place wins where it is close enough to be where the picture was taken
+from, and only past that does the town take over. Somebody stood there and took
+a picture, which earns the specific answer in a way a live fix cannot — and
+answering "Paris" for every Stop would collapse a day of places into one line.
+
+The offer rides two permissions and needs neither. Somebody who refused the
+device's location is still offered the places their day's pictures were taken —
+naming a coordinate the library handed over is a question about the map, not
+about where this device is — and somebody who refused the library is still
+offered the live fix.
+
+The place is *offered*, never assumed. A permission nobody has been asked about
+is offered to be looked at, in the words of the thing it would actually read; a
+day with no photographs, photographs that carry no position, and a refusal are
+all a Widget with less under it, and all of them together are a Widget with
+nothing under it and a field the place is typed into instead. None of those is
+a failure and none is said out loud — the question in front of the user is
+where they were, and they already know the answer.
+
+### Stop
+Somewhere a day stopped, as its photographs recorded it: the positions that sit
+together, taken as one, timed by the earliest of them. Somebody photographs
+their lunch four times from the same table, and what they would write in their
+journal is one café.
+
+The photographs are how a place is *worked out*, and they stop at the offer.
+Nothing of them reaches the Entry — not the hour, not the position, not which
+picture it came from. The time a Stop carries is what puts the day's places in
+the order the day made them, and what tells two of them apart when they come
+back with the same name.
+
+Gathering happens over arithmetic and *before* anything is named, which is what
+keeps the naming affordable: putting a name to a position is a round trip to a
+map server, so a day of two hundred photographs and a day of three cost the
+same handful of lookups. A day that went to more places than are worth naming
+offers the ones it was spent at — where most of its pictures were taken —
+because a single frame through a train window is what gives way.
 
 ### Accessory Row
 The formatting bar above the keyboard: headings, bold and italic, lists,
@@ -405,11 +457,37 @@ fails and never asks, so a device with no library, a permission refused and a
 day the camera missed all arrive as nothing to offer — which is a panel that is
 simply absent, never a notice and never a journal that would not open.
 
-This is the one thing in Aujour that asks for the photo library, and it asks
-because the user tapped the offer to look, never because a day was opened.
-Saying no costs the panel and nothing else: adding a photo from the Accessory
-Row goes through the system picker, which runs in a process of its own and
-needs no permission at all.
+One of the two things in Aujour that ask for the photo library — the
+`{{location}}` Widget asks for it too, to read where the day's photographs were
+taken — and both ask because the user tapped the offer to look, never because a
+day was opened. What the system says when it asks speaks for both, rather than
+leaving the larger claim to the sentence this panel would have asked with.
+Saying no costs the panel and the places from photographs, and nothing else:
+adding a photo from the Accessory Row goes through the system picker, which
+runs in a process of its own and needs no permission at all.
+
+### Export
+A copy of one Entry, made to leave the app: sent to somebody, filed, or
+printed. Two forms, because they answer two different wants — a **PDF** is the
+day as it *looks*, the markdown drawn as what it means, for somebody who is
+going to read it rather than edit it; **plain text** is the day as it *is*,
+the file's own characters, for a day going into another editor, another vault
+or the middle of a message.
+
+Named after its Journal Day, like an Attachment — `2026-03-14.pdf`,
+`2026-03-14.md` — so a folder of exported days sorts the way the journal does.
+Offered on the Entry's own screen and so for any day, today's and a day
+reached from the Calendar alike.
+
+Never a document of its own. The text form is the Entry byte for byte
+(ADR 0001), and the PDF is Live Preview with no cursor anywhere: the same
+reading, the same styling and the same Drawn Elements the editor uses, laid
+out on pages instead of a screen. So the day somebody prints is the day they
+wrote, and it stays that way without anything having to be kept in step.
+
+An Export is a copy handed to something else and is never written into the
+Journal Root: the folder is the Journal, and a file made for a share sheet is
+not part of it.
 
 ### Journal Settings
 The settings that shape the Journal itself: Path Template, Content Template,

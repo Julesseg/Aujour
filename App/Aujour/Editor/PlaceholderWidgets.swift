@@ -72,11 +72,27 @@ struct PlaceholderAnswerSheet: View {
     /// one.
     let places: (any Places)?
 
+    /// Where the day's photographs are read from, for the same placeholder and
+    /// on the same terms — the positions they carry are the other half of what
+    /// it offers.
+    let library: (any PhotoLibrary)?
+
+    /// The Journal Day the Entry is about, which is the day whose photographs
+    /// are read: a Monday filled in on Friday is offered Monday's.
+    let day: JournalDay?
+
     @Environment(\.dismiss) private var dismiss
 
-    init(question: PlaceholderQuestion, from places: (any Places)? = nil) {
+    init(
+        question: PlaceholderQuestion,
+        from places: (any Places)? = nil,
+        photographsFrom library: (any PhotoLibrary)? = nil,
+        for day: JournalDay? = nil
+    ) {
         self.question = question
         self.places = places
+        self.library = library
+        self.day = day
     }
 
     var body: some View {
@@ -106,7 +122,10 @@ struct PlaceholderAnswerSheet: View {
         // does not compile until somebody has decided what answering it looks
         // like — which is the one thing no amount of reading the text can say.
         case .mood: MoodAnsweredByRating(question: question)
-        case .location: PlaceholderAnsweredWithAPlace(question: question, from: places)
+        case .location:
+            PlaceholderAnsweredWithAPlace(
+                question: question, from: places, photographsFrom: library, for: day
+            )
         }
     }
 }

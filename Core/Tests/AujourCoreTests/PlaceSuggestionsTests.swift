@@ -28,7 +28,10 @@ struct PlaceSuggestionsTests {
         let suggestions = PlaceSuggestions(from: around)
         await suggestions.look()
 
-        #expect(suggestions.state == .offering([flore, deuxMagots]))
+        #expect(
+            suggestions.state
+                == .offering([SuggestedPlaces(from: .nearby, places: [flore, deuxMagots])])
+        )
     }
 
     // The first of them is the offer, and the rest are what tapping "change"
@@ -84,7 +87,8 @@ struct PlaceSuggestionsTests {
         let suggestions = PlaceSuggestions(from: around)
         await suggestions.look()
 
-        #expect(suggestions.state == .couldLook)
+        #expect(suggestions.state == .nothingToOffer)
+        #expect(suggestions.couldLookFurther == .theDevicesLocation)
         #expect(around.timesRead == 0, "where the device is was read before anybody was asked")
         #expect(around.timesAsked == 0, "opening the widget asked for the location permission")
     }
@@ -98,7 +102,7 @@ struct PlaceSuggestionsTests {
         await suggestions.askToLook()
 
         #expect(around.timesAsked == 1)
-        #expect(suggestions.state == .offering([flore]))
+        #expect(suggestions.state == .offering([SuggestedPlaces(from: .nearby, places: [flore])]))
     }
 
     // The acceptance criterion, and the whole of what a refusal costs: no
@@ -113,6 +117,7 @@ struct PlaceSuggestionsTests {
         await suggestions.askToLook()
 
         #expect(suggestions.state == .nothingToOffer)
+        #expect(suggestions.couldLookFurther == nil, "the refusal was offered again")
         #expect(around.timesRead == 0, "a refused device was read anyway")
     }
 
@@ -127,6 +132,7 @@ struct PlaceSuggestionsTests {
         await suggestions.look()
 
         #expect(suggestions.state == .nothingToOffer)
+        #expect(suggestions.couldLookFurther == nil)
         #expect(around.timesAsked == 0)
         #expect(around.timesRead == 0)
     }
@@ -148,7 +154,7 @@ struct PlaceSuggestionsTests {
 
         around.answerNow()
         await looking.value
-        #expect(suggestions.state == .offering([flore]))
+        #expect(suggestions.state == .offering([SuggestedPlaces(from: .nearby, places: [flore])]))
     }
 
     // MARK: - What goes in the file
@@ -175,13 +181,15 @@ struct PlaceSuggestionsTests {
 ///
 /// A class, and unchecked, because being asked has to stick and because the
 /// answer is held back on purpose in one of the tests above.
-private final class SomePlaces: Places, @unchecked Sendable {
+final class SomePlaces: Places, @unchecked Sendable {
     private let around: Surroundings
     private let whenAsked: PlaceAccess
+    private let named: [Coordinate: Place]
     private let lock = NSLock()
     private var standing: PlaceAccess
     private var asked = 0
     private var read = 0
+    private var lookedUp: [Coordinate] = []
     private var waiting: [CheckedContinuation<Void, Never>] = []
 
     /// Whether a reading waits to be let go, for a test about what is on
@@ -190,9 +198,11 @@ private final class SomePlaces: Places, @unchecked Sendable {
 
     init(
         holding around: [Place],
+        naming named: [Coordinate: Place] = [:],
         access: PlaceAccess = .allowed,
         answering: PlaceAccess = .allowed
     ) {
+        self.named = named
         // Named places, all of them within reach — the order they were given
         // in is the order they are offered in, which is what these tests are
         // about. Which of them *leads* is `SurroundingsTests`.
@@ -208,6 +218,10 @@ private final class SomePlaces: Places, @unchecked Sendable {
     var timesAsked: Int { lock.withLock { asked } }
 
     var timesRead: Int { lock.withLock { read } }
+
+    /// Every position a name was asked for, which is what the bounded-lookup
+    /// tests count.
+    var positionsLookedUp: [Coordinate] { lock.withLock { lookedUp } }
 
     func ask() async -> PlaceAccess {
         lock.withLock {
@@ -225,6 +239,24 @@ private final class SomePlaces: Places, @unchecked Sendable {
             }
         }
         return around
+    }
+
+    /// The place at a position, from what the test said stands there.
+    ///
+    /// Deliberately answers whatever the permission says, like the real one:
+    /// naming a coordinate the library handed over is a question about the
+    /// map, not about where this device is.
+    func place(at position: Coordinate) async -> Place? {
+        lock.withLock { lookedUp.append(position) }
+        // The nearest seeded place within a stone's throw, so that a test can
+        // say where a café is without having to know which way a stop's centre
+        // rounded.
+        return
+            named
+            .map { (at: $0.key, place: $0.value) }
+            .filter { $0.at.metres(to: position) <= 200 }
+            .min { $0.at.metres(to: position) < $1.at.metres(to: position) }?
+            .place
     }
 
     /// Lets go of every reading that is being held.

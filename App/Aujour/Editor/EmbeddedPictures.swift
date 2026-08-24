@@ -92,6 +92,27 @@ final class EmbeddedPictures {
         MainActor.assumeIsolated { pictureOnHand(for: target) }
     }
 
+    /// Finds every one of these, and waits until it has.
+    ///
+    /// The one place anything here waits. Drawing an Entry cannot — a
+    /// keystroke has nowhere to put a folder read — so on screen a picture
+    /// that has not arrived is the embed's own markdown for a moment, and the
+    /// paragraph is drawn again when it lands. A page being exported has no
+    /// second chance: it is drawn once and sent, and a page carrying
+    /// `![the market](…)` where the photograph should be is a page nobody
+    /// meant to share.
+    ///
+    /// One after another, because a day holds a handful of photographs and
+    /// not a library — and because the ones already found cost nothing, which
+    /// is nearly all of them by the time anybody asks. A target that is not
+    /// there stays not there, which is the same answer the editor draws.
+    func findEverything(_ targets: [String]) async {
+        for target in Set(targets) where found[target] == nil {
+            looking.insert(target)
+            await goAndLook(for: target)
+        }
+    }
+
     private func pictureOnHand(for target: String) -> UIImage? {
         if let picture = found[target] { return picture }
         guard !looked.contains(target), !looking.contains(target) else { return nil }

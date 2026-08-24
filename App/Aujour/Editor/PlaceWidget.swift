@@ -1,28 +1,29 @@
 import AujourCore
 import SwiftUI
 
-/// Answering `{{location}}`: the place the device says you are in, and the
-/// ones around it to take instead.
+/// Answering `{{location}}`: the places the day's own photographs were taken,
+/// where the device says you are now, and the rest to take instead.
 ///
 /// The whole sheet is one field with a list under it, and the list is an
 /// offer rather than a requirement — because the field alone is a complete
-/// answer, and on a device that will not say where it is, the field alone is
-/// the whole sheet. That is what "degrades gracefully" is made of here: not a
-/// notice about a permission in front of somebody mid-sentence, but a question
-/// they can always answer, with the device's help where there is any.
+/// answer, and on a device that will say neither, the field alone is the whole
+/// sheet. That is what "degrades gracefully" is made of here: not a notice
+/// about a permission in front of somebody mid-sentence, but a question they
+/// can always answer, with the device's help where there is any.
 ///
 /// What lands in the Entry is plain place text and nothing around it — the
-/// name, the way ``AujourCore/Place/written`` says it. A day that answered
-/// this widget and a day that typed the place are the same file (ADR 0001).
+/// name, and the hour where a photograph could say one, the way
+/// ``AujourCore/Place/written`` says it. A day that answered this widget and a
+/// day that typed the place are the same file (ADR 0001).
 struct PlaceholderAnsweredWithAPlace: View {
     let question: PlaceholderQuestion
 
-    /// Where the device says it is, read once with the sheet on screen.
+    /// Where the day was, read once with the sheet on screen.
     ///
     /// Made here rather than handed in because a question is one sheet: the
-    /// widget is tapped, the place is looked for, the answer is written and it
-    /// is all over. Nothing about it outlives the sheet, and nothing else in
-    /// the app has any use for where the phone was a minute ago.
+    /// widget is tapped, the places are looked for, the answer is written and
+    /// it is all over. Nothing about it outlives the sheet, and nothing else
+    /// in the app has any use for where the phone was a minute ago.
     @State private var suggestions: PlaceSuggestions
 
     /// What "Add" would write. The offered place to begin with, and whatever
@@ -31,12 +32,24 @@ struct PlaceholderAnsweredWithAPlace: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    /// - Parameter places: where the surrounding places are read from — the
-    ///   device's own, unless a test or a preview says otherwise. `nil` is a
-    ///   sheet with nothing on offer, which is the sheet a refusal gets too.
-    init(question: PlaceholderQuestion, from places: (any Places)?) {
+    /// - Parameters:
+    ///   - places: where the surrounding places are read from, and what puts
+    ///     names to the positions the day's photographs carry — the device's
+    ///     own, unless a test or a preview says otherwise. `nil` is a sheet
+    ///     with nothing on offer, which is the sheet a refusal gets too.
+    ///   - library: where the day's photographs are read from.
+    ///   - day: the Journal Day being written about, whose photographs are the
+    ///     ones read — so a Monday filled in on Friday is offered Monday's.
+    init(
+        question: PlaceholderQuestion,
+        from places: (any Places)?,
+        photographsFrom library: (any PhotoLibrary)?,
+        for day: JournalDay?
+    ) {
         self.question = question
-        _suggestions = State(wrappedValue: PlaceSuggestions(from: places))
+        _suggestions = State(
+            wrappedValue: PlaceSuggestions(from: places, photographsFrom: library, for: day)
+        )
     }
 
     var body: some View {
@@ -71,30 +84,25 @@ struct PlaceholderAnsweredWithAPlace: View {
         }
     }
 
-    /// The places around, or the offer to go and find them — and nothing at
-    /// all where there are none, which leaves the field standing on its own.
+    /// The places found, and the offer to go and look further — and nothing at
+    /// all where there is neither, which leaves the field standing on its own.
+    ///
+    /// Two sections rather than one `switch`, because they are two independent
+    /// facts: there are two permissions behind this sheet, and one of them can
+    /// have been answered while the other is still worth offering. Somebody
+    /// who allowed the device's location back when that was all the widget
+    /// knew how to ask for sees their street *and* the offer to look at the
+    /// day's photographs, which is the whole point of the second one.
     @ViewBuilder private var around: some View {
         switch suggestions.state {
         case .nothingToOffer:
             EmptyView()
 
-        case .couldLook:
-            Section {
-                Button("Use my location", systemImage: "location") {
-                    Task { await suggestions.askToLook() }
-                }
-                .accessibilityIdentifier("findMyPlace")
-            } footer: {
-                Text(
-                    "Aujour looks once, to offer the place you're in. It never asks where you are in the background, and the place goes nowhere but this entry."
-                )
-            }
-
         case .looking:
             Section {
                 HStack(spacing: 10) {
                     ProgressView()
-                    Text("Finding where you are…").foregroundStyle(.secondary)
+                    Text("Finding where you were…").foregroundStyle(.secondary)
                 }
                 .accessibilityIdentifier("findingMyPlace")
             }
@@ -104,11 +112,27 @@ struct PlaceholderAnsweredWithAPlace: View {
             // a different place is a tap on another. Every one of them writes
             // into the field rather than answering outright, so the last word
             // is the user's either way.
-            Section("Nearby") {
+            Section("Places") {
                 ForEach(places) { place in
                     Button { answer = place.written } label: { row(place) }
                         .accessibilityIdentifier("nearbyPlace.\(place.name)")
                 }
+            }
+        }
+
+        if let further = suggestions.couldLookFurther {
+            Section {
+                Button(further.offer, systemImage: further.symbol) {
+                    Task { await suggestions.askToLook() }
+                }
+                .accessibilityIdentifier("findMyPlace")
+            } footer: {
+                // Said before the alert rather than after it. A finger landed
+                // on a word about *where*, and an alert about photographs
+                // arriving with no warning is an ambush however good the
+                // reason for it — so the reason goes here, where it is read
+                // first and the tap is still the user's to withhold.
+                Text(further.promise)
             }
         }
     }
@@ -116,8 +140,19 @@ struct PlaceholderAnsweredWithAPlace: View {
     private func row(_ place: Place) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(place.name)
-                    .foregroundStyle(.primary)
+                HStack(spacing: 6) {
+                    Text(place.name)
+                        .foregroundStyle(.primary)
+                    // The hour a photograph puts on a place, drawn apart from
+                    // the name so the row reads as one place at one time —
+                    // and written along with it, unlike the region, because
+                    // "Café de Flore, 11:04" is a line somebody writes.
+                    if let atTime = place.atTime {
+                        Text(atTime)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 // What tells this Starbucks from the one two streets over.
                 // Read here and written nowhere: it is not what somebody puts
                 // in the middle of their own sentence.
@@ -147,11 +182,67 @@ struct PlaceholderAnsweredWithAPlace: View {
     }
 }
 
+/// What the sheet says it is about to ask for, and what it promises about it.
+///
+/// One sentence per permission rather than one that covers both, because they
+/// are two different claims and the larger one has to read like it. Being
+/// asked where you are is a question about now; being asked to read the
+/// positions your photographs carry is a question about everywhere you have
+/// been, and the sentence that goes with it says so rather than borrowing the
+/// one Photo Suggestions asks with.
+extension PlaceSuggestions.ToLookFurther {
+    /// What the button says. Named after what comes back rather than after the
+    /// permission, because the permission is the system's word for it and the
+    /// place is the user's.
+    var offer: String {
+        switch self {
+        case .theDevicesLocation: "Use my location"
+        case .theDaysPhotographs: "Use this day's photos"
+        case .both: "Find where I was"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .theDevicesLocation: "location"
+        case .theDaysPhotographs: "photo.on.rectangle.angled"
+        case .both: "mappin.and.ellipse"
+        }
+    }
+
+    /// What is read before the system's alert, and what it promises.
+    var promise: String {
+        switch self {
+        case .theDevicesLocation:
+            "Aujour looks once, to offer the place you're in. It never asks where you are in the background, and the place goes nowhere but this entry."
+
+        case .theDaysPhotographs:
+            "Aujour reads where this day's photos were taken, to offer the places you went. It looks at no other day, keeps no map of them, and the place goes nowhere but this entry."
+
+        case .both:
+            "Aujour offers the places this day's photos were taken, and where you are now. It reads no other day, never asks where you are in the background, and what it finds goes nowhere but this entry."
+        }
+    }
+}
+
 #Preview("Somewhere with places around it") {
     Color.clear.sheet(
         item: .constant(PlaceholderQuestion(placeholder: .location, answered: { _ in }))
     ) { question in
         PlaceholderAnswerSheet(question: question, from: SomewhereInParis())
+    }
+}
+
+#Preview("A day written up later") {
+    Color.clear.sheet(
+        item: .constant(PlaceholderQuestion(placeholder: .location, answered: { _ in }))
+    ) { question in
+        PlaceholderAnswerSheet(
+            question: question,
+            from: SomewhereInParis(),
+            photographsFrom: ADayInParis(),
+            for: JournalDay(year: 2026, month: 3, day: 9)
+        )
     }
 }
 
@@ -185,4 +276,31 @@ private struct SomewhereInParis: Places {
             area: Place(id: "quarter", name: "Saint-Germain-des-Prés", region: "Paris")
         )
     }
+
+    func place(at position: Coordinate) async -> Place? {
+        Place(id: "at:\(position.latitude)", name: "Musée d'Orsay", region: "Rue de Lille")
+    }
+}
+
+/// A day photographed in one place, for a preview — a canvas has no library,
+/// and a sheet with nothing from the day is the one thing this preview is not
+/// about.
+private struct ADayInParis: PhotoLibrary {
+    let access = PhotoLibraryAccess.allowed
+
+    func ask() async -> PhotoLibraryAccess { .allowed }
+
+    func photographs(during span: DateInterval) async -> [DayPhotograph] {
+        [
+            DayPhotograph(
+                id: "lunch",
+                takenAt: span.start.addingTimeInterval(11 * 3600 + 4 * 60),
+                position: Coordinate(latitude: 48.85995, longitude: 2.32660)
+            )
+        ]
+    }
+
+    func thumbnail(of photograph: DayPhotograph) async -> Data? { nil }
+
+    func contents(of photograph: DayPhotograph) async -> Data? { nil }
 }

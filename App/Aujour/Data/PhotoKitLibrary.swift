@@ -74,7 +74,23 @@ struct PhotoKitLibrary: PhotoLibrary {
             // matched, but the identity of a photograph in a day is the moment
             // it was taken and there is nothing to offer without one.
             guard let takenAt = asset.creationDate else { return }
-            found.append(DayPhotograph(id: asset.localIdentifier, takenAt: takenAt))
+            found.append(
+                DayPhotograph(
+                    id: asset.localIdentifier,
+                    takenAt: takenAt,
+                    // Read off the index beside the date, at no extra cost —
+                    // and `nil` far more often than not: a screenshot, a
+                    // picture saved from a message, a camera with location
+                    // turned off. Which is a day that falls back on the live
+                    // fix, never a day that fails.
+                    position: asset.location.map {
+                        Coordinate(
+                            latitude: $0.coordinate.latitude,
+                            longitude: $0.coordinate.longitude
+                        )
+                    }
+                )
+            )
         }
         return found
     }

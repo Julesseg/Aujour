@@ -129,6 +129,32 @@ final class CoreLocationPlaces: NSObject, Places, CLLocationManagerDelegate, @un
         return Surroundings(named: await pointsOfInterest, area: await address)
     }
 
+    /// What stands at a position one of the day's photographs was taken at.
+    ///
+    /// The same two lookups as ``around()`` and the same judgement over them —
+    /// the named place leads only when it is close enough to be where somebody
+    /// *was*, and the neighbourhood leads otherwise — because a place worked
+    /// out from a photograph can be wrong in exactly the way a place worked
+    /// out from a fix can, and "vague and right beats specific and wrong" is
+    /// no less true for being about last Monday. That rule lives in
+    /// ``AujourCore/Surroundings/toOffer`` and is unit-tested there; all this
+    /// adds is which coordinate it is asked about.
+    ///
+    /// Deliberately not gated on ``access``. Neither lookup asks CoreLocation
+    /// where this device is — both are questions about a coordinate, put to a
+    /// map server, and the coordinate came out of the user's own photo library
+    /// rather than out of the radios. So somebody who refused the location
+    /// permission and allowed the library is still offered the places their
+    /// day's photographs were taken, which is the whole reason the widget
+    /// rides both.
+    func place(at position: Coordinate) async -> Place? {
+        let there = CLLocation(latitude: position.latitude, longitude: position.longitude)
+
+        async let pointsOfInterest = pointsOfInterest(around: there)
+        async let address = address(of: there)
+        return Surroundings(named: await pointsOfInterest, area: await address).toOffer.first
+    }
+
     // MARK: - Where the device is
 
     /// One fix, or `nil` for a device that would not give one.

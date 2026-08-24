@@ -22,20 +22,44 @@ public struct Place: Hashable, Sendable, Identifiable {
     /// the town. `nil` for a place that is its own address.
     public let region: String?
 
-    public init(id: String, name: String, region: String? = nil) {
+    /// The time of day a photograph put somebody here — "11:04", on a clock
+    /// read the way their own device reads one. `nil` for a place the device
+    /// found by looking around itself.
+    ///
+    /// Only a place worked out from the day's photographs has one, and only
+    /// such a place could: a photograph knows the hour it was taken, and a
+    /// live fix knows nothing except that it is now — which for a Monday
+    /// written up on Friday is not a fact about Monday at all.
+    ///
+    /// Unlike ``region`` this *is* written into the Entry, because it is the
+    /// kind of thing somebody writes: "Café de Flore, 11:04" is a line in a
+    /// journal and the region would be an address in the middle of one.
+    public let atTime: String?
+
+    public init(id: String, name: String, region: String? = nil, atTime: String? = nil) {
         self.id = id
         self.name = name
         self.region = region
+        self.atTime = atTime
     }
 
     /// The plain markdown that stands where the token was.
     ///
-    /// The name alone, deliberately. A `{{location}}` is written in the middle
-    /// of somebody's own sentence — "walked home from {{location}}" — and an
-    /// address dropped into it would be the app finishing the sentence its own
-    /// way. The region is on screen while the place is being chosen, which is
-    /// where telling two of them apart matters, and it stops there.
-    public var written: String { name }
+    /// The name, and the hour where a photograph could say one. A
+    /// `{{location}}` is written in the middle of somebody's own sentence —
+    /// "walked home from {{location}}" — so what goes in is what somebody
+    /// would have typed there and nothing more: an address dropped into it
+    /// would be the app finishing the sentence its own way, which is why the
+    /// region stays in the picker where telling two places apart is what
+    /// matters.
+    ///
+    /// It is filled into the field rather than written outright either way, so
+    /// the last word on all of this is the user's — a comma and an hour that
+    /// does not suit the sentence is deleted before "Add" is ever tapped.
+    public var written: String {
+        guard let atTime else { return name }
+        return "\(name), \(atTime)"
+    }
 }
 
 /// Whether Aujour may ask the device where it is.
@@ -165,108 +189,26 @@ public protocol Places: Sendable {
     /// order is ``Surroundings/toOffer``'s, above this line and unit-tested
     /// there.
     func around() async -> Surroundings
-}
 
-/// What a `{{location}}` widget offers the user: where the device says they
-/// are, and the places around it to choose instead.
-///
-/// A day is written up in the evening, or a week later, and the phone that was
-/// there is the one being written on — so the widget offers the place rather
-/// than asking somebody to spell it. Which places those are is the only
-/// question here, and it has one answer: whatever the device names around
-/// itself, in the order it named them.
-///
-/// It holds no map and no permission alert. Both are the app's, behind
-/// ``Places`` — which is what lets every rule here be unit-tested on Linux
-/// against places that are said rather than found.
-///
-/// ## Nothing on offer is the ordinary case
-///
-/// A refused device, a device that will not say, and somewhere with no place
-/// worth naming all come out the same: no offer at all. None of them is a
-/// failure and none of them is said out loud, because the sheet is answerable
-/// either way — the place is typed, which is what answering a placeholder was
-/// before there was a device to ask.
-@MainActor
-@Observable
-public final class PlaceSuggestions {
-    /// What the sheet should be showing above the field the place is typed in.
-    public enum State: Hashable, Sendable {
-        /// No offer. A refused device, one with nothing to say, or nowhere
-        /// with a place to name.
-        case nothingToOffer
-
-        /// Nobody has been asked about the device's location yet, so there is
-        /// something worth offering to look for — and asking is the user's to
-        /// set going.
-        case couldLook
-
-        /// The device is being asked. On screen while it is, because finding a
-        /// place is a fix and then a lookup, and a sheet that showed nothing
-        /// meanwhile would read as a device that had answered "nowhere".
-        case looking
-
-        /// The places to offer, the first of them being the offer itself.
-        case offering([Place])
-    }
-
-    public private(set) var state: State = .nothingToOffer
-
-    /// The device, or none at all — which is a preview, and a test of
-    /// something else, and offers nothing.
-    @ObservationIgnored private let places: (any Places)?
-
-    /// - Parameter places: where the surrounding places are read from. `nil`
-    ///   is a widget with no device behind it — nothing to offer, ever, which
-    ///   is what a preview and every test of something else want.
-    public init(from places: (any Places)? = nil) {
-        self.places = places
-    }
-
-    /// The place the widget offers: the nearest one the device named.
-    public var offered: Place? {
-        guard case .offering(let around) = state else { return nil }
-        return around.first
-    }
-
-    /// Looks for the place, if that is allowed without asking anybody
-    /// anything.
+    /// What to call somewhere the device is not: the one place a position is
+    /// best known as, or `nil` for a position nothing could put a name to.
     ///
-    /// Called with the sheet going on screen. A device nobody has been asked
-    /// about is not asked here — it is offered, and ``askToLook()`` is what
-    /// the offer leads to.
-    public func look() async {
-        guard let places else { return state = .nothingToOffer }
-
-        switch places.access {
-        case .refused:
-            state = .nothingToOffer
-        case .undecided:
-            state = .couldLook
-        case .allowed:
-            await read(places)
-        }
-    }
-
-    /// Asks for the device's location, because the user said to look — and
-    /// offers what is around if they allowed it.
+    /// The positions are the day's own photographs', gathered into
+    /// ``PhotographedStop``s first so that this is asked a handful of times
+    /// per sheet rather than once per picture.
     ///
-    /// The only thing in Aujour that ever asks where the device is. A refusal
-    /// leaves nothing on offer and says nothing about it: they answered the
-    /// question that was put to them, and the answer was no.
-    public func askToLook() async {
-        guard let places else { return }
-
-        state = .looking
-        guard await places.ask() == .allowed else { return state = .nothingToOffer }
-        await read(places)
-    }
-
-    private func read(_ places: any Places) async {
-        state = .looking
-        // The first is the offer and the rest are the picker, and both are
-        // this one answer put in the order it is worth offering in.
-        let around = await places.around().toOffer
-        state = around.isEmpty ? .nothingToOffer : .offering(around)
-    }
+    /// **This one is not gated on the permission**, alone among the members
+    /// here, and that is the point of it. Asking what stands at a coordinate
+    /// is a question about the map; asking where the device is is a question
+    /// about the user, and only the second is what
+    /// `NSLocationWhenInUseUsageDescription` is the answer to. The coordinate
+    /// arrived from the user's own photo library, which they opened
+    /// deliberately — so somebody who refused the one permission and granted
+    /// the other is still offered the places their day's pictures were taken,
+    /// which is the whole reason the offer rides both.
+    ///
+    /// Reading still never fails: a lookup that comes back with nothing, or
+    /// does not come back at all, is one stop with no name among however many
+    /// had one.
+    func place(at position: Coordinate) async -> Place?
 }

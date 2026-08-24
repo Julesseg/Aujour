@@ -86,6 +86,18 @@ enum UITestingJournal {
     /// answer — is the app's own code.
     static let placesAccessKey = "AUJOUR_UITEST_PLACES_ACCESS"
 
+    /// What stands at the positions the day's photographs carry, one per line
+    /// as `latitude,longitude | Name` — or `latitude,longitude | Name |
+    /// Region`.
+    ///
+    /// The other half of ``photoLibraryKey``, and separate from
+    /// ``placesKey``, because they are two different questions: that one is
+    /// what the device names around *itself*, and this is what a map says
+    /// stands at a coordinate. A widget offering places from a day's
+    /// photographs on a device whose location was refused is exactly the pair
+    /// of them coming apart, and it is a case worth being able to seed.
+    static let placesAtKey = "AUJOUR_UITEST_PLACES_AT"
+
     /// The name of a folder for "Use a custom folder…" to pick, in place of
     /// the Files picker.
     static let folderToPickKey = "AUJOUR_UITEST_FOLDER_TO_PICK"
@@ -126,6 +138,10 @@ enum UITestingJournal {
     /// panel, so a test says them by the day they were taken on: that is how
     /// "today's photographs" and "the photographs of a day filled in later"
     /// are two different claims rather than the same one twice.
+    /// A line may say where the photograph was taken as well as when —
+    /// `2026-03-09 11:04 @ 48.85419,2.33262` — which is what a `{{location}}`
+    /// widget reads a day for. A line with no `@` is a photograph the camera
+    /// recorded no position for, which is most of them.
     static let photoLibraryKey = "AUJOUR_UITEST_PHOTO_LIBRARY"
 
     /// Where the library permission stands before the test starts, and what
@@ -409,7 +425,7 @@ private struct ADaySeededByATest: DayItemSource {
 /// front, and a library that forgot it had been allowed would offer to look
 /// all over again.
 private final class ALibrarySeededByATest: PhotoLibrary, @unchecked Sendable {
-    private let taken: [Date]
+    private let taken: [(when: Date, at: Coordinate?)]
     private let permission = NSLock()
     private var standing: PhotoLibraryAccess
 
@@ -446,8 +462,14 @@ private final class ALibrarySeededByATest: PhotoLibrary, @unchecked Sendable {
         guard access == .allowed else { return [] }
         return
             taken
-            .filter { $0 >= span.start && $0 < span.end }
-            .map { DayPhotograph(id: "seeded-\($0.timeIntervalSince1970)", takenAt: $0) }
+            .filter { $0.when >= span.start && $0.when < span.end }
+            .map {
+                DayPhotograph(
+                    id: "seeded-\($0.when.timeIntervalSince1970)",
+                    takenAt: $0.when,
+                    position: $0.at
+                )
+            }
     }
 
     func thumbnail(of photograph: DayPhotograph) async -> Data? {
@@ -458,14 +480,17 @@ private final class ALibrarySeededByATest: PhotoLibrary, @unchecked Sendable {
         UITestingJournal.photograph(as: .jpeg)
     }
 
-    /// `2026-03-14`, or `2026-03-14 09:30` — and noon for one that says only
-    /// which day, which is a photograph in the middle of it wherever the
-    /// device is.
-    private static func days(_ seeded: String?) -> [Date] {
+    /// `2026-03-14`, or `2026-03-14 09:30`, or `2026-03-14 09:30 @ 48.85,2.33`
+    /// — and noon for one that says only which day, which is a photograph in
+    /// the middle of it wherever the device is.
+    private static func days(_ seeded: String?) -> [(when: Date, at: Coordinate?)] {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
         return (seeded ?? "").split(whereSeparator: \.isNewline).compactMap { line in
-            let said = line.split(separator: " ", maxSplits: 1)
+            let taken = line.split(separator: "@", maxSplits: 1)
+            let said = taken[0].trimmingCharacters(in: .whitespaces).split(
+                separator: " ", maxSplits: 1
+            )
             let date = said[0].split(separator: "-").compactMap { Int($0) }
             guard date.count == 3 else { return nil }
             let clock = said.count > 1 ? said[1].split(separator: ":").compactMap { Int($0) } : []
@@ -476,9 +501,17 @@ private final class ALibrarySeededByATest: PhotoLibrary, @unchecked Sendable {
             components.day = date[2]
             components.hour = clock.count == 2 ? clock[0] : 12
             components.minute = clock.count == 2 ? clock[1] : 0
-            return calendar.date(from: components)
+            guard let when = calendar.date(from: components) else { return nil }
+            return (when, taken.count > 1 ? coordinate(taken[1]) : nil)
         }
     }
+}
+
+/// `48.85419,2.33262`, or `nil` for anything else.
+private func coordinate(_ said: some StringProtocol) -> Coordinate? {
+    let pair = said.split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+    guard pair.count == 2 else { return nil }
+    return Coordinate(latitude: pair[0], longitude: pair[1])
 }
 
 /// The places around the device, said at launch instead of found.
@@ -492,6 +525,10 @@ private final class ALibrarySeededByATest: PhotoLibrary, @unchecked Sendable {
 /// a widget was tapped.
 private final class PlacesSeededByATest: Places, @unchecked Sendable {
     private let around: Surroundings
+
+    /// What stands where the day's photographs were taken, said at launch.
+    private let named: [(at: Coordinate, place: Place)]
+
     private let permission = NSLock()
     private var standing: PlaceAccess
 
@@ -500,6 +537,7 @@ private final class PlacesSeededByATest: Places, @unchecked Sendable {
 
     init(_ environment: [String: String]) {
         self.around = Self.surroundings(environment[UITestingJournal.placesKey])
+        self.named = Self.namedPositions(environment[UITestingJournal.placesAtKey])
         let seeded = environment[UITestingJournal.placesAccessKey]
         self.standing =
             switch seeded {
@@ -527,6 +565,43 @@ private final class PlacesSeededByATest: Places, @unchecked Sendable {
     func around() async -> Surroundings {
         guard access == .allowed else { return Surroundings() }
         return around
+    }
+
+    /// What the map says stands at a position — and, like the real one,
+    /// answers whatever the location permission says: naming a coordinate the
+    /// library handed over is a question about the map and not about this
+    /// device.
+    ///
+    /// The nearest seeded place within a stone's throw, so a test can say
+    /// where a café is without having to know which way the centre of a stop
+    /// rounded.
+    func place(at position: Coordinate) async -> Place? {
+        named
+            .filter { $0.at.metres(to: position) <= 200 }
+            .min { $0.at.metres(to: position) < $1.at.metres(to: position) }?
+            .place
+    }
+
+    /// `48.85419,2.33262 | Café de Flore`, or with ` | Boulevard
+    /// Saint-Germain` after it for one whose row says where it is.
+    private static func namedPositions(_ seeded: String?) -> [(at: Coordinate, place: Place)] {
+        (seeded ?? "").split(whereSeparator: \.isNewline).enumerated()
+            .compactMap { at, line in
+                let said = line.split(separator: "|").map {
+                    $0.trimmingCharacters(in: .whitespaces)
+                }
+                guard said.count >= 2, let position = coordinate(said[0]), !said[1].isEmpty
+                else { return nil }
+
+                return (
+                    position,
+                    Place(
+                        id: "seeded-at-\(at)",
+                        name: said[1],
+                        region: said.count > 2 && !said[2].isEmpty ? said[2] : nil
+                    )
+                )
+            }
     }
 
     /// `Café de Flore`, or `Café de Flore | Paris` for one whose row says

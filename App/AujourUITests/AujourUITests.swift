@@ -777,6 +777,130 @@ final class AujourUITests: XCTestCase {
         expect(editor, toHaveValue: "The kitchen table\n")
     }
 
+    /// A day filled in later is offered the places *its own* photographs were
+    /// taken, ahead of the street the phone happens to be standing in now.
+    ///
+    /// The whole of what this issue is about, and the round trip only a
+    /// running app can show: yesterday's pictures read for the positions they
+    /// carry, the positions gathered and named, the name and the hour landing
+    /// in the field, and plain markdown in the file afterwards. Which places
+    /// come out of which positions is decided in Core and tested there against
+    /// a library and a map that are said rather than read.
+    func testADayFilledInLaterIsOfferedThePlacesItsOwnPhotographsWereTakenIn() throws {
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let app = launchApp(
+            contentTemplate: "{{location}}\n",
+            // Four pictures of one lunch, which is one place and not four.
+            photoLibrary: """
+                \(entryName(for: yesterday)) 11:04 @ 48.85419,2.33262
+                \(entryName(for: yesterday)) 11:20 @ 48.85421,2.33266
+                \(entryName(for: yesterday)) 11:35 @ 48.85417,2.33259
+                \(entryName(for: yesterday)) 12:02 @ 48.85420,2.33263
+                """,
+            // Where the phone is standing today, which for yesterday's entry
+            // is the wrong answer however confidently it is offered.
+            places: "Gare du Nord | Paris",
+            placesAccess: "allowed",
+            placesAt: "48.85419,2.33262 | Cafe de Flore | Boulevard Saint-Germain"
+        )
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        openCalendar(app, showingTheMonthOf: yesterday)
+        let cell = app.buttons["day-\(entryName(for: yesterday))"]
+        XCTAssertTrue(cell.waitForExistence(timeout: 10), "yesterday was not on the calendar")
+        cell.tap()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "yesterday's entry never appeared")
+        XCTAssertEqual(editor.value as? String, "{{location}}\n")
+
+        editor.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 24, dy: 23))
+            .tap()
+
+        // Yesterday's café, worked out from yesterday's photographs — and the
+        // one the phone is standing in today behind it rather than in front.
+        let photographed = app.buttons["nearbyPlace.Cafe de Flore"]
+        XCTAssertTrue(
+            photographed.waitForExistence(timeout: 20),
+            "the day's own photographs were not offered as a place"
+        )
+        XCTAssertTrue(
+            app.buttons["nearbyPlace.Gare du Nord"].exists,
+            "the live fix stopped being offered at all"
+        )
+
+        // Four photographs of one café is one row, not four.
+        XCTAssertEqual(
+            app.buttons.matching(
+                NSPredicate(format: "identifier == %@", "nearbyPlace.Cafe de Flore")
+            ).count,
+            1,
+            "the same place was offered once per photograph"
+        )
+
+        // Already in the field, because it is the offer: the day's own place
+        // leads for a day that is not today. It carries the hour the day got
+        // there, which the live fix could never have said.
+        let answer = app.textFields["placeholderAnswerField"]
+        let offered = try XCTUnwrap(answer.value as? String)
+        XCTAssertTrue(
+            offered.hasPrefix("Cafe de Flore, "),
+            "the offer was \"\(offered)\" rather than yesterday's café and the hour"
+        )
+
+        app.buttons["answerPlaceholder"].tap()
+
+        // Plain markdown, exactly as confirming a nearby place writes it —
+        // nothing in the file remembers this was ever a question.
+        expect(editor, toHaveValue: offered + "\n")
+    }
+
+    /// Refusing one of the two permissions does not refuse the other.
+    ///
+    /// A device that will not say where it is still has the day's own
+    /// photographs, and naming the position one of them carries is a question
+    /// about the map rather than about this device — so the offer survives a
+    /// refused location, which is half the reason it rides both.
+    func testARefusedDeviceIsStillOfferedThePlacesItsPhotographsWereTakenIn() throws {
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let app = launchApp(
+            contentTemplate: "{{location}}\n",
+            photoLibrary: "\(entryName(for: yesterday)) 11:04 @ 48.85419,2.33262",
+            places: "Gare du Nord | Paris",
+            placesAccess: "refused",
+            placesAt: "48.85419,2.33262 | Cafe de Flore | Boulevard Saint-Germain"
+        )
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        openCalendar(app, showingTheMonthOf: yesterday)
+        let cell = app.buttons["day-\(entryName(for: yesterday))"]
+        XCTAssertTrue(cell.waitForExistence(timeout: 10), "yesterday was not on the calendar")
+        cell.tap()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "yesterday's entry never appeared")
+
+        editor.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 24, dy: 23))
+            .tap()
+
+        XCTAssertTrue(
+            app.buttons["nearbyPlace.Cafe de Flore"].waitForExistence(timeout: 20),
+            "a refused device lost the places its own photographs were taken in"
+        )
+        XCTAssertFalse(
+            app.buttons["nearbyPlace.Gare du Nord"].exists,
+            "a refused device was read anyway"
+        )
+    }
+
     func testAPastDayIsFilledInFromTheCalendar() throws {
         let app = launchApp(contentTemplate: "# {{title}}\n")
         XCTAssertTrue(
@@ -1178,7 +1302,8 @@ final class AujourUITests: XCTestCase {
         events: String? = nil,
         reminders: String? = nil,
         places: String? = nil,
-        placesAccess: String? = nil
+        placesAccess: String? = nil,
+        placesAt: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["AUJOUR_UITEST_JOURNAL_FOLDER"] = journalFolder
@@ -1224,6 +1349,9 @@ final class AujourUITests: XCTestCase {
         }
         if let placesAccess {
             app.launchEnvironment["AUJOUR_UITEST_PLACES_ACCESS"] = placesAccess
+        }
+        if let placesAt {
+            app.launchEnvironment["AUJOUR_UITEST_PLACES_AT"] = placesAt
         }
         app.launch()
         return app

@@ -86,5 +86,11 @@ history view (core navigation), theming: light/dark/auto + curated accents
 Roadmap (explicitly deferred): streaks & stats, On This Day,
 {{workout}}/{{sleep}}/{{steps}} (Apple Health), {{weather}},
 {{scale:Name}} generic rating widget, {{prompt}} packs, {{onthisday}}
-placeholder, location suggestions from photo metadata, theme packs,
-monetization design, macOS.
+placeholder, theme packs, monetization design, macOS.
+
+Pulled forward into v1: location suggestions from photo metadata (#71). The
+{{location}} widget could otherwise answer only "where is this device now",
+which for a Backfilled day is the wrong question — a Monday written up on
+Friday was offered Friday's street, one tap from being confirmed into the
+file. The day's own photographs already know better, and the panel that offers
+them was already reading the same day.

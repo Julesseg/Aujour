@@ -30,11 +30,14 @@ public struct Place: Hashable, Sendable, Identifiable {
 
     /// The plain markdown that stands where the token was.
     ///
-    /// The name alone, deliberately. A `{{location}}` is written in the middle
-    /// of somebody's own sentence — "walked home from {{location}}" — and an
-    /// address dropped into it would be the app finishing the sentence its own
-    /// way. The region is on screen while the place is being chosen, which is
-    /// where telling two of them apart matters, and it stops there.
+    /// The name alone, deliberately, and whichever way the place was found. A
+    /// `{{location}}` is written in the middle of somebody's own sentence —
+    /// "walked home from {{location}}" — and anything dropped in beside the
+    /// name would be the app finishing the sentence its own way. That goes for
+    /// the region, and it goes for the hour a photograph was taken at: the
+    /// day's photographs are how Aujour works out *which places to offer*, and
+    /// they stop at the offer. What lands in the file is a place, the same
+    /// characters whether the device named it or a picture did.
     public var written: String { name }
 }
 
@@ -76,10 +79,12 @@ public struct NearbyPlace: Hashable, Sendable {
 /// it, and the area they all sit in.
 ///
 /// Two answers rather than one, because they are two different kinds of true.
-/// A café has a name somebody would actually write; a neighbourhood is vaguer
-/// and never wrong. Which of them leads the offer is
-/// ``Surroundings/toOffer``'s to decide, and that decision is the whole reason
-/// the two arrive apart.
+/// A café has a name somebody would actually write; a town is vaguer and never
+/// wrong. What is made of the pair of them is decided above — a list to offer
+/// for today (``Surroundings/toOffer``) or the one name a spot goes by
+/// (``Surroundings/bestKnownAs``) — and those two want the pair in different
+/// orders, which is the whole reason they arrive apart rather than already
+/// ranked.
 public struct Surroundings: Hashable, Sendable {
     /// The places with names of their own, nearest first.
     public let named: [NearbyPlace]
@@ -95,34 +100,67 @@ public struct Surroundings: Hashable, Sendable {
 
     /// The places to offer, the first being the one the widget offers.
     ///
-    /// The nearest named place leads only when it is close enough to be where
-    /// somebody actually *is*; otherwise the area does, and the named place is
-    /// one tap away in the list behind it.
+    /// The area leads, always — which in practice is the town, since that is
+    /// what a fix reverse-geocodes to. Then the named places around it,
+    /// nearest first, as far as ``asManyAsAreWorthOffering``.
     ///
-    /// That rule is the whole of the judgement here, and it exists because of
-    /// what the two mistakes cost. Standing in a café, "Café de Flore" is the
-    /// answer and offering "Saint-Germain" wastes the widget. Standing in a
-    /// street with a pharmacy fifty doors down, "Pharmacie du Marché" is a
-    /// wrong answer somebody would confirm with one tap — and a wrong answer
-    /// written into somebody's journal is the one thing this must never do.
-    /// Vague and right beats specific and wrong, so the specific one has to
-    /// earn the lead by being close.
+    /// Leading with the town rather than with whatever happens to be nearest
+    /// is the whole of the judgement here, and it is about what the two
+    /// mistakes cost. Confirming the offer is one tap, so the offer has to be
+    /// somewhere the user certainly was. "Paris" is that on every day of the
+    /// year; "Pharmacie du Marché", picked because it was the nearest thing
+    /// with a name, is a place somebody may only have walked past — and a
+    /// wrong answer written into somebody's journal is the one thing this must
+    /// never do. Vague and right beats specific and wrong.
     ///
-    /// Everything found is in the list either way: the picker is what "none of
-    /// these" is for, and the field under it is what "none of these either" is
-    /// for.
+    /// It is also the answer most often wanted. A journal line says where the
+    /// day was spent, and that is far more often a town than a shopfront; the
+    /// café is one tap down the list for the days it *is* the answer.
+    ///
+    /// The field under the picker is what "none of these" is for.
     public var toOffer: [Place] {
         let places = named.map(\.place)
-        guard let area else { return places }
-        guard let nearest = named.first else { return [area] }
-
-        return nearest.metresAway <= Self.armsReach
-            ? [nearest.place, area] + places.dropFirst()
-            : [area] + places
+        guard let area else { return Array(places.prefix(Self.asManyAsAreWorthOffering)) }
+        return Array(([area] + places).prefix(Self.asManyAsAreWorthOffering))
     }
 
-    /// How close a named place has to be to be *where somebody is* rather than
-    /// merely near them — and so to lead the offer instead of the area.
+    /// How many places are worth offering from around the device.
+    ///
+    /// Five, counting the town: a list somebody reads at a glance while a
+    /// sentence waits, not a directory of everything with a name within a
+    /// couple of minutes' walk. What falls off the end is the furthest, which
+    /// is the least likely to be where anybody was.
+    ///
+    /// The number lives here rather than in whatever asked the map, because it
+    /// is a judgement about a picker on a screen and not about what a search
+    /// can return.
+    static let asManyAsAreWorthOffering = 5
+
+    /// The one thing this spot is best called — a single name rather than a
+    /// list, for somewhere the user is not.
+    ///
+    /// This is what a position out of the day's photographs is put through,
+    /// and it is deliberately *not* ``toOffer``'s rule. The two are asked
+    /// different questions. Around the device, the question is "what shall I
+    /// offer you for today", and a list led by the town is the safe answer.
+    /// Around a photograph, the question is "what is this one place", the
+    /// answer is one row among the day's other stops, and answering "Paris"
+    /// for every one of them would collapse a day of places into a single
+    /// useless line.
+    ///
+    /// A photograph also earns the specific answer in a way a live fix cannot.
+    /// Somebody stood there and took a picture, so a café a few metres off is
+    /// where they were rather than somewhere they might have walked past —
+    /// which is exactly what ``armsReach`` is measuring. Beyond it there is no
+    /// such claim, and the town takes over.
+    public var bestKnownAs: Place? {
+        guard let nearest = named.first else { return area }
+        return nearest.metresAway <= Self.armsReach ? nearest.place : (area ?? nearest.place)
+    }
+
+    /// How close a named place has to be to be *where somebody was* rather
+    /// than merely near them — and so to be what a spot is called instead of
+    /// the town.
     ///
     /// A hundred metres: across a square, not across a neighbourhood.
     static let armsReach: Double = 100
@@ -165,108 +203,26 @@ public protocol Places: Sendable {
     /// order is ``Surroundings/toOffer``'s, above this line and unit-tested
     /// there.
     func around() async -> Surroundings
-}
 
-/// What a `{{location}}` widget offers the user: where the device says they
-/// are, and the places around it to choose instead.
-///
-/// A day is written up in the evening, or a week later, and the phone that was
-/// there is the one being written on — so the widget offers the place rather
-/// than asking somebody to spell it. Which places those are is the only
-/// question here, and it has one answer: whatever the device names around
-/// itself, in the order it named them.
-///
-/// It holds no map and no permission alert. Both are the app's, behind
-/// ``Places`` — which is what lets every rule here be unit-tested on Linux
-/// against places that are said rather than found.
-///
-/// ## Nothing on offer is the ordinary case
-///
-/// A refused device, a device that will not say, and somewhere with no place
-/// worth naming all come out the same: no offer at all. None of them is a
-/// failure and none of them is said out loud, because the sheet is answerable
-/// either way — the place is typed, which is what answering a placeholder was
-/// before there was a device to ask.
-@MainActor
-@Observable
-public final class PlaceSuggestions {
-    /// What the sheet should be showing above the field the place is typed in.
-    public enum State: Hashable, Sendable {
-        /// No offer. A refused device, one with nothing to say, or nowhere
-        /// with a place to name.
-        case nothingToOffer
-
-        /// Nobody has been asked about the device's location yet, so there is
-        /// something worth offering to look for — and asking is the user's to
-        /// set going.
-        case couldLook
-
-        /// The device is being asked. On screen while it is, because finding a
-        /// place is a fix and then a lookup, and a sheet that showed nothing
-        /// meanwhile would read as a device that had answered "nowhere".
-        case looking
-
-        /// The places to offer, the first of them being the offer itself.
-        case offering([Place])
-    }
-
-    public private(set) var state: State = .nothingToOffer
-
-    /// The device, or none at all — which is a preview, and a test of
-    /// something else, and offers nothing.
-    @ObservationIgnored private let places: (any Places)?
-
-    /// - Parameter places: where the surrounding places are read from. `nil`
-    ///   is a widget with no device behind it — nothing to offer, ever, which
-    ///   is what a preview and every test of something else want.
-    public init(from places: (any Places)? = nil) {
-        self.places = places
-    }
-
-    /// The place the widget offers: the nearest one the device named.
-    public var offered: Place? {
-        guard case .offering(let around) = state else { return nil }
-        return around.first
-    }
-
-    /// Looks for the place, if that is allowed without asking anybody
-    /// anything.
+    /// What to call somewhere the device is not: the one place a position is
+    /// best known as, or `nil` for a position nothing could put a name to.
     ///
-    /// Called with the sheet going on screen. A device nobody has been asked
-    /// about is not asked here — it is offered, and ``askToLook()`` is what
-    /// the offer leads to.
-    public func look() async {
-        guard let places else { return state = .nothingToOffer }
-
-        switch places.access {
-        case .refused:
-            state = .nothingToOffer
-        case .undecided:
-            state = .couldLook
-        case .allowed:
-            await read(places)
-        }
-    }
-
-    /// Asks for the device's location, because the user said to look — and
-    /// offers what is around if they allowed it.
+    /// The positions are the day's own photographs', gathered into
+    /// ``PhotographedStop``s first so that this is asked a handful of times
+    /// per sheet rather than once per picture.
     ///
-    /// The only thing in Aujour that ever asks where the device is. A refusal
-    /// leaves nothing on offer and says nothing about it: they answered the
-    /// question that was put to them, and the answer was no.
-    public func askToLook() async {
-        guard let places else { return }
-
-        state = .looking
-        guard await places.ask() == .allowed else { return state = .nothingToOffer }
-        await read(places)
-    }
-
-    private func read(_ places: any Places) async {
-        state = .looking
-        // The first is the offer and the rest are the picker, and both are
-        // this one answer put in the order it is worth offering in.
-        let around = await places.around().toOffer
-        state = around.isEmpty ? .nothingToOffer : .offering(around)
-    }
+    /// **This one is not gated on the permission**, alone among the members
+    /// here, and that is the point of it. Asking what stands at a coordinate
+    /// is a question about the map; asking where the device is is a question
+    /// about the user, and only the second is what
+    /// `NSLocationWhenInUseUsageDescription` is the answer to. The coordinate
+    /// arrived from the user's own photo library, which they opened
+    /// deliberately — so somebody who refused the one permission and granted
+    /// the other is still offered the places their day's pictures were taken,
+    /// which is the whole reason the offer rides both.
+    ///
+    /// Reading still never fails: a lookup that comes back with nothing, or
+    /// does not come back at all, is one stop with no name among however many
+    /// had one.
+    func place(at position: Coordinate) async -> Place?
 }

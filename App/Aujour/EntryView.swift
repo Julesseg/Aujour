@@ -57,9 +57,15 @@ struct EntryView: View {
     /// journals against one that is said rather than found.
     private let places: (any Places)?
 
+    /// The library the suggestions panel reads, held as well as handed to the
+    /// panel because the `{{location}}` widget reads the same one: the
+    /// positions this day's photographs carry are where it says the day was.
+    private let library: (any PhotoLibrary)?
+
     @Environment(\.scenePhase) private var scenePhase
 
     /// - Parameter library: where this day's suggested photographs are read
+    ///   from, and where a `{{location}}` widget reads the day's own places
     ///   from — the device's, unless a test or a preview says otherwise.
     ///   `nil` is a panel that never appears, which is what a preview and
     ///   every test of something else want.
@@ -73,6 +79,7 @@ struct EntryView: View {
     ) {
         self.editor = editor
         self.places = places
+        self.library = library
         _suggestions = State(wrappedValue: PhotoSuggestions(from: library))
     }
 
@@ -112,7 +119,17 @@ struct EntryView: View {
                 // placeholder is still literal text in the file, and still a
                 // widget the next time the day is opened.
                 .sheet(item: $question) {
-                    PlaceholderAnswerSheet(question: $0, from: places)
+                    // The day as well as the seams, because a `{{location}}`
+                    // widget is about the day being written rather than about
+                    // now: it reads this day's photographs for where they were
+                    // taken, so a Monday filled in on Friday is offered
+                    // Monday's places and not the street outside.
+                    PlaceholderAnswerSheet(
+                        question: $0,
+                        from: places,
+                        photographsFrom: library,
+                        for: editor.day
+                    )
                 }
                 // The Entry on screen decides where a relative embed points, so
                 // both halves of an embed follow it — including on the morning

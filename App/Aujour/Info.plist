@@ -62,15 +62,22 @@
 	<string>Aujour fills in {{reminders}} with the day's reminders when it starts a new entry. Your reminders are only ever read, and what they say goes no further than the markdown file for that day.</string>
 
 	<!-- And what it says when somebody asks the suggestions panel to show the
-	     photographs from the day they are writing. Here rather than as a build
-	     setting for the same reason as the two above.
+	     photographs from the day they are writing, or asks a {{location}}
+	     widget where that day's photographs were taken. Here rather than as a
+	     build setting for the same reason as the two above.
 
-	     Asked for by that panel and by nothing else: adding a photo with the
+	     Two things ask for it and nothing else does: adding a photo with the
 	     button above the keyboard goes through the system picker, which runs
 	     in a process of its own and needs no permission at all. Saying no
-	     costs the panel and nothing more. -->
+	     costs the panel and the places, and nothing more.
+
+	     The second sentence is here because reading where somebody's
+	     photographs were taken is a meaningfully larger claim than showing
+	     them the pictures, and this string is the only place the system ever
+	     puts that claim in front of them. Leaving it to the panel's sentence
+	     would be asking for one thing and doing two. -->
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Aujour offers you the photos from the day you're writing about, so adding one is a single tap. Your library is only ever read, and a photo goes nowhere but the journal folder on your device when you choose it.</string>
+	<string>Aujour offers you the photos from the day you're writing about, so adding one is a single tap. It also reads where that day's photos were taken, to offer those places when you tap a {{location}} widget. Your library is only ever read, one day at a time, and nothing it finds goes anywhere but the markdown file for that day.</string>
 
 	<!-- And what it says when somebody taps a {{location}} widget and asks
 	     Aujour to find the place they are in. Here rather than as a build

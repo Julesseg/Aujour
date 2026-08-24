@@ -4,12 +4,19 @@ import Observation
 /// One photograph the device holds from a Journal Day, as everything above the
 /// library sees it.
 ///
-/// A name the library answers to and the moment it was taken, and nothing
-/// else: what it looks like needs a screen, and what it weighs needs a
-/// download. Both are asked for by name, later and only for the ones somebody
-/// actually wants — a day can hold two hundred photographs, and a panel that
-/// fetched every one of them to offer them would be a day that took a while to
-/// open.
+/// A name the library answers to, the moment it was taken and — where the
+/// camera recorded one — where it was taken, and nothing else: what it looks
+/// like needs a screen, and what it weighs needs a download. Both are asked
+/// for by name, later and only for the ones somebody actually wants — a day
+/// can hold two hundred photographs, and a panel that fetched every one of
+/// them to offer them would be a day that took a while to open.
+///
+/// The position is the exception to that, and it is cheap for the same reason
+/// the moment is: both are already in the library's own index beside the name,
+/// so a day's worth of them costs the same one query. What is done with them
+/// is ``PhotographedStop``'s and then ``PlaceSuggestions``'s — never this
+/// panel's, which offers pictures and has no interest in where they were
+/// taken.
 public struct DayPhotograph: Hashable, Sendable, Identifiable {
     /// What the library calls it. Opaque here, and handed straight back when
     /// its thumbnail or its bytes are wanted.
@@ -18,9 +25,19 @@ public struct DayPhotograph: Hashable, Sendable, Identifiable {
     /// When it was taken, which is the whole of why it is being offered.
     public let takenAt: Date
 
-    public init(id: String, takenAt: Date) {
+    /// Where it was taken, or `nil` for one the camera recorded no position
+    /// for — a photograph taken with location turned off, a screenshot, a
+    /// picture saved from a message, or one the user has since stripped.
+    ///
+    /// Optional and commonly absent, which is why nothing built on it may
+    /// treat its absence as a failure: a day of photographs that carry no
+    /// position is a `{{location}}` widget falling back to the live fix.
+    public let position: Coordinate?
+
+    public init(id: String, takenAt: Date, position: Coordinate? = nil) {
         self.id = id
         self.takenAt = takenAt
+        self.position = position
     }
 }
 

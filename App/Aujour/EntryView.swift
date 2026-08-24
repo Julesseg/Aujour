@@ -49,6 +49,13 @@ struct EntryView: View {
     /// over the way to write the answer back into the Entry.
     @State private var question: PlaceholderQuestion?
 
+    /// This day on its way out of the app, while it is going.
+    ///
+    /// Here for the same reason the pictures are: a day reached from the
+    /// calendar is pushed on top of today and both screens stay alive, so one
+    /// of these between them would be a share sheet over the wrong day.
+    @State private var shared = SharedEntry()
+
     /// Where the `{{location}}` widget reads the place from, for whichever
     /// sheet this Entry puts up.
     ///
@@ -161,6 +168,16 @@ struct EntryView: View {
                         acknowledge: photographs.acknowledge
                     )
                 }
+                // A share that quietly did nothing is the one outcome
+                // somebody would sit and repeat — so it is said here, with
+                // the rest of what could not be written.
+                if let problem = shared.problem {
+                    WritingProblemNotice(
+                        problem: problem,
+                        identifier: "shareProblemNotice",
+                        acknowledge: shared.acknowledge
+                    )
+                }
                 // Under the notices and nearest the keyboard, which is where
                 // the thumbs already are — and above nothing at all on the
                 // days it has nothing to offer.
@@ -179,6 +196,26 @@ struct EntryView: View {
                         isAddingOne: photographs.isAddingOne
                     )
                 }
+            }
+        }
+        // Declared here rather than beside the button that opens it, like
+        // every other sheet in the app: one inside a toolbar item is one that
+        // lives and dies with a control on a bar.
+        .sheet(item: $shared.file) { file in
+            ShareSheet(file: file)
+        }
+        // On the Entry's own screen rather than on the two screens that lead
+        // to one, which is what makes it true of any day: today is reached
+        // one way and a day in March another, and this is the screen both of
+        // them are.
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                // Whether there is a day to send, and whether it has anything
+                // in it, are both read inside the menu rather than here — the
+                // second of them is a fact about the words, and reading the
+                // words in *this* body would invalidate the whole screen on
+                // every keystroke.
+                ShareEntryMenu(editor: editor, pictures: pictures, shared: shared)
             }
         }
     }

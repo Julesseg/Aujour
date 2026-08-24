@@ -860,6 +860,113 @@ final class AujourUITests: XCTestCase {
         )
     }
 
+    // MARK: - Sending a day somewhere
+
+    // The acceptance-level claim of exporting: both forms are on offer over a
+    // day, and choosing one reaches the system share sheet. What is *in*
+    // either file — the markdown byte for byte, the page with the marks left
+    // off it — is drawn and read back headlessly in `SharedEntryTests` and
+    // `EntryPaperTests`; what only a running app can show is the offer and
+    // the sheet.
+    func testADayIsOfferedAsAPDFAndAsPlainTextThroughTheShareSheet() throws {
+        let app = launchApp(contentTemplate: "# {{title}}\n\nWalked to the market.\n")
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        let share = app.buttons["shareEntry"]
+        XCTAssertTrue(share.waitForExistence(timeout: 10), "today's entry offered no way to share it")
+        share.tap()
+
+        XCTAssertTrue(
+            app.buttons["shareAsPDF"].waitForExistence(timeout: 5),
+            "the share menu did not offer a PDF"
+        )
+        XCTAssertTrue(app.buttons["shareAsPlainText"].exists, "the share menu did not offer plain text")
+
+        app.buttons["shareAsPlainText"].tap()
+
+        // The system's own screen, over the file Aujour wrote. That it came
+        // up at all is the claim here; *what* is in the file — the day's own
+        // characters, named after the day — is proven byte for byte and
+        // headlessly in `SharedEntryTests`, which is where a claim about a
+        // file belongs.
+        let sheet = app.otherElements["ActivityListView"]
+        XCTAssertTrue(
+            sheet.waitForExistence(timeout: 20),
+            "the share sheet never came up — the screen is showing: "
+                + app.staticTexts.allElementsBoundByIndex.map { $0.label }.joined(separator: " / ")
+        )
+
+        // And the day is exactly where it was afterwards: an export is a copy
+        // handed to something else, and nothing about it touches the Entry
+        // (ADR 0001).
+        dismissTheShareSheet(app)
+        let stillThere = try XCTUnwrap(app.textViews["entryEditor"].value as? String)
+        XCTAssertTrue(
+            stillThere.contains("Walked to the market."),
+            "sharing the day changed it: \(stillThere)"
+        )
+    }
+
+    // "Works for any day, from history as well as today": the offer is on the
+    // Entry's own screen, so a day reached from the calendar has it too.
+    func testADayFilledInFromHistoryCanBeSentAsWell() throws {
+        let app = launchApp(contentTemplate: "# {{title}}\n")
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        openCalendar(app, showingTheMonthOf: yesterday)
+
+        let cell = app.buttons["day-\(entryName(for: yesterday))"]
+        XCTAssertTrue(cell.waitForExistence(timeout: 10), "yesterday was not on the calendar")
+        cell.tap()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), "yesterday's entry never opened")
+
+        let share = app.buttons["shareEntry"]
+        XCTAssertTrue(
+            share.waitForExistence(timeout: 10),
+            "a day reached from the calendar offered no way to share it"
+        )
+        share.tap()
+        XCTAssertTrue(
+            app.buttons["shareAsPDF"].waitForExistence(timeout: 5),
+            "the share menu did not offer a PDF for a day from history"
+        )
+
+        app.buttons["shareAsPDF"].tap()
+
+        XCTAssertTrue(
+            app.otherElements["ActivityListView"].waitForExistence(timeout: 30),
+            "the share sheet never came up for a day from history"
+        )
+    }
+
+    /// Puts the system share sheet away, whichever way this device offers.
+    ///
+    /// The Close button where the activity controller draws one, and a swipe
+    /// down where it does not — the sheet is presented by SwiftUI and is
+    /// dismissible either way, and which of them is on screen differs between
+    /// the two device families the suite runs on.
+    private func dismissTheShareSheet(_ app: XCUIApplication) {
+        let close = app.buttons["Close"]
+        if close.waitForExistence(timeout: 5), close.isHittable {
+            close.tap()
+        } else {
+            app.swipeDown(velocity: .fast)
+        }
+        XCTAssertTrue(
+            app.otherElements["ActivityListView"].waitForNonExistence(timeout: 10),
+            "the share sheet would not go away"
+        )
+    }
+
     func testTheJournalMovesToAPickedFolderAndStaysThere() throws {
         // The folder that stands in for one picked in the Files app. Driving
         // the picker itself would be a test of another process's screen; what

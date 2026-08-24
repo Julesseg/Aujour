@@ -380,6 +380,29 @@ Saying no costs the panel and nothing else: adding a photo from the Accessory
 Row goes through the system picker, which runs in a process of its own and
 needs no permission at all.
 
+### Export
+A copy of one Entry, made to leave the app: sent to somebody, filed, or
+printed. Two forms, because they answer two different wants — a **PDF** is the
+day as it *looks*, the markdown drawn as what it means, for somebody who is
+going to read it rather than edit it; **plain text** is the day as it *is*,
+the file's own characters, for a day going into another editor, another vault
+or the middle of a message.
+
+Named after its Journal Day, like an Attachment — `2026-03-14.pdf`,
+`2026-03-14.md` — so a folder of exported days sorts the way the journal does.
+Offered on the Entry's own screen and so for any day, today's and a day
+reached from the Calendar alike.
+
+Never a document of its own. The text form is the Entry byte for byte
+(ADR 0001), and the PDF is Live Preview with no cursor anywhere: the same
+reading, the same styling and the same Drawn Elements the editor uses, laid
+out on pages instead of a screen. So the day somebody prints is the day they
+wrote, and it stays that way without anything having to be kept in step.
+
+An Export is a copy handed to something else and is never written into the
+Journal Root: the folder is the Journal, and a file made for a share sheet is
+not part of it.
+
 ### Journal Settings
 The settings that shape the Journal itself: Path Template, Content Template,
 Attachment Path Template, embed syntax, Rollover Hour, and how each data

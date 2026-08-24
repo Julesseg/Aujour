@@ -118,6 +118,44 @@ struct PlaceholderWidgetTests {
         #expect(widgets(in: entry.storage).isEmpty)
     }
 
+    // A template may word the question itself, and then the sentence in the
+    // file is the template's rather than the placeholder's default. The whole
+    // token goes — format, braces and all — because the whole of it was the
+    // question.
+    @Test("a token that worded its own question is answered in those words")
+    func answeringAFormattedWidget() throws {
+        let entry = editor(holding: "{{mood:Woke up feeling {value}}}\nWalked home.\n")
+        entry.coordinator.tapped(in: entry.textView, at: entry.firstBox)
+        try #require(entry.asked).answered(try #require(MoodRating(4)).answer)
+
+        #expect(entry.textView.text == "Woke up feeling 4/5\nWalked home.\n")
+        #expect(entry.written == "Woke up feeling 4/5\nWalked home.\n")
+        #expect(widgets(in: entry.storage).isEmpty)
+    }
+
+    // And it is a widget over all of it meanwhile: a format is part of the
+    // question, not words standing beside one.
+    @Test("the widget stands over the format too")
+    func aFormattedTokenIsOneWidget() {
+        let entry = storage(holding: "{{mood:Woke up feeling {value}}} — and better by noon")
+        #expect(widgets(in: entry).map(\.text) == ["{{mood:Woke up feeling {value}}}"])
+    }
+
+    // A format is markdown the day has not written yet, so a template that
+    // words its question in bold is still one question: the emphasis inside the
+    // braces is styling nobody is meant to see until the answer is in the file.
+    @Test("markdown inside a format does not break the widget in two")
+    func aFormatCarryingMarkdown() throws {
+        let token = "{{mood:**Mood:** {value}}}"
+        let entry = editor(holding: "\(token)\nWalked home.\n")
+        #expect(widgets(in: entry.storage).map(\.text) == [token])
+
+        entry.coordinator.tapped(in: entry.textView, at: entry.firstBox)
+        try #require(entry.asked).answered(try #require(MoodRating(4)).answer)
+
+        #expect(entry.textView.text == "**Mood:** 4/5\nWalked home.\n")
+    }
+
     // Cancelling is answering nothing, and a question nobody answered is still
     // a question — literal text in the file, and a widget again next time.
     @Test("a question nobody answers leaves the token where it stood")
@@ -142,7 +180,7 @@ struct PlaceholderWidgetTests {
         let asked = try #require(entry.asked)
 
         entry.storage.setSource("Walked home the long way.\n")
-        asked.answered("Today's mood: 4/5")
+        asked.answered("4/5")
 
         #expect(entry.textView.text == "Walked home the long way.\n")
     }
@@ -152,8 +190,8 @@ struct PlaceholderWidgetTests {
     func undoingAnAnswer() throws {
         let entry = editor(holding: "{{mood}}\n")
         entry.coordinator.tapped(in: entry.textView, at: entry.firstBox)
-        try #require(entry.asked).answered("Good")
-        #expect(entry.textView.text == "Good\n")
+        try #require(entry.asked).answered("4/5")
+        #expect(entry.textView.text == "Today's mood: 4/5\n")
 
         let undo = try #require(entry.textView.undoManager)
         #expect(undo.canUndo)
@@ -173,7 +211,7 @@ struct PlaceholderWidgetTests {
         entry.cursor(at: 19)
 
         entry.coordinator.tapped(in: entry.textView, at: entry.firstBox)
-        try #require(entry.asked).answered("Today's mood: 4/5")
+        try #require(entry.asked).answered("4/5")
 
         let caret = entry.textView.selectedRange
         #expect((entry.textView.text as NSString).substring(to: caret.location).hasSuffix("hom"))

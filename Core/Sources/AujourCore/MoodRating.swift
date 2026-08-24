@@ -17,18 +17,24 @@ import Foundation
 /// is a plain English sentence, and it is decided and tested where the rest of
 /// the file's shape is.
 ///
-/// ## Why "Today's"
+/// ## Why the scale is carried, and not just the number
+///
+/// A bare `4` in a journal is a number with no scale, and the scale is stored
+/// nowhere else — so the line would stop meaning anything the moment anybody
+/// wondered whether it was out of five or out of ten. `4/5` answers that on
+/// its own, wherever a format puts it.
+///
+/// What the rating does *not* carry is its subject: a fraction in the middle
+/// of a journal is still a fraction about nothing. That is the format's to
+/// supply — "Today's mood: " by default, or whatever the template worded — and
+/// it is why the default format is a sentence rather than a slot on its own.
+///
+/// ## Why "Today's" in the default
 ///
 /// Because a day's Entry is that day writing. A Monday backfilled on Tuesday
 /// says "Today's mood" too, and means Monday's — the same way `{{date}}`
 /// resolves to the Journal Day rather than the day somebody was at the
 /// keyboard. The word belongs to the file it is in, not to the clock.
-///
-/// ## Why not a number written on its own
-///
-/// A bare `4/5` in the middle of a journal is a fraction with no subject. The
-/// sentence says what was rated, which is what makes the line readable by a
-/// person, greppable by a tool, and no worse than what a hand would have typed.
 public struct MoodRating: Equatable, Sendable {
     /// The marks the widget puts up. Five, and deliberately fixed: a scale the
     /// user could change is a journal whose old entries mean something else
@@ -55,10 +61,15 @@ public struct MoodRating: Equatable, Sendable {
         self.value = value
     }
 
-    /// The plain markdown that takes the token's place — what a tap on the
-    /// widget writes into the day, handed to
-    /// ``EntryMarkdown/answering(_:in:with:)`` as the answer.
+    /// The rating as the file spells it — what a tap on the widget hands to
+    /// ``EntryMarkdown/answering(_:in:with:)``, and what the token's format
+    /// then puts its slot's worth of words around.
+    ///
+    /// The bare answer and not a sentence, because the sentence is the token's:
+    /// `{{mood}}` words this "Today's mood: 4/5" and
+    /// `{{mood:Woke up feeling {value}}}` words it "Woke up feeling 4/5", and
+    /// neither of those is a rating's business.
     public var answer: String {
-        "Today's mood: \(value)/\(MoodRating.scale.upperBound)"
+        "\(value)/\(MoodRating.scale.upperBound)"
     }
 }

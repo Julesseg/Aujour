@@ -4,17 +4,24 @@ import Testing
 @testable import AujourCore
 
 // What answering {{mood}} leaves in the file. The widget itself needs a screen
-// and is the app's; the scale it offers and the sentence a rating becomes are
-// decided here, because they are what the folder keeps — and a journal read in
-// Obsidian next year is read as that sentence and nothing else.
+// and is the app's; the scale it offers and how a rating is spelled are decided
+// here, because they are what the folder keeps — and a journal read in Obsidian
+// next year is read as those words and nothing else.
+//
+// The sentence around the rating belongs to the token's format rather than to
+// the rating (`InteractivePlaceholderTests`), so what is asserted here is the
+// mark itself: the number, and the scale it was given on.
 
 @Suite("A day's mood, on the scale its widget offers")
 struct MoodRatingTests {
-    @Test("a rating words itself as the line the file keeps")
-    func theSentence() {
-        #expect(MoodRating(1)?.answer == "Today's mood: 1/5")
-        #expect(MoodRating(4)?.answer == "Today's mood: 4/5")
-        #expect(MoodRating(5)?.answer == "Today's mood: 5/5")
+    // The scale travels with the number, wherever a format puts it: a bare `4`
+    // in a journal is a number nothing records the scale of, and the line would
+    // stop meaning anything the moment anybody wondered.
+    @Test("a rating spells itself with the scale it was given on")
+    func theMark() {
+        #expect(MoodRating(1)?.answer == "1/5")
+        #expect(MoodRating(4)?.answer == "4/5")
+        #expect(MoodRating(5)?.answer == "5/5")
     }
 
     // Five of them, and nothing between or beyond: a mood is one of the marks
@@ -28,7 +35,8 @@ struct MoodRatingTests {
     }
 
     // The whole of what answering does, end to end: the token's own characters
-    // become the sentence, and the day is plain markdown before and after.
+    // become the sentence its format words, and the day is plain markdown
+    // before and after.
     @Test("answering the token writes the rating in its place")
     func answeringTheToken() throws {
         let entry = "{{mood}}\nWalked home.\n"
@@ -47,16 +55,17 @@ struct MoodRatingTests {
         #expect(EntryMarkdown(answered).interactivePlaceholders(in: answered).isEmpty)
     }
 
-    // A rating is a sentence, not a mark: what it writes has no markdown syntax
-    // in it, so a day answered by the widget reads in every other tool exactly
-    // as a day somebody typed the same words into.
+    // What a rating writes has no markdown syntax in it, so a day answered by
+    // the widget reads in every other tool exactly as a day somebody typed the
+    // same words into.
     @Test("the sentence a rating writes is words, not markdown")
     func theSentenceIsPlainWords() throws {
         for rating in MoodRating.all {
-            let markdown = EntryMarkdown(rating.answer)
+            let written = InteractivePlaceholder.mood.defaultFormat.filled(with: rating.answer)
+            let markdown = EntryMarkdown(written)
             let line = try #require(markdown.lines.first)
-            #expect(line.block == .paragraph, "\(rating.answer) was read as \(line.block)")
-            #expect(line.inlines.isEmpty, "\(rating.answer) carries markdown of its own")
+            #expect(line.block == .paragraph, "\(written) was read as \(line.block)")
+            #expect(line.inlines.isEmpty, "\(written) carries markdown of its own")
         }
     }
 }

@@ -1906,6 +1906,83 @@ final class AujourUITests: XCTestCase {
         XCTAssertEqual(field.value as? String, path)
     }
 
+    // MARK: - Theming
+
+    /// What theming is, said the only way a running app can say it: a choice
+    /// made on this screen is the app's, and it is still the app's after a
+    /// relaunch.
+    ///
+    /// Which colour each accent resolves to in light and in dark, and what
+    /// "serif at 22 points" comes out as once Dynamic Type has had it, are
+    /// checked where a colour and a font exist to check them, in
+    /// `AppearanceTests`. What only a running app can show is that the three
+    /// controls reach the settings at all, and that what they wrote survives
+    /// the process ending.
+    func testHowAujourLooksIsChosenOnThisDeviceAndStaysChosen() throws {
+        let app = launchApp()
+
+        openHowItLooks(in: app)
+
+        let specimen = app.staticTexts["editorFontSpecimen"]
+        let asItComes = try XCTUnwrap(specimen.value as? String)
+
+        app.segmentedControls["appearanceTheme"].buttons["Dark"].tap()
+        app.buttons["accent.moss"].tap()
+        app.segmentedControls["editorFontFamily"].buttons["Serif"].tap()
+        app.sliders["editorFontSize"].adjust(toNormalizedSliderPosition: 1)
+
+        XCTAssertEqual(app.staticTexts["accentInUse"].label, "Moss")
+        let chosenFont = try XCTUnwrap(specimen.value as? String)
+        XCTAssertTrue(
+            chosenFont.hasPrefix("Serif, "),
+            "the specimen is not in the chosen face — it says \(chosenFont)"
+        )
+        XCTAssertNotEqual(
+            chosenFont, asItComes,
+            "the size control moved nothing — the specimen still says \(chosenFont)"
+        )
+
+        relaunch(app)
+
+        // The journal sheet says which accent is in force before it is opened,
+        // which is the shortest proof that the choice outlived the process.
+        let theJournal = app.buttons["openTheJournalSheet"]
+        XCTAssertTrue(theJournal.waitForExistence(timeout: 30), "the app never came back")
+        theJournal.tap()
+
+        let howItLooks = app.buttons["openHowItLooks"]
+        scrollTo(howItLooks, in: app)
+        XCTAssertTrue(howItLooks.label.contains("Moss"), "the accent did not survive a relaunch")
+        howItLooks.tap()
+
+        XCTAssertTrue(
+            app.segmentedControls["appearanceTheme"].buttons["Dark"].waitForExistence(timeout: 10)
+        )
+        XCTAssertTrue(
+            app.segmentedControls["appearanceTheme"].buttons["Dark"].isSelected,
+            "the appearance did not survive a relaunch"
+        )
+        XCTAssertEqual(app.staticTexts["accentInUse"].label, "Moss")
+        XCTAssertEqual(app.staticTexts["editorFontSpecimen"].value as? String, chosenFont)
+    }
+
+    /// The way in: the journal sheet, and the one row on it that is not about
+    /// the journal.
+    private func openHowItLooks(in app: XCUIApplication) {
+        let theJournal = app.buttons["openTheJournalSheet"]
+        XCTAssertTrue(theJournal.waitForExistence(timeout: 30), "the journal never opened")
+        theJournal.tap()
+
+        let howItLooks = app.buttons["openHowItLooks"]
+        scrollTo(howItLooks, in: app)
+        howItLooks.tap()
+
+        XCTAssertTrue(
+            app.segmentedControls["appearanceTheme"].waitForExistence(timeout: 10),
+            "the appearance page never appeared"
+        )
+    }
+
     private func relaunch(_ app: XCUIApplication) {
         app.terminate()
         app.launch()

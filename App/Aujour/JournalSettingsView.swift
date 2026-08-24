@@ -22,14 +22,24 @@ import AujourCore
 /// is being typed, and the controls that are not text follow the journal
 /// directly.
 ///
-/// The daily reminder is the exception, and sits last under a line of its own
-/// saying so. It is about the journal — it exists to ask whether today has
-/// been written — but it is a property of the device that buzzes rather than
-/// of the folder, so it stays here (ADR 0003). One page still: a second sheet
-/// would mean a user looking for "when does Aujour nag me" had to guess which
-/// of two screens the answer was on.
+/// Two things here are the device's own rather than the journal's, and they
+/// are placed by what they are *about* rather than by where they are kept. The
+/// daily reminder sits last under a line of its own: it is about the journal —
+/// it exists to ask whether today has been written — and only its time is a
+/// property of the device that buzzes (ADR 0003). How Aujour *looks* is about
+/// nothing but Aujour, so it is a row near the top leading to a page of its
+/// own, where the appearance, the accent and the editor's typeface are.
+///
+/// One door either way. A user looking for "when does Aujour nag me" or for
+/// "why is this blue" never has to guess which of two sheets to open, because
+/// there is one, and the second page is a step further in rather than
+/// somewhere else.
 struct JournalSettingsSheet: View {
     let journal: Journal
+
+    /// How Aujour looks on this device, for the one row here that is not about
+    /// the journal at all.
+    let appearance: DeviceAppearance
 
     /// Whether the Files picker is up.
     @State private var picking = false
@@ -66,6 +76,8 @@ struct JournalSettingsSheet: View {
                         // are, what they are called, what is in one when it
                         // starts, which day it is, and then the photographs.
                         Divider()
+                        howItLooks
+                        Divider()
                         EntryPathSection(journal: journal)
                         Divider()
                         ContentTemplateSection(journal: journal)
@@ -94,6 +106,26 @@ struct JournalSettingsSheet: View {
         // Full height rather than half: this is the folder, its paths and its
         // templates, and nearly all of it would be below the fold.
         .presentationDetents([.large])
+    }
+
+    /// The way to the settings that belong to this device alone — a page of
+    /// its own, one step in from the door the user already opened.
+    private var howItLooks: some View {
+        NavigationLink {
+            AppearanceSettingsView(appearance: appearance)
+        } label: {
+            HStack {
+                Label("How it looks", systemImage: "paintpalette")
+                Spacer()
+                Text(appearance.accent.name)
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("openHowItLooks")
     }
 
     @ViewBuilder
@@ -545,5 +577,5 @@ private struct DailyReminderSection: View {
 }
 
 #Preview {
-    JournalSettingsSheet(journal: Journal.inAPreview(over: .system))
+    JournalSettingsSheet(journal: Journal.inAPreview(over: .system), appearance: .inMemory())
 }

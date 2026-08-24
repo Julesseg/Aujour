@@ -10,6 +10,7 @@ struct DeviceSettingsTests {
         let settings = DeviceSettingsStore(storedOn: InMemoryLocalKeyValueStore()).settings
 
         #expect(settings.theme == .system)
+        #expect(settings.accent == .ink)
         #expect(settings.editorFont == .default)
         // "Off until a time is chosen in the welcome" — no reminder by default.
         #expect(settings.dailyReminder == nil)
@@ -24,6 +25,7 @@ struct DeviceSettingsTests {
 
         store.update {
             $0.theme = .dark
+            $0.accent = .moss
             $0.editorFont = EditorFont(family: .serif, size: 20)
             $0.dailyReminder = TimeOfDay(hour: 21, minute: 30)
             $0.hasBeenWelcomed = true
@@ -31,6 +33,7 @@ struct DeviceSettingsTests {
 
         let afterRelaunch = DeviceSettingsStore(storedOn: local)
         #expect(afterRelaunch.settings == store.settings)
+        #expect(afterRelaunch.settings.accent == .moss)
         #expect(afterRelaunch.settings.dailyReminder == TimeOfDay(hour: 21, minute: 30))
         // The claim the welcome rests on: it happens once per device, and the
         // device remembers across launches that it did.
@@ -46,6 +49,7 @@ struct DeviceSettingsTests {
 
         device.update {
             $0.theme = .dark
+            $0.accent = .rose
             $0.editorFont = EditorFont(family: .monospaced, size: 15)
             $0.dailyReminder = TimeOfDay(hour: 7, minute: 0)
             $0.hasBeenWelcomed = true
@@ -62,6 +66,7 @@ struct DeviceSettingsTests {
     func onlyTheCorruptFieldFallsBack() {
         let local = InMemoryLocalKeyValueStore()
         local.setString("dark", forKey: DeviceSettingsKey.theme)
+        local.setString("chartreuse", forKey: DeviceSettingsKey.accent)
         local.setString("chalkboard", forKey: DeviceSettingsKey.editorFontFamily)
         local.setString("2000", forKey: DeviceSettingsKey.editorFontSize)
         local.setString("25:61", forKey: DeviceSettingsKey.dailyReminder)
@@ -70,6 +75,7 @@ struct DeviceSettingsTests {
         let settings = DeviceSettingsStore(storedOn: local).settings
 
         #expect(settings.theme == .dark)
+        #expect(settings.accent == .ink)
         #expect(settings.editorFont == .default)
         #expect(settings.dailyReminder == nil)
         #expect(!settings.hasBeenWelcomed)

@@ -29,8 +29,15 @@ struct ContentView: View {
         case search
     }
 
-    init(journal: Journal = Journal()) {
+    /// How this device wants Aujour to look, held for the one screen that
+    /// changes it. The app is already drawn in it — the appearance, the tint
+    /// and the editor's typeface are applied above this view — so all this
+    /// does is carry it as far as the page that offers the choices.
+    private let appearance: DeviceAppearance
+
+    init(journal: Journal = Journal(), appearance: DeviceAppearance) {
         _journal = State(wrappedValue: journal)
+        self.appearance = appearance
     }
 
     /// Whether a welcome is owed, as something a cover can be presented on.
@@ -128,7 +135,7 @@ struct ContentView: View {
             // and every setting on the sheet reopens it too — a sheet that
             // lived inside one state is a sheet that vanishes mid-decision.
             .sheet(isPresented: $showingTheJournalItself) {
-                JournalSettingsSheet(journal: journal)
+                JournalSettingsSheet(journal: journal, appearance: appearance)
                     // Counted again on the way in: the number from launch is
                     // one edit out of date the moment today's Entry is
                     // created.
@@ -359,19 +366,31 @@ struct StorageProblemNotice: View {
 // Previews journal into a scratch folder rather than into whatever this Mac's
 // iCloud Drive holds, so each one shows the state it is named after.
 #Preview("Journaling into iCloud Drive") {
-    ContentView(journal: Journal.inAPreview(over: .preview(.iCloudDrive)))
+    ContentView(
+        journal: Journal.inAPreview(over: .preview(.iCloudDrive)),
+        appearance: .inMemory()
+    )
 }
 
 #Preview("Journaling on the device") {
-    ContentView(journal: Journal.inAPreview(over: .preview(.onThisDevice)))
+    ContentView(
+        journal: Journal.inAPreview(over: .preview(.onThisDevice)),
+        appearance: .inMemory()
+    )
 }
 
 #Preview("Journaling into a folder of the user's own") {
-    ContentView(journal: Journal.inAPreview(over: .previewCustomFolder))
+    ContentView(
+        journal: Journal.inAPreview(over: .previewCustomFolder),
+        appearance: .inMemory()
+    )
 }
 
 #Preview("Nowhere to journal") {
-    ContentView(journal: Journal.inAPreview(over: .preview(nil)))
+    ContentView(
+        journal: Journal.inAPreview(over: .preview(nil)),
+        appearance: .inMemory()
+    )
 }
 
 extension JournalRootLocator {

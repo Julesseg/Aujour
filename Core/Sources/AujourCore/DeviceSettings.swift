@@ -9,6 +9,7 @@ import Foundation
 /// property of the device that buzzes.
 public struct DeviceSettings: Equatable, Sendable {
     public var theme: Theme
+    public var accent: Accent
     public var editorFont: EditorFont
 
     /// When to nudge the user to journal, or `nil` for no reminder — the
@@ -25,11 +26,13 @@ public struct DeviceSettings: Equatable, Sendable {
 
     public init(
         theme: Theme = .system,
+        accent: Accent = .ink,
         editorFont: EditorFont = .default,
         dailyReminder: TimeOfDay? = nil,
         hasBeenWelcomed: Bool = false
     ) {
         self.theme = theme
+        self.accent = accent
         self.editorFont = editorFont
         self.dailyReminder = dailyReminder
         self.hasBeenWelcomed = hasBeenWelcomed
@@ -43,6 +46,28 @@ public enum Theme: String, Hashable, Sendable, CaseIterable {
     case system
     case light
     case dark
+}
+
+/// The one colour Aujour spends on itself: what a checkbox, a widget, a link
+/// and every button in the app are drawn in.
+///
+/// Six named colours rather than a colour wheel, for the same reason the
+/// editor gets three typefaces — a journal is mostly words on a page, and the
+/// accent's job is to be the one thing on it that is not. A picker offering
+/// every colour would also offer the ones that vanish against the page in
+/// light or in dark, and the app cannot promise a checkbox will be visible in
+/// a colour the user mixed themselves.
+///
+/// The names are what the colours are called, not what they are worth: which
+/// shade of `moss` a device draws — and it is a different one in light and in
+/// dark — is the app layer's, where there is a screen to resolve it against.
+public enum Accent: String, Hashable, Sendable, CaseIterable {
+    case ink
+    case plum
+    case rose
+    case amber
+    case moss
+    case sea
 }
 
 /// The typeface and size the editor renders Entries in.
@@ -162,6 +187,7 @@ public final class DeviceSettingsStore {
 
 enum DeviceSettingsKey {
     static let theme = "aujour.device.theme"
+    static let accent = "aujour.device.accent"
     static let editorFontFamily = "aujour.device.editorFontFamily"
     static let editorFontSize = "aujour.device.editorFontSize"
     static let dailyReminder = "aujour.device.dailyReminder"
@@ -173,6 +199,8 @@ extension DeviceSettings: SettingsGroup {
         let fallback = DeviceSettings.default
         self.theme = storedValues(DeviceSettingsKey.theme)
             .flatMap(Theme.init(rawValue:)) ?? fallback.theme
+        self.accent = storedValues(DeviceSettingsKey.accent)
+            .flatMap(Accent.init(rawValue:)) ?? fallback.accent
         self.editorFont = EditorFont(
             family: storedValues(DeviceSettingsKey.editorFontFamily)
                 .flatMap(EditorFont.Family.init(rawValue:)) ?? fallback.editorFont.family,
@@ -195,6 +223,9 @@ extension DeviceSettings: SettingsGroup {
         var changes: [(key: String, value: String?)] = []
         if theme != previous.theme {
             changes.append((DeviceSettingsKey.theme, theme.rawValue))
+        }
+        if accent != previous.accent {
+            changes.append((DeviceSettingsKey.accent, accent.rawValue))
         }
         if editorFont.family != previous.editorFont.family {
             changes.append((DeviceSettingsKey.editorFontFamily, editorFont.family.rawValue))

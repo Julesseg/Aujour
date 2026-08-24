@@ -453,6 +453,31 @@ enum UITestingJournal {
         return encoded as Data
     }
 
+    /// Where this test's device-local settings live — the appearance, the
+    /// accent, the editor font (ADR 0003).
+    ///
+    /// A `UserDefaults` suite of the test's own, for the same two reasons the
+    /// journal's settings get one: durable, so a choice made in one launch is
+    /// still there in the next exactly as it is for a real install, and the
+    /// test's alone, so a suite left in dark serif at 28 points is not the
+    /// next test's app.
+    ///
+    /// Everybody else gets `UserDefaults.standard`, which is where the
+    /// settings of the Aujour on this device belong.
+    @MainActor
+    static func deviceSettingsStore(
+        _ environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> DeviceSettingsStore {
+        guard let folder = environment[folderKey], isAFolderName(folder) else {
+            return DeviceSettingsStore(storedOn: LocalSettingsStorage())
+        }
+        return DeviceSettingsStore(
+            storedOn: LocalSettingsStorage(
+                onThisDevice: UserDefaults(suiteName: "aujour.uitest.\(folder)") ?? .standard
+            )
+        )
+    }
+
     /// One folder name, not a path: a `/` or a `..` here would put the
     /// journal somewhere neither the app nor the test meant.
     private static func isAFolderName(_ name: String) -> Bool {

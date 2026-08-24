@@ -509,7 +509,8 @@ private final class ALibrarySeededByATest: PhotoLibrary, @unchecked Sendable {
 
 /// `48.85419,2.33262`, or `nil` for anything else.
 private func coordinate(_ said: some StringProtocol) -> Coordinate? {
-    let pair = said.split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+    let pair = said.split(separator: ",")
+        .compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
     guard pair.count == 2 else { return nil }
     return Coordinate(latitude: pair[0], longitude: pair[1])
 }

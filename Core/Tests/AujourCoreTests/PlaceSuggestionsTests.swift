@@ -28,7 +28,10 @@ struct PlaceSuggestionsTests {
         let suggestions = PlaceSuggestions(from: around)
         await suggestions.look()
 
-        #expect(suggestions.state == .offering([flore, deuxMagots]))
+        #expect(
+            suggestions.state
+                == .offering([SuggestedPlaces(from: .nearby, places: [flore, deuxMagots])])
+        )
     }
 
     // The first of them is the offer, and the rest are what tapping "change"
@@ -99,7 +102,7 @@ struct PlaceSuggestionsTests {
         await suggestions.askToLook()
 
         #expect(around.timesAsked == 1)
-        #expect(suggestions.state == .offering([flore]))
+        #expect(suggestions.state == .offering([SuggestedPlaces(from: .nearby, places: [flore])]))
     }
 
     // The acceptance criterion, and the whole of what a refusal costs: no
@@ -151,7 +154,7 @@ struct PlaceSuggestionsTests {
 
         around.answerNow()
         await looking.value
-        #expect(suggestions.state == .offering([flore]))
+        #expect(suggestions.state == .offering([SuggestedPlaces(from: .nearby, places: [flore])]))
     }
 
     // MARK: - What goes in the file

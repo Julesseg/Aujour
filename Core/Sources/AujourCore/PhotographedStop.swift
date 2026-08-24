@@ -25,10 +25,14 @@ public struct PhotographedStop: Hashable, Sendable {
 
     /// When the day got here: the earliest photograph of the stop.
     ///
-    /// The earliest rather than the middle or the last, because this becomes
-    /// the time written beside the place — "Café de Flore, 11:04" — and what
-    /// somebody means by that is when they arrived, not the average moment of
-    /// their lunch.
+    /// Never written anywhere — the day's photographs are how a place is
+    /// *worked out*, and they stop at the offer. This is what puts the stops
+    /// in the order the day made them, and what tells two of them apart when
+    /// they come back with the same name.
+    ///
+    /// The earliest rather than the middle or the last, so that a day reads
+    /// forward by when somebody arrived somewhere rather than by the average
+    /// moment of their lunch.
     public let arrivedAt: Date
 
     /// How many photographs were taken here.
@@ -82,7 +86,9 @@ extension PhotographedStop {
         // photograph of this stop" is only the first one seen if it does.
         let positioned =
             photographs
-            .compactMap { photograph in photograph.position.map { (at: $0, when: photograph.takenAt) } }
+            .compactMap { photograph in
+                photograph.position.map { (at: $0, when: photograph.takenAt) }
+            }
             .sorted { $0.when < $1.when }
 
         var gathering: [Gathering] = []

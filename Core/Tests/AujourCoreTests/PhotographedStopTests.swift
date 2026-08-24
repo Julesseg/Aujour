@@ -85,7 +85,8 @@ struct PhotographedStopTests {
         let west = Coordinate(latitude: 48.8540, longitude: 2.3320)
         let east = Coordinate(latitude: 48.8540, longitude: 2.3330)
 
-        let manyThenOne = (0..<9).map { photograph(at: west, 11, $0) } + [photograph(at: east, 12, 0)]
+        let manyThenOne =
+            (0..<9).map { photograph(at: west, 11, $0) } + [photograph(at: east, 12, 0)]
         let centre = try! #require(PhotographedStop.across(manyThenOne).first).centre
 
         // Nine at one end and one at the other sits a tenth of the way along,
@@ -95,8 +96,8 @@ struct PhotographedStopTests {
 
     // MARK: - When the day got there
 
-    // This becomes the time written beside the place — "Café de Flore, 11:04"
-    // — and what somebody means by that is when they arrived.
+    // This is what puts the stops in the order the day made them, and what
+    // tells two of them apart when they come back with the same name.
     @Test("a stop is timed by its earliest photograph")
     func timedByTheEarliest() {
         let stops = PhotographedStop.across([

@@ -1,6 +1,39 @@
 import Foundation
 import Observation
 
+/// A run of places offered together, and where they were found.
+///
+/// The two answers stay apart all the way to the screen rather than being
+/// merged into one list, because where a place came from is something the user
+/// should be able to see. "Near you" and "From photos" are different kinds of
+/// claim — one is about this minute and the other about the day being written
+/// — and a picker that ran them together would be asking somebody to trust
+/// both equally.
+public struct SuggestedPlaces: Hashable, Sendable, Identifiable {
+    /// Which of the two ways of answering "where were you" this run came from.
+    public enum Source: Hashable, Sendable {
+        /// What the device names around itself, now.
+        case nearby
+
+        /// What the day's own photographs say, worked out from the positions
+        /// they carry.
+        case theDaysPhotographs
+    }
+
+    public let from: Source
+
+    /// Never empty — a run with nothing in it is dropped rather than offered.
+    public let places: [Place]
+
+    /// One run per source, which is what makes a run a section on screen.
+    public var id: Source { from }
+
+    public init(from: Source, places: [Place]) {
+        self.from = from
+        self.places = places
+    }
+}
+
 /// What a `{{location}}` widget offers the user: the places the day's own
 /// photographs were taken, where the device says they are now, and the rest to
 /// choose instead.
@@ -71,8 +104,13 @@ public final class PlaceSuggestions {
         /// answered "nowhere".
         case looking
 
-        /// The places to offer, the first of them being the offer itself.
-        case offering([Place])
+        /// The places to offer, kept in the runs they were found in and in
+        /// the order those runs are worth offering in. The very first place
+        /// of the very first run is the offer itself.
+        ///
+        /// A run with nothing in it is never here, so a day with no
+        /// photographs is one run rather than one run and an empty one.
+        case offering([SuggestedPlaces])
     }
 
     /// What there is still worth offering to go and look at — a permission
@@ -119,10 +157,6 @@ public final class PlaceSuggestions {
     /// are read in — the device's, which is the one the Entry is written in.
     @ObservationIgnored private let timeZone: TimeZone
 
-    /// How a clock is read where the user is, for the hour beside a
-    /// photographed place.
-    @ObservationIgnored private let locale: Locale
-
     /// - Parameters:
     ///   - places: where the surrounding places are read from, and what puts
     ///     names to the positions the day's photographs carry. `nil` is a
@@ -133,28 +167,27 @@ public final class PlaceSuggestions {
     ///   - day: the Journal Day being written about, whose photographs are the
     ///     ones read. `nil` is the same as no library.
     ///   - now: when the sheet was opened.
-    ///   - timeZone: where the day's midnight is measured.
-    ///   - locale: how the hour beside a photographed place is spelled.
+    ///   - timeZone: where the day's midnight is measured, and the stretch
+    ///     of it the library is read for.
     public init(
         from places: (any Places)? = nil,
         photographsFrom library: (any PhotoLibrary)? = nil,
         for day: JournalDay? = nil,
         at now: Date = .now,
-        in timeZone: TimeZone = .current,
-        locale: Locale = .current
+        in timeZone: TimeZone = .current
     ) {
         self.places = places
         self.library = library
         self.day = day
         self.now = now
         self.timeZone = timeZone
-        self.locale = locale
     }
 
-    /// The place the widget offers: the first of the ones found.
+    /// The place the widget offers: the first place of the first run, which is
+    /// the best of everything found once both orderings have had their say.
     public var offered: Place? {
-        guard case .offering(let around) = state else { return nil }
-        return around.first
+        guard case .offering(let runs) = state else { return nil }
+        return runs.first?.places.first
     }
 
     /// Looks for the places, as far as that is allowed without asking anybody
@@ -228,15 +261,19 @@ public final class PlaceSuggestions {
     }
 
     /// Both answers, read at once and put in the order they are worth offering
-    /// in.
-    private func read() async -> [Place] {
+    /// in — as two runs rather than one list, so the screen can say which is
+    /// which.
+    private func read() async -> [SuggestedPlaces] {
         // Together, because they are two independent round trips and a sheet
         // is waiting on the pair of them.
         async let photographed = placesTheDayWasPhotographedIn()
         async let around = placesAroundTheDeviceNow()
 
         let (fromTheDay, fromNow) = await (photographed, around)
-        return withoutRepeats(theDayIsStillOn ? fromNow + fromTheDay : fromTheDay + fromNow)
+        let nearby = SuggestedPlaces(from: .nearby, places: fromNow)
+        let theDays = SuggestedPlaces(from: .theDaysPhotographs, places: fromTheDay)
+
+        return withoutRepeats(theDayIsStillOn ? [nearby, theDays] : [theDays, nearby])
     }
 
     /// Whether the day being written about is the one still being lived, which
@@ -276,13 +313,9 @@ public final class PlaceSuggestions {
         let stops = Self.worthNaming(PhotographedStop.across(photographs))
         guard !stops.isEmpty else { return [] }
 
-        let timeZone = timeZone
-        let locale = locale
         return await withTaskGroup(of: (Int, Place?).self) { naming in
             for (at, stop) in stops.enumerated() {
-                naming.addTask {
-                    (at, await Self.name(stop, with: places, in: timeZone, reading: locale))
-                }
+                naming.addTask { (at, await Self.name(stop, with: places)) }
             }
 
             var named: [Int: Place] = [:]
@@ -314,54 +347,49 @@ public final class PlaceSuggestions {
             .sorted { $0.arrivedAt < $1.arrivedAt }
     }
 
-    /// One stop, named — and stamped with the hour the day got there, which is
-    /// the thing a live fix can never say.
+    /// One stop, named.
     ///
     /// Given an id of its own rather than the looked-up place's, because the
     /// ids these arrive with belong to whatever named them and two stops can
     /// come back with the same one. A row in a picker has to be tellable from
-    /// the row above it, and a stop is one place at one hour.
+    /// the row above it, and the moment the day got there is what tells two
+    /// stops apart when nothing else does.
     private static func name(
         _ stop: PhotographedStop,
-        with places: any Places,
-        in timeZone: TimeZone,
-        reading locale: Locale
+        with places: any Places
     ) async -> Place? {
         guard let there = await places.place(at: stop.centre) else { return nil }
 
         return Place(
             id: "photographed:\(there.id)@\(stop.arrivedAt.timeIntervalSince1970)",
             name: there.name,
-            region: there.region,
-            atTime: Date.FormatStyle(locale: locale, timeZone: timeZone)
-                .hour().minute()
-                .format(stop.arrivedAt)
+            region: there.region
         )
     }
 
-    /// One row per place, by the name of it — keeping the first of any
-    /// repeats.
+    /// One row per place across the whole sheet, keeping the first of any
+    /// repeats — and dropping a run that has nothing left in it.
     ///
     /// Two things make the same place turn up twice. Somebody still sitting
-    /// where they were photographed is found both ways at once, and "Café de
-    /// Flore, 11:04" directly above "Café de Flore" reads as a bug. And a day
-    /// spent wandering one neighbourhood makes several stops that are
-    /// genuinely apart on the ground and all come back named
-    /// "Saint-Germain-des-Prés", because that is what is there — which is a
-    /// picker with one word in it four times over.
+    /// where they were photographed is found both ways at once, and the same
+    /// café under both headings reads as a bug. And a day spent wandering one
+    /// neighbourhood makes several stops that are genuinely apart on the
+    /// ground and all come back named "Saint-Germain-des-Prés", because that
+    /// is what is there — which is a picker with one word in it four times
+    /// over.
     ///
-    /// By the name rather than by what would be written, so that the hour on
-    /// one of them does not let the second through: it is the *place* that has
-    /// already been offered, and the hour is not a second place.
-    ///
-    /// First wins, which is the same as saying the better of the two wins: the
-    /// ordering above has already decided which of them that is.
-    private func withoutRepeats(_ places: [Place]) -> [Place] {
+    /// Across the runs and not within each, so that a place found both ways
+    /// appears under the heading that found it *best*: the ordering above has
+    /// already decided which run that is, and first wins.
+    private func withoutRepeats(_ runs: [SuggestedPlaces]) -> [SuggestedPlaces] {
         var seen: Set<String> = []
-        return places.filter { seen.insert($0.name).inserted }
+        return runs.compactMap { run in
+            let kept = run.places.filter { seen.insert($0.name).inserted }
+            return kept.isEmpty ? nil : SuggestedPlaces(from: run.from, places: kept)
+        }
     }
 
-    private func settle(on found: [Place]) {
+    private func settle(on found: [SuggestedPlaces]) {
         state = found.isEmpty ? .nothingToOffer : .offering(found)
     }
 

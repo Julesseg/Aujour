@@ -11,10 +11,15 @@ import SwiftUI
 /// about a permission in front of somebody mid-sentence, but a question they
 /// can always answer, with the device's help where there is any.
 ///
+/// The places arrive under two headings — "Near you" and "From photos" —
+/// because where a suggestion came from is worth seeing: one is a claim about
+/// this minute and the other about the day being written, and which to trust
+/// is the user's to judge.
+///
 /// What lands in the Entry is plain place text and nothing around it — the
-/// name, and the hour where a photograph could say one, the way
-/// ``AujourCore/Place/written`` says it. A day that answered this widget and a
-/// day that typed the place are the same file (ADR 0001).
+/// name, the way ``AujourCore/Place/written`` says it, whichever heading it
+/// came from. A day that answered this widget and a day that typed the place
+/// are the same file (ADR 0001).
 struct PlaceholderAnsweredWithAPlace: View {
     let question: PlaceholderQuestion
 
@@ -87,12 +92,13 @@ struct PlaceholderAnsweredWithAPlace: View {
     /// The places found, and the offer to go and look further — and nothing at
     /// all where there is neither, which leaves the field standing on its own.
     ///
-    /// Two sections rather than one `switch`, because they are two independent
-    /// facts: there are two permissions behind this sheet, and one of them can
-    /// have been answered while the other is still worth offering. Somebody
-    /// who allowed the device's location back when that was all the widget
-    /// knew how to ask for sees their street *and* the offer to look at the
-    /// day's photographs, which is the whole point of the second one.
+    /// The offer to look further is drawn outside the `switch` rather than as
+    /// a case of it, because it is an independent fact: there are two
+    /// permissions behind this sheet, and one of them can have been answered
+    /// while the other is still worth offering. Somebody who allowed the
+    /// device's location back when that was all the widget knew how to ask for
+    /// sees their street *and* the offer to look at the day's photographs,
+    /// which is the whole point of the second one.
     @ViewBuilder private var around: some View {
         switch suggestions.state {
         case .nothingToOffer:
@@ -107,15 +113,24 @@ struct PlaceholderAnsweredWithAPlace: View {
                 .accessibilityIdentifier("findingMyPlace")
             }
 
-        case .offering(let places):
-            // The picker, and the whole of it: the offer is the first row and
-            // a different place is a tap on another. Every one of them writes
-            // into the field rather than answering outright, so the last word
-            // is the user's either way.
-            Section("Places") {
-                ForEach(places) { place in
-                    Button { answer = place.written } label: { row(place) }
-                        .accessibilityIdentifier("nearbyPlace.\(place.name)")
+        case .offering(let runs):
+            // The picker, and the whole of it: the offer is the first row of
+            // the first section and a different place is a tap on another.
+            // Every one of them writes into the field rather than answering
+            // outright, so the last word is the user's either way.
+            //
+            // A section apiece, because where a place came from is worth
+            // seeing: "the café your photos say you were in" and "a café near
+            // this phone right now" are different claims, and which of them
+            // to trust is the user's to judge rather than the app's to bury.
+            // A run with nothing in it never arrives, so a day with no
+            // photographs is simply one section.
+            ForEach(runs) { run in
+                Section(run.from.heading) {
+                    ForEach(run.places) { place in
+                        Button { answer = place.written } label: { row(place) }
+                            .accessibilityIdentifier("nearbyPlace.\(place.name)")
+                    }
                 }
             }
         }
@@ -140,19 +155,8 @@ struct PlaceholderAnsweredWithAPlace: View {
     private func row(_ place: Place) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(place.name)
-                        .foregroundStyle(.primary)
-                    // The hour a photograph puts on a place, drawn apart from
-                    // the name so the row reads as one place at one time —
-                    // and written along with it, unlike the region, because
-                    // "Café de Flore, 11:04" is a line somebody writes.
-                    if let atTime = place.atTime {
-                        Text(atTime)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                Text(place.name)
+                    .foregroundStyle(.primary)
                 // What tells this Starbucks from the one two streets over.
                 // Read here and written nowhere: it is not what somebody puts
                 // in the middle of their own sentence.
@@ -179,6 +183,20 @@ struct PlaceholderAnsweredWithAPlace: View {
         guard !nothingChosen else { return }
         question.answered(answer.trimmingCharacters(in: .whitespacesAndNewlines))
         dismiss()
+    }
+}
+
+/// What a run of places is called on screen.
+///
+/// Where a suggestion came from, in the user's terms rather than the system's:
+/// not "reverse-geocoded photo metadata" but the day's photos, which is the
+/// thing they actually took.
+extension SuggestedPlaces.Source {
+    var heading: String {
+        switch self {
+        case .nearby: "Near you"
+        case .theDaysPhotographs: "From photos"
+        }
     }
 }
 

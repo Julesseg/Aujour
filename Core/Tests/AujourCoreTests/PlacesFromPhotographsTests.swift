@@ -33,18 +33,19 @@ struct PlacesFromPhotographsTests {
         let suggestions = await looked(at: [photograph(at: flore, 11, 4)])
 
         #expect(suggestions.offered?.name == "Café de Flore")
-        #expect(suggestions.offered?.written == "Café de Flore, 11:04")
+        // Plain place text, exactly as a nearby place writes it: the day's
+        // photographs are how the place was worked out and they stop there.
+        #expect(suggestions.offered?.written == "Café de Flore")
     }
 
-    // The other half of it, and the reason the hour is worth carrying: a
-    // photograph knows when it was taken and a fix taken on Friday does not.
-    @Test("a photographed place carries the hour the day got there")
-    func theHourItWasTaken() async {
-        let suggestions = await looked(at: [
-            photograph(at: flore, 13, 30), photograph(at: flore, 11, 4),
-        ])
+    // Where a suggestion came from is on screen, because "the café your photos
+    // say you were in" and "a café near this phone right now" are different
+    // claims and which to trust is the user's to judge.
+    @Test("the day's places are offered under their own heading")
+    func underTheirOwnHeading() async {
+        let suggestions = await looked(at: [photograph(at: flore, 11, 4)])
 
-        #expect(suggestions.offered?.atTime == "11:04")
+        #expect(suggestions.runs.map(\.from) == [.theDaysPhotographs])
     }
 
     // The whole point of the issue. A Monday written up on Friday is offered
@@ -57,13 +58,18 @@ struct PlacesFromPhotographsTests {
             holding: [Place(id: "friday", name: "Rue de Rivoli")],
             naming: [flore: Place(id: "flore", name: "Café de Flore")]
         )
-        let suggestions = suggestions(from: map, holding: [photograph(at: flore, 11, 4)], at: friday)
+        let suggestions = suggestions(
+            from: map, holding: [photograph(at: flore, 11, 4)], at: friday
+        )
 
         await suggestions.look()
 
         #expect(suggestions.state == .offering([
-            Place(id: "photographed:flore@1773050640.0", name: "Café de Flore", atTime: "11:04"),
-            Place(id: "friday", name: "Rue de Rivoli"),
+            SuggestedPlaces(
+                from: .theDaysPhotographs,
+                places: [Place(id: "photographed:flore@1773050640.0", name: "Café de Flore")]
+            ),
+            SuggestedPlaces(from: .nearby, places: [Place(id: "friday", name: "Rue de Rivoli")]),
         ]))
     }
 
@@ -80,18 +86,68 @@ struct PlacesFromPhotographsTests {
         ])
         let map = SomePlaces(
             holding: [],
-            naming: [flore: Place(id: "flore", name: "Café de Flore"), orsay: Place(id: "orsay", name: "Musée d'Orsay")]
+            naming: [
+                flore: Place(id: "flore", name: "Café de Flore"),
+                orsay: Place(id: "orsay", name: "Musée d'Orsay"),
+            ]
         )
         let suggestions = PlaceSuggestions(
             from: map, photographsFrom: library, for: monday,
-            at: friday, in: paris, locale: Locale(identifier: "en_GB")
+            at: friday, in: paris
         )
 
         await suggestions.look()
 
         #expect(suggestions.state == .offering([
-            Place(id: "photographed:flore@1773050640.0", name: "Café de Flore", atTime: "11:04")
+            SuggestedPlaces(
+                from: .theDaysPhotographs,
+                places: [Place(id: "photographed:flore@1773050640.0", name: "Café de Flore")]
+            )
         ]))
+    }
+
+    // Which heading comes first is the same judgement as which place leads,
+    // one level up — and now it is the thing the user actually reads.
+    @Test("a day that is over puts the day's photographs above what is near now")
+    func headingsForADayThatIsOver() async {
+        let map = SomePlaces(
+            holding: [Place(id: "friday", name: "Rue de Rivoli")],
+            naming: [flore: Place(id: "flore", name: "Café de Flore")]
+        )
+        let suggestions = suggestions(
+            from: map, holding: [photograph(at: flore, 11, 4)], at: friday
+        )
+
+        await suggestions.look()
+
+        #expect(suggestions.runs.map(\.from) == [.theDaysPhotographs, .nearby])
+    }
+
+    @Test("a day still being lived puts what is near now first")
+    func headingsForADayStillOn() async {
+        let map = SomePlaces(
+            holding: [Place(id: "here", name: "Jardin du Luxembourg")],
+            naming: [flore: Place(id: "flore", name: "Café de Flore")]
+        )
+        let suggestions = suggestions(
+            from: map, holding: [photograph(at: flore, 11, 4)], at: mondayAfternoon
+        )
+
+        await suggestions.look()
+
+        #expect(suggestions.runs.map(\.from) == [.nearby, .theDaysPhotographs])
+    }
+
+    // A heading with nothing under it is not a heading. A day the camera
+    // missed is one section, not one section and an empty one.
+    @Test("a run with nothing in it is never offered")
+    func noEmptyHeadings() async {
+        let map = SomePlaces(holding: [Place(id: "here", name: "Rue de Rivoli")])
+
+        let suggestions = suggestions(from: map, holding: [], at: friday)
+        await suggestions.look()
+
+        #expect(suggestions.runs.map(\.from) == [.nearby])
     }
 
     // A day still being lived is a day whose live fix is as good as its
@@ -112,9 +168,8 @@ struct PlacesFromPhotographsTests {
         #expect(suggestions.places.count == 2)
     }
 
-    // Somebody still sitting where they were photographed would otherwise be
-    // offered the same café twice over, once with an hour on it and once
-    // without.
+    // Somebody still sitting where they were photographed is found both ways
+    // at once, and the same café under both headings reads as a bug.
     @Test("a place found both ways is offered once")
     func onceRatherThanTwice() async {
         let map = SomePlaces(
@@ -158,7 +213,7 @@ struct PlacesFromPhotographsTests {
         await suggestions.look()
 
         #expect(quarter.positionsLookedUp.count == 4, "the stops were not four to begin with")
-        #expect(suggestions.places.map(\.written) == ["Saint-Germain-des-Prés, 10:00"])
+        #expect(suggestions.places.map(\.written) == ["Saint-Germain-des-Prés"])
     }
 
     // MARK: - What the naming costs
@@ -169,7 +224,9 @@ struct PlacesFromPhotographsTests {
     @Test("a day of photographs from one place costs one lookup")
     func oneSpotIsOneLookup() async {
         let lunch = (0..<50).map { photograph(at: flore, 12, $0 % 60) }
-        let map = SomePlaces(holding: [], naming: [flore: Place(id: "flore", name: "Café de Flore")])
+        let map = SomePlaces(
+            holding: [], naming: [flore: Place(id: "flore", name: "Café de Flore")]
+        )
 
         let suggestions = suggestions(from: map, holding: lunch, at: friday)
         await suggestions.look()
@@ -243,12 +300,12 @@ struct PlacesFromPhotographsTests {
             photographsFrom: ALibraryWithPositions(holding: [
                 photograph(at: flore, 11, 4), photograph(at: orsay, 15, 30),
             ]),
-            for: monday, at: friday, in: paris, locale: Locale(identifier: "en_GB")
+            for: monday, at: friday, in: paris
         )
 
         await suggestions.look()
 
-        #expect(suggestions.places.map(\.written) == ["Café de Flore, 11:04", "Musée d'Orsay, 15:30"])
+        #expect(suggestions.places.map(\.written) == ["Café de Flore", "Musée d'Orsay"])
     }
 
     // MARK: - Falling back on the live fix
@@ -279,11 +336,13 @@ struct PlacesFromPhotographsTests {
     @Test("a refused library falls back on the live fix, and is not read")
     func aRefusedLibrary() async {
         let map = SomePlaces(holding: [Place(id: "here", name: "Rue de Rivoli")])
-        let library = ALibraryWithPositions(holding: [photograph(at: flore, 11, 4)], access: .refused)
+        let library = ALibraryWithPositions(
+            holding: [photograph(at: flore, 11, 4)], access: .refused
+        )
 
         let suggestions = PlaceSuggestions(
             from: map, photographsFrom: library, for: monday,
-            at: friday, in: paris, locale: Locale(identifier: "en_GB")
+            at: friday, in: paris
         )
         await suggestions.look()
 
@@ -302,7 +361,9 @@ struct PlacesFromPhotographsTests {
             access: .refused
         )
 
-        let suggestions = suggestions(from: map, holding: [photograph(at: flore, 11, 4)], at: friday)
+        let suggestions = suggestions(
+            from: map, holding: [photograph(at: flore, 11, 4)], at: friday
+        )
         await suggestions.look()
 
         #expect(suggestions.places.map(\.name) == ["Café de Flore"])
@@ -378,7 +439,14 @@ struct PlacesFromPhotographsTests {
         )
         await suggestions.look()
 
-        #expect(suggestions.state == .offering([Place(id: "here", name: "Rue de Rivoli")]))
+        #expect(
+            suggestions.state
+                == .offering([
+                    SuggestedPlaces(
+                        from: .nearby, places: [Place(id: "here", name: "Rue de Rivoli")]
+                    )
+                ])
+        )
         #expect(suggestions.couldLookFurther == .theDaysPhotographs)
     }
 
@@ -392,13 +460,13 @@ struct PlacesFromPhotographsTests {
         )
         let suggestions = PlaceSuggestions(
             from: map, photographsFrom: library, for: monday,
-            at: friday, in: paris, locale: Locale(identifier: "en_GB")
+            at: friday, in: paris
         )
         await suggestions.look()
 
         await suggestions.askToLook()
 
-        #expect(suggestions.offered?.written == "Café de Flore, 11:04")
+        #expect(suggestions.offered?.written == "Café de Flore")
         #expect(suggestions.couldLookFurther == nil)
     }
 
@@ -451,8 +519,7 @@ struct PlacesFromPhotographsTests {
             photographsFrom: ALibraryWithPositions(holding: photographs),
             for: monday,
             at: now,
-            in: paris,
-            locale: Locale(identifier: "en_GB")
+            in: paris
         )
     }
 
@@ -472,11 +539,16 @@ struct PlacesFromPhotographsTests {
 }
 
 extension PlaceSuggestions {
-    /// The places on offer, for a test that is about which they are rather
-    /// than about the state around them.
-    fileprivate var places: [Place] {
-        guard case .offering(let places) = state else { return [] }
-        return places
+    /// Every place on offer, whichever run it is in — for a test that is about
+    /// which places they are rather than about how they are grouped.
+    var places: [Place] {
+        runs.flatMap(\.places)
+    }
+
+    /// The runs on offer, headings and all.
+    var runs: [SuggestedPlaces] {
+        guard case .offering(let runs) = state else { return [] }
+        return runs
     }
 }
 

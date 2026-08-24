@@ -22,44 +22,23 @@ public struct Place: Hashable, Sendable, Identifiable {
     /// the town. `nil` for a place that is its own address.
     public let region: String?
 
-    /// The time of day a photograph put somebody here — "11:04", on a clock
-    /// read the way their own device reads one. `nil` for a place the device
-    /// found by looking around itself.
-    ///
-    /// Only a place worked out from the day's photographs has one, and only
-    /// such a place could: a photograph knows the hour it was taken, and a
-    /// live fix knows nothing except that it is now — which for a Monday
-    /// written up on Friday is not a fact about Monday at all.
-    ///
-    /// Unlike ``region`` this *is* written into the Entry, because it is the
-    /// kind of thing somebody writes: "Café de Flore, 11:04" is a line in a
-    /// journal and the region would be an address in the middle of one.
-    public let atTime: String?
-
-    public init(id: String, name: String, region: String? = nil, atTime: String? = nil) {
+    public init(id: String, name: String, region: String? = nil) {
         self.id = id
         self.name = name
         self.region = region
-        self.atTime = atTime
     }
 
     /// The plain markdown that stands where the token was.
     ///
-    /// The name, and the hour where a photograph could say one. A
+    /// The name alone, deliberately, and whichever way the place was found. A
     /// `{{location}}` is written in the middle of somebody's own sentence —
-    /// "walked home from {{location}}" — so what goes in is what somebody
-    /// would have typed there and nothing more: an address dropped into it
-    /// would be the app finishing the sentence its own way, which is why the
-    /// region stays in the picker where telling two places apart is what
-    /// matters.
-    ///
-    /// It is filled into the field rather than written outright either way, so
-    /// the last word on all of this is the user's — a comma and an hour that
-    /// does not suit the sentence is deleted before "Add" is ever tapped.
-    public var written: String {
-        guard let atTime else { return name }
-        return "\(name), \(atTime)"
-    }
+    /// "walked home from {{location}}" — and anything dropped in beside the
+    /// name would be the app finishing the sentence its own way. That goes for
+    /// the region, and it goes for the hour a photograph was taken at: the
+    /// day's photographs are how Aujour works out *which places to offer*, and
+    /// they stop at the offer. What lands in the file is a place, the same
+    /// characters whether the device named it or a picture did.
+    public var written: String { name }
 }
 
 /// Whether Aujour may ask the device where it is.

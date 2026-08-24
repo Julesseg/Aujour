@@ -782,10 +782,11 @@ final class AujourUITests: XCTestCase {
     ///
     /// The whole of what this issue is about, and the round trip only a
     /// running app can show: yesterday's pictures read for the positions they
-    /// carry, the positions gathered and named, the name and the hour landing
-    /// in the field, and plain markdown in the file afterwards. Which places
-    /// come out of which positions is decided in Core and tested there against
-    /// a library and a map that are said rather than read.
+    /// carry, the positions gathered and named, the two sources drawn under
+    /// their own headings, the name landing in the field, and plain markdown
+    /// in the file afterwards. Which places come out of which positions is
+    /// decided in Core and tested there against a library and a map that are
+    /// said rather than read.
     func testADayFilledInLaterIsOfferedThePlacesItsOwnPhotographsWereTakenIn() throws {
         let yesterday = try XCTUnwrap(dayBeforeToday())
         let app = launchApp(
@@ -842,21 +843,27 @@ final class AujourUITests: XCTestCase {
             "the same place was offered once per photograph"
         )
 
-        // Already in the field, because it is the offer: the day's own place
-        // leads for a day that is not today. It carries the hour the day got
-        // there, which the live fix could never have said.
-        let answer = app.textFields["placeholderAnswerField"]
-        let offered = try XCTUnwrap(answer.value as? String)
+        // Each under its own heading, so somebody can see which of the two
+        // ways a suggestion was arrived at.
         XCTAssertTrue(
-            offered.hasPrefix("Cafe de Flore, "),
-            "the offer was \"\(offered)\" rather than yesterday's café and the hour"
+            app.staticTexts["From photos"].exists,
+            "the day's own places were not drawn under their own heading"
         )
+        XCTAssertTrue(
+            app.staticTexts["Near you"].exists,
+            "the live fix was not drawn under its own heading"
+        )
+
+        // Already in the field, because it is the offer: the day's own place
+        // leads for a day that is not today.
+        expect(app.textFields["placeholderAnswerField"], toHaveValue: "Cafe de Flore")
 
         app.buttons["answerPlaceholder"].tap()
 
-        // Plain markdown, exactly as confirming a nearby place writes it —
-        // nothing in the file remembers this was ever a question.
-        expect(editor, toHaveValue: offered + "\n")
+        // Plain place text, exactly as confirming a nearby place writes it —
+        // nothing in the file remembers this was ever a question, and nothing
+        // of the photograph it was worked out from comes along with it.
+        expect(editor, toHaveValue: "Cafe de Flore\n")
     }
 
     /// Refusing one of the two permissions does not refuse the other.

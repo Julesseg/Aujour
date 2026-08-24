@@ -255,17 +255,22 @@ left is the pill's word and what answering it asks.
 
 ### Place
 Somewhere that can be named: what a `{{location}}` Widget offers, and — once
-it is confirmed — the plain text that stands where the token did. A name; in
-the picker only, enough of an address to tell it from the other place of the
-same name two streets over; and, for a place that came from a photograph, the
-hour the day got there, which *is* written. Never a coordinate: nobody writes
-one in their journal.
+it is confirmed — the plain text that stands where the token did. A name, and
+in the picker only, enough of an address to tell it from the other place of the
+same name two streets over. Never a coordinate: nobody writes one in their
+journal. What is written is the name and nothing else, whichever of the two
+ways below found it.
 
 The Widget is about the Journal Day rather than about now, so it reads two
 things at once. **Where the day was photographed**: the positions that day's
 own pictures carry, gathered into Stops and named one apiece. **Where the
 device is now**: the named places around it, nearest first and each with how
 far off it is, and the area they all sit in.
+
+The two are offered apart rather than run together — "Near you" and "From
+photos" — because where a suggestion came from is worth seeing: one is a claim
+about this minute and the other about the day being written, and which of them
+to trust is the user's to judge. A heading with nothing under it is not drawn.
 
 Two judgements sit over that. Between a named place and the area it is in, the
 named one leads only when it is close enough to be where somebody *was* —
@@ -275,7 +280,8 @@ specific and wrong. Between the day's photographs and the live fix, the fix
 leads only for a day still being lived: a Monday written up on Friday would
 otherwise be offered Friday's street as where somebody was on Monday, and the
 photographs from that Monday already know better. Everything found is in the
-picker either way.
+picker either way, and a place found both ways is offered once, under the
+heading that found it best.
 
 The offer rides two permissions and needs neither. Somebody who refused the
 device's location is still offered the places their day's pictures were taken —
@@ -293,9 +299,15 @@ where they were, and they already know the answer.
 
 ### Stop
 Somewhere a day stopped, as its photographs recorded it: the positions that sit
-together, taken as one, with the hour of the earliest of them. Somebody
-photographs their lunch four times from the same table, and what they would
-write in their journal is one café.
+together, taken as one, timed by the earliest of them. Somebody photographs
+their lunch four times from the same table, and what they would write in their
+journal is one café.
+
+The photographs are how a place is *worked out*, and they stop at the offer.
+Nothing of them reaches the Entry — not the hour, not the position, not which
+picture it came from. The time a Stop carries is what puts the day's places in
+the order the day made them, and what tells two of them apart when they come
+back with the same name.
 
 Gathering happens over arithmetic and *before* anything is named, which is what
 keeps the naming affordable: putting a name to a position is a round trip to a

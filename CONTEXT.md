@@ -111,6 +111,37 @@ and saved exactly like today's — the file appears at the first edit — and th
 Content Template's dates describe the day being written about, carrying the
 clock time it is being written at.
 
+### Search
+The other way back into a day: by something written in it rather than by when
+it was. A query is words, all of which must be somewhere in the day and each
+of which matches from the start of a word — so a search narrows as it is typed
+rather than widening — and what comes back is the days that hold them, most
+recent first, each with the line the match sits on. Opening one opens that
+day's Entry, which is the file and not a new one.
+
+The recent end of them, and not all of them: finding the line a match sits on
+costs a pass over that day, and a query matching a decade — `the`, or a single
+letter — is one to narrow rather than a list to read.
+
+A word is a run of letters or digits, folded so that neither capitals nor
+accents are what a search is about; everything between those runs — markdown's
+marks, punctuation, whitespace — is a boundary and nothing else, which is what
+makes `**market**` and `market` the same word to look for.
+
+### Search Index
+The journal's words, kept where a query can reach them without opening the
+folder: the text of every Entry the last scan read. A disposable cache in ADR
+0001's sense, and the plainest kind — everything in it is already in the user's
+own files, so deleting it loses nothing and rebuilding it *is* reading the
+journal. There is nothing here for the folder to fall out of step with: a day
+written in Obsidian, arriving from another device, or pruned out of the vault
+is a day the next scan agrees about.
+
+Kept between launches in app-private storage, so that a query typed in the
+first second of a launch is answered while the folder is still being read —
+and never in the Journal Root, which holds Entries, Attachments and Parked
+Files and nothing of Aujour's own (ADR 0003).
+
 ### Placeholder
 A `{{name}}` token in the Content Template (or typed directly into an Entry).
 Three kinds:

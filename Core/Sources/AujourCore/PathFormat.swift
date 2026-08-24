@@ -170,22 +170,10 @@ enum PathFormat {
         guard cursor == path.endIndex else { return nil }
         guard
             let year = values[.year], let month = values[.month], let day = values[.day],
-            isRealDate(year: year, month: month, day: day)
+            JournalDay.isReal(year: year, month: month, day: day)
         else { return nil }
 
         return JournalDay(year: year, month: month, day: day)
-    }
-
-    /// Whether a year/month/day triple names a day that exists.
-    ///
-    /// Done by hand rather than through `Calendar`, which switches to the
-    /// Julian calendar before October 1582 and would disagree with what
-    /// `render` writes for those years.
-    private static func isRealDate(year: Int, month: Int, day: Int) -> Bool {
-        guard (1...12).contains(month) else { return false }
-        let isLeapYear = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
-        let lengths = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-        return (1...lengths[month - 1]).contains(day)
     }
 }
 
@@ -198,9 +186,10 @@ extension Character {
     }
 
     /// `isNumber` is true of Arabic-Indic and other non-ASCII digits, which
-    /// `Int(_:)` happily parses. A path spelled with them is not a path this
-    /// engine ever rendered, so it is not an Entry.
-    fileprivate var isASCIIDigit: Bool {
+    /// `Int(_:)` happily parses. A day spelled with them is not one Aujour
+    /// ever wrote, wherever it was read from — a path matched against a Path
+    /// Template, or the ISO-8601 spelling a Journal Day is written down as.
+    var isASCIIDigit: Bool {
         isASCII && isNumber
     }
 }

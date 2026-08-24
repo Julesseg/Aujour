@@ -12,8 +12,22 @@ import AujourCore
 struct ContentView: View {
     @State private var journal: Journal
     @State private var showingTheJournalItself = false
-    @State private var showingCalendar = false
+    /// The screen on top of today's Entry, if one is — nil while today's is
+    /// what is on screen.
+    ///
+    /// One piece of state for both, rather than a flag each: two
+    /// `navigationDestination(isPresented:)` modifiers on one view are two
+    /// destinations the stack picks between, and which one a tap opens stops
+    /// being a thing this screen decides.
+    @State private var wayIn: WayIntoTheJournal?
     @Environment(\.scenePhase) private var scenePhase
+
+    /// The two ways back into a day that is not today's: by when it was, and
+    /// by what was written in it.
+    private enum WayIntoTheJournal: Hashable {
+        case calendar
+        case search
+    }
 
     init(journal: Journal = Journal()) {
         _journal = State(wrappedValue: journal)
@@ -55,9 +69,18 @@ struct ContentView: View {
                             .toolbar {
                                 ToolbarItem(placement: .topBarLeading) {
                                     Button("Calendar", systemImage: "calendar") {
-                                        showingCalendar = true
+                                        wayIn = .calendar
                                     }
                                     .accessibilityIdentifier("openCalendar")
+                                }
+                                ToolbarItem(placement: .topBarLeading) {
+                                    // Beside the calendar, because they are
+                                    // the two ways back into a day: by when it
+                                    // was, and by what was written in it.
+                                    Button("Search", systemImage: "magnifyingglass") {
+                                        wayIn = .search
+                                    }
+                                    .accessibilityIdentifier("openSearch")
                                 }
                                 ToolbarItem(placement: .topBarTrailing) {
                                     // One way in for the folder and every
@@ -104,12 +127,19 @@ struct ContentView: View {
             // opens it: a destination registered only while one branch of a
             // switch is on screen is one the stack can find itself without.
             //
-            // Today's Entry is what the app is for, so the calendar is a step
-            // away from it and back — and coming back is what re-reads the
-            // folder for a day just filled in.
-            .navigationDestination(isPresented: $showingCalendar) {
-                if let calendar = journal.calendar {
-                    JournalCalendarView(calendar: calendar, journal: journal)
+            // Today's Entry is what the app is for, so both of these are a
+            // step away from it and back — and coming back is what re-reads
+            // the folder for a day just filled in.
+            .navigationDestination(item: $wayIn) { wayIn in
+                switch wayIn {
+                case .calendar:
+                    if let calendar = journal.calendar {
+                        JournalCalendarView(calendar: calendar, journal: journal)
+                    }
+                case .search:
+                    if let search = journal.search {
+                        JournalSearchView(search: search, journal: journal)
+                    }
                 }
             }
         }

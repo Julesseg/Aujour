@@ -99,6 +99,17 @@ enum UITestingJournal {
     /// ago, put there before the app opens the folder.
     static let todaysEntryKey = "AUJOUR_UITEST_TODAYS_ENTRY"
 
+    /// The days the journal was already written on, one per line as
+    /// `YYYY-MM-DD Some words about the day` — Entries at the paths the
+    /// default Path Template gives them, put there before the app opens the
+    /// folder.
+    ///
+    /// A journal with a past in it, which is what searching one means: a test
+    /// of finding March 1st again cannot start by writing March 1st, because
+    /// there is no way to write a past day except through the app, and going
+    /// through the app would make it a test of the calendar.
+    static let entriesKey = "AUJOUR_UITEST_ENTRIES"
+
     /// What another device wrote for today, which iCloud is holding as a
     /// version of its own. Dated now, so it is the newer of the two.
     static let divergedVersionKey = "AUJOUR_UITEST_DIVERGED_VERSION"
@@ -156,6 +167,9 @@ enum UITestingJournal {
         let entryPath = todaysEntryPath(rolloverHour: settings.settings.rolloverHour)
         if let written = environment[todaysEntryKey] {
             seed(written, at: entryPath, under: root)
+        }
+        for (day, text) in entriesAlreadyWritten(environment[entriesKey]) {
+            seed(text, at: PathTemplate.default.render(day), under: root)
         }
         if let note = environment[vaultNoteKey],
             let path = environment[vaultNotePathKey],
@@ -230,6 +244,21 @@ enum UITestingJournal {
                 onThisDevice: UserDefaults(suiteName: "aujour.uitest.\(folder)") ?? .standard
             )
         )
+    }
+
+    /// The days a test says the journal was already written on, and what each
+    /// of them says.
+    ///
+    /// `2026-03-14 Walked to the market.` — one day per line, and everything
+    /// after the date is that day's Entry. One line each, which is a day for
+    /// every purpose a test has: what is being proven about a past day is that
+    /// it is there and can be found again.
+    static func entriesAlreadyWritten(_ seeded: String?) -> [(day: JournalDay, text: String)] {
+        (seeded ?? "").split(whereSeparator: \.isNewline).compactMap { line in
+            let said = line.split(separator: " ", maxSplits: 1)
+            guard let first = said.first, let day = JournalDay(String(first)) else { return nil }
+            return (day, said.count > 1 ? String(said[1]) + "\n" : "\n")
+        }
     }
 
     /// Where today's Entry belongs, so that the file seeded here is the one the

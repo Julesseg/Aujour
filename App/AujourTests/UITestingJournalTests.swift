@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import AujourCore
 
 @testable import Aujour
 
@@ -70,6 +71,46 @@ struct UITestingJournalTests {
         )
 
         removeTheFolderItJournaledInto(journal)
+    }
+
+    @Test("the past days a test seeded are Entries the journal already holds")
+    func seededDaysAreEntriesInTheFolder() async throws {
+        let journal = try #require(
+            UITestingJournal.fromLaunchEnvironment([
+                UITestingJournal.folderKey: "AJournalWithAPast",
+                UITestingJournal.entriesKey: """
+                    2026-03-01 Walked to the market with Robin.
+                    2026-03-14 Rained all day.
+                    """,
+            ])
+        )
+
+        await journal.open()
+
+        // At the paths the default Path Template gives them, which is what
+        // makes them Entries rather than files that happen to be there.
+        let store = try #require(journal.store)
+        #expect(
+            try await store.readText(at: "2026/03/2026-03-01.md")
+                == "Walked to the market with Robin.\n"
+        )
+        #expect(try await store.readText(at: "2026/03/2026-03-14.md") == "Rained all day.\n")
+
+        removeTheFolderItJournaledInto(journal)
+    }
+
+    @Test("a line that does not name a day seeds nothing")
+    func aLineThatIsNotADayIsNotSeeded() {
+        let seeded = UITestingJournal.entriesAlreadyWritten(
+            """
+            2026-03-01 Walked to the market.
+            not a date at all
+            2026-3-1 Unpadded, and so not a day either.
+            """
+        )
+
+        #expect(seeded.count == 1)
+        #expect(seeded.first?.day == JournalDay(year: 2026, month: 3, day: 1))
     }
 
     // The other seam a UI test stands in for: where the device is. Seeded as

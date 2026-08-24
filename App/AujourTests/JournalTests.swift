@@ -107,6 +107,68 @@ struct JournalStorageTests {
         }
     }
 
+    @Test("the journal's search finds a day by what was written in it, and opens it")
+    func searchIsOverTheSameFolderAndIsTheWayIntoADay() async throws {
+        try await withTemporaryFolder { folders in
+            let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
+            let today = JournalDay.current(at: .now, in: .current, rolloverHour: .midnight)
+            let earlier = today.adding(days: -40)
+            try iCloud.seed(
+                "Walked to the market with Robin.\n",
+                at: PathTemplate.default.render(earlier)
+            )
+            // A note in the vault that says the same word, which is nobody's
+            // day: only the files the Path Template names are Entries.
+            try iCloud.seed("Market research.\n", at: "Inbox/notes.md")
+            let journal = Journal(
+                locator: .test(iCloudDocuments: iCloud, folders: folders),
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
+            )
+
+            await journal.open()
+            let search = try #require(journal.search)
+            await search.open()
+
+            #expect(search.problem == nil)
+            #expect(search.results(for: "market").map(\.day) == [earlier])
+
+            // And it is the way in to that day: what a result opens is the
+            // Entry the folder holds, not a day spawned over it.
+            let editor = try #require(journal.editor(for: earlier))
+            await editor.open()
+            #expect(editor.day == earlier)
+            #expect(editor.content == "Walked to the market with Robin.\n")
+        }
+    }
+
+    @Test("a day that has not arrived can still be opened from a search that found it")
+    func aFutureDatedEntryIsOpenedRatherThanRefused() async throws {
+        try await withTemporaryFolder { folders in
+            let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
+            let today = JournalDay.current(at: .now, in: .current, rolloverHour: .midnight)
+            let notYet = today.adding(days: 7)
+            // A file somebody wrote in Obsidian at a date that has not come
+            // round. The calendar locks that day, because there is no Entry to
+            // *write* before the day exists — but the words are in the folder,
+            // and a file the user can open in their vault is one Aujour must
+            // not refuse to show them.
+            try iCloud.seed("Written ahead.\n", at: PathTemplate.default.render(notYet))
+            let journal = Journal(
+                locator: .test(iCloudDocuments: iCloud, folders: folders),
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
+            )
+
+            await journal.open()
+            #expect(journal.calendar?.editor(for: notYet) == nil)
+
+            let editor = try #require(journal.editor(for: notYet))
+            await editor.open()
+            #expect(editor.content == "Written ahead.\n")
+        }
+    }
+
     @Test("how much is in the folder is asked again, not remembered from launch")
     func recountingSeesWhatWasWrittenSince() async throws {
         try await withTemporaryFolder { folders in

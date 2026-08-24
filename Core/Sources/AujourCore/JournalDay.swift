@@ -144,6 +144,41 @@ public struct JournalDay: Hashable, Comparable, Sendable, CustomStringConvertibl
         String(format: "%04d-%02d-%02d", year, month, day)
     }
 
+    /// The day an ISO-8601 calendar date names — `description`'s inverse, for
+    /// reading a Journal Day back out of somewhere one was written down.
+    ///
+    /// Strict about the spelling, and only that spelling: zero-padded, three
+    /// ASCII-digit parts, naming a day that exists. What this reads is what
+    /// Aujour itself wrote, so anything looser would be leniency towards
+    /// nobody, and a date it guessed at would be a day's words filed under a
+    /// day there is no such thing as.
+    public init?(_ isoDate: String) {
+        let parts = isoDate.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 3, parts[0].count == 4, parts[1].count == 2, parts[2].count == 2,
+            parts.allSatisfy({ $0.allSatisfy(\.isASCIIDigit) }),
+            let year = Int(parts[0]), let month = Int(parts[1]), let day = Int(parts[2]),
+            JournalDay.isReal(year: year, month: month, day: day)
+        else { return nil }
+        self.init(year: year, month: month, day: day)
+    }
+
+    /// Whether a year/month/day triple names a day that exists.
+    ///
+    /// Here rather than beside either of the two things that read a day back
+    /// out of writing — a path matched against a Path Template, and the
+    /// ISO-8601 spelling above — because it is one question about a Journal
+    /// Day, and two answers to it would be two ideas of which days there are.
+    ///
+    /// Done by hand rather than through `Calendar`, which switches to the
+    /// Julian calendar before October 1582 and would disagree with what a Path
+    /// Template renders for those years.
+    static func isReal(year: Int, month: Int, day: Int) -> Bool {
+        guard (1...12).contains(month) else { return false }
+        let isLeapYear = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+        let lengths = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        return (1...lengths[month - 1]).contains(day)
+    }
+
     /// The day as someone would say it out loud — "Sunday, March 1" — for a
     /// screen showing one day at a time.
     ///

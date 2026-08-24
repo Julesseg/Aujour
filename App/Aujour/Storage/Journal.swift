@@ -86,6 +86,20 @@ final class Journal {
     /// scan of the folder, and throwing it away costs nothing (ADR 0001).
     private(set) var calendar: JournalCalendar?
 
+    /// The Journal by something written in it, over the same folder — the way
+    /// back into a day whose date nobody remembers.
+    ///
+    /// Made once and kept, like the calendar, so that what was read last time
+    /// the search screen was open is on screen the moment it is opened again.
+    /// What it holds is a reading of the folder and a cache of that reading,
+    /// and throwing either away costs nothing (ADR 0001).
+    private(set) var search: JournalSearch?
+
+    /// Where a day's markdown is spawned from, over the open folder — kept so
+    /// that every screen that opens a day starts it from the same file, and
+    /// reads it afresh when it does (ADR 0005).
+    private var template: ContentTemplateFile?
+
     /// What went wrong the last time the user pointed Aujour at a folder, if
     /// it did.
     ///
@@ -230,6 +244,7 @@ final class Journal {
         state = .opening
         today = nil
         calendar = nil
+        search = nil
         // Whatever was parked belonged to the folder being left. The files are
         // still there, beside the Entries they diverged from; it is the notice
         // that does not carry over into somebody else's vault.
@@ -255,12 +270,18 @@ final class Journal {
                 dayData: dayData
             )
             store = opened.store
+            self.template = template
             today = editor
             calendar = JournalCalendar(
                 store: opened.store,
                 settings: settings,
                 spawningFrom: template,
                 dayData: dayData
+            )
+            search = JournalSearch(
+                store: opened.store,
+                settings: settings,
+                cache: SearchIndexFile(forJournalAt: opened.root.url)
             )
             folder = opened.folder
             parking = DivergenceParking(store: opened.store, versions: versions)
@@ -286,9 +307,34 @@ final class Journal {
         } catch {
             store = nil
             calendar = nil
+            search = nil
+            template = nil
             parking = nil
             state = .unavailable(StorageProblem(error))
         }
+    }
+
+    /// The way in to a day that already has a file — what a search result is
+    /// opened with.
+    ///
+    /// Not the calendar's `editor(for:)`, which is about which days may be
+    /// *written* and locks the ones that have not arrived. A day a search
+    /// found is a day with an Entry in the folder, whatever its date says, and
+    /// a file the user can open in Obsidian is one Aujour must not refuse to
+    /// show them.
+    ///
+    /// A fresh editor each time, pinned to the day asked for, and the caller's
+    /// to keep for as long as that day is on screen — two editors over one
+    /// Entry would autosave that day's file over each other.
+    func editor(for day: JournalDay) -> EntryEditor? {
+        guard let store else { return nil }
+        return EntryEditor(
+            store: store,
+            settings: settings,
+            spawningFrom: template,
+            dayData: dayData,
+            day: day
+        )
     }
 
     // MARK: - Keeping up with the folder

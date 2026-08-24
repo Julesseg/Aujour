@@ -1196,6 +1196,81 @@ final class AujourUITests: XCTestCase {
         expect(editor, toHaveValue: "Written in Obsidian.")
     }
 
+    func testAWordFindsTheDayItWasWrittenOnAndOpensIt() throws {
+        let lastWeek = try XCTUnwrap(daysBeforeToday(7))
+        let lastMonth = try XCTUnwrap(daysBeforeToday(30))
+        let app = launchApp(
+            entries: """
+                \(entryName(for: lastWeek)) Walked to the market with Robin.
+                \(entryName(for: lastMonth)) Rained all day, so I stayed in and read.
+                """
+        )
+
+        openSearch(app)
+        search(for: "market", in: app)
+
+        // The day that says it, and only that day — a search that answered
+        // with the whole journal would be no search at all.
+        let result = app.buttons["searchResult-\(entryName(for: lastWeek))"]
+        XCTAssertTrue(result.waitForExistence(timeout: 10), "the day was not found")
+        XCTAssertFalse(
+            app.buttons["searchResult-\(entryName(for: lastMonth))"].exists,
+            "a day with none of the searched words in it was offered as a result"
+        )
+        // What the row shows is the day's own words, which is how somebody
+        // knows it is the day they meant before opening it.
+        XCTAssertEqual(result.value as? String, "Walked to the market with Robin.")
+
+        result.tap()
+
+        // Opening a result opens that day's Entry — the file, not a new one.
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), "the day found never opened")
+        let opened = try XCTUnwrap(editor.value as? String)
+        XCTAssertTrue(
+            opened.contains("Walked to the market with Robin."),
+            "expected the day that was searched for, got: \(opened)"
+        )
+    }
+
+    func testADayWrittenElsewhereIsFoundOnceTheFolderIsReadAgain() throws {
+        let lastWeek = try XCTUnwrap(daysBeforeToday(7))
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let alreadyThere = "\(entryName(for: lastWeek)) Walked to the market with Robin."
+
+        let app = launchApp(entries: alreadyThere)
+        openSearch(app)
+        search(for: "mountain", in: app)
+        XCTAssertTrue(
+            app.staticTexts["noSearchResults"].waitForExistence(timeout: 10),
+            "a word nobody has written was found somewhere"
+        )
+
+        // A day arriving in the folder with Aujour not looking: written in
+        // Obsidian, or come down from another device. Seeded at launch, which
+        // is the only way a file appears in the folder without the app having
+        // put it there.
+        app.terminate()
+        let relaunched = launchApp(
+            entries: """
+                \(alreadyThere)
+                \(entryName(for: yesterday)) Climbed the mountain in the fog.
+                """
+        )
+
+        openSearch(relaunched)
+        search(for: "mountain", in: relaunched)
+
+        // Found because the search screen read the folder again — not because
+        // anything told Aujour the day was there.
+        let result = relaunched.buttons["searchResult-\(entryName(for: yesterday))"]
+        XCTAssertTrue(
+            result.waitForExistence(timeout: 15),
+            "a day written outside Aujour was not found after the folder was read again"
+        )
+        XCTAssertEqual(result.value as? String, "Climbed the mountain in the fog.")
+    }
+
     func testTheDaysEventsAndRemindersAreSpawnedIntoTodaysEntry() throws {
         let app = launchApp(
             contentTemplate: "## Today\n{{events}}\n\n## To do\n{{reminders}}\n",
@@ -1280,6 +1355,7 @@ final class AujourUITests: XCTestCase {
     private func launchApp(
         contentTemplate: String? = nil,
         folderToPick: String? = nil,
+        entries: String? = nil,
         todaysEntry: String? = nil,
         divergedVersion: String? = nil,
         vaultNote: (at: String, saying: String)? = nil,
@@ -1302,6 +1378,9 @@ final class AujourUITests: XCTestCase {
         }
         if let folderToPick {
             app.launchEnvironment["AUJOUR_UITEST_FOLDER_TO_PICK"] = folderToPick
+        }
+        if let entries {
+            app.launchEnvironment["AUJOUR_UITEST_ENTRIES"] = entries
         }
         if let todaysEntry {
             app.launchEnvironment["AUJOUR_UITEST_TODAYS_ENTRY"] = todaysEntry
@@ -1441,6 +1520,30 @@ final class AujourUITests: XCTestCase {
         if months > 0 { app.buttons["nextMonth"].tap() }
     }
 
+    /// Opens the search screen, and waits for it to be there.
+    private func openSearch(_ app: XCUIApplication) {
+        let search = app.buttons["openSearch"]
+        XCTAssertTrue(search.waitForExistence(timeout: 30), "the journal never opened")
+        search.tap()
+        XCTAssertTrue(
+            app.searchFields.firstMatch.waitForExistence(timeout: 10),
+            "the search screen never appeared"
+        )
+    }
+
+    /// Types a query into the search field, as somebody looking for a day
+    /// would.
+    private func search(for query: String, in app: XCUIApplication) {
+        let field = app.searchFields.firstMatch
+        field.tap()
+        // Cleared first, so that a second search in one test is that search
+        // and not the two queries run together.
+        if let typed = field.value as? String, !typed.isEmpty, typed != field.placeholderValue {
+            field.buttons.firstMatch.tap()
+        }
+        field.typeText(query)
+    }
+
     /// Back up one screen — the way out of a day, and out of the calendar.
     private func goBack(_ app: XCUIApplication) {
         app.navigationBars.buttons.element(boundBy: 0).tap()
@@ -1481,7 +1584,13 @@ final class AujourUITests: XCTestCase {
     }
 
     private func dayBeforeToday() -> Date? {
-        Calendar.current.date(byAdding: .day, value: -1, to: Date())
+        daysBeforeToday(1)
+    }
+
+    /// A day far enough back to be somewhere a search is the way to: a journal
+    /// with a past in it is what searching one is for.
+    private func daysBeforeToday(_ days: Int) -> Date? {
+        Calendar.current.date(byAdding: .day, value: -days, to: Date())
     }
 
     private func dayAfterToday() -> Date? {

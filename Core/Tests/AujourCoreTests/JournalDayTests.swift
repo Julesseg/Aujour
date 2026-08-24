@@ -327,4 +327,30 @@ struct JournalDaySpellingTests {
     func descriptionStaysISO() {
         #expect(JournalDay(year: 2026, month: 3, day: 1).description == "2026-03-01")
     }
+
+    @Test("the spelling a day writes down is the spelling that reads back")
+    func aDayRoundTripsThroughItsDescription() {
+        for day in [
+            JournalDay(year: 2026, month: 3, day: 1),
+            JournalDay(year: 2026, month: 3, day: 14),
+            JournalDay(year: 2024, month: 2, day: 29),
+            JournalDay(year: 999, month: 12, day: 31),
+        ] {
+            #expect(JournalDay(day.description) == day)
+        }
+    }
+
+    @Test("what is not an ISO-8601 date is not a day")
+    func anythingElseIsNotADay() {
+        for spelling in [
+            // Not the shape.
+            "", "2026-03", "2026-3-1", "2026-03-01-01", "20260301", "yyyy-mm-dd", "2026/03/01",
+            // Not digits Aujour ever wrote — `Int(_:)` parses both of these.
+            "+123-01-01", "٢٠٢٦-٠٣-٠١",
+            // Days there is no such thing as.
+            "2026-13-01", "2026-00-01", "2026-03-32", "2026-02-30", "2026-02-29",
+        ] {
+            #expect(JournalDay(spelling) == nil, "\(spelling) should not name a day")
+        }
+    }
 }

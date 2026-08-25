@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""><link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=Source+Sans+3:ital,wght@0,300..600;1,400&display=swap" rel="stylesheet"><style>
+body{margin:0;background:#EAE6DF;font-family:-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#8A5A3C;text-decoration:none}a:hover{color:#B8724A}
+.dv-turn{padding:44px 48px 36px;border-bottom:1px solid rgba(36,31,27,.10)}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 6px}
+.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#241F1B;color:#F6F2EC;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 system-ui;color:#241F1B}
+.dv-sub{font:400 12px/1.6 system-ui;color:rgba(36,31,27,.55);margin:0 0 26px;max-width:760px}
+.dv-opts{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:10px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(36,31,27,.09);color:#241F1B;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 system-ui;color:rgba(36,31,27,.55)}
+.dv-opt:target .dv-oid{background:#B8724A;color:#fff}
+.dv-next{margin:26px 0 0;font:12px/1.6 system-ui;color:rgba(36,31,27,.5)}
+.mono{font:400 10px/1.5 ui-monospace,Menlo,monospace;letter-spacing:.02em}
+</style></helmet>
+
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Foundations &amp; component library — Driftwood accent, restrained glass</span></div>
+<p class="dv-sub">Per your answers: foundations first, static, restrained translucency, <span class="mono">#7B6A52</span> default. These are the parts every screen in <a class="dv-oid" href="#1a">1a</a> is assembled from; the live boards below now inherit this accent and glass recipe.</p>
+<div class="dv-opts">
+
+<div class="dv-opt" id="2a">
+<div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Material, spacing, elevation</div>
+<div style="width:400px;background:#FFFCF7;border:1px solid rgba(36,31,27,.09);border-radius:16px;padding:20px">
+<div class="mono" style="color:#7B6A52">GLASS · LIGHT (over content)</div>
+<div style="margin:10px 0 18px;border-radius:16px;overflow:hidden;background:repeating-linear-gradient(135deg,rgba(36,31,27,.05) 0 10px,rgba(36,31,27,.10) 10px 20px);padding:16px;display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+<div style="padding:9px 14px;border-radius:99px;background:rgba(255,252,247,.72);backdrop-filter:blur(14px);border:0.5px solid rgba(36,31,27,.10);box-shadow:0 1px 2px rgba(36,31,27,.05),0 4px 12px rgba(36,31,27,.07);font:590 13px -apple-system,system-ui;color:#241F1B">chrome</div>
+<div style="padding:9px 14px;border-radius:99px;background:rgba(255,252,247,.48);backdrop-filter:blur(14px);border:0.5px solid rgba(36,31,27,.08);box-shadow:0 1px 2px rgba(36,31,27,.04);font:590 13px -apple-system,system-ui;color:#241F1B">recessive</div>
+<div style="padding:9px 14px;border-radius:99px;background:rgba(123,106,82,.20);backdrop-filter:blur(14px);border:0.5px solid rgba(123,106,82,.28);box-shadow:0 1px 2px rgba(36,31,27,.04);font:590 13px -apple-system,system-ui;color:#5B4E3C">tinted</div>
+</div>
+<div class="mono" style="color:#7B6A52">GLASS · DARK</div>
+<div style="margin:10px 0 18px;border-radius:16px;overflow:hidden;background:#16130F;padding:16px;display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+<div style="padding:9px 14px;border-radius:99px;background:rgba(60,54,47,.62);backdrop-filter:blur(14px);border:0.5px solid rgba(255,255,255,.12);box-shadow:0 2px 10px rgba(0,0,0,.22);font:590 13px -apple-system,system-ui;color:#F2EDE5">chrome</div>
+<div style="padding:9px 14px;border-radius:99px;background:rgba(60,54,47,.40);backdrop-filter:blur(14px);border:0.5px solid rgba(255,255,255,.08);font:590 13px -apple-system,system-ui;color:#F2EDE5">recessive</div>
+<div style="padding:9px 14px;border-radius:99px;background:rgba(167,154,128,.24);backdrop-filter:blur(14px);border:0.5px solid rgba(167,154,128,.30);font:590 13px -apple-system,system-ui;color:#D8CDB6">tinted</div>
+</div>
+<div style="font:400 11.5px/1.6 system-ui;color:rgba(36,31,27,.55);margin-bottom:18px">One layer only. A control inside a glass container is drawn as tint or fill — never a second pane. Dark loses the specular edge and gains a cast shadow instead; light does the reverse.</div>
+<div class="mono" style="color:#7B6A52">SPACING · 4pt base</div>
+<div style="display:flex;align-items:flex-end;gap:8px;margin:10px 0 18px">
+<sc-for list="{{ spacing }}" as="s" hint-placeholder-count="7">
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+<div style="{{ s.box }}"></div><span class="mono" style="color:rgba(36,31,27,.45);font-size:8.5px">{{ s.n }}</span>
+</div>
+</sc-for>
+</div>
+<div class="mono" style="color:#7B6A52">ELEVATION</div>
+<div style="display:flex;gap:12px;margin:12px 0 0">
+<sc-for list="{{ elevation }}" as="e" hint-placeholder-count="4">
+<div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+<div style="{{ e.box }}"></div><span class="mono" style="color:rgba(36,31,27,.45);font-size:8.5px">{{ e.n }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="2b">
+<div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>Components</div>
+<div style="width:392px;background:#FFFCF7;border:1px solid rgba(36,31,27,.09);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:20px">
+
+<div>
+<div class="mono" style="color:#7B6A52;margin-bottom:10px">HEADER DATE PILL · 3 STATES</div>
+<div style="border-radius:14px;background:repeating-linear-gradient(135deg,rgba(36,31,27,.05) 0 10px,rgba(36,31,27,.10) 10px 20px);padding:14px;display:flex;flex-direction:column;gap:10px;align-items:center">
+<div style="display:flex;align-items:center;gap:8px;height:44px;padding:0 16px;border-radius:22px;background:rgba(255,252,247,.72);backdrop-filter:blur(14px);border:0.5px solid rgba(36,31,27,.10);box-shadow:0 1px 2px rgba(36,31,27,.05),0 4px 12px rgba(36,31,27,.07)"><span style="font:590 16px -apple-system,system-ui;color:#241F1B;letter-spacing:-.2px">Thursday, 13 August</span><span style="width:7px;height:7px;border-right:1.6px solid rgba(36,31,27,.38);border-bottom:1.6px solid rgba(36,31,27,.38);transform:rotate(45deg) translateY(-1px)"></span></div>
+<div style="display:flex;align-items:center;gap:8px;height:44px;padding:0 14px;border-radius:22px;background:rgba(255,252,247,.72);backdrop-filter:blur(14px);border:0.5px solid rgba(36,31,27,.10);box-shadow:0 1px 2px rgba(36,31,27,.05),0 4px 12px rgba(36,31,27,.07)"><span style="font:500 13px -apple-system,system-ui;color:#5B4E3C;background:rgba(123,106,82,.18);padding:5px 11px;border-radius:99px">Today</span><span style="font:590 16px -apple-system,system-ui;color:#241F1B;letter-spacing:-.2px">Sunday, 9 August</span><span style="width:7px;height:7px;border-right:1.6px solid rgba(36,31,27,.38);border-bottom:1.6px solid rgba(36,31,27,.38);transform:rotate(45deg) translateY(-1px)"></span></div>
+<div style="width:100%;border-radius:24px;background:rgba(255,252,247,.72);backdrop-filter:blur(14px);border:0.5px solid rgba(36,31,27,.10);box-shadow:0 1px 2px rgba(36,31,27,.05),0 4px 12px rgba(36,31,27,.07);overflow:hidden">
+<div style="height:44px;display:flex;align-items:center;justify-content:center;gap:8px"><span style="font:590 16px -apple-system,system-ui;color:#241F1B">Thursday, 13 August</span><span style="width:7px;height:7px;border-right:1.6px solid rgba(36,31,27,.38);border-bottom:1.6px solid rgba(36,31,27,.38);transform:rotate(-135deg) translateY(-1px)"></span></div>
+<div style="display:flex;padding:0 10px 6px">
+<sc-for list="{{ wdays }}" as="w" hint-placeholder-count="7">
+<div style="flex:1;text-align:center;font:500 11px -apple-system,system-ui;color:rgba(36,31,27,.38);letter-spacing:.06em">{{ w.l }}</div>
+</sc-for>
+</div>
+<div style="display:flex;padding:0 10px 10px">
+<sc-for list="{{ weekRow }}" as="c" hint-placeholder-count="7">
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px"><div style="{{ c.box }}"><span style="{{ c.num }}">{{ c.n }}</span></div><div style="{{ c.dot }}"></div></div>
+</sc-for>
+</div>
+</div>
+<span class="mono" style="color:rgba(36,31,27,.45)">pill · with Today chip · week-strip detent</span>
+</div>
+</div>
+
+<div>
+<div class="mono" style="color:#7B6A52;margin-bottom:10px">ACCESSORY BUTTON · DEFAULT / PRESSED / ACTIVE</div>
+<div style="display:flex;gap:8px">
+<div style="width:40px;height:40px;border-radius:13px;display:flex;align-items:center;justify-content:center;font:500 16px -apple-system,system-ui;color:#241F1B">B</div>
+<div style="width:40px;height:40px;border-radius:13px;display:flex;align-items:center;justify-content:center;font:500 16px -apple-system,system-ui;color:#241F1B;background:rgba(36,31,27,.08);transform:scale(.94)">B</div>
+<div style="width:40px;height:40px;border-radius:13px;display:flex;align-items:center;justify-content:center;font:500 16px -apple-system,system-ui;color:#FFFCF7;background:#7B6A52">B</div>
+<div style="flex:1"></div>
+<span class="mono" style="color:rgba(36,31,27,.45);align-self:flex-end">44pt hit area, 13pt radius in a 22pt row</span>
+</div>
+</div>
+
+<div>
+<div class="mono" style="color:#7B6A52;margin-bottom:10px">BUTTONS</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+<div style="padding:11px 20px;border-radius:99px;background:#7B6A52;color:#FFFCF7;font:590 15px -apple-system,system-ui">Move entries</div>
+<div style="padding:11px 20px;border-radius:99px;background:rgba(123,106,82,.16);color:#5B4E3C;font:590 15px -apple-system,system-ui">Skip</div>
+<div style="padding:11px 14px;font:400 15px -apple-system,system-ui;color:#7B6A52">Cancel</div>
+</div>
+</div>
+
+<div>
+<div class="mono" style="color:#7B6A52;margin-bottom:10px">TEXT FIELD · LIVE PREVIEW · GUIDANCE</div>
+<div style="border-radius:14px;background:#F6F2EC;padding:12px 14px">
+<div style="font:400 15px ui-monospace,Menlo,monospace;color:#241F1B">YYYY/MM/YYYY-MM-DD.md</div>
+<div style="height:1px;background:rgba(36,31,27,.10);margin:10px 0"></div>
+<div style="font:400 12.5px/1.5 -apple-system,system-ui;color:rgba(36,31,27,.62)">Today's entry would be <span style="font:400 12px ui-monospace,Menlo,monospace;color:#241F1B">2026/08/2026-08-13.md</span></div>
+</div>
+<div style="border-radius:14px;background:#F6F2EC;padding:12px 14px;margin-top:8px">
+<div style="font:400 15px ui-monospace,Menlo,monospace;color:#241F1B">YYYY/<span style="background:rgba(123,106,82,.22);border-radius:3px">{week}</span>/DD.md</div>
+<div style="height:1px;background:rgba(36,31,27,.10);margin:10px 0"></div>
+<div style="display:flex;gap:8px;align-items:flex-start"><div style="width:5px;height:5px;border-radius:99px;background:#7B6A52;margin-top:6px;flex:none"></div><div style="font:400 12.5px/1.5 -apple-system,system-ui;color:rgba(36,31,27,.62)">Aujour knows YYYY, MM, DD, and MMM. Try YYYY/MM.</div></div>
+</div>
+</div>
+
+<div>
+<div class="mono" style="color:#7B6A52;margin-bottom:10px">LIST ROWS · SHEET CHROME</div>
+<div style="border-radius:18px;overflow:hidden;background:#F6F2EC">
+<div style="display:flex;align-items:center;min-height:48px;padding:0 15px;border-bottom:0.5px solid rgba(36,31,27,.10)"><span style="flex:1;font:400 16.5px -apple-system,system-ui;color:#241F1B">Journal folder</span><span style="font:400 15px -apple-system,system-ui;color:rgba(36,31,27,.38);margin-right:8px">iCloud › Aujour</span><span style="width:6px;height:6px;border-right:2px solid rgba(36,31,27,.38);border-top:2px solid rgba(36,31,27,.38);transform:rotate(45deg)"></span></div>
+<div style="display:flex;align-items:center;min-height:48px;padding:0 15px;border-bottom:0.5px solid rgba(36,31,27,.10)"><span style="flex:1;font:400 16.5px -apple-system,system-ui;color:#241F1B">Obsidian embeds</span><div style="width:50px;height:31px;border-radius:99px;background:#7B6A52;display:flex;align-items:center;justify-content:flex-end;padding:2px"><div style="width:27px;height:27px;border-radius:99px;background:#FFFCF7;box-shadow:0 1px 3px rgba(36,31,27,.25)"></div></div></div>
+<div style="display:flex;align-items:center;min-height:48px;padding:0 15px"><span style="flex:1;font:400 16.5px -apple-system,system-ui;color:#241F1B">Rollover hour</span><span style="font:400 15px -apple-system,system-ui;color:rgba(36,31,27,.38);padding:4px 10px;border-radius:8px;background:rgba(36,31,27,.05)">4:00 AM</span></div>
+</div>
+<div style="margin-top:10px;border-top-left-radius:26px;border-top-right-radius:26px;background:#FBF8F2;padding:8px 0 14px;box-shadow:0 -1px 0 rgba(36,31,27,.08)">
+<div style="display:flex;justify-content:center"><div style="width:38px;height:5px;border-radius:99px;background:rgba(36,31,27,.20)"></div></div>
+<div style="display:flex;align-items:center;padding:10px 16px 0"><span style="font:400 16px -apple-system,system-ui;color:#7B6A52">Settings</span><span style="flex:1;text-align:center;font:700 17px -apple-system,system-ui;color:#241F1B;letter-spacing:-.3px">Appearance</span><span style="width:56px"></span></div>
+</div>
+</div>
+
+<div>
+<div class="mono" style="color:#7B6A52;margin-bottom:10px">INLINE BANNER · NEVER AN ERROR COLOUR</div>
+<div style="border-radius:14px;background:repeating-linear-gradient(135deg,rgba(36,31,27,.05) 0 10px,rgba(36,31,27,.10) 10px 20px);padding:12px">
+<div style="padding:12px 14px;border-radius:18px;display:flex;gap:11px;align-items:flex-start;background:rgba(255,252,247,.76);backdrop-filter:blur(14px);border:0.5px solid rgba(36,31,27,.10);box-shadow:0 1px 2px rgba(36,31,27,.05),0 4px 12px rgba(36,31,27,.07)">
+<div style="width:7px;height:7px;border-radius:99px;background:#7B6A52;margin-top:6px;flex:none"></div>
+<div style="flex:1"><div style="font:400 13.5px/1.45 -apple-system,system-ui;color:#241F1B">Kept as <span style="font:400 12.5px ui-monospace,Menlo,monospace">2026-08-13_1.md</span></div><div style="font:400 12.5px -apple-system,system-ui;color:rgba(36,31,27,.62);margin-top:2px">Nothing was lost.</div></div>
+<div style="font:500 13.5px -apple-system,system-ui;color:#7B6A52;padding-top:4px">Compare</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="2c">
+<div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a>Inline placeholder widgets · unanswered → tap → collapsed</div>
+<div style="width:392px;background:#FFFCF7;border:1px solid rgba(36,31,27,.09);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:22px">
+
+<div>
+<div class="mono" style="color:#7B6A52;margin-bottom:10px">{{ moodToken }}</div>
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="font:300 17px/1.62 Newsreader,Georgia,serif;color:#241F1B">Today's mood <span style="display:inline-flex;gap:6px;align-items:center;vertical-align:-4px;margin-left:4px;padding:5px 9px;border-radius:99px;background:rgba(123,106,82,.16)"><span style="width:11px;height:11px;border-radius:99px;border:1.3px solid rgba(36,31,27,.38)"></span><span style="width:11px;height:11px;border-radius:99px;border:1.3px solid rgba(36,31,27,.38)"></span><span style="width:11px;height:11px;border-radius:99px;border:1.3px solid rgba(36,31,27,.38)"></span><span style="width:11px;height:11px;border-radius:99px;border:1.3px solid rgba(36,31,27,.38)"></span><span style="width:11px;height:11px;border-radius:99px;border:1.3px solid rgba(36,31,27,.38)"></span></span></div>
+<div style="font:300 17px/1.62 Newsreader,Georgia,serif;color:#241F1B">Today's mood <span style="display:inline-flex;gap:6px;align-items:center;vertical-align:-4px;margin-left:4px;padding:5px 9px;border-radius:99px;background:rgba(123,106,82,.24)"><span style="width:11px;height:11px;border-radius:99px;background:#7B6A52"></span><span style="width:11px;height:11px;border-radius:99px;background:#7B6A52"></span><span style="width:11px;height:11px;border-radius:99px;background:#7B6A52"></span><span style="width:13px;height:13px;border-radius:99px;background:#7B6A52;box-shadow:0 0 0 3px rgba(123,106,82,.22)"></span><span style="width:11px;height:11px;border-radius:99px;border:1.3px solid rgba(36,31,27,.38)"></span></span></div>
+<div style="font:300 17px/1.62 Newsreader,Georgia,serif;color:#241F1B">Today's mood: 4/5</div>
+<span class="mono" style="color:rgba(36,31,27,.45)">tap dot 4 · widget contracts to text over 220ms · file now reads “4/5”</span>
+</div>
+</div>
+
+<div>
+<div class="mono" style="color:#7B6A52;margin-bottom:10px">{{ locToken }}</div>
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="font:300 17px/1.62 Newsreader,Georgia,serif;color:#241F1B">Written in <span style="display:inline-flex;gap:6px;align-items:center;vertical-align:-3px;padding:3px 11px 3px 9px;border-radius:99px;background:rgba(123,106,82,.16);color:#5B4E3C;font:500 15px -apple-system,system-ui"><span style="width:5px;height:5px;border-radius:99px;background:#7B6A52"></span>Kreuzberg, Berlin</span></div>
+<div style="border-radius:16px;background:#F6F2EC;padding:10px 0;width:250px">
+<div style="font:400 11.5px -apple-system,system-ui;color:rgba(36,31,27,.38);padding:0 14px 6px">NEAR YOU</div>
+<div style="display:flex;align-items:center;padding:8px 14px;background:rgba(123,106,82,.10)"><span style="flex:1;font:400 15px -apple-system,system-ui;color:#241F1B">Kreuzberg, Berlin</span><span style="width:6px;height:11px;border-right:2px solid #7B6A52;border-bottom:2px solid #7B6A52;transform:rotate(-45deg) translateY(-2px)"></span></div>
+<div style="display:flex;align-items:center;padding:8px 14px"><span style="flex:1;font:400 15px -apple-system,system-ui;color:#241F1B">Görlitzer Park</span></div>
+<div style="display:flex;align-items:center;padding:8px 14px"><span style="flex:1;font:400 15px -apple-system,system-ui;color:#241F1B">Markthalle Neun</span></div>
+</div>
+<div style="font:300 17px/1.62 Newsreader,Georgia,serif;color:#241F1B">Written in Kreuzberg, Berlin</div>
+</div>
+</div>
+
+<div>
+<div class="mono" style="color:#7B6A52;margin-bottom:10px">{{ evToken }}</div>
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="font:300 17px/1.62 Newsreader,Georgia,serif;color:#241F1B">Today <span style="display:inline-flex;gap:7px;align-items:center;vertical-align:-3px;padding:3px 11px;border-radius:99px;background:rgba(123,106,82,.16);color:#5B4E3C;font:500 15px -apple-system,system-ui"><span style="width:5px;height:5px;border-radius:99px;background:#7B6A52"></span>3 events</span></div>
+<div style="font:300 17px/1.62 Newsreader,Georgia,serif;color:#241F1B;padding-left:2px">
+<div>— 09:30 Standup</div>
+<div>— 13:00 Lunch with Mira</div>
+<div>— 18:45 Pool</div>
+</div>
+<span class="mono" style="color:rgba(36,31,27,.45)">resolves to plain lines · format set in Settings › Calendar events</span>
+</div>
+</div>
+
+<div>
+<div class="mono" style="color:#7B6A52;margin-bottom:10px">UNANSWERED · SITS QUIETLY</div>
+<div style="font:300 17px/1.62 Newsreader,Georgia,serif;color:#241F1B">Long day. Saw <span style="padding:1px 6px;border-radius:6px;background:rgba(36,31,27,.055);font:400 15px ui-monospace,Menlo,monospace;color:rgba(36,31,27,.38)">{{ nameToken }}</span> at the pool, then walked home the long way.</div>
+<div class="mono" style="color:rgba(36,31,27,.45);margin-top:8px">no chrome, no border — reading rhythm intact; still literal text in the file</div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "iPad: sidebar calendar + comfortable measure" · "onboarding, three sheets" · "settings sub-screens and the migration flow, static boards" · "swap the accent set to cooler paper tones"</p>
+</section>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Aujour — the spine, the editor, and the material</span></div>
+<p class="dv-sub">Interactive. In <a class="dv-oid" href="#1a">1a</a>: drag or tap the date pill to expand it into the week strip, then the month grid; pick a past day, an unwritten day, or a locked future day and the editor answers. Tap any line of the entry to see raw markdown appear on the cursor's line only. Tap the mood widget. Accent and theme in Appearance are live and drive every board below.</p>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>iPhone · Today, the pill gesture, the sheets — live</div>
+<div style="display:flex;gap:22px;align-items:flex-start">
+<div style="{{ themeVars }}">
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ isDark }}" hint-size="402px,874px">
+
+<div style="position:relative;height:100%;overflow:hidden;background:var(--bg,#F6F2EC);border-radius:48px">
+
+<div onPointerDown="{{ onSurfaceDown }}" style="position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;touch-action:pan-y">
+<div style="{{ entryStyle }}">
+<div style="height:120px"></div>
+
+<sc-if value="{{ showParked }}" hint-placeholder-val="{{ false }}">
+<div style="margin:8px 16px 4px;padding:12px 14px;border-radius:20px;display:flex;gap:11px;align-items:flex-start;background:var(--glass,rgba(255,252,247,.62));backdrop-filter:blur(14px);border:0.5px solid var(--glass-ring,rgba(36,31,27,.10));box-shadow:0 1px 2px rgba(36,31,27,.05),0 4px 12px rgba(36,31,27,.07)">
+<div style="width:7px;height:7px;border-radius:99px;background:var(--accent,#B8724A);margin-top:6px;flex:none"></div>
+<div style="flex:1">
+<div style="font:400 13.5px/1.45 -apple-system,system-ui;color:var(--ink,#241F1B);letter-spacing:-.1px">Another version of this day was kept as <span style="font:400 12.5px ui-monospace,Menlo,monospace">2026-08-12_1.md</span></div>
+<div style="font:400 12.5px/1.4 -apple-system,system-ui;color:var(--ink-2,rgba(36,31,27,.62));margin-top:3px">Nothing was lost.</div>
+</div>
+<div style="font:500 13.5px -apple-system,system-ui;color:var(--accent,#B8724A);padding:4px 2px 0;flex:none">Compare</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showBackfill }}" hint-placeholder-val="{{ false }}">
+<div style="margin:6px 0 0;display:flex;justify-content:center">
+<div style="display:flex;gap:7px;align-items:center;padding:5px 12px;border-radius:99px;background:var(--accent-soft,rgba(184,114,74,.14))">
+<div style="width:5px;height:5px;border-radius:99px;background:var(--accent,#B8724A)"></div>
+<span style="font:400 12px -apple-system,system-ui;color:var(--ink-2,rgba(36,31,27,.62));letter-spacing:.01em">a past day, written now</span>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showLocked }}" hint-placeholder-val="{{ false }}">
+<div style="padding:96px 46px 0;text-align:center">
+<div style="width:34px;height:34px;border-radius:99px;margin:0 auto 18px;border:1px solid var(--rule,rgba(36,31,27,.14));display:flex;align-items:center;justify-content:center">
+<div style="width:9px;height:7px;border-radius:2px;border:1.5px solid var(--ink-3,rgba(36,31,27,.38));border-top-width:5px;border-top-left-radius:5px;border-top-right-radius:5px"></div>
+</div>
+<div style="font:300 21px/1.5 Newsreader,Georgia,serif;color:var(--ink-2,rgba(36,31,27,.62))">This day hasn't arrived yet.</div>
+<div style="font:400 14px/1.6 -apple-system,system-ui;color:var(--ink-3,rgba(36,31,27,.38));margin-top:12px">Writing opens at your rollover hour.</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showEntry }}" hint-placeholder-val="{{ true }}">
+<div style="{{ bodyStyle }}">
+
+<div onClick="{{ T.t1 }}" style="padding:3px 0;margin-bottom:2px;cursor:text">
+<sc-if value="{{ L.a1 }}" hint-placeholder-val="{{ false }}">
+<span style="font:400 17px/1.5 ui-monospace,Menlo,monospace;color:var(--ink,#241F1B)"><span style="color:var(--ink-3,rgba(36,31,27,.38))">## </span>Notes on the day</span>
+</sc-if>
+<sc-if value="{{ L.r1 }}" hint-placeholder-val="{{ true }}">
+<div style="font:500 24px/1.35 Newsreader,Georgia,serif;color:var(--ink,#241F1B);letter-spacing:-.2px">Notes on the day</div>
+</sc-if>
+</div>
+
+<div onClick="{{ T.t2 }}" style="padding:4px 0;cursor:text">
+<sc-if value="{{ L.a2 }}" hint-placeholder-val="{{ false }}">
+<div style="{{ rawStyle }}">Woke before the alarm and the flat was <span style="color:var(--ink-3,rgba(36,31,27,.38))">**</span>already warm<span style="color:var(--ink-3,rgba(36,31,27,.38))">**</span>. Made coffee, sat by the window and did <span style="color:var(--ink-3,rgba(36,31,27,.38))">*</span>nothing<span style="color:var(--ink-3,rgba(36,31,27,.38))">*</span> for twenty minutes.</div>
+</sc-if>
+<sc-if value="{{ L.r2 }}" hint-placeholder-val="{{ true }}">
+<div style="{{ proseStyle }}">Woke before the alarm and the flat was <strong style="font-weight:600">already warm</strong>. Made coffee, sat by the window and did <em>nothing</em> for twenty minutes.</div>
+</sc-if>
+</div>
+
+<div onClick="{{ T.t3 }}" style="padding:4px 0;cursor:text">
+<sc-if value="{{ L.a3 }}" hint-placeholder-val="{{ false }}">
+<div style="{{ rawStyle }}"><span style="color:var(--ink-3,rgba(36,31,27,.38))">&gt; </span>The trees are doing that late-summer thing where they look tired.</div>
+</sc-if>
+<sc-if value="{{ L.r3 }}" hint-placeholder-val="{{ true }}">
+<div style="border-left:2px solid var(--accent-soft-2,rgba(184,114,74,.35));padding-left:14px;margin:2px 0">
+<div style="{{ quoteStyle }}">The trees are doing that late-summer thing where they look tired.</div>
+</div>
+</sc-if>
+</div>
+
+<div onClick="{{ T.t4 }}" style="padding:3px 0;cursor:text">
+<sc-if value="{{ L.a4 }}" hint-placeholder-val="{{ false }}">
+<div style="{{ rawStyle }}"><span style="color:var(--ink-3,rgba(36,31,27,.38))">- [x] </span>water the fig</div>
+</sc-if>
+<sc-if value="{{ L.r4 }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;gap:11px;align-items:baseline">
+<div style="width:19px;height:19px;border-radius:6px;background:var(--accent,#B8724A);flex:none;position:relative;top:3px;display:flex;align-items:center;justify-content:center">
+<div style="width:8px;height:4px;border-left:1.8px solid #fff;border-bottom:1.8px solid #fff;transform:rotate(-45deg) translate(1px,-1px)"></div>
+</div>
+<div style="{{ proseStyle }}"><span style="opacity:.5">water the fig</span></div>
+</div>
+</sc-if>
+</div>
+
+<div onClick="{{ T.t5 }}" style="padding:3px 0;cursor:text">
+<sc-if value="{{ L.a5 }}" hint-placeholder-val="{{ false }}">
+<div style="{{ rawStyle }}"><span style="color:var(--ink-3,rgba(36,31,27,.38))">- [ ] </span>call Dad</div>
+</sc-if>
+<sc-if value="{{ L.r5 }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;gap:11px;align-items:baseline">
+<div style="width:19px;height:19px;border-radius:6px;border:1.5px solid var(--ink-3,rgba(36,31,27,.38));flex:none;position:relative;top:3px"></div>
+<div style="{{ proseStyle }}">call Dad</div>
+</div>
+</sc-if>
+</div>
+
+<div onClick="{{ T.t6 }}" style="padding:8px 0 6px;cursor:text">
+<sc-if value="{{ L.a6 }}" hint-placeholder-val="{{ false }}">
+<div style="{{ rawStyle }}"><span style="color:var(--ink-3,rgba(36,31,27,.38))">![](</span>attachments/2026-08-13-0912.jpg<span style="color:var(--ink-3,rgba(36,31,27,.38))">)</span></div>
+</sc-if>
+<sc-if value="{{ L.r6 }}" hint-placeholder-val="{{ true }}">
+<div style="border-radius:14px;overflow:hidden;height:150px;background:repeating-linear-gradient(135deg,var(--ph-a,rgba(36,31,27,.055)) 0 9px,var(--ph-b,rgba(36,31,27,.10)) 9px 18px);display:flex;align-items:flex-end;padding:9px 11px;box-sizing:border-box">
+<span class="mono" style="color:var(--ink-3,rgba(36,31,27,.38))">photo · 09:12 · tap to view</span>
+</div>
+</sc-if>
+</div>
+
+<div style="padding:4px 0">
+<sc-if value="{{ moodOpen }}" hint-placeholder-val="{{ true }}">
+<div style="{{ proseStyle }}">Today's mood <span style="display:inline-flex;gap:5px;align-items:center;vertical-align:-4px;margin-left:6px;padding:4px 8px;border-radius:99px;background:var(--accent-soft,rgba(184,114,74,.14))">
+<sc-for list="{{ moodDots }}" as="d" hint-placeholder-count="5">
+<span onClick="{{ d.onClick }}" style="{{ d.style }}"></span>
+</sc-for>
+</span></div>
+</sc-if>
+<sc-if value="{{ moodDone }}" hint-placeholder-val="{{ false }}">
+<div style="{{ proseStyle }}">Today's mood: {{ moodText }}</div>
+</sc-if>
+</div>
+
+<div style="padding:4px 0">
+<div style="{{ proseStyle }}">Written in <span onClick="{{ openPlace }}" style="display:inline-flex;gap:6px;align-items:center;vertical-align:-3px;padding:3px 10px 3px 8px;border-radius:99px;background:var(--accent-soft,rgba(184,114,74,.14));color:var(--accent-ink,#8A5A3C);font:500 15px -apple-system,system-ui;cursor:pointer"><span style="width:5px;height:5px;border-radius:99px;background:var(--accent,#B8724A)"></span>Kreuzberg, Berlin</span></div>
+</div>
+
+<div style="padding:4px 0 0">
+<div style="{{ proseStyle }}"><span style="color:var(--ink-3,rgba(36,31,27,.38))">Who I saw: </span><span style="padding:1px 6px;border-radius:6px;background:var(--ph-a,rgba(36,31,27,.055));font:400 15px ui-monospace,Menlo,monospace;color:var(--ink-3,rgba(36,31,27,.38))">{{ nameToken }}</span></div>
+</div>
+
+<sc-if value="{{ showInvite }}" hint-placeholder-val="{{ false }}">
+<div style="padding:14px 0 0;font:300 17px/1.6 Newsreader,Georgia,serif;color:var(--ink-3,rgba(36,31,27,.38));font-style:italic">Nothing is saved until you write.</div>
+</sc-if>
+
+<div style="height:190px"></div>
+</div>
+</sc-if>
+</div>
+</div>
+
+<div style="position:absolute;top:0;left:0;right:0;display:flex;justify-content:center;pointer-events:none;z-index:30">
+<div style="{{ headStyle }}">
+<div onPointerDown="{{ onPillDown }}" onClick="{{ onPillTap }}" style="height:44px;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 14px;cursor:grab;touch-action:none">
+<sc-if value="{{ showTodayBtn }}" hint-placeholder-val="{{ false }}">
+<span onClick="{{ goToday }}" style="font:500 13px -apple-system,system-ui;color:var(--accent-ink,#8A5A3C);background:var(--accent-soft,rgba(184,114,74,.14));padding:5px 11px;border-radius:99px;margin-right:2px">Today</span>
+</sc-if>
+<span style="font:590 16px -apple-system,system-ui;color:var(--ink,#241F1B);letter-spacing:-.2px;white-space:nowrap">{{ dateLabel }}</span>
+<span style="{{ chevStyle }}"></span>
+</div>
+
+<div style="{{ panelStyle }}">
+<div style="{{ gridStyle }}">
+<div style="display:flex;padding:0 8px 4px">
+<sc-for list="{{ wdays }}" as="w" hint-placeholder-count="7">
+<div style="flex:1;text-align:center;font:500 11px -apple-system,system-ui;color:var(--ink-3,rgba(36,31,27,.38));letter-spacing:.06em">{{ w.l }}</div>
+</sc-for>
+</div>
+<div style="display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px">
+<sc-for list="{{ cells }}" as="c" hint-placeholder-count="42">
+<div onClick="{{ c.onClick }}" style="height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;position:relative;cursor:pointer">
+<div style="{{ c.selStyle }}"></div>
+<span style="{{ c.numStyle }}">{{ c.n }}</span>
+<div style="{{ c.dotStyle }}"></div>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="{{ monthLabelStyle }}">August 2026</div>
+</div>
+</div>
+</div>
+
+<div style="{{ toolbarStyle }}">
+<div onClick="{{ openSearch }}" style="width:52px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer">
+<svg width="19" height="19" viewBox="0 0 19 19" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.7"/><path d="M12.6 12.6L17 17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+</div>
+<div style="width:0.5px;height:20px;background:var(--glass-ring,rgba(36,31,27,.10))"></div>
+<div onClick="{{ openShare }}" style="width:52px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer">
+<svg width="18" height="20" viewBox="0 0 18 20" fill="none"><path d="M9 13V2.4M9 2.4L5.2 6.2M9 2.4l3.8 3.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.4 12.5v3.6a2 2 0 002 2h9.2a2 2 0 002-2v-3.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+</div>
+<div style="width:0.5px;height:20px;background:var(--glass-ring,rgba(36,31,27,.10))"></div>
+<div onClick="{{ openSettings }}" style="width:52px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer">
+<svg width="19" height="19" viewBox="0 0 19 19" fill="none"><path d="M2 5.5h15M2 13.5h15" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="7" cy="5.5" r="2.6" fill="var(--glass-solid,#F6F2EC)" stroke="currentColor" stroke-width="1.7"/><circle cx="12.5" cy="13.5" r="2.6" fill="var(--glass-solid,#F6F2EC)" stroke="currentColor" stroke-width="1.7"/></svg>
+</div>
+</div>
+
+<div style="{{ accStyle }}">
+<sc-if value="{{ trayOpen }}" hint-placeholder-val="{{ false }}">
+<div style="padding:10px 12px 4px;display:flex;gap:8px;overflow-x:auto">
+<sc-for list="{{ trayShots }}" as="s" hint-placeholder-count="4">
+<div style="width:66px;height:66px;border-radius:12px;flex:none;background:repeating-linear-gradient(135deg,var(--ph-a,rgba(36,31,27,.055)) 0 8px,var(--ph-b,rgba(36,31,27,.10)) 8px 16px);display:flex;align-items:flex-end;padding:5px;box-sizing:border-box"><span class="mono" style="color:var(--ink-3,rgba(36,31,27,.38))">{{ s.t }}</span></div>
+</sc-for>
+<div onClick="{{ openPicker }}" style="width:66px;height:66px;border-radius:12px;flex:none;border:1px dashed var(--ink-3,rgba(36,31,27,.38));display:flex;align-items:center;justify-content:center;font:400 11px -apple-system,system-ui;color:var(--ink-2,rgba(36,31,27,.62));text-align:center;line-height:1.3">All<br/>photos</div>
+</div>
+</sc-if>
+<div style="display:flex;gap:4px;padding:6px 8px;overflow-x:auto;align-items:center">
+<sc-for list="{{ accKeys }}" as="k" hint-placeholder-count="9">
+<div onClick="{{ k.onClick }}" style="{{ k.style }}">{{ k.l }}</div>
+</sc-for>
+</div>
+</div>
+
+<div style="{{ kbStyle }}">
+<x-import component-from-global-scope="IOSKeyboard" from="./ios-frame.jsx" dark="{{ isDark }}" hint-size="100%,300px"></x-import>
+</div>
+
+<div onClick="{{ closeSheet }}" style="{{ scrimStyle }}"></div>
+<div style="{{ sheetStyle }}">
+<div style="display:flex;justify-content:center;padding:8px 0 2px"><div style="width:38px;height:5px;border-radius:99px;background:var(--ink-3,rgba(36,31,27,.38));opacity:.5"></div></div>
+
+<sc-if value="{{ sheetSearch }}" hint-placeholder-val="{{ false }}">
+<div style="padding:8px 16px 0">
+<div style="display:flex;align-items:center;gap:9px;height:38px;padding:0 12px;border-radius:12px;background:var(--field,rgba(36,31,27,.05))">
+<svg width="15" height="15" viewBox="0 0 19 19" fill="none" style="color:var(--ink-3,rgba(36,31,27,.38))"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.9"/><path d="M12.6 12.6L17 17" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+<span style="font:400 16px -apple-system,system-ui;color:var(--ink,#241F1B)">fig</span>
+<span style="width:1.5px;height:19px;background:var(--accent,#B8724A)"></span>
+</div>
+<div style="font:400 12.5px -apple-system,system-ui;color:var(--ink-3,rgba(36,31,27,.38));padding:14px 2px 6px;letter-spacing:.02em">3 entries</div>
+<sc-for list="{{ results }}" as="r" hint-placeholder-count="3">
+<div style="padding:11px 0;border-top:0.5px solid var(--rule,rgba(36,31,27,.10))">
+<div style="font:500 13px -apple-system,system-ui;color:var(--ink-2,rgba(36,31,27,.62));margin-bottom:4px">{{ r.d }}</div>
+<div style="font:300 16px/1.5 Newsreader,Georgia,serif;color:var(--ink,#241F1B)">{{ r.a }}<span style="background:var(--accent-soft,rgba(184,114,74,.14));color:var(--accent-ink,#8A5A3C);border-radius:4px;padding:1px 3px">fig</span>{{ r.b }}</div>
+</div>
+</sc-for>
+<div style="font:400 12.5px -apple-system,system-ui;color:var(--ink-3,rgba(36,31,27,.38));padding:18px 2px 6px">Recent</div>
+<div style="display:flex;gap:7px;flex-wrap:wrap">
+<sc-for list="{{ recents }}" as="q" hint-placeholder-count="3">
+<div style="padding:6px 12px;border-radius:99px;background:var(--field,rgba(36,31,27,.05));font:400 14px -apple-system,system-ui;color:var(--ink-2,rgba(36,31,27,.62))">{{ q.t }}</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ sheetSettings }}" hint-placeholder-val="{{ false }}">
+<div style="padding:6px 0 0">
+<div style="font:700 26px -apple-system,system-ui;color:var(--ink,#241F1B);padding:6px 20px 14px;letter-spacing:-.4px">Settings</div>
+<div style="padding:0 16px">
+<div style="border-radius:18px;overflow:hidden;background:var(--card,#FFFCF7)">
+<sc-for list="{{ setRows }}" as="r" hint-placeholder-count="6">
+<div onClick="{{ r.onClick }}" style="display:flex;align-items:center;min-height:48px;padding:0 15px;border-bottom:0.5px solid var(--rule,rgba(36,31,27,.10));cursor:pointer">
+<span style="flex:1;font:400 16.5px -apple-system,system-ui;color:var(--ink,#241F1B);letter-spacing:-.2px">{{ r.t }}</span>
+<span style="font:400 15px -apple-system,system-ui;color:var(--ink-3,rgba(36,31,27,.38));margin-right:8px">{{ r.v }}</span>
+<svg width="7" height="12" viewBox="0 0 8 14" style="color:var(--ink-3,rgba(36,31,27,.38))"><path d="M1 1l6 6-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</div>
+</sc-for>
+</div>
+<div style="font:400 12.5px/1.55 -apple-system,system-ui;color:var(--ink-3,rgba(36,31,27,.38));padding:12px 6px">On device. Your journal is a folder of markdown files.</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ sheetAppearance }}" hint-placeholder-val="{{ false }}">
+<div style="padding:6px 0 0">
+<div style="display:flex;align-items:center;gap:8px;padding:6px 16px 14px">
+<span onClick="{{ openSettings }}" style="font:400 16px -apple-system,system-ui;color:var(--accent,#B8724A);cursor:pointer">Settings</span>
+<span style="font:700 22px -apple-system,system-ui;color:var(--ink,#241F1B);letter-spacing:-.3px;margin-left:auto;margin-right:auto">Appearance</span>
+<span style="width:56px"></span>
+</div>
+<div style="padding:0 16px">
+<div style="display:flex;gap:3px;padding:3px;border-radius:12px;background:var(--field,rgba(36,31,27,.05))">
+<sc-for list="{{ themeSeg }}" as="s" hint-placeholder-count="3">
+<div onClick="{{ s.onClick }}" style="{{ s.style }}">{{ s.l }}</div>
+</sc-for>
+</div>
+<div style="font:400 12.5px -apple-system,system-ui;color:var(--ink-3,rgba(36,31,27,.38));padding:16px 2px 8px">ACCENT</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap">
+<sc-for list="{{ swatches }}" as="s" hint-placeholder-count="8">
+<div onClick="{{ s.onClick }}" style="{{ s.style }}"></div>
+</sc-for>
+</div>
+<div style="font:400 12.5px -apple-system,system-ui;color:var(--ink-3,rgba(36,31,27,.38));padding:18px 2px 8px">EDITOR FACE</div>
+<div style="display:flex;gap:8px">
+<sc-for list="{{ faces }}" as="f" hint-placeholder-count="3">
+<div onClick="{{ f.onClick }}" style="{{ f.style }}">{{ f.l }}</div>
+</sc-for>
+</div>
+<div style="display:flex;align-items:center;gap:12px;padding:18px 2px 6px">
+<span style="font:400 13px -apple-system,system-ui;color:var(--ink-3,rgba(36,31,27,.38))">A</span>
+<div style="flex:1;height:4px;border-radius:99px;background:var(--field-2,rgba(36,31,27,.10));position:relative">
+<div style="{{ sizeFillStyle }}"></div>
+<div style="{{ sizeKnobStyle }}"></div>
+</div>
+<span style="font:400 19px -apple-system,system-ui;color:var(--ink-2,rgba(36,31,27,.62))">A</span>
+</div>
+<div style="display:flex;gap:6px;padding:2px 0 0">
+<sc-for list="{{ sizeSteps }}" as="s" hint-placeholder-count="4">
+<div onClick="{{ s.onClick }}" style="{{ s.style }}">{{ s.l }}</div>
+</sc-for>
+</div>
+<div style="margin:16px 0 0;padding:14px 16px;border-radius:16px;background:var(--card,#FFFCF7)">
+<div style="{{ sampleStyle }}">A well-set page: the measure is narrow enough that your eye finds the next line without hunting.</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ sheetShare }}" hint-placeholder-val="{{ false }}">
+<div style="padding:6px 16px 0">
+<div style="font:700 22px -apple-system,system-ui;color:var(--ink,#241F1B);padding:6px 4px 14px;letter-spacing:-.3px">Share {{ shortDate }}</div>
+<div style="display:flex;gap:3px;padding:3px;border-radius:12px;background:var(--field,rgba(36,31,27,.05))">
+<sc-for list="{{ shareSeg }}" as="s" hint-placeholder-count="2">
+<div onClick="{{ s.onClick }}" style="{{ s.style }}">{{ s.l }}</div>
+</sc-for>
+</div>
+<div style="margin:16px auto 0;width:196px;height:250px;border-radius:6px;background:#FDFBF7;box-shadow:0 2px 8px rgba(36,31,27,.14),0 12px 30px rgba(36,31,27,.10);padding:24px 22px;box-sizing:border-box">
+<div style="{{ pdfHeadStyle }}">Thursday, 13 August 2026</div>
+<div style="{{ pdfBodyStyle }}">Woke before the alarm and the flat was already warm. Made coffee, sat by the window and did nothing for twenty minutes.</div>
+<div style="height:6px"></div>
+<div style="{{ pdfBodyStyle }}">The trees are doing that late-summer thing where they look tired.</div>
+</div>
+<div style="text-align:center;font:400 12px -apple-system,system-ui;color:var(--ink-3,rgba(36,31,27,.38));padding:10px 0 0">Your editor typography, set for the page</div>
+</div>
+</sc-if>
+</div>
+
+</div>
+</x-import>
+</div>
+
+<div style="width:300px;display:flex;flex-direction:column;gap:12px">
+<div style="background:#FFFCF7;border:1px solid rgba(36,31,27,.09);border-radius:12px;padding:14px 16px">
+<div class="mono" style="color:#B8724A;margin-bottom:8px">ANNOTATION 01 — PILL ↔ CALENDAR</div>
+<div style="font:400 12.5px/1.65 system-ui;color:rgba(36,31,27,.72)">One continuous, interruptible drag on the pill. Progress <span class="mono">p</span> ∈ [0,2] maps to a single glass container that grows downward: <span class="mono">p=0</span> pill (h 44, w 214, r 22) → <span class="mono">p=1</span> week strip (h 112) → <span class="mono">p=2</span> month grid (h 362, w 370, r 26).</div>
+<div style="font:400 12.5px/1.65 system-ui;color:rgba(36,31,27,.72);margin-top:8px">The week strip is not a separate view — it is the month grid translated so the current week sits under the weekday labels (<span class="mono">−88px → 0</span>). Nothing cross-fades; the same cells travel.</div>
+<div style="font:400 12.5px/1.65 system-ui;color:rgba(36,31,27,.72);margin-top:8px">Release snaps to the nearest detent, spring <span class="mono">stiffness 320 · damping 30</span> (CSS: <span class="mono">.42s cubic-bezier(.32,.72,0,1)</span>). Reverse mid-flight is honoured — no queued animation. Tap steps pill → week → month → pill.</div>
+</div>
+<div style="background:#FFFCF7;border:1px solid rgba(36,31,27,.09);border-radius:12px;padding:14px 16px">
+<div class="mono" style="color:#B8724A;margin-bottom:8px">ANNOTATION 02 — SYNTAX REVEAL</div>
+<div style="font:400 12.5px/1.65 system-ui;color:rgba(36,31,27,.72)">Tap any line. Only the cursor's line swaps to raw markdown; every other line stays rendered. The swap is same-baseline: the raw face is a mono at the same optical size, and markers are <span class="mono">--ink-3</span> so the line's weight barely changes.</div>
+<div style="font:400 12.5px/1.65 system-ui;color:rgba(36,31,27,.72);margin-top:8px">No height jump: block glyphs (checkbox, quote rule, heading size) hold the line's box while their markers appear. Reveal <span class="mono">120ms ease-out</span>, hide <span class="mono">180ms</span> — leaving is calmer than arriving.</div>
+</div>
+<div style="background:#FFFCF7;border:1px solid rgba(36,31,27,.09);border-radius:12px;padding:14px 16px">
+<div class="mono" style="color:rgba(36,31,27,.45);margin-bottom:8px">TRY IT</div>
+<div style="font:400 12.5px/1.7 system-ui;color:rgba(36,31,27,.72)">Drag the pill down · pick <span class="mono">9 Aug</span> (no entry → backfill) · pick <span class="mono">12 Aug</span> (parked file) · pick <span class="mono">21 Aug</span> (locked) · tap the mood dots · tap a line of text · toolbar → Appearance and change the accent.</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Editor states · dark</div>
+<div style="display:flex;flex-direction:column;gap:14px;width:394px">
+<div style="--bg:#16130F;--ink:#F2EDE5;--ink-2:rgba(242,237,229,.60);--ink-3:rgba(242,237,229,.34);--rule:rgba(242,237,229,.12);--accent:#D08E63;--accent-ink:#E4A87F;--accent-soft:rgba(208,142,99,.18);--glass:rgba(60,54,47,.55);--glass-ring:rgba(255,255,255,.14);--glass-hi:rgba(255,255,255,.16);--ph-a:rgba(255,255,255,.05);--ph-b:rgba(255,255,255,.10);background:#16130F;border-radius:20px;padding:22px;box-shadow:0 1px 3px rgba(36,31,27,.2)">
+<div class="mono" style="color:rgba(242,237,229,.34);margin-bottom:14px">FRESHLY SPAWNED · NOTHING ON DISK YET</div>
+<div style="font:500 22px/1.35 Newsreader,Georgia,serif;color:#F2EDE5;margin-bottom:8px">Notes on the day</div>
+<div style="font:300 17px/1.62 Newsreader,Georgia,serif;color:rgba(242,237,229,.60)">Today's mood <span style="display:inline-flex;gap:5px;vertical-align:-3px;margin-left:4px;padding:4px 8px;border-radius:99px;background:rgba(208,142,99,.18)"><span style="width:9px;height:9px;border-radius:99px;border:1.2px solid rgba(242,237,229,.34)"></span><span style="width:9px;height:9px;border-radius:99px;border:1.2px solid rgba(242,237,229,.34)"></span><span style="width:9px;height:9px;border-radius:99px;border:1.2px solid rgba(242,237,229,.34)"></span><span style="width:9px;height:9px;border-radius:99px;border:1.2px solid rgba(242,237,229,.34)"></span><span style="width:9px;height:9px;border-radius:99px;border:1.2px solid rgba(242,237,229,.34)"></span></span></div>
+<div style="font:300 17px/1.62 Newsreader,Georgia,serif;color:rgba(242,237,229,.60);margin-top:4px">Written in <span style="padding:3px 10px;border-radius:99px;background:rgba(208,142,99,.18);color:#E4A87F;font:500 15px -apple-system,system-ui">Kreuzberg, Berlin</span></div>
+<div style="font:300 17px/1.6 Newsreader,Georgia,serif;color:rgba(242,237,229,.34);font-style:italic;margin-top:14px">Nothing is saved until you write.</div>
+</div>
+
+<div style="background:#16130F;border-radius:20px;padding:22px;box-shadow:0 1px 3px rgba(36,31,27,.2)">
+<div class="mono" style="color:rgba(242,237,229,.34);margin-bottom:14px">PARKED FILE · NEVER AN ERROR COLOUR</div>
+<div style="padding:12px 14px;border-radius:20px;display:flex;gap:11px;align-items:flex-start;background:rgba(60,54,47,.62);backdrop-filter:blur(14px);border:0.5px solid rgba(255,255,255,.14);box-shadow:0 2px 10px rgba(0,0,0,.22)">
+<div style="width:7px;height:7px;border-radius:99px;background:#D08E63;margin-top:6px;flex:none"></div>
+<div style="flex:1">
+<div style="font:400 13.5px/1.45 -apple-system,system-ui;color:#F2EDE5">Another version of this day was kept as <span style="font:400 12.5px ui-monospace,Menlo,monospace">2026-08-12_1.md</span></div>
+<div style="font:400 12.5px/1.4 -apple-system,system-ui;color:rgba(242,237,229,.60);margin-top:3px">Nothing was lost.</div>
+</div>
+<div style="font:500 13.5px -apple-system,system-ui;color:#E4A87F;flex:none;padding-top:4px">Compare</div>
+</div>
+<div style="display:flex;gap:10px;margin-top:16px">
+<div style="flex:1;border-radius:14px;border:0.5px solid rgba(242,237,229,.12);padding:12px">
+<div class="mono" style="color:rgba(242,237,229,.34);margin-bottom:6px">2026-08-12.md</div>
+<div style="font:300 13px/1.5 Newsreader,Georgia,serif;color:rgba(242,237,229,.60)">Long train back. Read most of the Berger.</div>
+</div>
+<div style="flex:1;border-radius:14px;border:0.5px solid rgba(208,142,99,.35);padding:12px">
+<div class="mono" style="color:#E4A87F;margin-bottom:6px">2026-08-12_1.md</div>
+<div style="font:300 13px/1.5 Newsreader,Georgia,serif;color:rgba(242,237,229,.60)">Long train back. Read most of the Berger, then slept.</div>
+</div>
+</div>
+</div>
+
+<div style="background:#16130F;border-radius:20px;padding:22px;box-shadow:0 1px 3px rgba(36,31,27,.2)">
+<div class="mono" style="color:rgba(242,237,229,.34);margin-bottom:14px">LOCKED FUTURE DAY · EXTERNAL RELOAD · FOLDER WAITING</div>
+<div style="text-align:center;padding:6px 20px 18px">
+<div style="font:300 19px/1.5 Newsreader,Georgia,serif;color:rgba(242,237,229,.60)">This day hasn't arrived yet.</div>
+</div>
+<div style="display:flex;justify-content:center;gap:8px;align-items:center;padding:10px 0;border-top:0.5px solid rgba(242,237,229,.12)">
+<div style="width:5px;height:5px;border-radius:99px;background:rgba(242,237,229,.34)"></div>
+<span style="font:400 12px -apple-system,system-ui;color:rgba(242,237,229,.34);letter-spacing:.02em">refreshed from your folder</span>
+</div>
+<div style="display:flex;justify-content:center;gap:8px;align-items:center;padding:10px 0;border-top:0.5px solid rgba(242,237,229,.12)">
+<div style="width:11px;height:11px;border-radius:99px;border:1.4px solid rgba(242,237,229,.34);border-top-color:transparent"></div>
+<span style="font:400 12px -apple-system,system-ui;color:rgba(242,237,229,.34);letter-spacing:.02em">still fetching from iCloud</span>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Keyboard accessory row &amp; photo tray · states</div>
+<div style="display:flex;flex-direction:column;gap:14px;width:404px">
+<sc-for list="{{ trayStates }}" as="t" hint-placeholder-count="3">
+<div style="{{ t.wrapStyle }}">
+<div class="mono" style="{{ t.labelStyle }}">{{ t.label }}</div>
+<div style="{{ t.cardStyle }}">
+<div style="{{ t.msgStyle }}">{{ t.msg }}</div>
+<sc-if value="{{ t.hasCta }}" hint-placeholder-val="{{ false }}"><div style="{{ t.ctaStyle }}">{{ t.cta }}</div></sc-if>
+</div>
+</div>
+</sc-for>
+<div style="background:#F6F2EC;border-radius:20px;padding:16px;box-shadow:0 1px 3px rgba(36,31,27,.08)">
+<div class="mono" style="color:rgba(36,31,27,.45);margin-bottom:10px">ACCESSORY ROW · LIGHT · PRESSED = 3RD KEY</div>
+<div style="display:flex;gap:4px;padding:6px;border-radius:22px;background:rgba(255,252,247,.62);backdrop-filter:blur(14px);border:0.5px solid rgba(36,31,27,.10);box-shadow:0 1px 2px rgba(36,31,27,.05),inset 0 1px 0 rgba(255,255,255,.7);overflow:hidden">
+<sc-for list="{{ accStatic }}" as="k" hint-placeholder-count="9">
+<div style="{{ k.style }}">{{ k.l }}</div>
+</sc-for>
+</div>
+<div style="height:12px"></div>
+<div class="mono" style="color:rgba(36,31,27,.45);margin-bottom:10px">DARK</div>
+<div style="background:#16130F;border-radius:16px;padding:10px">
+<div style="display:flex;gap:4px;padding:6px;border-radius:22px;background:rgba(60,54,47,.62);backdrop-filter:blur(14px);border:0.5px solid rgba(255,255,255,.14);box-shadow:0 2px 10px rgba(0,0,0,.22);overflow:hidden">
+<sc-for list="{{ accStaticDark }}" as="k" hint-placeholder-count="9">
+<div style="{{ k.style }}">{{ k.l }}</div>
+</sc-for>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1d">
+<div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Tokens, glass materials, calendar cells, motion</div>
+<div style="width:420px;background:#FFFCF7;border:1px solid rgba(36,31,27,.09);border-radius:16px;padding:20px">
+<div class="mono" style="color:#B8724A">COLOUR · LIGHT / DARK</div>
+<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0 22px">
+<sc-for list="{{ tokenRows }}" as="t" hint-placeholder-count="8">
+<div style="display:flex;align-items:center;gap:8px">
+<div style="{{ t.swL }}"></div><div style="{{ t.swD }}"></div>
+<span class="mono" style="color:rgba(36,31,27,.6)">{{ t.n }}</span>
+</div>
+</sc-for>
+</div>
+
+<div class="mono" style="color:#B8724A">ACCENT SET · 8</div>
+<div style="display:flex;gap:8px;margin:12px 0 22px;flex-wrap:wrap">
+<sc-for list="{{ accentTokens }}" as="a" hint-placeholder-count="8">
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px;width:44px">
+<div style="{{ a.sw }}"></div>
+<span class="mono" style="color:rgba(36,31,27,.5);font-size:8.5px">{{ a.n }}</span>
+</div>
+</sc-for>
+</div>
+
+<div class="mono" style="color:#B8724A">TYPE</div>
+<div style="margin:10px 0 22px;display:flex;flex-direction:column;gap:7px">
+<div style="display:flex;align-items:baseline;gap:12px"><span class="mono" style="color:rgba(36,31,27,.45);width:86px;flex:none">chrome/title</span><span style="font:700 26px -apple-system,system-ui;letter-spacing:-.4px;color:#241F1B">Settings</span></div>
+<div style="display:flex;align-items:baseline;gap:12px"><span class="mono" style="color:rgba(36,31,27,.45);width:86px;flex:none">chrome/pill</span><span style="font:590 16px -apple-system,system-ui;color:#241F1B">Thursday, 13 August</span></div>
+<div style="display:flex;align-items:baseline;gap:12px"><span class="mono" style="color:rgba(36,31,27,.45);width:86px;flex:none">chrome/row</span><span style="font:400 16.5px -apple-system,system-ui;color:#241F1B">Journal folder</span></div>
+<div style="display:flex;align-items:baseline;gap:12px"><span class="mono" style="color:rgba(36,31,27,.45);width:86px;flex:none">editor/h2</span><span style="font:500 24px Newsreader,Georgia,serif;color:#241F1B">Notes on the day</span></div>
+<div style="display:flex;align-items:baseline;gap:12px"><span class="mono" style="color:rgba(36,31,27,.45);width:86px;flex:none">editor/serif</span><span style="font:300 17px Newsreader,Georgia,serif;color:#241F1B">Woke before the alarm</span></div>
+<div style="display:flex;align-items:baseline;gap:12px"><span class="mono" style="color:rgba(36,31,27,.45);width:86px;flex:none">editor/sans</span><span style="font:300 16.5px 'Source Sans 3',system-ui;color:#241F1B">Woke before the alarm</span></div>
+<div style="display:flex;align-items:baseline;gap:12px"><span class="mono" style="color:rgba(36,31,27,.45);width:86px;flex:none">editor/mono</span><span style="font:400 15px ui-monospace,Menlo,monospace;color:#241F1B">Woke before the alarm</span></div>
+<div style="display:flex;align-items:baseline;gap:12px"><span class="mono" style="color:rgba(36,31,27,.45);width:86px;flex:none">measure</span><span style="font:400 12px system-ui;color:rgba(36,31,27,.6)">iPhone 30px margins · iPad 62ch max</span></div>
+</div>
+
+<div class="mono" style="color:#B8724A">RADIUS · CONCENTRIC</div>
+<div style="display:flex;align-items:flex-end;gap:10px;margin:12px 0 22px">
+<sc-for list="{{ radii }}" as="r" hint-placeholder-count="6">
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+<div style="{{ r.box }}"></div><span class="mono" style="color:rgba(36,31,27,.45);font-size:8.5px">{{ r.n }}</span>
+</div>
+</sc-for>
+</div>
+
+<div class="mono" style="color:#B8724A">GLASS · ONE LAYER, NEVER STACKED · RESTRAINED</div>
+<div style="margin:12px 0 22px;border-radius:16px;overflow:hidden;background:repeating-linear-gradient(135deg,rgba(36,31,27,.05) 0 10px,rgba(36,31,27,.10) 10px 20px);padding:16px;display:flex;gap:10px;align-items:center">
+<div style="padding:9px 14px;border-radius:99px;background:rgba(255,252,247,.62);backdrop-filter:blur(14px);border:0.5px solid rgba(36,31,27,.10);box-shadow:0 1px 2px rgba(36,31,27,.05),0 4px 12px rgba(36,31,27,.07);font:590 13px -apple-system,system-ui;color:#241F1B">regular</div>
+<div style="padding:9px 14px;border-radius:99px;background:rgba(255,252,247,.34);backdrop-filter:blur(14px);border:0.5px solid rgba(36,31,27,.07);box-shadow:0 1px 2px rgba(36,31,27,.05);font:590 13px -apple-system,system-ui;color:#241F1B">clear</div>
+<div style="padding:9px 14px;border-radius:99px;background:rgba(184,114,74,.24);backdrop-filter:blur(14px);border:0.5px solid rgba(184,114,74,.3);box-shadow:0 1px 2px rgba(36,31,27,.05);font:590 13px -apple-system,system-ui;color:#7A4A2E">tinted</div>
+</div>
+
+<div class="mono" style="color:#B8724A">CALENDAR CELL · ALL STATES</div>
+<div style="display:flex;gap:6px;margin:12px 0 22px;flex-wrap:wrap">
+<sc-for list="{{ cellSpecs }}" as="c" hint-placeholder-count="6">
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px;width:52px">
+<div style="{{ c.box }}"><span style="{{ c.num }}">{{ c.n }}</span><div style="{{ c.dot }}"></div></div>
+<span class="mono" style="color:rgba(36,31,27,.45);font-size:8px;text-align:center">{{ c.l }}</span>
+</div>
+</sc-for>
+</div>
+
+<div class="mono" style="color:#B8724A">MOTION</div>
+<div style="margin:12px 0 0;display:flex;flex-direction:column;gap:6px">
+<sc-for list="{{ motion }}" as="m" hint-placeholder-count="5">
+<div style="display:flex;gap:10px;align-items:baseline;border-top:0.5px solid rgba(36,31,27,.08);padding-top:6px">
+<span style="font:500 11.5px system-ui;color:#241F1B;width:112px;flex:none">{{ m.n }}</span>
+<span class="mono" style="color:rgba(36,31,27,.55);flex:1">{{ m.v }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "now the iPad layout with the sidebar calendar" · "build the settings sub-screens — path template, content template, migration flow" · "onboarding, three glass sheets" · "spend more time on the month grid: sticky month labels and continuous scroll"</p>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light'|'dark'&quot;,&quot;section&quot;:&quot;Appearance&quot;}}">
+const ENTRY_DAYS = [1,2,3,4,6,7,8,10,11,12,13];
+const ACCENTS = [
+  {n:'Driftwood',  l:'#7B6A52', d:'#A79A80'},
+  {n:'Terracotta', l:'#B8724A', d:'#D08E63'},
+  {n:'Clay',       l:'#A8563C', d:'#C87A5C'},
+  {n:'Ochre',      l:'#9C7B4D', d:'#C2A06A'},
+  {n:'Olive',      l:'#6F7A55', d:'#9AA478'},
+  {n:'Sage',       l:'#5F7A6C', d:'#8AA79A'},
+  {n:'Harbour',    l:'#56708C', d:'#88A2BC'},
+  {n:'Plum',       l:'#7B5A72', d:'#A9849F'},
+  {n:'Graphite',   l:'#6B6660', d:'#9C958D'},
+];
+const FACES = {
+  serif: "Newsreader, Georgia, serif",
+  sans: "'Source Sans 3', -apple-system, system-ui, sans-serif",
+  mono: "ui-monospace, Menlo, monospace",
+};
+const WD = ['M','T','W','T','F','S','S'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAYNAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const SPRING = 'cubic-bezier(.32,.72,0,1)';
+const lerp = (a,b,t) => a + (b-a)*t;
+const clamp = (v,a,b) => Math.max(a, Math.min(b,v));
+
+class Component extends DCLogic {
+  state = {
+    theme: this.props.theme || 'light',
+    accent: 0,
+    face: 'serif',
+    size: 1,
+    prog: 0,
+    dragging: false,
+    day: 13,
+    cursor: 0,
+    typing: false,
+    tray: false,
+    mood: null,
+    sheet: null,
+    dx: 0,
+    swiping: false,
+  };
+
+  // ---- pill drag ----
+  onPillDown = (e) => {
+    const startY = e.clientY, start = this.state.prog;
+    let moved = false;
+    const move = (ev) => {
+      const dy = ev.clientY - startY;
+      if (Math.abs(dy) > 4) moved = true;
+      this.setState({ prog: clamp(start + dy/150, 0, 2), dragging: true });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      this._pillMoved = moved;
+      this.setState(s => ({ dragging: false, prog: moved ? Math.round(s.prog) : s.prog }));
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    this.setState({ typing: false, tray: false });
+  };
+  onPillTap = () => {
+    if (this._pillMoved) { this._pillMoved = false; return; }
+    this.setState(s => ({ prog: s.prog === 0 ? 1 : s.prog === 1 ? 2 : 0 }));
+  };
+
+  // ---- horizontal day swipe ----
+  onSurfaceDown = (e) => {
+    const sx = e.clientX, sy = e.clientY;
+    let axis = null;
+    const move = (ev) => {
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      if (!axis && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (axis === 'x') { this._moved = true; this.setState({ dx, swiping: true }); }
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      const dx = this.state.dx;
+      let day = this.state.day;
+      if (Math.abs(dx) > 70) day = clamp(day + (dx < 0 ? 1 : -1), 1, 31);
+      this.setState({ dx: 0, swiping: false, day, cursor: 0 });
+      setTimeout(() => { this._moved = false; }, 60);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  tap = (i) => () => {
+    if (this._moved || this.locked()) return;
+    this.setState({ cursor: i, typing: true, prog: 0 });
+  };
+
+  locked = () => this.state.day > 13;
+  hasEntry = () => ENTRY_DAYS.indexOf(this.state.day) >= 0;
+
+  pick = (d, inMonth) => () => {
+    if (!inMonth) return;
+    this.setState({ day: d, prog: 0, cursor: 0, typing: false, tray: false, mood: null });
+  };
+
+  A() { const a = ACCENTS[this.state.accent]; return this.dark() ? a.d : a.l; }
+  dark() { return this.state.theme === 'dark'; }
+
+  vars() {
+    const a = this.A();
+    if (this.dark()) return {
+      '--bg':'#16130F','--ink':'#F2EDE5','--ink-2':'rgba(242,237,229,.60)','--ink-3':'rgba(242,237,229,.34)',
+      '--rule':'rgba(242,237,229,.12)','--card':'#201C17','--field':'rgba(255,255,255,.08)','--field-2':'rgba(255,255,255,.14)',
+      '--accent':a,'--accent-ink':a,'--accent-soft':a+'2E','--accent-soft-2':a+'59',
+      '--glass':'rgba(60,54,47,.55)','--glass-ring':'rgba(255,255,255,.14)','--glass-hi':'rgba(255,255,255,.16)','--glass-solid':'#2A251F',
+      '--ph-a':'rgba(255,255,255,.05)','--ph-b':'rgba(255,255,255,.10)','--sheet':'#1B1712',
+    };
+    return {
+      '--bg':'#F6F2EC','--ink':'#241F1B','--ink-2':'rgba(36,31,27,.62)','--ink-3':'rgba(36,31,27,.38)',
+      '--rule':'rgba(36,31,27,.10)','--card':'#FFFCF7','--field':'rgba(36,31,27,.05)','--field-2':'rgba(36,31,27,.10)',
+      '--accent':a,'--accent-ink':a,'--accent-soft':a+'26','--accent-soft-2':a+'59',
+      '--glass':'rgba(255,252,247,.62)','--glass-ring':'rgba(36,31,27,.10)','--glass-hi':'rgba(255,255,255,.70)','--glass-solid':'#F6F2EC',
+      '--ph-a':'rgba(36,31,27,.055)','--ph-b':'rgba(36,31,27,.10)','--sheet':'#FBF8F2',
+    };
+  }
+
+  renderVals() {
+    const s = this.state, p = s.prog, d = this.dark(), a = this.A();
+    const tr = s.dragging ? 'none' : `all .42s ${SPRING}`;
+    const ink = 'var(--ink,#241F1B)', ink2 = 'var(--ink-2,rgba(36,31,27,.62))', ink3 = 'var(--ink-3,rgba(36,31,27,.38))';
+
+    // calendar geometry
+    const t1 = clamp(p,0,1), t2 = clamp(p-1,0,1);
+    const panelH = p <= 1 ? lerp(0,68,t1) : lerp(68,318,t2);
+    const shift  = p <= 1 ? lerp(0,-88,t1) : lerp(-88,0,t2);
+    const width  = p <= 1 ? lerp(232,340,t1) : lerp(340,370,t2);
+    const radius = p <= 1 ? lerp(22,24,t1) : lerp(24,26,t2);
+
+    const cells = [];
+    const start = new Date(2026,6,27);
+    for (let i=0;i<42;i++){
+      const dt = new Date(start.getTime()+i*86400000);
+      const n = dt.getDate(), inMonth = dt.getMonth() === 7;
+      const isToday = inMonth && n === 13, isSel = inMonth && n === s.day;
+      const lock = inMonth && n > 13, has = inMonth && ENTRY_DAYS.indexOf(n) >= 0;
+      cells.push({
+        n, onClick: this.pick(n, inMonth),
+        numStyle: {
+          position:'relative', zIndex:1,
+          font:`${isToday||isSel?590:400} 15px -apple-system, system-ui`,
+          color: isSel ? (d?'#16130F':'#FFFCF7') : !inMonth ? 'var(--ink-3,rgba(36,31,27,.24))' : lock ? ink3 : isToday ? a : ink,
+          opacity: !inMonth ? .45 : 1,
+        },
+        selStyle: {
+          position:'absolute', width:36, height:36, borderRadius:12,
+          background: isSel ? a : isToday ? 'var(--accent-soft,rgba(184,114,74,.14))' : has ? 'var(--field,rgba(36,31,27,.05))' : 'transparent',
+          transition:`background .2s ease`,
+        },
+        dotStyle: {
+          width:4, height:4, borderRadius:99, position:'relative', zIndex:1,
+          background: has && !isSel ? a : 'transparent', opacity: has && !isSel ? .7 : 0,
+        },
+      });
+    }
+
+    const moodDots = [1,2,3,4,5].map(v => ({
+      onClick: () => this.setState({ mood: v }),
+      style: { width:11, height:11, borderRadius:99, cursor:'pointer',
+        background: s.mood && v <= s.mood ? a : 'transparent',
+        border: `1.3px solid ${s.mood && v <= s.mood ? a : ink3}` },
+    }));
+
+    const keys = ['H','B','I','•','1.','☑','⇥','⇤','▣'];
+    const accKeys = keys.map((l,i) => ({
+      l, onClick: i === 8 ? () => this.setState(x => ({ tray: !x.tray })) : () => {},
+      style: { minWidth:38, height:38, borderRadius:13, display:'flex', alignItems:'center', justifyContent:'center',
+        font:`500 ${l.length>1?13:16}px -apple-system, system-ui`, color: i===8 && s.tray ? (d?'#16130F':'#FFFCF7') : ink,
+        background: i===8 && s.tray ? a : 'transparent', flex:'none', cursor:'pointer' },
+    }));
+    const staticKey = (dark) => keys.map((l,i) => ({ l, style: {
+      minWidth:30, height:34, borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', flex:'none',
+      font:`500 ${l.length>1?12:15}px -apple-system, system-ui`,
+      color: i===2 ? (dark?'#16130F':'#FFFCF7') : (dark?'#F2EDE5':'#241F1B'),
+      background: i===2 ? (dark?ACCENTS[s.accent].d:ACCENTS[s.accent].l) : 'transparent' } }));
+
+    const seg = (opts, cur, set) => opts.map(o => ({ l:o.l, onClick:() => set(o.v), style:{
+      flex:1, textAlign:'center', padding:'7px 0', borderRadius:9, cursor:'pointer',
+      font:'500 14px -apple-system, system-ui',
+      color: cur===o.v ? ink : ink2,
+      background: cur===o.v ? 'var(--card,#FFFCF7)' : 'transparent',
+      boxShadow: cur===o.v ? '0 1px 2px rgba(36,31,27,.10)' : 'none' } }));
+
+    const dt = new Date(2026,7,s.day);
+    const prose = { font:`300 ${lerp(15.5,19.5,s.size/3)}px/1.62 ${FACES[s.face]}`, color: ink, letterSpacing: s.face==='mono'?'-.2px':'0' };
+
+    return {
+      themeVars: this.vars(), isDark: d, nameToken: '{{name}}',
+      moodToken: '{{mood}}', locToken: '{{location}}', evToken: '{{events}}',
+      spacing: [2,4,8,12,16,24,32].map(v => ({ n:String(v),
+        box:{ width:v<4?4:v, height:v<4?4:v, background:'rgba(123,106,82,.28)', borderRadius:2 } })),
+      elevation: [
+        {n:'0 · flat', v:'none'},
+        {n:'1 · card', v:'0 1px 3px rgba(36,31,27,.08)'},
+        {n:'2 · glass', v:'0 1px 2px rgba(36,31,27,.05), 0 4px 12px rgba(36,31,27,.07)'},
+        {n:'3 · sheet', v:'0 -1px 0 rgba(36,31,27,.08), 0 -12px 34px rgba(36,31,27,.16)'},
+      ].map(e => ({ n:e.n, box:{ width:56, height:44, borderRadius:12, background:'#FBF8F2', border:'0.5px solid rgba(36,31,27,.10)', boxShadow:e.v } })),
+      weekRow: [10,11,12,13,14,15,16].map(n => ({ n,
+        box:{ width:32, height:32, borderRadius:11, display:'flex', alignItems:'center', justifyContent:'center',
+          background: n===13 ? '#7B6A52' : ENTRY_DAYS.indexOf(n)>=0 ? 'rgba(36,31,27,.05)' : 'transparent' },
+        num:{ font:`${n===13?590:400} 15px -apple-system, system-ui`, color: n===13 ? '#FFFCF7' : n>13 ? 'rgba(36,31,27,.32)' : '#241F1B' },
+        dot:{ width:4, height:4, borderRadius:99, background: ENTRY_DAYS.indexOf(n)>=0 && n!==13 ? '#7B6A52' : 'transparent', opacity:.7 } })),
+      moodToken: '{{mood}}', locToken: '{{location}}', evToken: '{{events}}',
+      spacing: [4,8,12,16,22,30,44].map(v => ({ n:String(v),
+        box:{ width:v, height:v, background:'rgba(123,106,82,.35)', borderRadius:2 } })),
+      elevation: [
+        {n:'0 flat', sh:'none'},
+        {n:'1 card', sh:'0 1px 2px rgba(36,31,27,.06)'},
+        {n:'2 glass', sh:'0 1px 2px rgba(36,31,27,.05), 0 4px 12px rgba(36,31,27,.07)'},
+        {n:'3 sheet', sh:'0 -1px 0 rgba(36,31,27,.08), 0 -12px 34px rgba(36,31,27,.14)'},
+      ].map(e => ({ n:e.n, box:{ width:64, height:44, borderRadius:14, background:'#FFFCF7', border:'1px solid rgba(36,31,27,.08)', boxShadow:e.sh } })),
+      weekRow: [10,11,12,13,14,15,16].map(n => {
+        const sel = n===13, has = n<14 && n!==9, lock = n>13;
+        return { n:String(n),
+          box:{ width:34, height:34, borderRadius:11, display:'flex', alignItems:'center', justifyContent:'center',
+            background: sel ? '#7B6A52' : has ? 'rgba(36,31,27,.05)' : 'transparent' },
+          num:{ font:`${sel?590:400} 15px -apple-system, system-ui`, color: sel ? '#FFFCF7' : lock ? 'rgba(36,31,27,.30)' : '#241F1B' },
+          dot:{ width:4, height:4, borderRadius:99, background: has && !sel ? '#7B6A52' : 'transparent', opacity:.7 } };
+      }),
+      dateLabel: `${DAYNAMES[dt.getDay()]}, ${s.day} August`,
+      shortDate: `${s.day} Aug`,
+      showTodayBtn: s.day !== 13,
+      goToday: (e) => { e.stopPropagation(); this.setState({ day:13, prog:0, cursor:0 }); },
+      onPillDown: this.onPillDown, onPillTap: this.onPillTap, onSurfaceDown: this.onSurfaceDown,
+      wdays: WD.map((l,i) => ({ l, i })), cells,
+
+      showEntry: !this.locked(),
+      showLocked: this.locked(),
+      showBackfill: !this.locked() && s.day !== 13 && !this.hasEntry(),
+      showParked: s.day === 12,
+      showInvite: !this.locked() && s.day !== 13 && !this.hasEntry(),
+
+      L: { a1:s.cursor===1, r1:s.cursor!==1, a2:s.cursor===2, r2:s.cursor!==2, a3:s.cursor===3, r3:s.cursor!==3,
+           a4:s.cursor===4, r4:s.cursor!==4, a5:s.cursor===5, r5:s.cursor!==5, a6:s.cursor===6, r6:s.cursor!==6 },
+      T: { t1:this.tap(1), t2:this.tap(2), t3:this.tap(3), t4:this.tap(4), t5:this.tap(5), t6:this.tap(6) },
+      proseStyle: prose,
+      rawStyle: { font:`400 ${lerp(15,18.5,s.size/3)}px/1.62 ui-monospace, Menlo, monospace`, color: ink, letterSpacing:'-.3px' },
+      quoteStyle: { ...prose, fontStyle:'italic', color: ink2 },
+      bodyStyle: { padding:'0 30px', paddingTop: s.day===13 ? 8 : 6 },
+      entryStyle: { transform:`translateX(${s.dx*0.55}px)`, opacity: 1 - Math.min(Math.abs(s.dx)/900,.35),
+        transition: s.swiping ? 'none' : `transform .42s ${SPRING}, opacity .3s ease` },
+
+      moodOpen: s.mood === null, moodDone: s.mood !== null, moodDots, moodText: `${s.mood}/5`,
+      openPlace: () => {},
+
+      headStyle: { marginTop:62, width, borderRadius:radius, overflow:'hidden', pointerEvents:'auto', transition:tr,
+        background:'var(--glass,rgba(255,252,247,.62))', backdropFilter:'blur(14px)',
+        border:'0.5px solid var(--glass-ring,rgba(36,31,27,.10))',
+        boxShadow:'0 1px 2px rgba(36,31,27,.05), 0 4px 12px rgba(36,31,27,.07)' },
+      chevStyle: { width:7, height:7, borderRight:`1.6px solid ${ink3}`, borderBottom:`1.6px solid ${ink3}`,
+        transform:`rotate(${45 - p*90}deg) translateY(-1px)`, transition:tr },
+      panelStyle: { height:panelH, overflow:'hidden', position:'relative', transition:tr, opacity: clamp(p*2.2,0,1) },
+      gridStyle: { transform:`translateY(${shift}px)`, transition:tr, paddingBottom:6 },
+      monthLabelStyle: { position:'absolute', top:0, left:0, right:0, textAlign:'center', pointerEvents:'none',
+        font:'590 12px -apple-system, system-ui', letterSpacing:'.06em', color:ink3,
+        opacity: clamp((p-1.45)*3,0,1), transition:tr, transform:`translateY(${lerp(-14,-2,clamp((p-1.45)*3,0,1))}px)` },
+
+      toolbarStyle: { position:'absolute', bottom:44, left:'50%', display:'flex', alignItems:'center', borderRadius:24,
+        color: ink, zIndex:25, overflow:'hidden',
+        transform:`translateX(-50%) scale(${s.typing?0.86:1})`,
+        opacity: s.typing ? 0 : 1, pointerEvents: s.typing ? 'none' : 'auto',
+        transition:`all .34s ${SPRING}`,
+        background:'var(--glass,rgba(255,252,247,.62))', backdropFilter:'blur(14px)',
+        border:'0.5px solid var(--glass-ring,rgba(36,31,27,.10))',
+        boxShadow:'0 1px 2px rgba(36,31,27,.05), 0 4px 12px rgba(36,31,27,.07)' },
+
+      accStyle: { position:'absolute', left:8, right:8, bottom: s.typing ? 300 : -80, borderRadius:22, zIndex:22, overflow:'hidden',
+        opacity: s.typing ? 1 : 0, transition:`all .4s ${SPRING}`,
+        background:'var(--glass,rgba(255,252,247,.62))', backdropFilter:'blur(14px)',
+        border:'0.5px solid var(--glass-ring,rgba(36,31,27,.10))',
+        boxShadow:'0 1px 2px rgba(36,31,27,.05), 0 4px 12px rgba(36,31,27,.07)' },
+      trayOpen: s.tray,
+      trayShots: [{t:'07:40'},{t:'09:12'},{t:'13:05'},{t:'19:22'}],
+      openPicker: () => {},
+      accKeys, accStatic: staticKey(false), accStaticDark: staticKey(true),
+      kbStyle: { position:'absolute', left:0, right:0, bottom:0, zIndex:20,
+        transform:`translateY(${s.typing?0:340}px)`, transition:`transform .42s ${SPRING}` },
+
+      openSearch: () => this.setState({ sheet:'search', typing:false, prog:0 }),
+      openShare: () => this.setState({ sheet:'share', typing:false, prog:0 }),
+      openSettings: () => this.setState({ sheet:'settings', typing:false, prog:0 }),
+      closeSheet: () => this.setState({ sheet:null }),
+      sheetSearch: s.sheet === 'search', sheetSettings: s.sheet === 'settings',
+      sheetAppearance: s.sheet === 'appearance', sheetShare: s.sheet === 'share',
+      scrimStyle: { position:'absolute', inset:0, zIndex:40, background:'rgba(20,16,12,.28)',
+        backdropFilter:'blur(2px)', opacity: s.sheet?1:0, pointerEvents: s.sheet?'auto':'none', transition:'opacity .3s ease' },
+      sheetStyle: { position:'absolute', left:0, right:0, bottom:0, zIndex:45, maxHeight:'82%', overflowY:'auto',
+        borderTopLeftRadius:38, borderTopRightRadius:38, background:'var(--sheet,#FBF8F2)', paddingBottom:38,
+        transformOrigin:'50% 100%',
+        transform: s.sheet ? 'translateY(0) scale(1)' : 'translateY(70%) scale(.94)',
+        opacity: s.sheet ? 1 : 0, pointerEvents: s.sheet ? 'auto' : 'none',
+        boxShadow:'0 -1px 0 var(--rule,rgba(36,31,27,.10)), 0 -18px 50px rgba(36,31,27,.18)',
+        transition:`all .44s ${SPRING}` },
+
+      results: [
+        { d:'12 August 2026', a:'Repotted the ', b:' — roots had circled twice.' },
+        { d:'6 August 2026',  a:'Water the ', b:' before the heat comes back.' },
+        { d:'28 July 2026',   a:'Bought a ', b:' at the market, absurdly cheap.' },
+      ],
+      recents: [{t:'berlin'},{t:'fig'},{t:'mood: 5'}],
+      setRows: [
+        { t:'Journal folder', v:'iCloud › Aujour', onClick:()=>{} },
+        { t:'Path Template', v:'YYYY/MM/…', onClick:()=>{} },
+        { t:'Content Template', v:'', onClick:()=>{} },
+        { t:'Attachments', v:'markdown', onClick:()=>{} },
+        { t:'Rollover Hour', v:'4 AM', onClick:()=>{} },
+        { t:'Appearance', v: s.theme === 'dark' ? 'Dark' : 'Light', onClick:()=>this.setState({sheet:'appearance'}) },
+        { t:'Daily reminder', v:'21:30', onClick:()=>{} },
+        { t:'About', v:'', onClick:()=>{} },
+      ],
+      themeSeg: seg([{l:'Light',v:'light'},{l:'Dark',v:'dark'},{l:'Auto',v:'auto'}], s.theme, v => this.setState({ theme: v === 'auto' ? 'light' : v })),
+      shareSeg: seg([{l:'PDF',v:'pdf'},{l:'Plain text',v:'txt'}], 'pdf', ()=>{}),
+      faces: seg([{l:'Serif',v:'serif'},{l:'Sans',v:'sans'},{l:'Mono',v:'mono'}], s.face, v => this.setState({ face:v })),
+      sizeSteps: [0,1,2,3].map(v => ({ l:['S','M','L','XL'][v], onClick:()=>this.setState({size:v}), style:{
+        flex:1, textAlign:'center', padding:'6px 0', borderRadius:8, cursor:'pointer', font:'500 12px -apple-system, system-ui',
+        color: s.size===v ? ink : ink3, background: s.size===v ? 'var(--field,rgba(36,31,27,.05))' : 'transparent' } })),
+      sizeFillStyle: { position:'absolute', left:0, top:0, bottom:0, borderRadius:99, background:a, width:`${20+s.size/3*80}%`, transition:'width .25s ease' },
+      sizeKnobStyle: { position:'absolute', top:-8, left:`calc(${20+s.size/3*80}% - 10px)`, width:20, height:20, borderRadius:99,
+        background:'var(--card,#FFFCF7)', boxShadow:'0 1px 3px rgba(36,31,27,.25)', transition:'left .25s ease' },
+      sampleStyle: prose,
+      swatches: ACCENTS.map((c,i) => ({ onClick:()=>this.setState({accent:i}), style:{
+        width:34, height:34, borderRadius:99, cursor:'pointer', background: d?c.d:c.l,
+        boxShadow: s.accent===i ? `0 0 0 2.5px var(--sheet,#FBF8F2), 0 0 0 4px ${d?c.d:c.l}` : 'none' } })),
+      pdfHeadStyle: { font:`500 11px ${FACES[s.face]}`, color:'#241F1B', marginBottom:8 },
+      pdfBodyStyle: { font:`300 7.5px/1.7 ${FACES[s.face]}`, color:'rgba(36,31,27,.8)' },
+
+      trayStates: [
+        { label:'PHOTOS · NOT YET ASKED', msg:'The photos you took that day, ready to drop in.', cta:'Allow access', hasCta:true },
+        { label:'LIMITED ACCESS', msg:'Only the photos you picked.', cta:'Manage selection', hasCta:true },
+        { label:'NO PHOTOS THAT DAY', msg:'No photos on 9 August.', cta:'', hasCta:false },
+      ].map(x => ({ ...x,
+        wrapStyle:{ background:'#F6F2EC', borderRadius:20, padding:16, boxShadow:'0 1px 3px rgba(36,31,27,.08)' },
+        labelStyle:{ color:'rgba(36,31,27,.45)', marginBottom:10 },
+        cardStyle:{ borderRadius:18, padding:'14px 16px', background:'rgba(255,252,247,.72)', backdropFilter:'blur(14px)',
+          border:'0.5px solid rgba(36,31,27,.10)', boxShadow:'0 1px 2px rgba(36,31,27,.05)' },
+        msgStyle:{ font:'400 13.5px/1.5 -apple-system, system-ui', color:'#241F1B' },
+        ctaStyle:{ marginTop:10, display:'inline-block', padding:'7px 14px', borderRadius:99,
+          font:'500 13px -apple-system, system-ui', color:'#FFFCF7', background: ACCENTS[s.accent].l } })),
+
+      tokenRows: [
+        {n:'bg',      L:'#F6F2EC', D:'#16130F'},
+        {n:'card',    L:'#FFFCF7', D:'#201C17'},
+        {n:'ink',     L:'#241F1B', D:'#F2EDE5'},
+        {n:'ink-2',   L:'#8B857F', D:'#9A948C'},
+        {n:'ink-3',   L:'#B5AFA9', D:'#605A53'},
+        {n:'rule',    L:'#E4DFD8', D:'#2C2822'},
+        {n:'glass',   L:'#FBF8F3', D:'#3C362F'},
+        {n:'sheet',   L:'#FBF8F2', D:'#1B1712'},
+      ].map(t => ({ n:t.n,
+        swL:{ width:18, height:18, borderRadius:6, background:t.L, border:'1px solid rgba(36,31,27,.12)' },
+        swD:{ width:18, height:18, borderRadius:6, background:t.D, border:'1px solid rgba(36,31,27,.12)' } })),
+      accentTokens: ACCENTS.map(c => ({ n:c.n.toLowerCase(),
+        sw:{ width:34, height:34, borderRadius:10, background:`linear-gradient(160deg,${c.l} 50%,${c.d} 50%)`, border:'1px solid rgba(36,31,27,.10)' } })),
+      radii: [{n:'6',v:6},{n:'12',v:12},{n:'18',v:18},{n:'22',v:22},{n:'26',v:26},{n:'38',v:38}].map(r => ({ n:r.n,
+        box:{ width:38, height:38, borderRadius:r.v, background:'rgba(36,31,27,.06)', border:'1px solid rgba(36,31,27,.12)' } })),
+      cellSpecs: [
+        {n:'7',  l:'has entry', bg:'rgba(36,31,27,.05)', c:'#241F1B', dot:true},
+        {n:'9',  l:'empty',     bg:'transparent',        c:'#241F1B', dot:false},
+        {n:'13', l:'today',     bg:ACCENTS[s.accent].l+'26', c:ACCENTS[s.accent].l, dot:false},
+        {n:'12', l:'selected',  bg:ACCENTS[s.accent].l, c:'#FFFCF7', dot:false},
+        {n:'21', l:'locked',    bg:'transparent',        c:'rgba(36,31,27,.30)', dot:false},
+        {n:'2',  l:'other month', bg:'transparent',      c:'rgba(36,31,27,.20)', dot:false},
+      ].map(c => ({ n:c.n, l:c.l,
+        box:{ width:44, height:44, borderRadius:12, background:c.bg, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3 },
+        num:{ font:'590 15px -apple-system, system-ui', color:c.c },
+        dot:{ width:4, height:4, borderRadius:99, background: c.dot ? ACCENTS[s.accent].l : 'transparent', opacity:.7 } })),
+      motion: [
+        {n:'pill → week → month', v:'drag-driven · release spring 320/30 · .42s cubic-bezier(.32,.72,0,1)'},
+        {n:'accessory row', v:'rise 400ms spring, y −80→300 · recede toolbar 340ms scale .86'},
+        {n:'sheet morph', v:'440ms · origin = summoning control · translateY 70% + scale .94'},
+        {n:'syntax reveal', v:'in 120ms ease-out · out 180ms ease · no height change'},
+        {n:'day swipe', v:'follows finger at 0.55 · commit at 70px · settle .42s'},
+      ],
+    };
+  }
+}
+
+</script>
+</body>
+</html>

@@ -94,3 +94,59 @@ which for a Backfilled day is the wrong question — a Monday written up on
 Friday was offered Friday's street, one tap from being confirmed into the
 file. The day's own photographs already know better, and the panel that offers
 them was already reading the same day.
+
+## Visual identity (grilling session 2026-08-24/25)
+
+Source files live in `docs/design/identity/`. They set the aesthetic — paper
+and ink, restrained translucency, Newsreader over a cream ground — and are
+**not** a technical spec: where they contradict `CONTEXT.md` or Core, the
+documented model wins, and what they omit is extrapolated from it.
+
+- **Live Preview is not a restyle.** The design shows a cursored line swapping
+  to monospace, which shrinks a heading from 24px serif to 17px mono on entry.
+  `CONTEXT.md` says the opposite — a heading's hashes may be hidden precisely
+  *because the line stays large*. Marks are revealed in place, at the styled
+  size, tinted `--ink-3`. Nothing reflows under the caret.
+- **Contrast floor** above the design files' tokens — ADR 0006.
+- **Dynamic Type for chrome, the in-app control for the editor body.** The
+  S/M/L/XL setting is a writing preference and governs the Entry only;
+  settings rows, calendar and chrome scale with the system text size.
+- **Accent is a Device Setting** and does not sync (ADR 0003's reasoning:
+  nothing here shapes a file). Theming ships in its own ticket; until then the
+  Appearance sheet has no accent row and the default is Driftwood `#7B6A52`.
+  The third editor face is the system sans — Source Sans 3 is dropped rather
+  than bundle a webfont for one settings row.
+- **Settings speak prose, not the glossary.** "When the day turns", not
+  "Rollover Hour". Attachment Path Template and embed syntax stay two rows,
+  not one, and the sheet is split into "Your journal" (syncs) and "This
+  device" so ADR 0003's boundary is visible.
+- **Data placeholder formatting gets a screen**: a row per placeholder, each
+  opening its `linePrefix` / `donePrefix` / `timeFormat` / `whenEmpty` fields,
+  reusing the live-preview-with-guidance field the path template already uses.
+  Done marker shown only for placeholders that have a done state.
+- **No compare view for a Parked File.** The design's "Compare" label had no
+  handler and no referent in the model; it becomes "Show in Files". Merging
+  happens in the user's own editor — see `CONTEXT.md`, Parked File.
+- **Migration has three states**: preview (prose count, collisions listed by
+  the name they'd be parked under, Move/Skip), working (determinate — it
+  touches every file), result. A partial outcome (`MigrationOutcome.leftBehind`)
+  is reported in the inline banner's shape and in accent, never an error colour.
+- **An unanswered placeholder is one chip over the whole token**, carrying its
+  name and symbol, tapped to open the answering sheet — as `DrawnMarkdown.Pill`
+  already does. A `:FORMAT` suffix does not change the chip. The design's five
+  inline tappable mood dots become what the *sheet* shows: one interaction for
+  every placeholder, and no per-placeholder hit-testing inside a drawn glyph.
+- **The iPad layout is width-dependent, not device-dependent.** Below ~820pt
+  of *window* width (so Slide Over, half-width Split View and a narrowed Stage
+  Manager window all count), the iPhone presentation: the date pill with its
+  drag-to-week-to-month gesture, which therefore ships on iPad too. At or above,
+  `NavigationSplitView` with the month grid in the sidebar and the Entry at a
+  ~65-character measure. Crossing the threshold keeps the selected day and
+  resets the pill to closed, unanimated.
+- **Onboarding is three sheets**: what this is (a folder of markdown files you
+  own), where it lives (iCloud primary, "choose a folder…" for the vault case),
+  when to nudge (skippable time picker). Photo permission is not among them —
+  asking is a separate act, done before a day is opened.
+
+Still undesigned and not extrapolated here: the iPad sidebar's own empty and
+loading states, and `{{workout}}`-class placeholders that are roadmap anyway.

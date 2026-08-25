@@ -85,10 +85,7 @@ final class DeviceAppearance {
         settings.update { $0.editorFont.family = family }
     }
 
-    /// A point size for the editor — clamped to what the editor can render
-    /// rather than obeyed, which is `EditorFont`'s own rule and not this
-    /// screen's to restate.
-    func useEditorFont(sized size: Double) {
+    func useEditorFont(sized size: EditorFont.Size) {
         settings.update { $0.editorFont.size = size }
     }
 

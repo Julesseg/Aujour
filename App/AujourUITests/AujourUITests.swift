@@ -1927,11 +1927,11 @@ final class AujourUITests: XCTestCase {
         let asItComes = try XCTUnwrap(specimen.value as? String)
 
         app.segmentedControls["appearanceTheme"].buttons["Dark"].tap()
-        app.buttons["accent.moss"].tap()
+        app.buttons["accent.olive"].tap()
         app.segmentedControls["editorFontFamily"].buttons["Serif"].tap()
-        app.sliders["editorFontSize"].adjust(toNormalizedSliderPosition: 1)
+        app.segmentedControls["editorFontSize"].buttons["XL"].tap()
 
-        XCTAssertEqual(app.staticTexts["accentInUse"].label, "Moss")
+        XCTAssertEqual(app.staticTexts["accentInUse"].label, "Olive")
         let chosenFont = try XCTUnwrap(specimen.value as? String)
         XCTAssertTrue(
             chosenFont.hasPrefix("Serif, "),
@@ -1952,7 +1952,7 @@ final class AujourUITests: XCTestCase {
 
         let howItLooks = app.buttons["openHowItLooks"]
         scrollTo(howItLooks, in: app)
-        XCTAssertTrue(howItLooks.label.contains("Moss"), "the accent did not survive a relaunch")
+        XCTAssertTrue(howItLooks.label.contains("Olive"), "the accent did not survive a relaunch")
         howItLooks.tap()
 
         XCTAssertTrue(
@@ -1962,7 +1962,7 @@ final class AujourUITests: XCTestCase {
             app.segmentedControls["appearanceTheme"].buttons["Dark"].isSelected,
             "the appearance did not survive a relaunch"
         )
-        XCTAssertEqual(app.staticTexts["accentInUse"].label, "Moss")
+        XCTAssertEqual(app.staticTexts["accentInUse"].label, "Olive")
         XCTAssertEqual(app.staticTexts["editorFontSpecimen"].value as? String, chosenFont)
     }
 

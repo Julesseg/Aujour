@@ -88,16 +88,23 @@ struct AppearanceSettingsView: View {
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            // Wrapped rather than scrolled: six swatches fit across the
-            // narrowest screen Aujour runs on, and a row that scrolled would
-            // be hiding two of them behind a gesture nobody knows is there.
-            HStack(spacing: 14) {
+            // Wrapped rather than scrolled or squeezed. Nine of these do not
+            // fit across a phone, and the two ways of pretending they do are
+            // both worse than a second row: shrinking them to fit makes nine
+            // colours hard to tell apart at the size they are being judged at,
+            // and scrolling them sideways hides some of the set behind a
+            // gesture nobody knows is there. So they take the width they need
+            // and wrap onto as many rows as that costs.
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 44), spacing: 12, alignment: .leading)],
+                alignment: .leading,
+                spacing: 12
+            ) {
                 ForEach(Accent.allCases, id: \.self) { accent in
                     AccentSwatch(accent: accent, chosen: accent == appearance.accent) {
                         appearance.use(accent)
                     }
                 }
-                Spacer(minLength: 0)
             }
 
             // What the swatches cannot say out loud, and what a test asks for:
@@ -125,26 +132,21 @@ struct AppearanceSettingsView: View {
             .pickerStyle(.segmented)
             .accessibilityIdentifier("editorFontFamily")
 
-            HStack(spacing: 12) {
-                Text("A").font(.caption)
-                Slider(
-                    value: chosenSize,
-                    in: EditorFont.sizeRange,
-                    step: 1
-                ) {
-                    Text("Text size")
+            Picker("Text size", selection: chosenSize) {
+                ForEach(EditorFont.Size.allCases, id: \.self) { size in
+                    Text(size.name).tag(size)
                 }
-                .accessibilityIdentifier("editorFontSize")
-                Text("A").font(.title3)
             }
-            .foregroundStyle(.secondary)
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("editorFontSize")
 
             specimen
 
             Text(
                 """
-                The size your entries start at. Turn the system's text size up \
-                and this follows it, the way everything else you read does.
+                How big your own words are. Everything else in Aujour follows \
+                the text size on this \(device); this is the entry alone, and \
+                it moves with that too.
                 """
             )
             .font(.caption)
@@ -156,7 +158,7 @@ struct AppearanceSettingsView: View {
         Binding(get: { appearance.editorFont.family }, set: { appearance.useEditorFont($0) })
     }
 
-    private var chosenSize: Binding<Double> {
+    private var chosenSize: Binding<EditorFont.Size> {
         Binding(
             get: { appearance.editorFont.size },
             set: { appearance.useEditorFont(sized: $0) }
@@ -177,7 +179,7 @@ struct AppearanceSettingsView: View {
             // What the specimen shows and a test cannot read off it: which
             // face, at what size.
             .accessibilityValue(
-                "\(appearance.editorFont.family.name), \(Int(appearance.editorFont.size)) point"
+                "\(appearance.editorFont.family.name), \(appearance.editorFont.size.name)"
             )
     }
 }

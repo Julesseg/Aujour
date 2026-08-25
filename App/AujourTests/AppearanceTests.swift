@@ -41,40 +41,42 @@ struct DeviceAppearanceTests {
 
         let appearance = DeviceAppearance(settings: DeviceSettingsStore(storedOn: onThisDevice))
         appearance.use(.dark)
-        appearance.use(.moss)
+        appearance.use(.olive)
         appearance.useEditorFont(.serif)
-        appearance.useEditorFont(sized: 22)
+        appearance.useEditorFont(sized: .extraLarge)
 
         let afterRelaunch = DeviceAppearance(
             settings: DeviceSettingsStore(storedOn: onThisDevice)
         )
         #expect(afterRelaunch.theme == .dark)
-        #expect(afterRelaunch.accent == .moss)
-        #expect(afterRelaunch.editorFont == EditorFont(family: .serif, size: 22))
+        #expect(afterRelaunch.accent == .olive)
+        #expect(afterRelaunch.editorFont == EditorFont(family: .serif, size: .extraLarge))
     }
 
-    @Test("a size the editor could not render is refused rather than stored")
-    func sizesStayInRange() {
-        let appearance = DeviceAppearance.inMemory()
+    @Test("every step is a bigger size than the one before it")
+    func stepsGetBigger() {
+        let unmoved = UITraitCollection(preferredContentSizeCategory: .large)
+        let drawn = EditorFont.Size.allCases.map {
+            EditorFont(family: .system, size: $0).uiFont(compatibleWith: unmoved).pointSize
+        }
 
-        appearance.useEditorFont(sized: 100)
-
-        #expect(EditorFont.sizeRange.contains(appearance.editorFont.size))
+        #expect(drawn == drawn.sorted())
+        #expect(Set(drawn).count == drawn.count)
     }
 
     @Test("the editor is told about a change the moment it is made")
     func theEditorSeesChangesLive() {
         let appearance = DeviceAppearance.inMemory()
-        #expect(appearance.editorLook == EditorLook(font: .default, accent: .ink))
+        #expect(appearance.editorLook == EditorLook(font: .default, accent: .driftwood))
 
-        appearance.use(.rose)
+        appearance.use(.clay)
         appearance.useEditorFont(.monospaced)
 
         #expect(
             appearance.editorLook
                 == EditorLook(
                     font: EditorFont(family: .monospaced, size: EditorFont.default.size),
-                    accent: .rose
+                    accent: .clay
                 )
         )
     }
@@ -120,7 +122,29 @@ struct AccentColourTests {
         // colours would never compare equal, so every keystroke would restyle
         // thousands of words.
         #expect(Accent.plum.uiColor == Accent.plum.uiColor)
-        #expect(Accent.plum.uiColor != Accent.sea.uiColor)
+        #expect(Accent.plum.uiColor != Accent.sage.uiColor)
+    }
+
+    @Test("every accent clears the contrast floor it is held to (ADR 0006)")
+    func accentsAreLegibleOnTheGroundTheyAreDrawnOn() {
+        // The identity's own grounds: the sheet an accent is drawn as text on
+        // in light, and the page behind everything in dark. 4.5:1 is what a
+        // sentence has to clear, and an accent here carries sentences.
+        let grounds: [(UIUserInterfaceStyle, UIColor)] = [
+            (.light, UIColor(red: 0xFB / 255, green: 0xF8 / 255, blue: 0xF2 / 255, alpha: 1)),
+            (.dark, UIColor(red: 0x16 / 255, green: 0x13 / 255, blue: 0x0F / 255, alpha: 1)),
+        ]
+
+        for (style, ground) in grounds {
+            let traits = UITraitCollection(userInterfaceStyle: style)
+            for accent in Accent.allCases {
+                let contrast = accent.uiColor.resolvedColor(with: traits).contrast(against: ground)
+                #expect(
+                    contrast >= 4.5,
+                    "\(accent.name) reads at \(contrast):1 in \(style.rawValue), under the floor"
+                )
+            }
+        }
     }
 
     @Test("every accent has a name to offer it by")
@@ -145,16 +169,16 @@ struct EditorTypefaceTests {
 
     @Test("the size the user chose is the size the editor draws at")
     func theChosenSizeIsTheSizeDrawn() {
-        let font = EditorFont(family: .system, size: 22).uiFont(compatibleWith: unmoved)
+        let font = EditorFont(family: .system, size: .extraLarge).uiFont(compatibleWith: unmoved)
 
-        #expect(font.pointSize == 22)
+        #expect(font.pointSize == EditorFont.Size.extraLarge.points)
     }
 
     @Test("each family is the kind of typeface it names")
     func familiesAreWhatTheyAreCalled() {
-        let system = EditorFont(family: .system, size: 17).uiFont(compatibleWith: unmoved)
-        let serif = EditorFont(family: .serif, size: 17).uiFont(compatibleWith: unmoved)
-        let monospaced = EditorFont(family: .monospaced, size: 17).uiFont(compatibleWith: unmoved)
+        let system = EditorFont(family: .system, size: .medium).uiFont(compatibleWith: unmoved)
+        let serif = EditorFont(family: .serif, size: .medium).uiFont(compatibleWith: unmoved)
+        let monospaced = EditorFont(family: .monospaced, size: .medium).uiFont(compatibleWith: unmoved)
 
         #expect(serif.familyName != system.familyName)
         #expect(monospaced.fontDescriptor.symbolicTraits.contains(.traitMonoSpace))
@@ -166,14 +190,14 @@ struct EditorTypefaceTests {
         // The other half of what keeps the editor from redrawing a long day
         // on every keystroke: the font it compares against has to come out
         // equal when nothing has moved.
-        let chosen = EditorFont(family: .serif, size: 19)
+        let chosen = EditorFont(family: .serif, size: .large)
 
         #expect(chosen.uiFont(compatibleWith: unmoved) == chosen.uiFont(compatibleWith: unmoved))
     }
 
     @Test("Dynamic Type still moves a size the user chose")
     func dynamicTypeStillReaches() {
-        let chosen = EditorFont(family: .serif, size: 17)
+        let chosen = EditorFont(family: .serif, size: .medium)
 
         let large = chosen.uiFont(compatibleWith: unmoved)
         let accessible = chosen.uiFont(
@@ -182,5 +206,25 @@ struct EditorTypefaceTests {
 
         #expect(accessible.pointSize > large.pointSize)
         #expect(accessible.familyName == large.familyName)
+    }
+}
+
+extension UIColor {
+    /// WCAG relative contrast against another colour, which is the whole of
+    /// what "held to a floor" means (ADR 0006).
+    fileprivate func contrast(against other: UIColor) -> Double {
+        let mine = relativeLuminance
+        let theirs = other.relativeLuminance
+        return (max(mine, theirs) + 0.05) / (min(mine, theirs) + 0.05)
+    }
+
+    private var relativeLuminance: Double {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        func channel(_ value: CGFloat) -> Double {
+            let value = Double(value)
+            return value <= 0.03928 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue)
     }
 }

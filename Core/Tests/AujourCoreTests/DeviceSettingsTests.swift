@@ -10,7 +10,7 @@ struct DeviceSettingsTests {
         let settings = DeviceSettingsStore(storedOn: InMemoryLocalKeyValueStore()).settings
 
         #expect(settings.theme == .system)
-        #expect(settings.accent == .ink)
+        #expect(settings.accent == .driftwood)
         #expect(settings.editorFont == .default)
         // "Off until a time is chosen in the welcome" — no reminder by default.
         #expect(settings.dailyReminder == nil)
@@ -25,15 +25,15 @@ struct DeviceSettingsTests {
 
         store.update {
             $0.theme = .dark
-            $0.accent = .moss
-            $0.editorFont = EditorFont(family: .serif, size: 20)
+            $0.accent = .olive
+            $0.editorFont = EditorFont(family: .serif, size: .large)
             $0.dailyReminder = TimeOfDay(hour: 21, minute: 30)
             $0.hasBeenWelcomed = true
         }
 
         let afterRelaunch = DeviceSettingsStore(storedOn: local)
         #expect(afterRelaunch.settings == store.settings)
-        #expect(afterRelaunch.settings.accent == .moss)
+        #expect(afterRelaunch.settings.accent == .olive)
         #expect(afterRelaunch.settings.dailyReminder == TimeOfDay(hour: 21, minute: 30))
         // The claim the welcome rests on: it happens once per device, and the
         // device remembers across launches that it did.
@@ -49,8 +49,8 @@ struct DeviceSettingsTests {
 
         device.update {
             $0.theme = .dark
-            $0.accent = .rose
-            $0.editorFont = EditorFont(family: .monospaced, size: 15)
+            $0.accent = .clay
+            $0.editorFont = EditorFont(family: .monospaced, size: .small)
             $0.dailyReminder = TimeOfDay(hour: 7, minute: 0)
             $0.hasBeenWelcomed = true
         }
@@ -68,14 +68,14 @@ struct DeviceSettingsTests {
         local.setString("dark", forKey: DeviceSettingsKey.theme)
         local.setString("chartreuse", forKey: DeviceSettingsKey.accent)
         local.setString("chalkboard", forKey: DeviceSettingsKey.editorFontFamily)
-        local.setString("2000", forKey: DeviceSettingsKey.editorFontSize)
+        local.setString("enormous", forKey: DeviceSettingsKey.editorFontSize)
         local.setString("25:61", forKey: DeviceSettingsKey.dailyReminder)
         local.setString("perhaps", forKey: DeviceSettingsKey.hasBeenWelcomed)
 
         let settings = DeviceSettingsStore(storedOn: local).settings
 
         #expect(settings.theme == .dark)
-        #expect(settings.accent == .ink)
+        #expect(settings.accent == .driftwood)
         #expect(settings.editorFont == .default)
         #expect(settings.dailyReminder == nil)
         #expect(!settings.hasBeenWelcomed)
@@ -107,14 +107,21 @@ struct DeviceSettingsTests {
 @MainActor
 @Suite("Editor font")
 struct EditorFontTests {
-    @Test("a size beyond what the editor can render is clamped, not obeyed")
-    func sizeIsClamped() {
-        #expect(EditorFont(family: .system, size: 2000).size == EditorFont.sizeRange.upperBound)
-        #expect(EditorFont(family: .system, size: 1).size == EditorFont.sizeRange.lowerBound)
+    @Test("the four steps are in the order they are offered in")
+    func sizesAreOrdered() {
+        // The screen offers them left to right and the order is the enum's:
+        // a set that came out shuffled would be a size control nobody could
+        // read.
+        #expect(EditorFont.Size.allCases == [.small, .medium, .large, .extraLarge])
+    }
 
-        var font = EditorFont.default
-        font.size = 2000
-        #expect(font.size == EditorFont.sizeRange.upperBound)
+    @Test("a step read back from storage is the step that was written")
+    func sizesRoundTripByName() {
+        // Stored by name and not by number, so a step whose point size is
+        // retuned later is still the step the user chose.
+        for size in EditorFont.Size.allCases {
+            #expect(EditorFont.Size(rawValue: size.rawValue) == size)
+        }
     }
 }
 

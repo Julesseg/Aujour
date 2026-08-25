@@ -26,7 +26,7 @@ public struct DeviceSettings: Equatable, Sendable {
 
     public init(
         theme: Theme = .system,
-        accent: Accent = .ink,
+        accent: Accent = .driftwood,
         editorFont: EditorFont = .default,
         dailyReminder: TimeOfDay? = nil,
         hasBeenWelcomed: Bool = false
@@ -48,26 +48,28 @@ public enum Theme: String, Hashable, Sendable, CaseIterable {
     case dark
 }
 
-/// The one colour Aujour spends on itself: what a checkbox, a widget, a link
-/// and every button in the app are drawn in.
+/// The one colour Aujour uses to mean *this one*: the selected day, an
+/// answered Widget, a checkbox, the way back out of a sheet.
 ///
-/// Six named colours rather than a colour wheel, for the same reason the
-/// editor gets three typefaces — a journal is mostly words on a page, and the
-/// accent's job is to be the one thing on it that is not. A picker offering
-/// every colour would also offer the ones that vanish against the page in
-/// light or in dark, and the app cannot promise a checkbox will be visible in
-/// a colour the user mixed themselves.
+/// The identity's named set and never a colour the user mixes. Two reasons,
+/// and the second is why there is a set at all rather than a wheel: the app
+/// cannot promise that a colour somebody mixed will carry a tick box at the
+/// size a tick box is drawn at, and every one of these is held above a
+/// contrast floor so that it does (ADR 0006).
 ///
 /// The names are what the colours are called, not what they are worth: which
-/// shade of `moss` a device draws — and it is a different one in light and in
+/// shade of `sage` a device draws — and it is a different one in light and in
 /// dark — is the app layer's, where there is a screen to resolve it against.
 public enum Accent: String, Hashable, Sendable, CaseIterable {
-    case ink
+    case driftwood
+    case terracotta
+    case clay
+    case ochre
+    case olive
+    case sage
+    case harbour
     case plum
-    case rose
-    case amber
-    case moss
-    case sea
+    case graphite
 }
 
 /// The typeface and size the editor renders Entries in.
@@ -80,26 +82,34 @@ public struct EditorFont: Equatable, Sendable {
         case monospaced
     }
 
+    /// Four steps rather than a number to dial in.
+    ///
+    /// This is a writing preference — how big the user wants their own words,
+    /// the way somebody picks a pen — and not a typographer's control. Four
+    /// named steps are one tap each and cannot land on a half point nobody
+    /// meant, and the range they cover is the one the identity draws prose
+    /// over.
+    ///
+    /// It governs the Entry alone. Everything else — settings rows, the
+    /// calendar, every label in the app — follows the system's own text size,
+    /// because that is a decision the user already made for everything they
+    /// read.
+    public enum Size: String, Hashable, Sendable, CaseIterable {
+        case small
+        case medium
+        case large
+        case extraLarge
+    }
+
     public var family: Family
+    public var size: Size
 
-    /// Point size, clamped to `EditorFont.sizeRange`, so any font that exists
-    /// is one the editor can actually render.
-    public var size: Double {
-        didSet { size = EditorFont.clamped(size) }
-    }
-
-    public static let sizeRange: ClosedRange<Double> = 11...28
-
-    public init(family: Family, size: Double) {
+    public init(family: Family, size: Size) {
         self.family = family
-        self.size = EditorFont.clamped(size)
+        self.size = size
     }
 
-    private static func clamped(_ size: Double) -> Double {
-        min(max(size, sizeRange.lowerBound), sizeRange.upperBound)
-    }
-
-    public static let `default` = EditorFont(family: .system, size: 17)
+    public static let `default` = EditorFont(family: .system, size: .medium)
 }
 
 /// A time on the clock, with no date attached.
@@ -205,8 +215,7 @@ extension DeviceSettings: SettingsGroup {
             family: storedValues(DeviceSettingsKey.editorFontFamily)
                 .flatMap(EditorFont.Family.init(rawValue:)) ?? fallback.editorFont.family,
             size: storedValues(DeviceSettingsKey.editorFontSize)
-                .flatMap(Double.init)
-                .flatMap { EditorFont.sizeRange.contains($0) ? $0 : nil } ?? fallback.editorFont.size
+                .flatMap(EditorFont.Size.init(rawValue:)) ?? fallback.editorFont.size
         )
         // An unreadable reminder time leaves the reminder off rather than
         // guessing an hour: a notification at the wrong time is worse than
@@ -231,7 +240,7 @@ extension DeviceSettings: SettingsGroup {
             changes.append((DeviceSettingsKey.editorFontFamily, editorFont.family.rawValue))
         }
         if editorFont.size != previous.editorFont.size {
-            changes.append((DeviceSettingsKey.editorFontSize, String(editorFont.size)))
+            changes.append((DeviceSettingsKey.editorFontSize, editorFont.size.rawValue))
         }
         if dailyReminder != previous.dailyReminder {
             changes.append((DeviceSettingsKey.dailyReminder, dailyReminder?.description))

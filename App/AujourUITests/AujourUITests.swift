@@ -1966,6 +1966,39 @@ final class AujourUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["editorFontSpecimen"].value as? String, chosenFont)
     }
 
+    /// The sheet the appearance is changed on is drawn in it too, while it is
+    /// still up.
+    ///
+    /// A sheet is its own presentation: the appearance the window is asking
+    /// for reaches it when it is put up, and an already-open one went on
+    /// sitting there in the appearance it opened in. Which made *this* sheet
+    /// the worst possible one to have it happen to — the control that had just
+    /// been moved was on it, and nothing under the finger changed.
+    ///
+    /// Asked as a brightness, because there is no other way to ask a running
+    /// app what colour scheme it is actually drawing in: an element that is
+    /// dark grey on a dark page and light grey on a light one comes out of a
+    /// screenshot as two very different numbers, and one that never followed
+    /// comes out as the same one twice.
+    func testTheSheetIsDrawnInTheAppearanceBeingChosenOnIt() throws {
+        let app = launchApp()
+
+        openHowItLooks(in: app)
+        let theme = app.segmentedControls["appearanceTheme"]
+
+        theme.buttons["Dark"].tap()
+        let inDark = try brightness(of: theme)
+
+        theme.buttons["Light"].tap()
+        let inLight = try brightness(of: theme)
+
+        XCTAssertGreaterThan(
+            inLight, inDark + 0.2,
+            "the sheet did not follow the appearance — it was \(inDark) in dark "
+                + "and \(inLight) in light, which is the same page twice"
+        )
+    }
+
     /// The way in: the journal sheet, and the one row on it that is not about
     /// the journal.
     private func openHowItLooks(in app: XCUIApplication) {
@@ -2082,6 +2115,35 @@ final class AujourUITests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.25)
         }
         XCTAssertEqual(element.label, label)
+    }
+
+    /// How bright something on screen came out, from 0 for black to 1 for
+    /// white — the whole of it averaged, so it is the page it is on being
+    /// asked about and not one pixel of it.
+    ///
+    /// Averaged by drawing it into a single grey pixel, which is what a
+    /// downsample to one point is.
+    private func brightness(of element: XCUIElement) throws -> Double {
+        // The animation between two appearances, which a screenshot taken
+        // mid-way through would catch half of.
+        Thread.sleep(forTimeInterval: 1)
+
+        let drawn = try XCTUnwrap(element.screenshot().image.cgImage)
+        var grey: UInt8 = 0
+        let onePixel = try XCTUnwrap(
+            CGContext(
+                data: &grey,
+                width: 1,
+                height: 1,
+                bitsPerComponent: 8,
+                bytesPerRow: 1,
+                space: CGColorSpaceCreateDeviceGray(),
+                bitmapInfo: CGImageAlphaInfo.none.rawValue
+            )
+        )
+        onePixel.interpolationQuality = .high
+        onePixel.draw(drawn, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        return Double(grey) / 255
     }
 
     private func dayBeforeToday() -> Date? {

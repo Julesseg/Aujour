@@ -106,6 +106,13 @@ struct JournalSettingsSheet: View {
         // Full height rather than half: this is the folder, its paths and its
         // templates, and nearly all of it would be below the fold.
         .presentationDetents([.large])
+        // Said again here, though the whole window is already drawn in it. A
+        // sheet is its own presentation, and the appearance the window is
+        // asking for reaches it when it is put up and not afterwards — so a
+        // sheet that is *how you change the appearance* is the one sheet that
+        // would sit there in yesterday's colours, right under the control that
+        // had just changed them.
+        .preferredColorScheme(appearance.colorScheme)
     }
 
     /// The way to the settings that belong to this device alone — a page of

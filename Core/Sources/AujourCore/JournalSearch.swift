@@ -65,6 +65,28 @@ public final class JournalSearch {
     /// a journal with no Entries in it.
     public var hasNothingIndexed: Bool { index.isEmpty }
 
+    /// Whether the folder has been read through and found to hold no Entries
+    /// at all — a journal at its beginning, and not one of the two other
+    /// things an empty result list can be.
+    ///
+    /// The distinction the whole screen is arranged around (ADR 0001). A
+    /// folder nothing has looked in yet and a folder that would not answer
+    /// both find nothing, and neither is somebody who has not written
+    /// anything: a decade of days that has not come down from iCloud must
+    /// never be told it is a journal with nothing in it. So this is true only
+    /// after a reading of the folder that worked.
+    public var isAJournalNobodyHasWrittenIn: Bool {
+        hasBeenRead && problem == nil && index.isEmpty
+    }
+
+    /// Whether the folder has ever answered a whole-journal reading.
+    ///
+    /// Observed rather than ignored, like `problem` beside it: it is half of
+    /// what the screen draws when there is nothing to show, and a screen that
+    /// did not redraw when the folder finally answered would be stuck saying
+    /// it had not.
+    private var hasBeenRead = false
+
     @ObservationIgnored private let store: any JournalStore
     @ObservationIgnored private let settings: JournalSettings
     @ObservationIgnored private let cache: (any SearchIndexCache)?
@@ -131,6 +153,7 @@ public final class JournalSearch {
             switch await Self.readTheJournal(from: self.store, settings: self.settings) {
             case .success(let read):
                 self.index = read
+                self.hasBeenRead = true
                 self.problem = nil
                 await Self.write(read, to: self.cache)
             case .failure(let error):

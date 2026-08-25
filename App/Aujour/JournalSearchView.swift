@@ -103,13 +103,31 @@ struct JournalSearchView: View {
         }
     }
 
-    /// What stands where the results would be. Three different things, because
-    /// an empty list means three different things here — and a journal that
+    /// What stands where the results would be. Four different things, because
+    /// an empty list means four different things here — and a journal that
     /// looks like it holds nothing is the one thing this screen must never say
     /// when it holds a decade (ADR 0001).
     @ViewBuilder
     private var nothingToShow: some View {
-        if query.isEmpty {
+        if search.isAJournalNobodyHasWrittenIn {
+            // First, and whatever has been typed: there is no query a journal
+            // with no days in it could answer, and "no day has that in it"
+            // over a folder that has nothing in it at all is the app answering
+            // a question nobody could have meant to ask. Only ever said about
+            // a folder that *has been read* and found empty — which is
+            // `JournalSearch`'s to decide, not this screen's.
+            ContentUnavailableView {
+                Label("Nothing to search yet", systemImage: "magnifyingglass")
+                    .accessibilityIdentifier("nothingToSearchYet")
+            } description: {
+                Text(
+                    """
+                    Write a day or two and this is how you find them again — \
+                    by a word, a name, anything you wrote.
+                    """
+                )
+            }
+        } else if query.isEmpty {
             ContentUnavailableView {
                 Label("Search your journal", systemImage: "magnifyingglass")
                     .accessibilityIdentifier("searchPrompt")

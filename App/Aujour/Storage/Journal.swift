@@ -187,6 +187,18 @@ final class Journal {
     /// below that reopens or re-reads the folder tells it so.
     let dailyReminder: DailyReminder
 
+    /// The brief hello a fresh install gets, and the offer of that reminder on
+    /// its last page.
+    ///
+    /// Here for the reason the reminder is here, and not because a welcome is
+    /// about a folder: it is made from the same Device Settings everything
+    /// else device-local reads, and the offer it ends on is *this* reminder —
+    /// the one the settings sheet shows a time for afterwards. Nothing it does
+    /// touches the Journal, which is the point of it: the folder is found and
+    /// today's Entry is spawned behind it, so the app is ready to be written
+    /// in before anybody has tapped anything (ADR 0004).
+    let welcome: Welcome
+
     /// How a day written twice is settled, over the open folder.
     private var parking: DivergenceParking?
 
@@ -260,7 +272,12 @@ final class Journal {
         self.photoLibrary = photoLibrary
         self.places = places
         self.deviceSettings = deviceSettings
-        self.dailyReminder = DailyReminder(settings: deviceSettings, nudges: nudges)
+        // Held in a local first: the welcome offers this reminder rather than
+        // one of its own, so a time taken up on its last page is the time the
+        // settings sheet is showing a moment later.
+        let reminder = DailyReminder(settings: deviceSettings, nudges: nudges)
+        self.dailyReminder = reminder
+        self.welcome = Welcome(settings: deviceSettings, reminder: reminder)
 
         // A Path Template changed on the iPad reshapes what an Entry is here
         // too (ADR 0002), and so does one changed on this device — which is
@@ -536,6 +553,19 @@ final class Journal {
     /// file exists — even though the time it asks at never leaves this device.
     func reconsiderTheDailyReminder() async {
         await dailyReminder.reconsider(over: store, journal: settings)
+    }
+
+    /// Ends the welcome, taking its offer up at `time` or leaving the reminder
+    /// where it was with `nil` — and books whatever that leaves due.
+    ///
+    /// Here rather than on the `Welcome` for the reason ``remindMeDaily(at:)``
+    /// is here: what should be pending is a question about this folder, and a
+    /// time taken up with nothing booked is a reminder that would not arrive
+    /// until the next launch. The reckoning is worth doing for the skip too —
+    /// it is what clears anything a previous install left pending.
+    func endTheWelcome(remindingAt time: TimeOfDay?) async {
+        await welcome.end(remindingAt: time)
+        await reconsiderTheDailyReminder()
     }
 
     /// Whether the Journal is pointed at a folder the user picked.
@@ -950,11 +980,21 @@ extension Journal {
     /// that read `UserDefaults` would be showing somebody's real Path Template
     /// and their real reminder, and one that booked a nudge would go on
     /// delivering it after the canvas was closed.
-    static func inAPreview(over locator: JournalRootLocator) -> Journal {
-        Journal(
+    ///
+    /// - Parameter welcomed: whether this device has already been through the
+    ///   welcome. Yes by default, because every canvas but the welcome's own is
+    ///   drawing a screen from *inside* the app — a preview of today's Entry
+    ///   with the first-run cover over it would be a preview of the cover.
+    static func inAPreview(
+        over locator: JournalRootLocator,
+        welcomed: Bool = true
+    ) -> Journal {
+        let deviceSettings = DeviceSettingsStore(storedOn: InMemoryLocalKeyValueStore())
+        deviceSettings.update { $0.hasBeenWelcomed = welcomed }
+        return Journal(
             locator: locator,
             settings: .inMemory(),
-            deviceSettings: DeviceSettingsStore(storedOn: InMemoryLocalKeyValueStore()),
+            deviceSettings: deviceSettings,
             nudges: ADeviceThatIsNeverRung()
         )
     }

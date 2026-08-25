@@ -500,10 +500,11 @@ these — different Path Templates would write the same Journal Day to two paths
 (ADR 0003). No settings are ever written into the Journal Root.
 
 ### Device Settings
-The settings that belong to one device: theme, editor font, and the time of
-the daily reminder. Nothing here shapes what is written into the Journal, so
-a dark-themed iPhone and a light-themed iPad are not in disagreement. Device
-Settings stay on the device that set them and never reach the synced seam.
+The settings that belong to one device: theme, editor font, the time of the
+daily reminder, and whether this device has been through the Welcome. Nothing
+here shapes what is written into the Journal, so a dark-themed iPhone and a
+light-themed iPad are not in disagreement. Device Settings stay on the device
+that set them and never reach the synced seam.
 
 ### Daily Reminder
 One notification a day, at a time the user chose — and the only thing Aujour
@@ -526,3 +527,31 @@ week is worked out afresh whenever Aujour learns something — a launch, a day
 written, a folder that changed underneath — and booked as a replacement for
 whatever was pending, which is what leaves no room for a notification of any
 other kind.
+
+### Welcome
+The three pages a fresh install opens on, once per device: what Aujour is,
+where the words will go, and the offer of a Daily Reminder. Not a setup step —
+the Journal Root is found and today's Entry spawned behind it (ADR 0004), so
+the app is ready to be written in before any of it is answered, and every page
+can be left. Taking the offer up is the one moment Aujour has a reason to want
+a notification permission; skipping leaves the reminder exactly where it
+already was, which is off.
+
+Remembered as a Device Setting, because it is about this install having been
+introduced to the app rather than about the Journal: an iPad added a year
+later has not been, and nothing about the Welcome shapes a file in the folder
+(ADR 0003).
+
+### Empty State
+What a screen says where the Journal has nothing to show on it. Three of them,
+and each is a sentence rather than a blank: a first day, which says that
+anything will do and that nothing reaches the folder until it is typed; a
+Calendar month, which reads as a beginning where the Journal is new and as an
+ordinary gap where it is not; and a Search over a Journal with no Entries in
+it, which says there is nothing to search yet rather than that a query was not
+found.
+
+Never said about a folder that has not answered. A Journal Root still being
+read and one that could not be read both look exactly like a Journal nobody
+has written in, and only the last is the user's to be told about — the other
+two are a spinner and a problem notice (ADR 0001).

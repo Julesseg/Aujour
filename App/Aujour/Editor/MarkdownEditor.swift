@@ -50,6 +50,25 @@ struct MarkdownEditor: UIViewRepresentable {
     let identifier: String
     let label: String
 
+    /// The room around the text.
+    private static let textInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+
+    /// What the text container leaves either side of every line, on top of
+    /// that.
+    private static let lineFragmentPadding: CGFloat = 5
+
+    /// Where an Entry's first character lands, measured from this view's own
+    /// top-left.
+    ///
+    /// Published because a view drawn *over* the editor — the prompt on a day
+    /// nobody has written yet — has to start in the same place, and the two
+    /// numbers it is made of are this file's. Left to be copied, changing the
+    /// inset here would quietly leave that prompt crooked.
+    static let whereTheFirstCharacterGoes = CGPoint(
+        x: textInset.left + lineFragmentPadding,
+        y: textInset.top
+    )
+
     func makeUIView(context: Context) -> UITextView {
         let styling = MarkdownStyling()
         let storage = MarkdownTextStorage(styling: styling)
@@ -76,7 +95,10 @@ struct MarkdownEditor: UIViewRepresentable {
         let textView = UITextView(frame: .zero, textContainer: container)
         textView.delegate = context.coordinator
         textView.backgroundColor = .clear
-        textView.textContainerInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+        textView.textContainerInset = Self.textInset
+        // Set rather than left at the default, so that the number a view drawn
+        // over the text lines itself up by is one this file decides.
+        container.lineFragmentPadding = Self.lineFragmentPadding
         textView.alwaysBounceVertical = true
         textView.keyboardDismissMode = .interactive
         textView.typingAttributes = styling.baseAttributes

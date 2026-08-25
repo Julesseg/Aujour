@@ -121,6 +121,11 @@ struct EntryView: View {
                     label: "Entry for \(editor.day.spelledOut())"
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // A day with nothing in it yet, said as the invitation it is
+                // rather than left as a grey rectangle.
+                .overlay(alignment: .topLeading) {
+                    if editor.content.isEmpty { ABlankPage() }
+                }
                 // Answering writes plain markdown where the token stood, and
                 // cancelling writes nothing at all — so an unanswered
                 // placeholder is still literal text in the file, and still a
@@ -247,6 +252,38 @@ struct EntryView: View {
 private struct EntryOnScreen: Hashable {
     let day: JournalDay
     let editor: ObjectIdentifier
+}
+
+/// What an Entry that nobody has written a word of shows.
+///
+/// A journaling app's blank page is the screen it is most often looked at on
+/// day one, and an empty grey rectangle is not an invitation to write on it.
+///
+/// One line, and the only one that is true every time this is on screen: any
+/// day can be emptied back out by deleting what is in it, and a prompt that
+/// went on to promise the folder was untouched would be saying so over a file
+/// that exists. Where that promise *is* true of everything on screen — a
+/// journal with no Entries at all — the calendar's empty state makes it.
+///
+/// Drawn over the text view rather than typed into it. A prompt put *in* the
+/// Entry would be Aujour's words in the user's file, and the first thing their
+/// journal said would be something they did not write (ADR 0001).
+///
+/// Nearly always a first day, because a Content Template is words on the page:
+/// a journal pointed at one never sees this, and one pointed at nothing sees
+/// it every morning until it is typed over.
+private struct ABlankPage: View {
+    var body: some View {
+        Text("Write anything.")
+            .foregroundStyle(.tertiary)
+            // Where the editor puts its first character, asked of the editor:
+            // the prompt stands exactly where the typing will start.
+            .padding(.leading, MarkdownEditor.whereTheFirstCharacterGoes.x)
+            .padding(.top, MarkdownEditor.whereTheFirstCharacterGoes.y)
+            // Never in the way of the finger going to the place it describes.
+            .allowsHitTesting(false)
+            .accessibilityIdentifier("aBlankPage")
+    }
 }
 
 /// Something that could not be written into the folder, said where the user

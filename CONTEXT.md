@@ -3,6 +3,12 @@
 Aujour is a journaling app built on plain markdown files: one file per day,
 living in a user-visible folder that can coexist with an Obsidian vault.
 
+These are the words the code and the team use for each other. They are not
+the words on screen: the app speaks to whoever is writing in it, so a
+*Rollover Hour* is asked about as "when the day turns" and a *Content
+Template* as "what a new day starts from". A term earning a place here is a
+term the codebase can be precise with, never a label to reach for in the UI.
+
 ## Glossary
 
 ### Journal
@@ -420,6 +426,11 @@ the user notices them in Obsidian or Files. The suffix is the first free one
 — `_1`, then `_2`, and so on — because a `_1` already in the folder is
 somebody's unmerged words too, and nothing is ever written over.
 
+Merging one is the user's work, done in their own editor. Aujour says a Parked
+File is there and can show it where it lies, and that is the whole of what it
+does with one: comparing two versions would be an opinion about their
+contents, and Aujour has none (ADR 0001).
+
 ### Attachment
 A non-markdown file (typically a photo) referenced by an Entry. Attachments
 live under the Attachment Path Template — the same Moment format restricted to
@@ -500,11 +511,16 @@ these — different Path Templates would write the same Journal Day to two paths
 (ADR 0003). No settings are ever written into the Journal Root.
 
 ### Device Settings
-The settings that belong to one device: theme, editor font, the time of the
-daily reminder, and whether this device has been through the Welcome. Nothing
-here shapes what is written into the Journal, so a dark-themed iPhone and a
-light-themed iPad are not in disagreement. Device Settings stay on the device
-that set them and never reach the synced seam.
+The settings that belong to one device: theme, accent, editor font, the time
+of the daily reminder, and whether this device has been through the Welcome.
+Nothing here shapes what is written into the Journal, so a dark-themed iPhone
+and a light-themed iPad are not in disagreement. Device Settings stay on the
+device that set them and never reach the synced seam.
+
+The accent is the one colour Aujour uses to mean *this one* — the selected
+day, an answered widget, the way back out of a sheet — and it is a Device
+Setting for the same reason the theme is: a colour chosen on a phone in the
+dark is a fact about that phone, and an Entry carries no colour at all.
 
 ### Daily Reminder
 One notification a day, at a time the user chose — and the only thing Aujour

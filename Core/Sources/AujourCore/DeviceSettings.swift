@@ -93,6 +93,32 @@ public struct TimeOfDay: Hashable, Sendable, CustomStringConvertible {
         }
         self.init(hour: hour, minute: minute)
     }
+
+    /// The time as this reader's own clock writes it — 12- or 24-hour,
+    /// whichever their region is on.
+    ///
+    /// The one place a `TimeOfDay` is read rather than stored, so it is the
+    /// one place a locale gets a say: `description` stays `HH:mm` wherever the
+    /// user is, because that is what goes into storage and what is read back.
+    ///
+    /// Measured off a day with no daylight saving in it, deliberately. What is
+    /// being written down is a clock face and not a moment — nine in the
+    /// evening is nine in the evening on the two days a year the local one has
+    /// an hour missing from it, and a time hung off *those* would be a setting
+    /// that read back as the wrong hour twice a year.
+    public func spelledOut(locale: Locale = .current) -> String {
+        let noRules = TimeZone(secondsFromGMT: 0)!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = noRules
+
+        let midnight = Date(timeIntervalSince1970: 0)
+        let atThatTime =
+            calendar.date(byAdding: DateComponents(hour: hour, minute: minute), to: midnight)
+            ?? midnight
+        return atThatTime.formatted(
+            Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, timeZone: noRules)
+        )
+    }
 }
 
 /// Keeps the device-local settings on this device.

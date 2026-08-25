@@ -37,6 +37,12 @@ import AujourCore
 ///   system alert nothing in the suite can answer. So the test says which
 ///   places are around, and everything after that — the offer, the picker,
 ///   the answer written into the file — is the app's own code.
+/// - **A device that is never rung.** The daily reminder asks the notification
+///   centre to be allowed, which is a system alert nothing in the suite can
+///   answer, and books real notifications on the simulator that would outlive
+///   the test that set them. So a UI-test journal is nudged into a device that
+///   allows everything and rings nobody — and everything before that point,
+///   which is the setting, the skip and the times, is the app's own code.
 /// - **A day two devices wrote.** An unresolved iCloud conflict takes two
 ///   devices, a sync and a moment of bad luck; there is no making one in a
 ///   simulator, and no waiting for one either. So the suite says what iCloud
@@ -224,7 +230,29 @@ enum UITestingJournal {
             } ?? ICloudVersions(),
             dayData: dayData(from: environment),
             photoLibrary: ALibrarySeededByATest(environment),
-            places: PlacesSeededByATest(environment)
+            places: PlacesSeededByATest(environment),
+            // Scoped to this test like the journal's own settings, and for the
+            // same reason: a reminder one test turns on must not be the one
+            // the next test opens with.
+            deviceSettings: deviceSettingsStore(for: folder),
+            nudges: ADeviceThatIsNeverRung()
+        )
+    }
+
+    /// The device-local settings for one test — the theme, the editor's font
+    /// and the daily reminder's time — kept apart from every other test's and
+    /// from the app's own.
+    ///
+    /// `UserDefaults.standard` is one bag per app and survives a test, so a
+    /// reminder set in one would be the reminder the next test found already
+    /// on. The same suite the journal settings use, since the two groups have
+    /// keys of their own and neither can read the other's.
+    @MainActor
+    private static func deviceSettingsStore(for folder: String) -> DeviceSettingsStore {
+        DeviceSettingsStore(
+            storedOn: LocalSettingsStorage(
+                onThisDevice: UserDefaults(suiteName: "aujour.uitest.\(folder)") ?? .standard
+            )
         )
     }
 

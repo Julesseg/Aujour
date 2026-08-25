@@ -21,6 +21,13 @@ import AujourCore
 /// (ADR 0003). So nothing holds its own copy of a setting for longer than it
 /// is being typed, and the controls that are not text follow the journal
 /// directly.
+///
+/// The daily reminder is the exception, and sits last under a line of its own
+/// saying so. It is about the journal — it exists to ask whether today has
+/// been written — but it is a property of the device that buzzes rather than
+/// of the folder, so it stays here (ADR 0003). One page still: a second sheet
+/// would mean a user looking for "when does Aujour nag me" had to guess which
+/// of two screens the answer was on.
 struct JournalSettingsSheet: View {
     let journal: Journal
 
@@ -68,6 +75,8 @@ struct JournalSettingsSheet: View {
                         AttachmentPathSection(journal: journal)
                         Divider()
                         EmbedSyntaxSection(journal: journal)
+                        Divider()
+                        DailyReminderSection(journal: journal)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -434,6 +443,120 @@ private struct AttachmentPathSection: View {
     }
 }
 
+/// One gentle nudge a day, at a time the user chooses — the last section, and
+/// the only one on this sheet that stays on the device that set it (ADR 0003).
+///
+/// Off until a time is chosen, which is the whole of what the toggle means:
+/// there is no reminder to disable on a fresh install, because Aujour has
+/// never nudged anybody who did not ask it to. Turning it on is also the one
+/// moment the notification permission is asked for — the app has no other
+/// reason to want one.
+///
+/// The time is a menu of half hours rather than a clock face to spin. It is
+/// the same control the Rollover Hour uses, it is one tap and a scroll rather
+/// than two wheels, and nobody has ever wanted to be reminded at 9:07.
+private struct DailyReminderSection: View {
+    let journal: Journal
+
+    private var reminder: DailyReminder { journal.dailyReminder }
+
+    /// Every half hour of the day, in order.
+    private static let times: [TimeOfDay] = (0..<24).flatMap { hour in
+        [0, 30].compactMap { TimeOfDay(hour: hour, minute: $0) }
+    }
+
+    /// Whether there is a reminder at all — a binding rather than local state,
+    /// like every other control here, so the switch follows the setting rather
+    /// than remembering its own idea of it.
+    private var isOn: Binding<Bool> {
+        Binding(
+            get: { reminder.time != nil },
+            set: { wanted in
+                Task {
+                    await journal.remindMeDaily(at: wanted ? DailyReminder.suggestedTime : nil)
+                }
+            }
+        )
+    }
+
+    private var time: Binding<TimeOfDay> {
+        Binding(
+            get: { reminder.time ?? DailyReminder.suggestedTime },
+            set: { chosen in Task { await journal.remindMeDaily(at: chosen) } }
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("A daily reminder")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Toggle("Remind me to write", isOn: isOn)
+                .accessibilityIdentifier("dailyReminder")
+
+            if reminder.time != nil {
+                Picker("When", selection: time) {
+                    ForEach(Self.times, id: \.self) { time in
+                        Text(time.spelledOut()).tag(time)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("dailyReminderTime")
+
+                whatWillHappen
+            }
+
+            Text(
+                """
+                One notification a day and nothing else — no badges, no \
+                streaks, and nothing at all on a day you've already written \
+                in. Unlike everything above, the time stays on this device: \
+                your iPad keeps its own, or none.
+                """
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    /// The one line worth saying under the time: when the next one is due, or
+    /// that none of them can arrive.
+    ///
+    /// The refusal first, because it is the thing that makes the rest of the
+    /// section untrue — a time set on a device where notifications are off is
+    /// a reminder that will never come, and the way back is Settings rather
+    /// than anything on this screen.
+    @ViewBuilder
+    private var whatWillHappen: some View {
+        if reminder.access == .refused {
+            Text(
+                """
+                Notifications are turned off for Aujour, so this won't arrive. \
+                Turn them on in Settings › Notifications › Aujour.
+                """
+            )
+            .font(.caption)
+            .foregroundStyle(.red)
+            .accessibilityIdentifier("dailyReminderRefused")
+        } else if let next = reminder.booked.first {
+            // The setting said as the thing it will actually do, the way the
+            // Rollover Hour is said as the day it makes: this is where a day
+            // already written shows itself, by the next reminder being about
+            // tomorrow.
+            Text(
+                """
+                Next: \(next.day.spelledOut()) at \
+                \(next.at.formatted(date: .omitted, time: .shortened))
+                """
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .accessibilityIdentifier("nextDailyReminder")
+        }
+    }
+}
+
 #Preview {
-    JournalSettingsSheet(journal: Journal(settings: .inMemory()))
+    JournalSettingsSheet(journal: Journal.inAPreview(over: .system))
 }

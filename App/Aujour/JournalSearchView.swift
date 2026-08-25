@@ -224,7 +224,7 @@ private struct SearchProblemNotice: View {
                     )
                 )
             ),
-            journal: Journal(locator: .preview(.onThisDevice), settings: .inMemory())
+            journal: Journal.inAPreview(over: .preview(.onThisDevice))
         )
     }
 }
@@ -233,7 +233,7 @@ private struct SearchProblemNotice: View {
     NavigationStack {
         JournalSearchView(
             search: JournalSearch(store: InMemoryJournalStore()),
-            journal: Journal(locator: .preview(.onThisDevice), settings: .inMemory())
+            journal: Journal.inAPreview(over: .preview(.onThisDevice))
         )
     }
 }

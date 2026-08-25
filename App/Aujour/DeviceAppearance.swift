@@ -9,13 +9,14 @@ import AujourCore
 /// an iPhone in dark and an iPad in light are not in disagreement about
 /// anything, and nothing here shapes a file in the journal folder.
 ///
-/// The appearance and nothing else for now: accents, editor fonts and the
-/// screen to choose any of them on are M6's, and this is the reader that
-/// makes the seam a real one before there is a screen over it. That screen is
-/// to be handed *this* store rather than one of its own — a settings group
-/// reports its changes to whoever is holding it, and a second
-/// `DeviceSettingsStore` over the same `UserDefaults` would write a theme this
-/// one never hears about.
+/// The appearance and nothing else: the daily reminder is the other reader of
+/// this seam and lives in Core, where what it has to decide can be tested; the
+/// accents and editor fonts are still M6's.
+///
+/// Handed the store rather than making one, and the same store the reminder
+/// reads — a settings group reports its changes to whoever is holding it, and
+/// a second `DeviceSettingsStore` over the same `UserDefaults` would write a
+/// theme this one never hears about.
 @MainActor
 @Observable
 final class DeviceAppearance {

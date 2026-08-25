@@ -548,6 +548,73 @@ final class AujourUITests: XCTestCase {
         )
     }
 
+    /// The reminder is off until somebody chooses a time, and what they choose
+    /// is what this device goes on doing.
+    ///
+    /// Which nudges exist — one a day, none for a day already written in, the
+    /// Rollover Hour respected — is decided in Core and tested there against a
+    /// folder said rather than read. What only a running app can show is the
+    /// setting itself: a fresh install with no reminder in it, a time chosen
+    /// that survives a relaunch, and a switch that takes it away again.
+    func testTheDailyReminderIsOffUntilATimeIsChosenAndStaysChosen() throws {
+        let app = launchApp()
+        openTheJournalSheet(app)
+
+        let reminder = app.switches["dailyReminder"]
+        scrollTo(reminder, in: app)
+        // Nothing on a fresh install: Aujour has never nudged anybody who did
+        // not ask it to, so there is no reminder here to turn off.
+        XCTAssertEqual(reminder.value as? String, "0")
+        XCTAssertFalse(
+            app.buttons["dailyReminderTime"].exists,
+            "a reminder nobody has turned on was offering a time"
+        )
+
+        reminder.tap()
+
+        // The evening it lands on — a starting point, not a default, since it
+        // took a tap to get here at all.
+        let time = app.buttons["dailyReminderTime"]
+        XCTAssertTrue(time.waitForExistence(timeout: 10), "no time was offered")
+        XCTAssertTrue(
+            time.label.hasSuffix(", \(onTheClock(hour: 21, minute: 0))"),
+            "expected the evening to be offered, got \(time.label)"
+        )
+        // And it is booked, not merely written down: the line underneath is
+        // the nudge the app has actually put in front of the device.
+        XCTAssertTrue(
+            app.staticTexts["nextDailyReminder"].waitForExistence(timeout: 10),
+            "nothing was said about when the next reminder would arrive"
+        )
+
+        // Changed to the half hour beside it, which is the setting being a
+        // setting rather than a switch.
+        scrollTo(time, in: app)
+        time.tap()
+        tapTheOption(labelled: onTheClock(hour: 21, minute: 30), in: app)
+
+        relaunch(app)
+        openTheJournalSheet(app)
+        let afterARelaunch = app.buttons["dailyReminderTime"]
+        scrollTo(afterARelaunch, in: app)
+        XCTAssertTrue(
+            afterARelaunch.label.hasSuffix(", \(onTheClock(hour: 21, minute: 30))"),
+            "expected the time chosen to still be in force, got \(afterARelaunch.label)"
+        )
+
+        // And off again, which takes the time with it: there is no reminder
+        // set to a time and switched off, because the time is what a reminder
+        // is.
+        let stillOn = app.switches["dailyReminder"]
+        scrollTo(stillOn, in: app)
+        XCTAssertEqual(stillOn.value as? String, "1")
+        stillOn.tap()
+        XCTAssertFalse(
+            app.buttons["dailyReminderTime"].waitForExistence(timeout: 3),
+            "a reminder that was turned off was still offering a time"
+        )
+    }
+
     /// An interactive placeholder is a question the file itself carries: it
     /// is a literal `{{mood}}` in the folder until somebody answers it, and a
     /// widget every time Aujour has the day open.
@@ -1592,6 +1659,24 @@ final class AujourUITests: XCTestCase {
         let atThatHour =
             Calendar.current.date(byAdding: .hour, value: hour, to: midnight) ?? midnight
         return atThatHour.formatted(date: .omitted, time: .shortened)
+    }
+
+    /// A reminder's time as this device's clock writes it — measured off a day
+    /// with no daylight saving in it, which is how the app writes one
+    /// (`TimeOfDay.spelledOut`): a clock face is a clock face on the two days
+    /// a year the local one has an hour missing.
+    private func onTheClock(hour: Int, minute: Int) -> String {
+        let noRules = TimeZone(secondsFromGMT: 0)!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = noRules
+
+        let midnight = Date(timeIntervalSince1970: 0)
+        let atThatTime =
+            calendar.date(byAdding: DateComponents(hour: hour, minute: minute), to: midnight)
+            ?? midnight
+        return atThatTime.formatted(
+            Date.FormatStyle(date: .omitted, time: .shortened, timeZone: noRules)
+        )
     }
 
     /// Replaces what is in the entry path field, and puts the keyboard away.

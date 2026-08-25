@@ -122,6 +122,17 @@ public final class DailyReminder {
     /// answered. A week is how long Aujour can be left alone and still ask.
     public static let daysBookedAhead = 7
 
+    /// Every time a reminder can be set to: each half hour of the day, in
+    /// order.
+    ///
+    /// Half hours rather than a clock face to spin, because nobody has ever
+    /// wanted to be reminded at 9:07 — and here rather than beside a screen
+    /// because two screens offer it, the welcome and the journal sheet, and
+    /// they are offering one setting.
+    public static let everyHalfHour: [TimeOfDay] = (0..<24).flatMap { hour in
+        [0, 30].compactMap { TimeOfDay(hour: hour, minute: $0) }
+    }
+
     /// The time offered to somebody who has just turned the reminder on.
     ///
     /// The evening, because that is when a day is over and there is something

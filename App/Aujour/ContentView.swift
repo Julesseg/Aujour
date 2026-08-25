@@ -33,6 +33,17 @@ struct ContentView: View {
         _journal = State(wrappedValue: journal)
     }
 
+    /// Whether a welcome is owed, as something a cover can be presented on.
+    ///
+    /// Read-only in the direction that matters: the welcome ends when it has
+    /// been answered, and it says so itself by no longer being due. Nothing
+    /// SwiftUI can do to this binding is a way out of it, which is the point —
+    /// a cover dismissed by anything but one of its own buttons would be a
+    /// device that had been welcomed without hearing any of it.
+    private var theWelcomeIsDue: Binding<Bool> {
+        Binding(get: { journal.welcome.isDue }, set: { _ in })
+    }
+
     /// The way out of a folder that has gone: the user's Entries are still in
     /// it, and Aujour's own folder is somewhere to write in the meantime.
     ///
@@ -143,6 +154,15 @@ struct ContentView: View {
                 }
             }
         }
+        // Over everything rather than in place of it, and put up without
+        // waiting for anything: the folder is being found and today's Entry
+        // spawned behind this, so the app is ready to be written in the moment
+        // the last page is answered. A first run that made somebody wait for a
+        // folder before it would say hello would be a first run that made them
+        // wait for iCloud.
+        .fullScreenCover(isPresented: theWelcomeIsDue) {
+            WelcomeView(journal: journal)
+        }
         .task { await journal.open() }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -248,6 +268,29 @@ struct ParkedFilesNotice: View {
         }
         .padding(12)
         .background(.thinMaterial)
+    }
+}
+
+/// The reminder cannot arrive, said where somebody is setting one.
+///
+/// Two screens set the same reminder — the welcome's last page and the journal
+/// sheet — and a device that has said no makes both of them untrue in exactly
+/// the same way, so they say so in the same words. The way back is Settings and
+/// nothing on either screen, which is the whole of what there is to say.
+struct NudgesAreTurnedOffNotice: View {
+    /// What a test finds it by: either screen can be the one it is on.
+    let identifier: String
+
+    var body: some View {
+        Text(
+            """
+            Notifications are turned off for Aujour, so this won't arrive. \
+            Turn them on in Settings › Notifications › Aujour.
+            """
+        )
+        .font(.caption)
+        .foregroundStyle(.red)
+        .accessibilityIdentifier(identifier)
     }
 }
 

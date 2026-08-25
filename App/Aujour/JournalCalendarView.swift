@@ -36,6 +36,13 @@ struct JournalCalendarView: View {
             weekdayHeader
             grid
             Spacer(minLength: 0)
+            // Between two spacers, so that whichever of the two it is sits in
+            // the middle of the room the grid left rather than clinging to the
+            // bottom of it.
+            if let nothingToShow = calendar.nothingToShow {
+                NothingOnTheCalendar(nothingToShow: nothingToShow, month: calendar.month.name)
+                Spacer(minLength: 0)
+            }
             if let problem = calendar.problem {
                 IndicatorsProblemNotice(problem: StorageProblem(problem))
             }
@@ -207,6 +214,52 @@ private struct DayCell: View {
         .accessibilityIdentifier("day-\(day.day)")
         .accessibilityLabel(day.day.spelledOut(withYear: true))
         .accessibilityValue(day.isJournaled ? "Written" : "Not written")
+    }
+}
+
+/// A month with no dots on it, said as the thing it is.
+///
+/// A grid of numbers and nothing else is the least legible screen in the app:
+/// it looks the same whether the journal has not been started, has not been
+/// read, or simply does not reach into the month somebody scrolled to. What
+/// the calendar can prove of those is what is said here, and the two it cannot
+/// are said elsewhere — a folder still being read says nothing at all, and a
+/// folder that would not answer gets the notice below.
+///
+/// The beginning of a journal gets the room, and the invitation with it: the
+/// grid *is* the way in — every day up to today can be tapped and written — and
+/// somebody who has just installed the app has no reason to know that yet.
+private struct NothingOnTheCalendar: View {
+    let nothingToShow: JournalCalendar.NothingToShow
+
+    /// The month on screen, spelled out — for the case where the answer is
+    /// about this month rather than about the journal.
+    let month: String
+
+    var body: some View {
+        switch nothingToShow {
+        case .aJournalNobodyHasWrittenIn:
+            ContentUnavailableView {
+                Label("Your journal starts here", systemImage: "calendar.badge.plus")
+                    .accessibilityIdentifier("aJournalNobodyHasWrittenIn")
+            } description: {
+                Text(
+                    """
+                    Tap any day up to today and write it. Nothing goes into \
+                    your folder until you do.
+                    """
+                )
+            }
+
+        case .aMonthNobodyWroteIn:
+            // A line and not a page: the journal has a past, this month is
+            // simply not part of it, and a full-height notice over an ordinary
+            // gap would read as something having gone wrong.
+            Text("Nothing written in \(month).")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("aMonthNobodyWroteIn")
+        }
     }
 }
 

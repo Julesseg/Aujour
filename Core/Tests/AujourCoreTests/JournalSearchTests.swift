@@ -261,6 +261,44 @@ struct JournalSearchTests {
         #expect(search.problem == nil)
     }
 
+    @Test("a journal with no Entries in it says so, once the folder has answered")
+    func aJournalNobodyHasWrittenIn() async {
+        let search = JournalSearch(store: InMemoryJournalStore())
+
+        // Before the folder has answered, nothing indexed is nothing looked
+        // at: a search box that opened by announcing an empty journal would be
+        // announcing one it had not read (ADR 0001).
+        #expect(!search.isAJournalNobodyHasWrittenIn)
+
+        await search.open()
+
+        #expect(search.isAJournalNobodyHasWrittenIn)
+    }
+
+    @Test("a journal with days in it is never called empty")
+    func aJournalWithDaysInItIsNotEmpty() async {
+        let search = JournalSearch(store: InMemoryJournalStore(vault))
+
+        await search.open()
+
+        #expect(!search.isAJournalNobodyHasWrittenIn)
+    }
+
+    @Test("a folder that would not answer is never called an empty journal")
+    func anUnreadableFolderIsNeverCalledEmpty() async {
+        let folder = FolderThatCanRefuse()
+        folder.refuseListing = AFolderThatWillNotBeRead()
+        let search = JournalSearch(store: folder)
+
+        await search.open()
+
+        // The confusion the whole screen is arranged around: a decade of days
+        // whose folder has not come down from iCloud finds nothing, and that
+        // is not the same sentence as "you have not written anything".
+        #expect(search.problem is AFolderThatWillNotBeRead)
+        #expect(!search.isAJournalNobodyHasWrittenIn)
+    }
+
     @Test("a folder that will not answer keeps what was read and says so")
     func aFolderThatWillNotListKeepsTheLastReading() async {
         let folder = FolderThatCanRefuse(vault)

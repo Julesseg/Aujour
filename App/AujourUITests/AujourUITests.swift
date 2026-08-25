@@ -31,6 +31,14 @@ final class AujourUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
+        // And so the app's own `UserDefaults` too, which is where it remembers
+        // being welcomed — so whether the welcome is up depends on whether
+        // this simulator has run the suite before. Answered if it is there,
+        // and passed over if it is not: what is being claimed here is about
+        // the folder on the other side of it.
+        let skip = app.buttons["skipTheWelcome"]
+        if skip.waitForExistence(timeout: 10) { skip.tap() }
+
         // Asking iCloud for the app's container is slow the first time on a
         // device, so this is a wait rather than an assertion about a frame.
         let theJournal = app.buttons["openTheJournalSheet"]
@@ -613,6 +621,190 @@ final class AujourUITests: XCTestCase {
             app.buttons["dailyReminderTime"].waitForExistence(timeout: 3),
             "a reminder that was turned off was still offering a time"
         )
+    }
+
+    /// The first thirty seconds of an App Store product: three pages that say
+    /// what this is, where the words will be and what Aujour would ever do
+    /// while nobody is looking — and then an app with today's page open in it.
+    ///
+    /// Which page is on screen and what the offer means are decided in Core and
+    /// tested there; that the journal is open behind the cover is
+    /// `WelcomeWiringTests`, over a real folder. What only a running app can
+    /// show is the run itself: somebody who has answered nothing but "not now"
+    /// is typing into their journal a moment later, the reminder they declined
+    /// is off, and the welcome does not come back the next morning.
+    func testTheFirstRunSaysHelloAndLeavesTheAppReadyToWriteIn() throws {
+        let app = launchApp(welcome: true)
+
+        let whatThisIs = app.staticTexts["welcomeWhatThisIs"]
+        XCTAssertTrue(whatThisIs.waitForExistence(timeout: 30), "the welcome never appeared")
+        // And the app is behind it, not waiting for it: nothing on this page
+        // has to be answered for a folder to have been found.
+        XCTAssertFalse(app.textViews["entryEditor"].isHittable)
+
+        app.buttons["continueTheWelcome"].tap()
+
+        // The second page is this install rather than the app: the folder
+        // Aujour found for itself, named the way the Files app names it.
+        let whereYourWordsGo = app.staticTexts["welcomeWhereYourWordsGo"]
+        XCTAssertTrue(whereYourWordsGo.waitForExistence(timeout: 30))
+        expect(whereYourWordsGo, toHaveLabel: aujoursOwnFolder)
+
+        app.buttons["continueTheWelcome"].tap()
+
+        let theReminder = app.staticTexts["welcomeTheDailyReminder"]
+        XCTAssertTrue(theReminder.waitForExistence(timeout: 10), "the reminder was never offered")
+        // Offered, and skippable — which is the whole of what "offered" means
+        // here. Declining is a button on the page and not a thing to go
+        // looking for.
+        app.buttons["skipTheReminder"].tap()
+
+        // And straight into the day: no folder chosen, no template picked,
+        // nothing configured.
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        editor.tap()
+        editor.typeText("Walked to the market.")
+        Thread.sleep(forTimeInterval: 4)
+
+        // Skipped means off, and not "on at some default hour": Aujour has
+        // never nudged anybody who did not ask it to.
+        openTheJournalSheet(app)
+        expect(app.staticTexts["journalEntryCount"], toHaveLabel: "1 entry")
+        let reminder = app.switches["dailyReminder"]
+        scrollTo(reminder, in: app)
+        XCTAssertEqual(reminder.value as? String, "0")
+
+        relaunch(app)
+
+        // A welcome is a thing that happens once. The second launch is the
+        // app, and the words typed into the first one are still in it.
+        let reopened = app.textViews["entryEditor"]
+        XCTAssertTrue(reopened.waitForExistence(timeout: 30))
+        XCTAssertEqual(reopened.value as? String, "Walked to the market.")
+        XCTAssertFalse(
+            app.staticTexts["welcomeWhatThisIs"].exists,
+            "the welcome came back for a device that had already been through it"
+        )
+    }
+
+    /// The other answer to the offer: a time taken up on the last page is the
+    /// reminder the app has, and the one the journal sheet is showing a moment
+    /// later.
+    func testATimeTakenUpInTheWelcomeIsTheReminderTheAppHas() throws {
+        let app = launchApp(welcome: true)
+
+        XCTAssertTrue(
+            app.staticTexts["welcomeWhatThisIs"].waitForExistence(timeout: 30),
+            "the welcome never appeared"
+        )
+        app.buttons["continueTheWelcome"].tap()
+        XCTAssertTrue(app.staticTexts["welcomeWhereYourWordsGo"].waitForExistence(timeout: 30))
+        app.buttons["continueTheWelcome"].tap()
+
+        // The evening it opens on, changed to an hour earlier — the offer is a
+        // time to pick and not a switch to flick.
+        //
+        // An hour either side rather than the other end of the clock: a menu
+        // of forty-eight half hours opens scrolled to the one that is
+        // selected, and only the ones near it are on screen to be tapped.
+        let time = app.buttons["welcomeReminderTime"]
+        XCTAssertTrue(time.waitForExistence(timeout: 10), "no time was offered")
+        time.tap()
+        tapTheOption(labelled: onTheClock(hour: 20, minute: 0), in: app)
+
+        let takeItUp = app.buttons["takeTheReminderUp"]
+        XCTAssertTrue(
+            takeItUp.label.hasSuffix(onTheClock(hour: 20, minute: 0)),
+            "the button did not say the time it would set, it said \(takeItUp.label)"
+        )
+        takeItUp.tap()
+
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        // The same reminder, seen from the other end of the app: one setting,
+        // set in the welcome and shown on the sheet.
+        openTheJournalSheet(app)
+        let reminder = app.switches["dailyReminder"]
+        scrollTo(reminder, in: app)
+        XCTAssertEqual(reminder.value as? String, "1")
+        let chosen = app.buttons["dailyReminderTime"]
+        scrollTo(chosen, in: app)
+        XCTAssertTrue(
+            chosen.label.hasSuffix(", \(onTheClock(hour: 20, minute: 0))"),
+            "expected the time taken up in the welcome, got \(chosen.label)"
+        )
+    }
+
+    /// A journal with nothing in it yet, on the three screens that would
+    /// otherwise be blank.
+    ///
+    /// Which of the ways a screen can be empty this is — nothing written,
+    /// nothing read yet, or a folder that would not answer — is decided in
+    /// Core and tested there against folders that are told what to say. What
+    /// only a running app can show is that the sentences are on the screens: a
+    /// first day that says what to do with itself, a calendar that reads as a
+    /// beginning rather than a grid of numbers, and a search box that does not
+    /// tell somebody their query was not found in a journal they have not
+    /// written yet.
+    func testAFreshJournalSaysSoOnEveryScreenWithNothingToShow() throws {
+        let app = launchApp()
+
+        // Today's page, with no Content Template pointed at it: the one screen
+        // in the app that is genuinely a blank page on day one.
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        // The prompt is drawn only over an Entry with no characters in it, so
+        // its being here is also the claim that a journal with no Content
+        // Template pointed at it starts the day blank.
+        XCTAssertTrue(
+            app.staticTexts["aBlankPage"].waitForExistence(timeout: 5),
+            "a blank first day said nothing at all"
+        )
+
+        openCalendar(app, showingTheMonthOf: Date())
+        XCTAssertTrue(
+            app.staticTexts["aJournalNobodyHasWrittenIn"].waitForExistence(timeout: 15),
+            "a calendar with no dots on it was left as a grid of numbers"
+        )
+        goBack(app)
+
+        openSearch(app)
+        XCTAssertTrue(
+            app.staticTexts["nothingToSearchYet"].waitForExistence(timeout: 15),
+            "a search over a journal with nothing in it said nothing about that"
+        )
+        goBack(app)
+
+        // One day written, and every one of those sentences stops being true.
+        XCTAssertTrue(editor.waitForExistence(timeout: 30))
+        editor.tap()
+        editor.typeText("Walked to the market.")
+        XCTAssertTrue(
+            app.staticTexts["aBlankPage"].waitForNonExistence(timeout: 5),
+            "the prompt was still over a page that had been written on"
+        )
+        Thread.sleep(forTimeInterval: 4)
+
+        openCalendar(app, showingTheMonthOf: Date())
+        expect(app.buttons["day-\(todaysEntryName())"], toHaveValue: "Written")
+        XCTAssertFalse(
+            app.staticTexts["aJournalNobodyHasWrittenIn"].exists,
+            "a journal with a day in it was still being called empty"
+        )
+
+        // And a month it does not reach into is said as that, and not as a
+        // journal nobody has written in: the difference is the whole reason
+        // there are two sentences.
+        app.buttons["nextMonth"].tap()
+        XCTAssertTrue(
+            app.staticTexts["aMonthNobodyWroteIn"].waitForExistence(timeout: 10),
+            "an empty month in a journal with a past said nothing"
+        )
+        XCTAssertFalse(app.staticTexts["aJournalNobodyHasWrittenIn"].exists)
     }
 
     /// An interactive placeholder is a question the file itself carries: it
@@ -1520,6 +1712,10 @@ final class AujourUITests: XCTestCase {
     /// where they are read.
     ///
     /// - Parameters:
+    ///   - welcome: whether this launch is a device nobody has welcomed yet.
+    ///     `false` — a device that has been through it — for every test but
+    ///     the first run's own, since the welcome is a cover over the app and
+    ///     dismissing one is not what any other test is here to do.
     ///   - folderToPick: the folder "Use a custom folder…" picks, in place of
     ///     the Files picker.
     ///   - todaysEntry: what today's Entry file already says, written an hour
@@ -1552,6 +1748,7 @@ final class AujourUITests: XCTestCase {
     ///   - reminders: the same, for the day's reminders.
     private func launchApp(
         contentTemplate: String? = nil,
+        welcome: Bool = false,
         folderToPick: String? = nil,
         entries: String? = nil,
         todaysEntry: String? = nil,
@@ -1574,6 +1771,13 @@ final class AujourUITests: XCTestCase {
         // through the app is still there.
         if let contentTemplate {
             app.launchEnvironment["AUJOUR_UITEST_CONTENT_TEMPLATE"] = contentTemplate
+        }
+        // Only for the test that is about the first run. Everybody else is a
+        // device that has already been through the welcome, because it is a
+        // cover over the whole app and dismissing one is not what any other
+        // test is here to do.
+        if welcome {
+            app.launchEnvironment["AUJOUR_UITEST_WELCOME"] = "due"
         }
         if let folderToPick {
             app.launchEnvironment["AUJOUR_UITEST_FOLDER_TO_PICK"] = folderToPick

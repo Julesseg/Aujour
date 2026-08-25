@@ -111,6 +111,13 @@ public final class JournalCalendar {
     /// cache the indicators are drawn from (ADR 0001).
     @ObservationIgnored private var journaledDays: Set<JournalDay> = []
 
+    /// Whether the folder has ever answered a scan.
+    ///
+    /// Kept because a grid with no marks on it means two different things
+    /// before and after: nobody has looked, and there is nothing there. Only
+    /// the second is something to put in front of the user (ADR 0001).
+    private var hasBeenRead = false
+
     /// Which month `month` is showing, kept as numbers so that stepping
     /// through the year is arithmetic rather than a re-reading of the grid.
     @ObservationIgnored private var visible: (year: Int, month: Int)
@@ -175,6 +182,37 @@ public final class JournalCalendar {
         JournalDay.current(at: now(), in: timeZone, rolloverHour: settings.rolloverHour)
     }
 
+    /// Why the month on screen has no marks on it — or `nil` when it has some,
+    /// and when there is nothing honest to say about it having none.
+    ///
+    /// A grid with no dots is four different things, and three of them must
+    /// never be dressed up as the fourth (ADR 0001): a folder nothing has
+    /// looked in yet, a folder that would not answer, a month a journal simply
+    /// does not reach into, and a journal nobody has written in. Only the last
+    /// two are the user's to be told about, and only the last is a beginning
+    /// rather than an absence — so the calendar says which, and the screen
+    /// draws it.
+    ///
+    /// Silent before the first scan and silent while there is a `problem`,
+    /// because both are the app saying it does not know: a journal of ten years
+    /// whose folder has not come down from iCloud looks exactly like a journal
+    /// of none, and calling it empty is the one thing this screen must not do.
+    public var nothingToShow: NothingToShow? {
+        guard hasBeenRead, problem == nil else { return nil }
+        guard !month.days.contains(where: \.isJournaled) else { return nil }
+        return journaledDays.isEmpty ? .aJournalNobodyHasWrittenIn : .aMonthNobodyWroteIn
+    }
+
+    /// The two empty months worth saying something about.
+    public enum NothingToShow: Hashable, Sendable {
+        /// Nothing anywhere in the folder: a journal at its beginning, which
+        /// is a thing to invite somebody into rather than a gap to explain.
+        case aJournalNobodyHasWrittenIn
+
+        /// Days elsewhere in the journal, none of them in this month.
+        case aMonthNobodyWroteIn
+    }
+
     // MARK: - Reading the folder
 
     /// Rebuilds the indicators by reading the Journal Root.
@@ -192,6 +230,7 @@ public final class JournalCalendar {
             let template = try PathTemplate(settings.pathTemplate)
             let files = try await store.listFiles()
             journaledDays = Set(files.compactMap(template.match))
+            hasBeenRead = true
             problem = nil
         } catch {
             // What was scanned last time is kept: it is the last true reading

@@ -130,32 +130,3 @@ struct DailyReminderWiringTests {
         )
     }
 }
-
-/// A device that is nudged rather than rung: what it was last asked to hold,
-/// and how many times it has been asked anything.
-///
-/// Unchecked because a test drives it from the main actor and nowhere else,
-/// while the seam it stands in for is one the app reaches from anywhere.
-private final class ADeviceToNudge: Nudges, @unchecked Sendable {
-    private(set) var booked: [Nudge] = []
-    private(set) var bookings = 0
-    private(set) var timesAsked = 0
-
-    /// Undecided until it is asked, like a device nobody has answered for yet
-    /// — which is what makes "choosing a time is what asks" a thing a test can
-    /// see happen.
-    private var permission: NudgeAccess = .undecided
-
-    func access() async -> NudgeAccess { permission }
-
-    func ask() async -> NudgeAccess {
-        timesAsked += 1
-        permission = .allowed
-        return permission
-    }
-
-    func book(_ nudges: [Nudge]) async {
-        booked = nudges
-        bookings += 1
-    }
-}

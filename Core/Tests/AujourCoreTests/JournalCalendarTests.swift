@@ -273,6 +273,63 @@ struct JournalCalendarIndicatorTests {
         #expect(session.calendar.problem != nil)
     }
 
+    @Test("a month with days on it has nothing to say for itself")
+    func aMonthWithMarksSaysNothing() async {
+        let session = CalendarSession(files: Self.folder)
+
+        await session.calendar.scan()
+
+        #expect(session.calendar.nothingToShow == nil)
+    }
+
+    @Test("a journal nobody has written in says so, and a month nobody wrote in says only that")
+    func theTwoWaysAMonthCanBeEmpty() async {
+        let session = CalendarSession()
+
+        await session.calendar.scan()
+        #expect(session.calendar.nothingToShow == .aJournalNobodyHasWrittenIn)
+
+        // One day, in a month that is not the one on screen: the journal has
+        // a past now, and this month simply has no part of it. Saying "nobody
+        // has written in this journal" over a March that follows a February
+        // full of days would be the app forgetting them.
+        try? await session.store.writeText("Snow, and soup.\n", at: "2026/02/2026-02-14.md")
+        await session.calendar.scan()
+        #expect(session.calendar.nothingToShow == .aMonthNobodyWroteIn)
+
+        session.calendar.showPreviousMonth()
+        await session.calendar.scan()
+        #expect(session.calendar.nothingToShow == nil)
+    }
+
+    @Test("a folder nobody has read yet is not a journal nobody has written in")
+    func nothingIsSaidBeforeTheFolderAnswers() async {
+        let session = CalendarSession()
+
+        // The grid is on screen from the first frame, before any scan. An
+        // empty-state notice drawn then would be a claim about a folder
+        // nothing has looked in (ADR 0001).
+        #expect(session.calendar.nothingToShow == nil)
+
+        await session.calendar.scan()
+        #expect(session.calendar.nothingToShow == .aJournalNobodyHasWrittenIn)
+    }
+
+    @Test("a folder that would not answer is a problem, never an empty journal")
+    func anUnreadableFolderIsNeverCalledEmpty() async {
+        let session = CalendarSession()
+        session.store.refuseListing = JournalStoreError.fileNotFound("2026")
+
+        await session.calendar.scan()
+
+        // The one confusion this screen exists not to cause: a journal of ten
+        // years whose folder has not come down from iCloud must never be shown
+        // as a journal with nothing in it. The problem notice is what says
+        // what happened.
+        #expect(session.calendar.problem != nil)
+        #expect(session.calendar.nothingToShow == nil)
+    }
+
     @Test("a Path Template that cannot name a day is reported, not guessed at")
     func anUnusablePathTemplateIsReported() async {
         let session = CalendarSession(

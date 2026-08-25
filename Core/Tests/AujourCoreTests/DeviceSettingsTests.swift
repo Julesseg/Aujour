@@ -11,8 +11,10 @@ struct DeviceSettingsTests {
 
         #expect(settings.theme == .system)
         #expect(settings.editorFont == .default)
-        // "Off until a time is chosen in onboarding" — no reminder by default.
+        // "Off until a time is chosen in the welcome" — no reminder by default.
         #expect(settings.dailyReminder == nil)
+        // And a device nobody has welcomed is owed one.
+        #expect(!settings.hasBeenWelcomed)
     }
 
     @Test("device settings round-trip through local storage")
@@ -24,11 +26,15 @@ struct DeviceSettingsTests {
             $0.theme = .dark
             $0.editorFont = EditorFont(family: .serif, size: 20)
             $0.dailyReminder = TimeOfDay(hour: 21, minute: 30)
+            $0.hasBeenWelcomed = true
         }
 
         let afterRelaunch = DeviceSettingsStore(storedOn: local)
         #expect(afterRelaunch.settings == store.settings)
         #expect(afterRelaunch.settings.dailyReminder == TimeOfDay(hour: 21, minute: 30))
+        // The claim the welcome rests on: it happens once per device, and the
+        // device remembers across launches that it did.
+        #expect(afterRelaunch.settings.hasBeenWelcomed)
     }
 
     @Test("changing device settings never touches the synced seam")
@@ -42,6 +48,7 @@ struct DeviceSettingsTests {
             $0.theme = .dark
             $0.editorFont = EditorFont(family: .monospaced, size: 15)
             $0.dailyReminder = TimeOfDay(hour: 7, minute: 0)
+            $0.hasBeenWelcomed = true
         }
 
         // Theme, fonts and notification time are device-scoped (ADR 0003):
@@ -58,12 +65,14 @@ struct DeviceSettingsTests {
         local.setString("chalkboard", forKey: DeviceSettingsKey.editorFontFamily)
         local.setString("2000", forKey: DeviceSettingsKey.editorFontSize)
         local.setString("25:61", forKey: DeviceSettingsKey.dailyReminder)
+        local.setString("perhaps", forKey: DeviceSettingsKey.hasBeenWelcomed)
 
         let settings = DeviceSettingsStore(storedOn: local).settings
 
         #expect(settings.theme == .dark)
         #expect(settings.editorFont == .default)
         #expect(settings.dailyReminder == nil)
+        #expect(!settings.hasBeenWelcomed)
     }
 
     @Test("turning the daily reminder off clears it everywhere")

@@ -12,17 +12,27 @@ public struct DeviceSettings: Equatable, Sendable {
     public var editorFont: EditorFont
 
     /// When to nudge the user to journal, or `nil` for no reminder — the
-    /// state until a time is chosen in onboarding.
+    /// state until a time is chosen in the welcome.
     public var dailyReminder: TimeOfDay?
+
+    /// Whether this device has been through the welcome.
+    ///
+    /// Here rather than on the synced seam for the reason the reminder is: it
+    /// is about this install having been introduced to the app, and an iPad
+    /// added a year later has not been. It shapes nothing in the Journal
+    /// (ADR 0003).
+    public var hasBeenWelcomed: Bool
 
     public init(
         theme: Theme = .system,
         editorFont: EditorFont = .default,
-        dailyReminder: TimeOfDay? = nil
+        dailyReminder: TimeOfDay? = nil,
+        hasBeenWelcomed: Bool = false
     ) {
         self.theme = theme
         self.editorFont = editorFont
         self.dailyReminder = dailyReminder
+        self.hasBeenWelcomed = hasBeenWelcomed
     }
 
     public static let `default` = DeviceSettings()
@@ -155,6 +165,7 @@ enum DeviceSettingsKey {
     static let editorFontFamily = "aujour.device.editorFontFamily"
     static let editorFontSize = "aujour.device.editorFontSize"
     static let dailyReminder = "aujour.device.dailyReminder"
+    static let hasBeenWelcomed = "aujour.device.hasBeenWelcomed"
 }
 
 extension DeviceSettings: SettingsGroup {
@@ -173,6 +184,11 @@ extension DeviceSettings: SettingsGroup {
         // guessing an hour: a notification at the wrong time is worse than
         // none.
         self.dailyReminder = storedValues(DeviceSettingsKey.dailyReminder).flatMap(TimeOfDay.init)
+        // An unreadable value is a device that has not been welcomed, which
+        // costs one welcome nobody needed — the other way round is an install
+        // that never gets introduced to the app at all.
+        self.hasBeenWelcomed = storedValues(DeviceSettingsKey.hasBeenWelcomed)
+            .flatMap(Bool.init) ?? fallback.hasBeenWelcomed
     }
 
     func changedValues(from previous: DeviceSettings) -> [(key: String, value: String?)] {
@@ -188,6 +204,9 @@ extension DeviceSettings: SettingsGroup {
         }
         if dailyReminder != previous.dailyReminder {
             changes.append((DeviceSettingsKey.dailyReminder, dailyReminder?.description))
+        }
+        if hasBeenWelcomed != previous.hasBeenWelcomed {
+            changes.append((DeviceSettingsKey.hasBeenWelcomed, String(hasBeenWelcomed)))
         }
         return changes
     }

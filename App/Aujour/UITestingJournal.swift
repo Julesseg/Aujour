@@ -108,6 +108,20 @@ enum UITestingJournal {
     /// the Files picker.
     static let folderToPickKey = "AUJOUR_UITEST_FOLDER_TO_PICK"
 
+    /// Whether this test wants the welcome — `due` for a test of the first
+    /// run, and absent for everybody else.
+    ///
+    /// Absent is a device that has already been through it, because the
+    /// welcome is a cover over the whole app: every test of anything else
+    /// would otherwise begin by dismissing it, which is a test of the welcome
+    /// happening thirty times. Asked for, this seeds nothing at all — the
+    /// device's own record is what decides, so that a welcome answered in one
+    /// launch is one the next launch can be shown not to bring back.
+    static let welcomeKey = "AUJOUR_UITEST_WELCOME"
+
+    /// What the ``welcomeKey`` says when a test wants the first run.
+    static let welcomeIsDue = "due"
+
     /// The markdown a template file holds, for "Choose a template file…" to
     /// pick in place of the Files picker — written *outside* the journal
     /// folder, which is the case the picker exists for (ADR 0005).
@@ -180,6 +194,14 @@ enum UITestingJournal {
         guard let folder = environment[folderKey], isAFolderName(folder) else { return nil }
 
         let settings = settingsStore(for: folder)
+        let deviceSettings = deviceSettingsStore(for: folder)
+        // Marked welcomed unless this test is about the welcome. When it is,
+        // nothing is written here at all: what the device remembers between
+        // launches is the claim that test is making, and seeding it either way
+        // would be the app answering it.
+        if environment[welcomeKey] != welcomeIsDue {
+            deviceSettings.update { $0.hasBeenWelcomed = true }
+        }
         let root = documentsFolder(named: folder)
         if let contentTemplate = environment[contentTemplateKey] {
             seed(contentTemplate, at: contentTemplateFile, under: root)
@@ -234,7 +256,7 @@ enum UITestingJournal {
             // Scoped to this test like the journal's own settings, and for the
             // same reason: a reminder one test turns on must not be the one
             // the next test opens with.
-            deviceSettings: deviceSettingsStore(for: folder),
+            deviceSettings: deviceSettings,
             nudges: ADeviceThatIsNeverRung()
         )
     }

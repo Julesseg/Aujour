@@ -460,11 +460,6 @@ private struct DailyReminderSection: View {
 
     private var reminder: DailyReminder { journal.dailyReminder }
 
-    /// Every half hour of the day, in order.
-    private static let times: [TimeOfDay] = (0..<24).flatMap { hour in
-        [0, 30].compactMap { TimeOfDay(hour: hour, minute: $0) }
-    }
-
     /// Whether there is a reminder at all — a binding rather than local state,
     /// like every other control here, so the switch follows the setting rather
     /// than remembering its own idea of it.
@@ -497,7 +492,7 @@ private struct DailyReminderSection: View {
 
             if reminder.time != nil {
                 Picker("When", selection: time) {
-                    ForEach(Self.times, id: \.self) { time in
+                    ForEach(DailyReminder.everyHalfHour, id: \.self) { time in
                         Text(time.spelledOut()).tag(time)
                     }
                 }
@@ -530,15 +525,7 @@ private struct DailyReminderSection: View {
     @ViewBuilder
     private var whatWillHappen: some View {
         if reminder.access == .refused {
-            Text(
-                """
-                Notifications are turned off for Aujour, so this won't arrive. \
-                Turn them on in Settings › Notifications › Aujour.
-                """
-            )
-            .font(.caption)
-            .foregroundStyle(.red)
-            .accessibilityIdentifier("dailyReminderRefused")
+            NudgesAreTurnedOffNotice(identifier: "dailyReminderRefused")
         } else if let next = reminder.booked.first {
             // The setting said as the thing it will actually do, the way the
             // Rollover Hour is said as the day it makes: this is where a day

@@ -22,6 +22,18 @@ struct ContentView: View {
     @State private var wayIn: WayIntoTheJournal?
     @Environment(\.scenePhase) private var scenePhase
 
+    /// What this window is actually drawing in, light or dark — never "no
+    /// preference", because this is the answer and not the question.
+    ///
+    /// Read here so that a sheet can be told it. A sheet is its own
+    /// presentation: the appearance the window asks for reaches it when it is
+    /// put up and not afterwards, so it has to be told again on every change.
+    /// And told a *resolved* scheme, because the interesting case is Auto —
+    /// "no preference" does not undo an override a sheet is already under, so
+    /// a sheet told dark and then told nothing goes on being dark while the
+    /// window behind it turns light.
+    @Environment(\.colorScheme) private var drawnIn
+
     /// The two ways back into a day that is not today's: by when it was, and
     /// by what was written in it.
     private enum WayIntoTheJournal: Hashable {
@@ -136,6 +148,11 @@ struct ContentView: View {
             // lived inside one state is a sheet that vanishes mid-decision.
             .sheet(isPresented: $showingTheJournalItself) {
                 JournalSettingsSheet(journal: journal, appearance: appearance)
+                    // The one sheet this matters most for: it is where the
+                    // appearance is changed, so it is the one that would sit
+                    // in yesterday's colours right under the control that had
+                    // just changed them.
+                    .preferredColorScheme(drawnIn)
                     // Counted again on the way in: the number from launch is
                     // one edit out of date the moment today's Entry is
                     // created.

@@ -1981,8 +1981,14 @@ final class AujourUITests: XCTestCase {
     /// screenshot as two very different numbers, and one that never followed
     /// comes out as the same one twice.
     func testTheSheetIsDrawnInTheAppearanceBeingChosenOnIt() throws {
-        let app = launchApp()
+        // Said rather than assumed, because Auto below is only worth asking
+        // about against a device that is doing something known.
+        XCUIDevice.shared.appearance = .light
+        // Left light rather than unspecified, which the runner refuses:
+        // light is what a simulator boots in, so this is putting it back.
+        addTeardownBlock { XCUIDevice.shared.appearance = .light }
 
+        let app = launchApp()
         openHowItLooks(in: app)
         let theme = app.segmentedControls["appearanceTheme"]
 
@@ -1996,6 +2002,23 @@ final class AujourUITests: XCTestCase {
             inLight, inDark + 0.2,
             "the sheet did not follow the appearance — it was \(inDark) in dark "
                 + "and \(inLight) in light, which is the same page twice"
+        )
+
+        // And back to Auto, which is the one of the three that is not an
+        // instruction. The device is light, so the sheet has to be — and this
+        // is the step that stays wrong longest, because "no preference" is not
+        // the same as "light": a sheet told to be dark and then told nothing
+        // goes on being dark.
+        theme.buttons["Dark"].tap()
+        _ = try brightness(of: theme)
+        theme.buttons["Auto"].tap()
+        let inAuto = try brightness(of: theme)
+
+        XCTAssertGreaterThan(
+            inAuto, inDark + 0.2,
+            "the sheet stayed dark when the appearance went back to Auto on a "
+                + "light device — it was \(inAuto), against \(inDark) in dark "
+                + "and \(inLight) in light"
         )
     }
 

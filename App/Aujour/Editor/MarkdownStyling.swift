@@ -29,6 +29,17 @@ struct MarkdownStyling: Equatable {
     /// The characters that are syntax rather than words. Quiet enough to read
     /// past, dark enough to see and aim a cursor at — a `#` nobody can find
     /// is a `#` nobody can delete.
+    ///
+    /// The identity's faintest step, which is the marker floor rather than the
+    /// sentence one (ADR 0006, and ``Palette/inkFaint``). A mark is not a
+    /// sentence: it is punctuation held in reserve for the moment the cursor
+    /// arrives, and drawing it as dark as the words either side of it would
+    /// undo the reason it is hidden at all.
+    ///
+    /// The one colour here the identity has reached so far. The words a mark
+    /// sits among are still the system's `.label`, because the paper they are
+    /// drawn on is still the system's too — ink moved onto the identity over a
+    /// ground that has not is the half-measure, not the other way round.
     var syntax: UIColor
 
     /// Quoted words, which are somebody else's.
@@ -49,7 +60,7 @@ struct MarkdownStyling: Equatable {
     init(
         body: UIFont = .preferredFont(forTextStyle: .body),
         words: UIColor = .label,
-        syntax: UIColor = .tertiaryLabel,
+        syntax: UIColor = Palette.inkFaint,
         quoted: UIColor = .secondaryLabel,
         link: UIColor = .tintColor,
         box: UIColor = .tintColor,

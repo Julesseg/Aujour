@@ -356,72 +356,21 @@ struct DrawnMarkdownDrawingTests {
 
     // MARK: - Laying a day out for real
 
-    /// An Entry laid out by the editor's own layout manager and glyph
-    /// delegate — the only way to ask how big anything actually came out.
-    @MainActor
-    private struct LaidOut {
-        let layoutManager: NSLayoutManager
-        let container: NSTextContainer
-        /// Both held for the same reason, and neither of them decoration: a
-        /// layout manager keeps neither its delegate nor its text storage
-        /// alive, and a storage that went away under it would take the
-        /// attributes these measurements are about with it.
-        let storage: MarkdownTextStorage
-        let glyphs: MarkdownGlyphs
-
-        func width(of characters: NSRange) -> CGFloat {
-            let glyphRange = layoutManager.glyphRange(
-                forCharacterRange: characters,
-                actualCharacterRange: nil
-            )
-            guard glyphRange.length > 0 else { return 0 }
-            return layoutManager.boundingRect(forGlyphRange: glyphRange, in: container).width
-        }
-
-        func lineWidth(atCharacter character: Int) -> CGFloat {
-            lineFragment(atCharacter: character).width
-        }
-
-        func lineHeight(atCharacter character: Int) -> CGFloat {
-            lineFragment(atCharacter: character).height
-        }
-
-        func lineTop(atCharacter character: Int) -> CGFloat {
-            lineFragment(atCharacter: character).minY
-        }
-
-        private func lineFragment(atCharacter character: Int) -> CGRect {
-            let glyph = layoutManager.glyphIndexForCharacter(at: character)
-            return layoutManager.lineFragmentUsedRect(forGlyphAt: glyph, effectiveRange: nil)
-        }
-    }
-
+    /// This suite's day: the editor's own layout manager, because a box and a
+    /// picture are painted by it, and a narrower page than the other suites
+    /// use so that a picture has an edge to be fitted to.
     private func laidOut(
         _ source: String,
         cursor: NSRange?,
         pictures: EmbeddedPictures? = nil
-    ) -> LaidOut {
-        let storage = MarkdownTextStorage(styling: styling)
-        let layoutManager = MarkdownLayoutManager()
-        let glyphs = MarkdownGlyphs()
-        let container = NSTextContainer(
-            size: CGSize(width: 600, height: CGFloat.greatestFiniteMagnitude)
-        )
-
-        layoutManager.delegate = glyphs
-        storage.addLayoutManager(layoutManager)
-        layoutManager.addTextContainer(container)
-
-        storage.pictures = pictures
-        storage.setSource(source)
-        storage.cursor = cursor
-        layoutManager.ensureLayout(for: container)
-
-        return LaidOut(
-            layoutManager: layoutManager,
-            container: container,
-            storage: storage,
-            glyphs: glyphs
+    ) -> LaidOutDay {
+        LaidOutDay(
+            source,
+            styling: styling,
+            cursor: cursor,
+            width: 600,
+            layoutManager: MarkdownLayoutManager(),
+            pictures: pictures
         )
     }
 }

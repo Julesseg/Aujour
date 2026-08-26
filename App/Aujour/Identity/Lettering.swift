@@ -68,6 +68,16 @@ struct Lettering: Equatable {
     /// aside set in the system face.
     static let note = Lettering(.system(.regular), size: 12.5, growsWith: .footnote)
 
+    /// The day the app is on, named on the header's date pill.
+    ///
+    /// Not `screenTitle`, though it is the only thing on screen saying what is
+    /// on it: a title that size would not share a 44-point pill with a chip
+    /// and a chevron, and the pill is a control before it is a heading. So it
+    /// is the row label's size, set in the weight that makes it the one thing
+    /// read first.
+    static let dayOnScreen =
+        Lettering(.system(.semibold), size: 16.5, growsWith: .body, tracking: -0.2)
+
     /// The lettering on a pill: a chip, a "Today" button, a tag.
     static let chipLabel = Lettering(.system(.medium), size: 13, growsWith: .footnote)
 
@@ -108,8 +118,9 @@ struct Lettering: Equatable {
     static let everyRole: [(name: String, lettering: Lettering)] = [
         ("screenTitle", screenTitle), ("sheetTitle", sheetTitle), ("rowLabel", rowLabel),
         ("rowValue", rowValue), ("sectionHeader", sectionHeader), ("note", note),
-        ("chipLabel", chipLabel), ("marker", marker), ("pageVoice", pageVoice),
-        ("aside", aside), ("prose", prose), ("proseHeading", proseHeading),
+        ("dayOnScreen", dayOnScreen), ("chipLabel", chipLabel), ("marker", marker),
+        ("pageVoice", pageVoice), ("aside", aside), ("prose", prose),
+        ("proseHeading", proseHeading),
     ]
 
     /// The font this role comes out as, for the screen it is being drawn on.

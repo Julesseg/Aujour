@@ -21,6 +21,10 @@ import Observation
 ///   Monday can be filled in on Tuesday and never leaves a permanent hole.
 ///   Future days are shown and locked — there is no Entry to write before the
 ///   day has arrived (`v1-decisions.md`).
+/// - **Which day the app is on.** Today, until a day is picked out of the
+///   grid — and today again the moment today is picked, which is absence and
+///   not a copy of today's date, so that a journal left open past the rollover
+///   moves on to the new day.
 ///
 /// It reaches the world through a Journal Store and a clock, and nothing
 /// else, so all of the above is tested against an in-memory folder on any
@@ -38,6 +42,19 @@ public final class JournalCalendar {
 
         /// Where the day sits relative to now.
         public let relation: JournalDay.Relation
+
+        /// Whether this day belongs to the month on screen, or is one of the
+        /// neighbouring months' days the grid is filled out with.
+        ///
+        /// The grid shows six whole weeks whatever month it is over, so the
+        /// first and last rows carry days from either side. They are days like
+        /// any other — written on, openable, pickable — and the screen draws
+        /// them fainter, which is the whole of what this says.
+        public let isInTheMonthOnScreen: Bool
+
+        /// Whether this is the day the app is showing: the one the pill names
+        /// and the grid fills in.
+        public let isBeingWritten: Bool
 
         /// Whether tapping this day opens it for writing.
         public var isOpenable: Bool { relation.allowsWriting }
@@ -61,29 +78,53 @@ public final class JournalCalendar {
         /// Sunday first in the US, Monday first in France.
         public let weekdayNames: [String]
 
-        /// Rows of seven, padded with `nil` where the month has not started
-        /// or has ended — so a row is a week, and a column is a weekday.
-        public let weeks: [[Day?]]
+        /// Six rows of seven, filled out at both ends with the neighbouring
+        /// months' days — so a row is a week, a column is a weekday, and the
+        /// grid is the same height whatever month it is over.
+        ///
+        /// Six and not "as many as this month needs", because the rows are
+        /// what the pill travels through: a week strip is this grid slid up
+        /// until the week being written sits under the weekday names, and a
+        /// grid that changed height from month to month would move the strip
+        /// with it.
+        public let weeks: [[Day]]
 
-        /// Every day of the month, in order and without the padding.
+        /// The days of the month on screen, in order — without the
+        /// neighbouring months' days the grid is filled out with.
         public var days: [Day] {
-            cells.compactMap { $0 }
+            cells.filter(\.isInTheMonthOnScreen)
         }
 
-        /// The whole grid in reading order: the weeks laid end to end, blanks
-        /// and all.
+        /// The whole grid in reading order: the weeks laid end to end.
         ///
         /// What a grid actually draws, and what it should draw *from* — a cell
         /// is identified by its place in this one sequence. Drawing weeks of
         /// seven within a grid instead gives seven identities repeated once
         /// per row, and cells that swap what they do when one of them changes.
-        public var cells: [Day?] {
+        public var cells: [Day] {
             weeks.flatMap { $0 }
+        }
+
+        /// Which row the day being written falls in — the one the week strip
+        /// shows, and so how far the grid is slid up to show it.
+        ///
+        /// `nil` when that day is not on this grid at all, which is what
+        /// stepping to another month does.
+        public var weekBeingWritten: Int? {
+            weeks.firstIndex { $0.contains(where: \.isBeingWritten) }
         }
     }
 
     /// The month on screen.
     public private(set) var month: Month
+
+    /// The day picked out of the grid, or `nil` while the app is on today's.
+    ///
+    /// Absence and not a copy of today's date, because those two are different
+    /// things overnight: a phone left open past the rollover with nothing
+    /// picked should move on to the new day, and one left open on March 1st
+    /// because somebody chose March 1st should not.
+    private var picked: JournalDay?
 
     /// What went wrong with the last scan, if it did.
     ///
@@ -213,6 +254,48 @@ public final class JournalCalendar {
         case aMonthNobodyWroteIn
     }
 
+    // MARK: - The day being written
+
+    /// The day the app is showing: the one the pill names, the one the grid
+    /// fills in, and the one an Entry is open over.
+    ///
+    /// Today until somebody picks another, and today again the moment they
+    /// pick today — which is what keeps a journal left open overnight on the
+    /// day it is now rather than on the day it was.
+    public var dayBeingWritten: JournalDay { picked ?? today }
+
+    /// Whether the day being written is today's Entry, which is the one the
+    /// app already has an editor over.
+    public var isOnToday: Bool { picked == nil }
+
+    /// Picks a day out of the grid.
+    ///
+    /// Refuses a day that has not arrived, and says so rather than picking it
+    /// quietly: a locked cell is not tappable on screen, and this is the same
+    /// refusal said where it cannot be tapped around — there is no Entry to
+    /// write before the day has come (`v1-decisions.md`).
+    ///
+    /// A day from a neighbouring month is a day like any other, and picking
+    /// one brings its month on screen — which is how a grid of six weeks is
+    /// walked through the year without a control for it.
+    @discardableResult
+    public func pick(_ day: JournalDay) -> Bool {
+        guard relation(of: day).allowsWriting else { return false }
+        picked = day == today ? nil : day
+        // Which is now this day's month, whichever month the grid was over.
+        showTheMonthBeingWritten()
+        return true
+    }
+
+    /// Puts the month of the day being written back on screen — what a pill
+    /// closed and opened again shows, whatever month was browsed to in
+    /// between.
+    public func showTheMonthBeingWritten() {
+        let day = dayBeingWritten
+        visible = (day.year, day.month)
+        layOutTheMonth()
+    }
+
     // MARK: - Reading the folder
 
     /// Rebuilds the indicators by reading the Journal Root.
@@ -301,28 +384,26 @@ public final class JournalCalendar {
         let firstOfMonth = JournalDay(year: visible.year, month: visible.month, day: 1)
         let firstInstant = firstOfMonth.startOfDay(in: timeZone)
 
-        // Both read from the calendar rather than from a table: February's
-        // length is not a constant, and neither is the weekday a month opens
-        // on.
-        let length = calendar.range(of: .day, in: .month, for: firstInstant)!.count
+        // Read from the calendar rather than from a table: the weekday a month
+        // opens on is not a constant, and neither is February's length.
         let weekday = calendar.component(.weekday, from: firstInstant)
-        let blanksBefore = (weekday - calendar.firstWeekday + 7) % 7
+        let daysBefore = (weekday - calendar.firstWeekday + 7) % 7
 
-        var cells: [Day?] = Array(repeating: nil, count: blanksBefore)
-        for dayOfMonth in 1...length {
-            let day = JournalDay(year: visible.year, month: visible.month, day: dayOfMonth)
-            cells.append(
-                Day(
-                    day: day,
-                    isJournaled: journaledDays.contains(day),
-                    relation: relation(of: day)
-                )
+        // Six whole weeks of real days, always — the month, and enough of the
+        // ones either side of it to fill the grid out. Blanks would leave a
+        // grid whose height changed from month to month, and the rows are what
+        // the pill travels through.
+        let beginning = firstOfMonth.adding(days: -daysBefore)
+        let dayBeingWritten = self.dayBeingWritten
+        let cells = (0..<(Self.weeksOnTheGrid * 7)).map { offset -> Day in
+            let day = beginning.adding(days: offset)
+            return Day(
+                day: day,
+                isJournaled: journaledDays.contains(day),
+                relation: relation(of: day),
+                isInTheMonthOnScreen: day.year == visible.year && day.month == visible.month,
+                isBeingWritten: day == dayBeingWritten
             )
-        }
-        // Filled out to whole weeks, so that every row is seven wide and a
-        // column stays one weekday all the way down.
-        while !cells.count.isMultiple(of: 7) {
-            cells.append(nil)
         }
 
         month = Month(
@@ -335,6 +416,11 @@ public final class JournalCalendar {
             weeks: stride(from: 0, to: cells.count, by: 7).map { Array(cells[$0..<$0 + 7]) }
         )
     }
+
+    /// How many rows the grid has, whatever month it is over. Six is the most
+    /// any month needs — thirty-one days that open on the last day of a week —
+    /// so six is what every month gets.
+    private static let weeksOnTheGrid = 6
 
     /// The column headings, rotated to start where this locale's week does.
     /// Foundation lists them from Sunday whatever the locale; `firstWeekday`

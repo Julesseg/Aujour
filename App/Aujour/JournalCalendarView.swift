@@ -130,7 +130,12 @@ struct JournalCalendarView: View {
             // and ends with is part of the sequence, which is what keeps a
             // column one weekday all the way down.
             ForEach(Array(calendar.month.cells.enumerated()), id: \.offset) { _, day in
-                if let day {
+                // The neighbouring months' days are left blank here. They are
+                // on the grid so that the date pill's month is always six rows
+                // tall; this screen is a month at a time with a chevron either
+                // side of it, and a day it does not name has no business being
+                // tappable on it.
+                if day.isInTheMonthOnScreen {
                     DayCell(day: day) { open(day.day) }
                 } else {
                     Color.clear.frame(height: 44)
@@ -140,11 +145,13 @@ struct JournalCalendarView: View {
     }
 
     private func open(_ day: JournalDay) {
-        // Today is not somewhere to go: it is the screen this calendar was
-        // opened from, so tapping it goes back rather than forward. Which is
-        // also what keeps the app to one editor per Entry — the one already
-        // open over today's file, not a second autosaving over it.
-        guard day != calendar.today else {
+        // The day already on screen is not somewhere to go: it is the screen
+        // this calendar was opened from, so tapping it goes back rather than
+        // forward. Which is also what keeps the app to one editor per Entry —
+        // the one already open over that day's file, not a second autosaving
+        // over it. Today is the usual case and no longer the only one: the
+        // date pill can leave the app on any day it has.
+        guard day != calendar.dayBeingWritten else {
             dismiss()
             return
         }

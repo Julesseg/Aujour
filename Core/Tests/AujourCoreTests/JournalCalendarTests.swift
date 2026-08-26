@@ -105,9 +105,9 @@ struct JournalCalendarMonthTests {
     }
 
     @Test("the month is laid out in whole weeks, starting on the locale's first day")
-    func theGridIsPaddedIntoWeeks() {
-        // April 2026 starts on a Wednesday, so a week beginning on Sunday
-        // leaves three empty cells before the 1st.
+    func theGridIsLaidOutInWeeks() {
+        // April 2026 starts on a Wednesday, so a week beginning on Sunday puts
+        // the last three days of March before the 1st.
         let session = CalendarSession(now: instant(2026, 4, 1, 9, 30, in: paris))
         let month = session.calendar.month
 
@@ -116,14 +116,42 @@ struct JournalCalendarMonthTests {
         // The grid a screen draws: the same cells, in one sequence, so that
         // each has a place of its own to be identified by.
         #expect(month.cells.count == month.weeks.count * 7)
-        #expect(month.cells.compactMap { $0 } == month.days)
-        #expect(month.weeks.first?.prefix(3).allSatisfy { $0 == nil } == true)
-        #expect(month.weeks.first?[3]?.day == JournalDay(year: 2026, month: 4, day: 1))
-        // Thirty days after three blanks fill five rows, with the last two
-        // cells of the last one left empty.
-        #expect(month.weeks.count == 5)
-        #expect(month.weeks.last?.suffix(2).allSatisfy { $0 == nil } == true)
+        #expect(month.weeks.first?[2].day == JournalDay(year: 2026, month: 3, day: 31))
+        #expect(month.weeks.first?[3].day == JournalDay(year: 2026, month: 4, day: 1))
+        #expect(month.days.count == 30)
+        #expect(month.days.first?.day == JournalDay(year: 2026, month: 4, day: 1))
         #expect(month.days.last?.day == JournalDay(year: 2026, month: 4, day: 30))
+    }
+
+    /// Six rows whatever the month, because the rows are what the pill travels
+    /// through: the week strip is this grid slid up by whole rows, and a grid
+    /// that changed height from month to month would take the strip with it.
+    @Test("the grid is six whole weeks whatever month it is over")
+    func theGridIsAlwaysSixWeeks() {
+        for (year, month) in [(2026, 2), (2026, 4), (2026, 8), (2027, 1)] {
+            let session = CalendarSession(now: instant(year, month, 1, 9, 30, in: paris))
+            let grid = session.calendar.month
+
+            #expect(grid.weeks.count == 6, "\(grid.name) was laid out in \(grid.weeks.count) rows")
+            #expect(grid.cells.count == 42)
+            // Forty-two days running, with nothing skipped between them.
+            for (earlier, later) in zip(grid.cells, grid.cells.dropFirst()) {
+                #expect(earlier.day.adding(days: 1) == later.day)
+            }
+        }
+    }
+
+    @Test("the days either side of the month are on the grid, and known to be")
+    func theNeighbouringMonthsFillTheGridOut() {
+        let session = CalendarSession(now: instant(2026, 4, 1, 9, 30, in: paris))
+        let month = session.calendar.month
+
+        #expect(month.cells.first?.day == JournalDay(year: 2026, month: 3, day: 29))
+        #expect(month.cells.first?.isInTheMonthOnScreen == false)
+        #expect(month.cells.last?.isInTheMonthOnScreen == false)
+        #expect(month.cell(1)?.isInTheMonthOnScreen == true)
+        // Days like any other: the ones that have been can still be written.
+        #expect(month.cells.first?.isOpenable == true)
     }
 
     @Test("a week starts where the reader's own calendar starts it")
@@ -135,8 +163,8 @@ struct JournalCalendarMonthTests {
 
         #expect(month.name == "avril 2026")
         #expect(month.weekdayNames.first == "L")
-        #expect(month.weeks.first?.prefix(2).allSatisfy { $0 == nil } == true)
-        #expect(month.weeks.first?[2]?.day == JournalDay(year: 2026, month: 4, day: 1))
+        #expect(month.weeks.first?[0].day == JournalDay(year: 2026, month: 3, day: 30))
+        #expect(month.weeks.first?[2].day == JournalDay(year: 2026, month: 4, day: 1))
     }
 
     @Test("stepping through the months crosses the turn of the year")
@@ -444,5 +472,130 @@ struct JournalCalendarBackfillTests {
 private struct TheDayThatWasRead: DayItemSource {
     func items(during day: DateInterval) async -> [DayItem] {
         [DayItem(title: MomentFormat("YYYY-MM-DD").render(day.start, timeZone: paris))]
+    }
+}
+
+@Suite("The day the calendar is on")
+@MainActor
+struct JournalCalendarPickingTests {
+    @Test("the app is on today until somebody picks another day")
+    func todayIsWhereItStarts() {
+        let session = CalendarSession()
+
+        #expect(session.calendar.dayBeingWritten == JournalDay(year: 2026, month: 3, day: 1))
+        #expect(session.calendar.isOnToday)
+        #expect(session.calendar.month.cell(1)?.isBeingWritten == true)
+    }
+
+    @Test("picking a day makes it the day being written, and marks its cell")
+    func pickingADayMovesTheGridOntoIt() {
+        let session = CalendarSession(now: instant(2026, 3, 20, 9, 30, in: paris))
+
+        #expect(session.calendar.pick(JournalDay(year: 2026, month: 3, day: 14)))
+
+        #expect(session.calendar.dayBeingWritten == JournalDay(year: 2026, month: 3, day: 14))
+        #expect(!session.calendar.isOnToday)
+        #expect(session.calendar.month.cell(14)?.isBeingWritten == true)
+        #expect(session.calendar.month.cell(20)?.isBeingWritten == false)
+    }
+
+    /// The one the whole grid exists to refuse: a day that has not arrived has
+    /// no Entry to write, so it cannot be picked from the screen *or* from
+    /// here (`v1-decisions.md`).
+    @Test("a day that has not arrived cannot be picked")
+    func aFutureDayIsRefused() {
+        let session = CalendarSession()
+
+        #expect(session.calendar.pick(JournalDay(year: 2026, month: 3, day: 2)) == false)
+
+        #expect(session.calendar.dayBeingWritten == JournalDay(year: 2026, month: 3, day: 1))
+        #expect(session.calendar.isOnToday)
+    }
+
+    /// Picking today is going back to following the clock, not pinning
+    /// today's date — which is what a phone left open past the rollover shows
+    /// the difference between.
+    @Test("picking today puts the app back on whatever day it is")
+    func pickingTodayFollowsTheClockAgain() {
+        let session = CalendarSession(
+            settings: JournalSettings(rolloverHour: RolloverHour(hour: 4)!),
+            now: instant(2026, 3, 1, 22, 0, in: paris)
+        )
+        session.calendar.pick(JournalDay(year: 2026, month: 2, day: 20))
+        session.calendar.pick(JournalDay(year: 2026, month: 3, day: 1))
+
+        // Past midnight and past the rollover: it is March 2nd now.
+        session.now = instant(2026, 3, 2, 9, 0, in: paris)
+
+        #expect(session.calendar.dayBeingWritten == JournalDay(year: 2026, month: 3, day: 2))
+        #expect(session.calendar.isOnToday)
+    }
+
+    @Test("a day picked from the month before brings its month on screen")
+    func pickingFromTheEdgeOfTheGridStepsTheMonth() {
+        let session = CalendarSession(now: instant(2026, 4, 15, 9, 30, in: paris))
+
+        session.calendar.pick(JournalDay(year: 2026, month: 3, day: 30))
+
+        #expect(session.calendar.month.month == 3)
+        #expect(session.calendar.month.name == "March 2026")
+        #expect(session.calendar.month.cell(30)?.isBeingWritten == true)
+    }
+
+    @Test("the month browsed to is put back when the pill opens again")
+    func theMonthBeingWrittenComesBack() {
+        let session = CalendarSession()
+        session.calendar.showPreviousMonth()
+        session.calendar.showPreviousMonth()
+        #expect(session.calendar.month.month == 1)
+
+        session.calendar.showTheMonthBeingWritten()
+
+        #expect(session.calendar.month.month == 3)
+    }
+
+    /// What the week strip is: this grid slid up by whole rows until the week
+    /// being written sits under the weekday names.
+    @Test("the row the day being written falls in is the week the strip shows")
+    func theStripKnowsWhichRowToShow() {
+        // 1 March 2026 is a Sunday, so it opens the grid's first row and the
+        // rows below it are the 8th, the 15th and the 22nd.
+        let session = CalendarSession(now: instant(2026, 3, 25, 9, 30, in: paris))
+
+        session.calendar.pick(JournalDay(year: 2026, month: 3, day: 1))
+        #expect(session.calendar.month.weekBeingWritten == 0)
+
+        session.calendar.pick(JournalDay(year: 2026, month: 3, day: 14))
+        #expect(session.calendar.month.weekBeingWritten == 1)
+
+        session.calendar.pick(JournalDay(year: 2026, month: 3, day: 15))
+        #expect(session.calendar.month.weekBeingWritten == 2)
+    }
+
+    @Test("a month stepped away from has no week to show")
+    func amonthWithoutTheDayBeingWrittenSaysSo() {
+        let session = CalendarSession()
+
+        session.calendar.showPreviousMonth()
+        session.calendar.showPreviousMonth()
+
+        #expect(session.calendar.month.weekBeingWritten == nil)
+    }
+
+    /// The neighbouring months' days are on the grid now, and a mark on one of
+    /// them is not a mark on this month.
+    @Test("a month nobody wrote in is not rescued by a mark on the month before")
+    func aNeighbouringMonthsMarkIsNotThisMonths() async {
+        // April 2026 opens on a Wednesday, so the last three days of March are
+        // on its grid — and one of them was written in.
+        let session = CalendarSession(
+            files: ["2026/03/2026-03-30.md": "Words.\n"],
+            now: instant(2026, 4, 15, 9, 30, in: paris)
+        )
+
+        await session.calendar.scan()
+
+        #expect(session.calendar.month.cells.contains { $0.day.month == 3 && $0.isJournaled })
+        #expect(session.calendar.nothingToShow == .aMonthNobodyWroteIn)
     }
 }

@@ -156,8 +156,16 @@ final class MarkdownAccessoryRow: UIInputView {
     /// One button for the six levels markdown has, because six buttons would
     /// be a row of nothing else — and the three a journal is written in are
     /// the ones offered.
+    ///
+    /// Spelled `#`, which is what a heading *is* — the same character the
+    /// control writes, and the same reading as the `B` and the `I` beside it.
+    /// The system's `textformat.size` is the glyph for how big text is, and
+    /// how big the Entry's text is is a writing preference that belongs on
+    /// the Appearance screen rather than a control above the keyboard: this
+    /// row writes marks into the file, and nothing on it changes how the file
+    /// is displayed.
     private func headings() -> UIButton {
-        let button = button("textformat.size", "Heading", "formatHeading", tapped: nil)
+        let button = button("number", "Heading", "formatHeading", tapped: nil)
         button.menu = UIMenu(
             children: (1...3).map { level in
                 UIAction(title: "Heading \(level)") { [weak self] _ in

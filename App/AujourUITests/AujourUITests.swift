@@ -261,6 +261,41 @@ final class AujourUITests: XCTestCase {
         )
     }
 
+    /// The heading control, which is the one on the row that is a menu.
+    ///
+    /// Which characters a level writes, and that a heading asked for another
+    /// level is re-levelled rather than taken away, is decided in Core and
+    /// tested there against the text it rewrites; that the menu is built at
+    /// the levels it names is `MarkdownAccessoryRowTests`, headless. What only
+    /// a running app can show is the tap itself — that one press opens the
+    /// menu over the keyboard rather than needing a press and hold, that
+    /// picking a level reaches the line the cursor is on, and that picking
+    /// another one leaves a heading behind rather than a plain line.
+    func testTheHeadingControlLevelsTheLineAndThenRelevelsIt() throws {
+        let app = launchApp()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        editor.tap()
+        let headings = app.buttons["formatHeading"]
+        XCTAssertTrue(headings.waitForExistence(timeout: 10), "the formatting row never appeared")
+
+        editor.typeText("Sunday")
+
+        // One tap opens it, because nobody presses and holds above a keyboard.
+        headings.tap()
+        tapTheOption(labelled: "Heading 2", in: app)
+        expect(editor, toHaveValue: "## Sunday")
+
+        // And the same control again, at another level: nobody presses
+        // *Heading 1* on a Heading 2 meaning "not a heading", so the line is
+        // re-levelled rather than left plain.
+        headings.tap()
+        tapTheOption(labelled: "Heading 1", in: app)
+        expect(editor, toHaveValue: "# Sunday")
+    }
+
     /// A photograph, from the row to the folder.
     ///
     /// Where the file goes, what it is called there and what the embed says

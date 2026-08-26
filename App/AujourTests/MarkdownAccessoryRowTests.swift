@@ -143,6 +143,10 @@ struct MarkdownAccessoryRowTests {
 
     // Above the keyboard is the text view's own accessory view, which is the
     // whole of how the row comes and goes with it.
+    //
+    // Nine controls and these nine. Every one of them writes a mark into the
+    // file; how big the Entry's text is is a writing preference and is asked
+    // for on the Appearance screen, so nothing here is a size control.
     @Test("the editor puts the row above the keyboard, with every control on it")
     func theRow() throws {
         let entry = OpenEditor(holding: "Milk")
@@ -158,6 +162,10 @@ struct MarkdownAccessoryRowTests {
         // A symbol is not something VoiceOver can read out, so every one of
         // them says what it is.
         #expect(controls(of: row).allSatisfy { $0.accessibilityLabel?.isEmpty == false })
+        // And every one of them has a symbol to say it with: a name UIKit does
+        // not know comes back as no image at all, which is a button that is
+        // there, is pressable, and looks like a gap in the row.
+        #expect(controls(of: row).allSatisfy { $0.image(for: .normal) != nil })
     }
 
     @Test("pressing a control asks for the command it stands for")
@@ -181,6 +189,25 @@ struct MarkdownAccessoryRowTests {
         #expect(heading.showsMenuAsPrimaryAction)
         let levels = try #require(heading.menu?.children as? [UIAction])
         #expect(levels.map(\.title) == ["Heading 1", "Heading 2", "Heading 3"])
+    }
+
+    // What the menu is for. Which level a line comes out at is Core's, and a
+    // menu whose items were built at the wrong level would be wrong in the one
+    // place nothing else looks: the three items are asked for one at a time,
+    // and each is the level it is named after.
+    @Test("picking a level asks for a heading at that level")
+    func headingLevels() throws {
+        let pressed = Pressed()
+        let heading = try control(
+            "formatHeading", of: MarkdownAccessoryRow { pressed.commands.append($0) }
+        )
+        let levels = try #require(heading.menu?.children as? [UIAction])
+
+        for level in levels { level.performWithSender(nil, target: nil) }
+
+        #expect(
+            pressed.commands == [.heading(level: 1), .heading(level: 2), .heading(level: 3)]
+        )
     }
 
     // The row knows there is a photograph control and nothing about what one

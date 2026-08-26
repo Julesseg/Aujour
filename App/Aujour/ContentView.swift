@@ -22,6 +22,18 @@ struct ContentView: View {
     @State private var wayIn: WayIntoTheJournal?
     @Environment(\.scenePhase) private var scenePhase
 
+    /// What this window is actually drawing in, light or dark — never "no
+    /// preference", because this is the answer and not the question.
+    ///
+    /// Read here so that a sheet can be told it. A sheet is its own
+    /// presentation: the appearance the window asks for reaches it when it is
+    /// put up and not afterwards, so it has to be told again on every change.
+    /// And told a *resolved* scheme, because the interesting case is Auto —
+    /// "no preference" does not undo an override a sheet is already under, so
+    /// a sheet told dark and then told nothing goes on being dark while the
+    /// window behind it turns light.
+    @Environment(\.colorScheme) private var drawnIn
+
     /// The two ways back into a day that is not today's: by when it was, and
     /// by what was written in it.
     private enum WayIntoTheJournal: Hashable {
@@ -29,8 +41,15 @@ struct ContentView: View {
         case search
     }
 
-    init(journal: Journal = Journal()) {
+    /// How this device wants Aujour to look, held for the one screen that
+    /// changes it. The app is already drawn in it — the appearance, the tint
+    /// and the editor's typeface are applied above this view — so all this
+    /// does is carry it as far as the page that offers the choices.
+    private let appearance: DeviceAppearance
+
+    init(journal: Journal = Journal(), appearance: DeviceAppearance) {
         _journal = State(wrappedValue: journal)
+        self.appearance = appearance
     }
 
     /// Whether a welcome is owed, as something a cover can be presented on.
@@ -128,7 +147,12 @@ struct ContentView: View {
             // and every setting on the sheet reopens it too — a sheet that
             // lived inside one state is a sheet that vanishes mid-decision.
             .sheet(isPresented: $showingTheJournalItself) {
-                JournalSettingsSheet(journal: journal)
+                JournalSettingsSheet(journal: journal, appearance: appearance)
+                    // The one sheet this matters most for: it is where the
+                    // appearance is changed, so it is the one that would sit
+                    // in yesterday's colours right under the control that had
+                    // just changed them.
+                    .preferredColorScheme(drawnIn)
                     // Counted again on the way in: the number from launch is
                     // one edit out of date the moment today's Entry is
                     // created.
@@ -359,19 +383,31 @@ struct StorageProblemNotice: View {
 // Previews journal into a scratch folder rather than into whatever this Mac's
 // iCloud Drive holds, so each one shows the state it is named after.
 #Preview("Journaling into iCloud Drive") {
-    ContentView(journal: Journal.inAPreview(over: .preview(.iCloudDrive)))
+    ContentView(
+        journal: Journal.inAPreview(over: .preview(.iCloudDrive)),
+        appearance: .inMemory()
+    )
 }
 
 #Preview("Journaling on the device") {
-    ContentView(journal: Journal.inAPreview(over: .preview(.onThisDevice)))
+    ContentView(
+        journal: Journal.inAPreview(over: .preview(.onThisDevice)),
+        appearance: .inMemory()
+    )
 }
 
 #Preview("Journaling into a folder of the user's own") {
-    ContentView(journal: Journal.inAPreview(over: .previewCustomFolder))
+    ContentView(
+        journal: Journal.inAPreview(over: .previewCustomFolder),
+        appearance: .inMemory()
+    )
 }
 
 #Preview("Nowhere to journal") {
-    ContentView(journal: Journal.inAPreview(over: .preview(nil)))
+    ContentView(
+        journal: Journal.inAPreview(over: .preview(nil)),
+        appearance: .inMemory()
+    )
 }
 
 extension JournalRootLocator {

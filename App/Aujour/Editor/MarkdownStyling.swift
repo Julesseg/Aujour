@@ -64,16 +64,6 @@ struct MarkdownStyling: Equatable {
         self.lineSpacing = lineSpacing
     }
 
-    /// The same styling over a different typeface — Dynamic Type moving, and
-    /// later the editor font setting. Everything else is kept, because a
-    /// rebuilt-from-scratch styling would quietly drop any colour that was
-    /// not the default.
-    func with(body: UIFont) -> MarkdownStyling {
-        var moved = self
-        moved.body = body
-        return moved
-    }
-
     /// What every character is before anything markdown has to say about it,
     /// and what the editor types in.
     var baseAttributes: [NSAttributedString.Key: Any] {

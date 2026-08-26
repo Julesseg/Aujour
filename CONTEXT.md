@@ -511,8 +511,8 @@ these — different Path Templates would write the same Journal Day to two paths
 (ADR 0003). No settings are ever written into the Journal Root.
 
 ### Device Settings
-The settings that belong to one device: theme, accent, editor font, the time
-of the daily reminder, and whether this device has been through the Welcome.
+The settings that belong to one device: theme, accent, editor font and the
+step its size is on, the time of the daily reminder, and whether this device has been through the Welcome.
 Nothing here shapes what is written into the Journal, so a dark-themed iPhone
 and a light-themed iPad are not in disagreement. Device Settings stay on the
 device that set them and never reach the synced seam.
@@ -521,6 +521,23 @@ The accent is the one colour Aujour uses to mean *this one* — the selected
 day, an answered widget, the way back out of a sheet — and it is a Device
 Setting for the same reason the theme is: a colour chosen on a phone in the
 dark is a fact about that phone, and an Entry carries no colour at all.
+
+One of the identity's named set — Driftwood, Terracotta, Clay, Ochre, Olive,
+Sage, Harbour, Plum, Graphite — and never a colour the user mixes: each is a
+different shade in light and in dark so it reads on either page, and each is
+held above a contrast floor (ADR 0006) so that the lettering, tick box or
+marker it is drawn on is still legible at the size those are drawn at. A
+colour the app cannot promise that of is one it should not be offering.
+
+The editor's size is four steps — S, M, L, XL — and not a number to dial in:
+it is a writing preference, how big somebody wants their own words, and it
+governs the Entry alone. Everything else in the app follows the system's own
+text size, which is a decision the user already made for everything they read.
+
+### Theme
+Which of light and dark Aujour is drawn in, or `auto` — the default, and the
+only one of the three that leaves the choice to the device rather than
+overriding it. A Device Setting.
 
 ### Daily Reminder
 One notification a day, at a time the user chose — and the only thing Aujour

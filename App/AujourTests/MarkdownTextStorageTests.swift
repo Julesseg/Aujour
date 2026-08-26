@@ -250,15 +250,17 @@ struct MarkdownTextStorageTests {
         #expect(breakAfterIt == heading)
     }
 
-    // Dynamic Type, and later the editor font setting: every font in the
-    // editor is derived from one, so moving it moves all of them — and
-    // nothing else about the styling moves with it.
+    // Dynamic Type and the editor font setting both arrive the same way:
+    // every font in the editor is derived from one, so moving it moves all of
+    // them — and nothing else about the styling moves with it.
     @Test("a larger reading size makes every shape larger")
     func stylingFollowsTheBodyFont() throws {
         let storage = storage(holding: "# Sunday")
         let before = try font(in: storage, at: 2).pointSize
 
-        storage.styling = storage.styling.with(body: styling.body.withSize(60))
+        var larger = storage.styling
+        larger.body = styling.body.withSize(60)
+        storage.styling = larger
 
         #expect(try font(in: storage, at: 2).pointSize > before)
         #expect(try colour(in: storage, at: 0) == styling.syntax)

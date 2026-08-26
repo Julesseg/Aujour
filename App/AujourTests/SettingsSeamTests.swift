@@ -164,7 +164,7 @@ struct SettingsSeamTests {
 
             device.update {
                 $0.theme = .dark
-                $0.editorFont = EditorFont(family: .serif, size: 19)
+                $0.editorFont = EditorFont(family: .serif, size: .large)
             }
 
             #expect(onThisDevice.string(forKey: "aujour.device.theme") == "dark")

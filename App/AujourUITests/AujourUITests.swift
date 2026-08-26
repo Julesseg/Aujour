@@ -1906,6 +1906,139 @@ final class AujourUITests: XCTestCase {
         XCTAssertEqual(field.value as? String, path)
     }
 
+    // MARK: - Theming
+
+    /// What theming is, said the only way a running app can say it: a choice
+    /// made on this screen is the app's, and it is still the app's after a
+    /// relaunch.
+    ///
+    /// Which colour each accent resolves to in light and in dark, and what
+    /// "serif at 22 points" comes out as once Dynamic Type has had it, are
+    /// checked where a colour and a font exist to check them, in
+    /// `AppearanceTests`. What only a running app can show is that the three
+    /// controls reach the settings at all, and that what they wrote survives
+    /// the process ending.
+    func testHowAujourLooksIsChosenOnThisDeviceAndStaysChosen() throws {
+        let app = launchApp()
+
+        openHowItLooks(in: app)
+
+        let specimen = app.staticTexts["editorFontSpecimen"]
+        let asItComes = try XCTUnwrap(specimen.value as? String)
+
+        app.segmentedControls["appearanceTheme"].buttons["Dark"].tap()
+        app.buttons["accent.olive"].tap()
+        app.segmentedControls["editorFontFamily"].buttons["Serif"].tap()
+        app.segmentedControls["editorFontSize"].buttons["XL"].tap()
+
+        XCTAssertEqual(app.staticTexts["accentInUse"].label, "Olive")
+        let chosenFont = try XCTUnwrap(specimen.value as? String)
+        XCTAssertTrue(
+            chosenFont.hasPrefix("Serif, "),
+            "the specimen is not in the chosen face — it says \(chosenFont)"
+        )
+        XCTAssertNotEqual(
+            chosenFont, asItComes,
+            "the size control moved nothing — the specimen still says \(chosenFont)"
+        )
+
+        relaunch(app)
+
+        // The journal sheet says which accent is in force before it is opened,
+        // which is the shortest proof that the choice outlived the process.
+        let theJournal = app.buttons["openTheJournalSheet"]
+        XCTAssertTrue(theJournal.waitForExistence(timeout: 30), "the app never came back")
+        theJournal.tap()
+
+        let howItLooks = app.buttons["openHowItLooks"]
+        scrollTo(howItLooks, in: app)
+        XCTAssertTrue(howItLooks.label.contains("Olive"), "the accent did not survive a relaunch")
+        howItLooks.tap()
+
+        XCTAssertTrue(
+            app.segmentedControls["appearanceTheme"].buttons["Dark"].waitForExistence(timeout: 10)
+        )
+        XCTAssertTrue(
+            app.segmentedControls["appearanceTheme"].buttons["Dark"].isSelected,
+            "the appearance did not survive a relaunch"
+        )
+        XCTAssertEqual(app.staticTexts["accentInUse"].label, "Olive")
+        XCTAssertEqual(app.staticTexts["editorFontSpecimen"].value as? String, chosenFont)
+    }
+
+    /// The sheet the appearance is changed on is drawn in it too, while it is
+    /// still up.
+    ///
+    /// A sheet is its own presentation: the appearance the window is asking
+    /// for reaches it when it is put up, and an already-open one went on
+    /// sitting there in the appearance it opened in. Which made *this* sheet
+    /// the worst possible one to have it happen to — the control that had just
+    /// been moved was on it, and nothing under the finger changed.
+    ///
+    /// Asked as a brightness, because there is no other way to ask a running
+    /// app what colour scheme it is actually drawing in: an element that is
+    /// dark grey on a dark page and light grey on a light one comes out of a
+    /// screenshot as two very different numbers, and one that never followed
+    /// comes out as the same one twice.
+    func testTheSheetIsDrawnInTheAppearanceBeingChosenOnIt() throws {
+        // Said rather than assumed, because Auto below is only worth asking
+        // about against a device that is doing something known.
+        XCUIDevice.shared.appearance = .light
+        // Left light rather than unspecified, which the runner refuses:
+        // light is what a simulator boots in, so this is putting it back.
+        addTeardownBlock { XCUIDevice.shared.appearance = .light }
+
+        let app = launchApp()
+        openHowItLooks(in: app)
+        let theme = app.segmentedControls["appearanceTheme"]
+
+        theme.buttons["Dark"].tap()
+        let inDark = try brightness(of: theme)
+
+        theme.buttons["Light"].tap()
+        let inLight = try brightness(of: theme)
+
+        XCTAssertGreaterThan(
+            inLight, inDark + 0.2,
+            "the sheet did not follow the appearance — it was \(inDark) in dark "
+                + "and \(inLight) in light, which is the same page twice"
+        )
+
+        // And back to Auto, which is the one of the three that is not an
+        // instruction. The device is light, so the sheet has to be — and this
+        // is the step that stays wrong longest, because "no preference" is not
+        // the same as "light": a sheet told to be dark and then told nothing
+        // goes on being dark.
+        theme.buttons["Dark"].tap()
+        _ = try brightness(of: theme)
+        theme.buttons["Auto"].tap()
+        let inAuto = try brightness(of: theme)
+
+        XCTAssertGreaterThan(
+            inAuto, inDark + 0.2,
+            "the sheet stayed dark when the appearance went back to Auto on a "
+                + "light device — it was \(inAuto), against \(inDark) in dark "
+                + "and \(inLight) in light"
+        )
+    }
+
+    /// The way in: the journal sheet, and the one row on it that is not about
+    /// the journal.
+    private func openHowItLooks(in app: XCUIApplication) {
+        let theJournal = app.buttons["openTheJournalSheet"]
+        XCTAssertTrue(theJournal.waitForExistence(timeout: 30), "the journal never opened")
+        theJournal.tap()
+
+        let howItLooks = app.buttons["openHowItLooks"]
+        scrollTo(howItLooks, in: app)
+        howItLooks.tap()
+
+        XCTAssertTrue(
+            app.segmentedControls["appearanceTheme"].waitForExistence(timeout: 10),
+            "the appearance page never appeared"
+        )
+    }
+
     private func relaunch(_ app: XCUIApplication) {
         app.terminate()
         app.launch()
@@ -2005,6 +2138,35 @@ final class AujourUITests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.25)
         }
         XCTAssertEqual(element.label, label)
+    }
+
+    /// How bright something on screen came out, from 0 for black to 1 for
+    /// white — the whole of it averaged, so it is the page it is on being
+    /// asked about and not one pixel of it.
+    ///
+    /// Averaged by drawing it into a single grey pixel, which is what a
+    /// downsample to one point is.
+    private func brightness(of element: XCUIElement) throws -> Double {
+        // The animation between two appearances, which a screenshot taken
+        // mid-way through would catch half of.
+        Thread.sleep(forTimeInterval: 1)
+
+        let drawn = try XCTUnwrap(element.screenshot().image.cgImage)
+        var grey: UInt8 = 0
+        let onePixel = try XCTUnwrap(
+            CGContext(
+                data: &grey,
+                width: 1,
+                height: 1,
+                bitsPerComponent: 8,
+                bytesPerRow: 1,
+                space: CGColorSpaceCreateDeviceGray(),
+                bitmapInfo: CGImageAlphaInfo.none.rawValue
+            )
+        )
+        onePixel.interpolationQuality = .high
+        onePixel.draw(drawn, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        return Double(grey) / 255
     }
 
     private func dayBeforeToday() -> Date? {

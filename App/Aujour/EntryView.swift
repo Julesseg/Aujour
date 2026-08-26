@@ -273,8 +273,15 @@ private struct EntryOnScreen: Hashable {
 /// a journal pointed at one never sees this, and one pointed at nothing sees
 /// it every morning until it is typed over.
 private struct ABlankPage: View {
+    /// The typeface the editor is in, because this prompt is standing in the
+    /// editor's own first line: in anything else it would be the right words
+    /// in the wrong face, at the wrong height, on the one screen where there
+    /// is nothing else to compare it against.
+    @Environment(\.editorLook) private var look
+
     var body: some View {
         Text("Write anything.")
+            .font(Font(look.font.uiFont(compatibleWith: nil)))
             .foregroundStyle(.tertiary)
             // Where the editor puts its first character, asked of the editor:
             // the prompt stands exactly where the typing will start.

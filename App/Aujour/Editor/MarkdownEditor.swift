@@ -50,6 +50,14 @@ struct MarkdownEditor: UIViewRepresentable {
     let identifier: String
     let label: String
 
+    /// The typeface the day is written in and the colour the app is drawn in,
+    /// both of them this device's own choice (ADR 0003). Out of the
+    /// environment rather than handed down: between the settings that hold
+    /// them and this text view are the day on screen, the calendar that pushed
+    /// it and the search results that pushed it, none of which have anything
+    /// to say about typefaces.
+    @Environment(\.editorLook) private var look
+
     /// The room around the text.
     private static let textInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
 
@@ -70,7 +78,7 @@ struct MarkdownEditor: UIViewRepresentable {
     )
 
     func makeUIView(context: Context) -> UITextView {
-        let styling = MarkdownStyling()
+        let styling = look.styling(compatibleWith: nil)
         let storage = MarkdownTextStorage(styling: styling)
         // Its own layout manager, because a box and a picture are painted
         // where their glyphs ended up and nothing above the layout knows
@@ -102,6 +110,7 @@ struct MarkdownEditor: UIViewRepresentable {
         textView.alwaysBounceVertical = true
         textView.keyboardDismissMode = .interactive
         textView.typingAttributes = styling.baseAttributes
+        textView.tintColor = styling.box
 
         // The three substitutions that would put characters in the file that
         // nobody typed. A curly quote is a fine thing in prose and a wrong
@@ -141,18 +150,25 @@ struct MarkdownEditor: UIViewRepresentable {
         storage.pictures = pictures
         context.coordinator.insertsPhotographs(from: photographs, into: textView)
 
-        // Dynamic Type: the font everything else is derived from has moved, so
-        // everything is drawn again. Compared by font rather than by whole
-        // styling, because this runs on every keystroke and restyling a long
-        // day for a colour that only looks new would undo the point of the
-        // storage below.
-        let body = UIFont.preferredFont(
-            forTextStyle: .body,
-            compatibleWith: textView.traitCollection
-        )
-        if storage.styling.body != body {
-            storage.styling = storage.styling.with(body: body)
-            textView.typingAttributes = storage.styling.baseAttributes
+        // The three things that move how an Entry is drawn without a word of
+        // it changing: Dynamic Type, the editor font, and the accent. All of
+        // them arrive here as a styling that is not the one in force, and all
+        // of them mean drawing the day again.
+        //
+        // Compared by the font and the colour rather than by the whole
+        // styling, because this runs on every keystroke: the rest of a styling
+        // is system colours that never move, and comparing a dynamic colour
+        // built afresh each time would restyle a long day for a colour that
+        // only looks new.
+        let wanted = look.styling(compatibleWith: textView.traitCollection)
+        if storage.styling.body != wanted.body || storage.styling.box != wanted.box {
+            storage.styling = wanted
+            textView.typingAttributes = wanted.baseAttributes
+            // The caret and the selection too, which are the text view's own
+            // and not the storage's — an accent everything else in the app
+            // answered to, with a blue cursor left blinking in the middle of
+            // it, is the one place the choice would look unfinished.
+            textView.tintColor = wanted.box
         }
 
         // Only when the text came from somewhere other than this text view —

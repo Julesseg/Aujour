@@ -31,3 +31,33 @@ The design files' own token board is separately wrong about its light values
 and should not be used as a reference: it advertises `--ink-2` as `#8B857F`
 where the CSS composites to `#746F6A`, and `--ink-3` as `#B5AFA9` where it
 composites to `#A6A29D`.
+
+## What the raised values measured, once there was a palette to measure
+
+Building the token layer put numbers on the alphas above, and two of them did
+not land where this ADR expected. The floor is unchanged — it is the decision,
+and it is what the tests assert. What changed is which token is licensed for
+which job.
+
+`--ink-3` at `.52` light and `.46` dark measures **3.31:1** and **3.93:1** on
+the worst ground it can be drawn on. That is the marker floor and not the
+sentence one, so the raise did what it could and stopped short of what the
+paragraph above claimed for it. Held to 4.5:1 instead it would need roughly
+`.63` light, which is `--ink-2` — the identity would have three inks and two
+steps. So `--ink-3` stays where it is and carries markers, chevrons and the
+small capitals over a section, and **a sentence takes `--ink-2`**, however
+quiet the design file draws it. The sentences named above move with it.
+
+`--ink-2` at the identity's `.62` measures **4.45:1** in light, which misses
+the floor by a rounding error nobody would have caught by eye. It ships at
+`.64`.
+
+The floor also applies on every ground and not only on `--bg`: `--card` in
+dark is the lightest surface in the app, and an accent-tinted pill is a ground
+of its own. Reading it that way costs four of the nine accents another ~3% of
+their light value, and adds a second accent shade — `--accent-ink`, which the
+design file already names — for accent-coloured words on an accent-coloured
+wash, where the accent on its own wash lands between 3.6:1 and 4.4:1.
+
+`App/AujourTests/IdentityTests.swift` is where all of this is enforced. The
+numbers here are a record of why; that file is what fails if a value drifts.

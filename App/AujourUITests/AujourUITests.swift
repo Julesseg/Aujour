@@ -1747,6 +1747,7 @@ final class AujourUITests: XCTestCase {
     ///     only way a data placeholder has anything to render.
     ///   - reminders: the same, for the day's reminders.
     private func launchApp(
+        textSize: String? = nil,
         contentTemplate: String? = nil,
         welcome: Bool = false,
         folderToPick: String? = nil,
@@ -1766,6 +1767,13 @@ final class AujourUITests: XCTestCase {
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["AUJOUR_UITEST_JOURNAL_FOLDER"] = journalFolder
+        // Where the reader has left the system's text size. A launch argument
+        // and not an environment variable, because this is UIKit's own switch
+        // rather than one of Aujour's — the app never reads it, it just comes
+        // up drawn at that size.
+        if let textSize {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", textSize]
+        }
         // Only when a test asks for one. Seeded on every launch, it would be
         // set again on the relaunch that is supposed to prove a template set
         // through the app is still there.
@@ -2020,6 +2028,127 @@ final class AujourUITests: XCTestCase {
                 + "light device — it was \(inAuto), against \(inDark) in dark "
                 + "and \(inLight) in light"
         )
+    }
+
+    /// The claim the identity's type scale is built on: chrome answers the
+    /// system's text size, and the screen still holds together when the reader
+    /// has turned it all the way up.
+    ///
+    /// Asked of the page the token layer is adopted on, because that is where
+    /// there is something to ask it of. Two launches and not one — a size only
+    /// means something against another size, and a page that ignored Dynamic
+    /// Type entirely would pass every "is it on screen" check ever written.
+    ///
+    /// The overlap half is the part that a scale alone does not give you: a
+    /// stack whose gaps are fixed while its labels have trebled is a stack
+    /// whose sentence is sitting on top of the control above it, and it looks
+    /// perfectly correct at the size it was designed at.
+    func testTheAppearancePageHoldsTogetherAtTheLargestTextSize() throws {
+        let atTheFactorySetting = launchApp()
+        openHowItLooks(in: atTheFactorySetting)
+        let smallPrint = atTheFactorySetting.staticTexts["appearanceIsDeviceLocal"]
+        scrollTo(smallPrint, in: atTheFactorySetting)
+        let ordinaryHeight = smallPrint.frame.height
+        atTheFactorySetting.terminate()
+
+        let app = launchApp(textSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        openHowItLooks(in: app)
+
+        // It grew. Measured on the smallest lettering on the page, because the
+        // caption is the one a reader who needs this most cannot read, and the
+        // one an app is likeliest to have pinned.
+        let turnedUp = app.staticTexts["appearanceIsDeviceLocal"]
+        scrollTo(turnedUp, in: app)
+        XCTAssertGreaterThan(
+            turnedUp.frame.height, ordinaryHeight,
+            "the page's small print did not grow with the system text size — "
+                + "it was \(ordinaryHeight) points tall and is now \(turnedUp.frame.height)"
+        )
+
+        // And nothing on it has climbed on top of anything else, or slid off
+        // the side. Checked over what is on screen at each stop of a scroll
+        // down the page, since an element that has not been scrolled to has no
+        // frame worth comparing.
+        // Named by what is in it rather than taken as the first one on screen:
+        // this suite runs on iPad too, where the page is inside a form sheet
+        // and "the first scroll view" is not a promise anybody made.
+        let page = app.scrollViews.containing(.segmentedControl, identifier: "appearanceTheme")
+            .firstMatch
+        XCTAssertTrue(page.waitForExistence(timeout: 10), "the appearance page has no scroll view")
+        page.swipeDown(velocity: .slow)
+
+        for _ in 0..<4 {
+            assertTheLayoutHolds(on: page)
+            page.swipeUp(velocity: .fast)
+        }
+        assertTheLayoutHolds(on: page)
+    }
+
+    /// That everything the page is showing has a frame of its own: within the
+    /// page's width, and touching nothing else's.
+    ///
+    /// Asked of the page rather than of the window, and of the leaves rather
+    /// than of everything. Stacks are left out because a stack's frame is the
+    /// union of what is in it and overlaps every one of them by definition,
+    /// and the navigation bar is left out because scrolling content passing
+    /// under a translucent bar is what a translucent bar is.
+    ///
+    /// Only the width is a containment claim. A page taller than the screen is
+    /// what a scroll view is for — an element hanging off the bottom has been
+    /// scrolled to, not clipped — but one hanging off the *side* has nowhere
+    /// to go, and is the failure a fixed width causes when a label trebles.
+    private func assertTheLayoutHolds(on page: XCUIElement) {
+        let visible = page.frame
+        // Every property read here is a round trip to the app under test, and
+        // a screenful of them compared against each other is that squared. So
+        // each frame is read exactly once, into a plain value, and the pairwise
+        // arithmetic happens off the snapshot. The labels are never read at
+        // all unless something fails — an assertion's message is an
+        // autoclosure, so the element only gets asked what it says on the way
+        // to a failure report.
+        let laidOut =
+            (page.staticTexts.allElementsBoundByIndex
+            + page.segmentedControls.allElementsBoundByIndex
+            + page.buttons.allElementsBoundByIndex)
+            .map { (element: $0, frame: $0.frame) }
+            .filter { !$0.frame.isEmpty }
+            // Whatever is wholly on screen right now. One that is half
+            // scrolled past has a frame the page is deliberately not showing
+            // all of, and comparing it against its neighbour's says nothing.
+            .filter { visible.minY <= $0.frame.minY && $0.frame.maxY <= visible.maxY }
+
+        for element in laidOut {
+            XCTAssertTrue(
+                element.frame.minX >= visible.minX - 1 && element.frame.maxX <= visible.maxX + 1,
+                "\"\(element.element.label)\" is at \(element.frame), off a page \(visible) wide"
+            )
+        }
+
+        for (index, one) in laidOut.enumerated() {
+            for other in laidOut.dropFirst(index + 1) {
+                // One frame inside another is a thing inside its container —
+                // a segmented control holds the three buttons it is made of —
+                // and is the shape of correct nesting rather than of a
+                // collision. What is being looked for is a *partial* overlap:
+                // two things that were each laid out as though the other were
+                // not there.
+                let roomToSpare = one.frame.insetBy(dx: -1, dy: -1)
+                guard
+                    !roomToSpare.contains(other.frame),
+                    !other.frame.insetBy(dx: -1, dy: -1).contains(one.frame)
+                else { continue }
+                // And a hair of tolerance on the rest: two adjacent rows whose
+                // frames share an edge are laid out correctly, and
+                // floating-point arithmetic makes a shared edge a half-point
+                // overlap often enough.
+                let shared = one.frame.intersection(other.frame)
+                XCTAssertTrue(
+                    shared.isNull || shared.width < 1 || shared.height < 1,
+                    "\"\(one.element.label)\" at \(one.frame) is sitting on top of "
+                        + "\"\(other.element.label)\" at \(other.frame)"
+                )
+            }
+        }
     }
 
     /// The way in: the journal sheet, and the one row on it that is not about

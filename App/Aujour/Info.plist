@@ -45,6 +45,27 @@
 		</dict>
 	</dict>
 
+	<!-- The identity's prose voice, registered at launch so that
+	     `UIFont(name:)` can find it. Two files and six faces: Newsreader is a
+	     variable font, and Light, Regular and Medium in each slant are named
+	     instances cut out of these.
+
+	     Bare file names and no folder, because a synchronized group copies
+	     resources into the bundle's root whatever folder they were authored
+	     in — a path here would be a font that silently fails to register and
+	     an app that draws its prose in Helvetica. `NewsreaderTests` is what
+	     catches that, by asking a resolved font which family it ended up in.
+
+	     Here rather than as a build setting for the same reason as the keys
+	     above, and with the same failure mode: a font list that does not
+	     reach the bundle is not a build error, it is prose drawn in the
+	     wrong face. -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>Newsreader.ttf</string>
+		<string>Newsreader-Italic.ttf</string>
+	</array>
+
 	<!-- What the system alert says when {{events}} or {{reminders}} is in
 	     somebody's Content Template. Written out here rather than as build
 	     settings for the same reason as the file-sharing pair at the top: a

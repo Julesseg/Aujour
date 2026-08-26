@@ -52,7 +52,13 @@ struct DatePillView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            panel
+            // Not built at all while it is shut, rather than built and hidden.
+            // A shut pill is not a calendar with the lights off: the days of
+            // the month are not there to be found by a finger, by VoiceOver or
+            // by anything else until it has been opened.
+            if pill.progress > 0 {
+                panel
+            }
         }
         .frame(width: width)
         .background(glass, in: shape)
@@ -103,10 +109,14 @@ struct DatePillView: View {
                 headerContent
                     .fixedSize()
                     .hidden()
-                    // Twice over, because this copy carries the pill's own
-                    // identifiers and the way back to today: a second
+                    // Collapsed into one element and then hidden, rather than
+                    // hidden alone. This copy carries the pill's own
+                    // identifiers and the way back to today, and a second
                     // `backToToday` behind the first is a button a finger
-                    // cannot reach and a test cannot tell from the real one.
+                    // cannot reach and nothing else can tell from the real one
+                    // — so the children are given up before the parent is put
+                    // out of sight.
+                    .accessibilityElement(children: .ignore)
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: {
@@ -222,10 +232,6 @@ struct DatePillView: View {
         .frame(height: panelHeight, alignment: .top)
         .clipped()
         .opacity(min(pill.progress * 2.2, 1))
-        // A shut pill is not a calendar with the lights off: nothing in here
-        // is reachable by a finger or by VoiceOver until it is open.
-        .allowsHitTesting(pill.detent != .closed)
-        .accessibilityHidden(pill.detent == .closed)
     }
 
     private var monthRow: some View {
@@ -260,6 +266,10 @@ struct DatePillView: View {
         // Only once the month is nearly all the way out: it names the grid,
         // and there is no grid to name until there is more than one week of it.
         .opacity(min(max((pill.progress - 1.45) * 3, 0), 1))
+        // And out of a finger's way until then. Clipping is drawing and not
+        // hit testing: this row is above the ceiling in the week strip, drawn
+        // nowhere and still sitting squarely on the pill it came out of.
+        .allowsHitTesting(pill.detent == .month)
     }
 
     private var weekdayNames: some View {
@@ -280,7 +290,7 @@ struct DatePillView: View {
 
     private var grid: some View {
         VStack(spacing: 0) {
-            ForEach(Array(calendar.month.weeks.enumerated()), id: \.offset) { _, week in
+            ForEach(Array(calendar.month.weeks.enumerated()), id: \.offset) { row, week in
                 HStack(spacing: 0) {
                     // Identified by the place in the grid rather than by the
                     // day, so that a scan arriving mid-drag changes what a cell
@@ -290,6 +300,13 @@ struct DatePillView: View {
                     }
                 }
                 .frame(height: rowHeight)
+                // A row above or below the ceiling is not merely not drawn:
+                // it is not there to be tapped either. Clipping in SwiftUI is
+                // drawing alone, so a week strip whose other five rows were
+                // only *clipped* would be five rows of invisible buttons — and
+                // the ones the grid has slid up past sit directly on the pill,
+                // swallowing the tap that would have opened it further.
+                .allowsHitTesting(rowIsUnderTheCeiling(row))
             }
         }
         // Slid up by whole rows until the week being written is under the
@@ -299,6 +316,18 @@ struct DatePillView: View {
         .frame(height: CGFloat(calendar.month.weeks.count) * rowHeight, alignment: .top)
         .clipped()
         .padding(.horizontal, Spacing.close)
+    }
+
+    /// Whether a row of the grid is one a finger can reach: on screen in
+    /// whole, in the room the panel is currently open to.
+    private func rowIsUnderTheCeiling(_ row: Int) -> Bool {
+        // Within the panel, the grid starts below whatever of the month row
+        // has come out, and below the weekday names.
+        let ceiling = panelHeight - monthRowHeight * pill.spread - weekdayHeight
+        let top = CGFloat(row) * rowHeight + gridSlide
+        // Half a point of slack, because these are two sums of the same
+        // scaled numbers and a row exactly on the line should be reachable.
+        return top >= -0.5 && top + rowHeight <= ceiling + 0.5
     }
 
     private func pickAndClose(_ day: JournalDay) {

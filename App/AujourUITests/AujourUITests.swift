@@ -1282,25 +1282,39 @@ final class AujourUITests: XCTestCase {
         XCTAssertTrue(today.waitForExistence(timeout: 5), "the week strip had no days on it")
         XCTAssertTrue(today.isHittable, "today could not be tapped in the week strip")
 
-        // A strip is one week and not a month with five of its rows painted
-        // out: the rows behind the ceiling are behind it for a finger too, and
-        // a tap aimed where one of them would be lands on the day's words.
-        // At most seven, and not exactly seven, because a week holding days
-        // that have not arrived holds days that cannot be tapped.
-        XCTAssertLessThanOrEqual(
-            daysAFingerCanReach(in: app), 7,
-            "more than a week of days could be tapped in the week strip"
-        )
-
         pill.tap()
         expect(pill, toHaveValue: "Month")
-        XCTAssertGreaterThan(
-            daysAFingerCanReach(in: app), 7,
-            "the month showed no more days than the week strip did"
-        )
 
         pill.tap()
         expect(pill, toHaveValue: "Closed")
+
+        // A strip is one week and not a month with five of its rows painted
+        // out. A row the grid has slid past is drawn nowhere *and* is not
+        // there to be tapped — those rows sit squarely on the pill they came
+        // out of, so a week's worth of invisible buttons there would pick a
+        // day nobody aimed at, and swallow the tap that opens the month.
+        //
+        // A week ago is the same weekday one row up, so it is always on the
+        // grid and never on the strip.
+        let aWeekAgo = try XCTUnwrap(daysBeforeToday(7))
+        let aRowUp = app.buttons["day-\(entryName(for: aWeekAgo))"]
+        openTheDatePill(app, to: "Week")
+        XCTAssertTrue(aRowUp.exists, "the week before was not on the grid")
+        if aRowUp.isHittable { aRowUp.tap() }
+        XCTAssertFalse(
+            app.buttons["backToToday"].exists,
+            "a day the strip had slid past was picked through the ceiling"
+        )
+
+        // And with the whole month out it is a day like any other. Which is
+        // also what says the ceiling is not simply shut: a grid nothing could
+        // be picked from would pass every check above.
+        openTheDatePill(app, to: "Month")
+        aRowUp.tap()
+        XCTAssertTrue(
+            app.buttons["backToToday"].waitForExistence(timeout: 5),
+            "the week before could not be picked with the whole month showing"
+        )
     }
 
     func testTheDatePillIsDraggedOpenAndDraggedShut() throws {
@@ -1308,21 +1322,25 @@ final class AujourUITests: XCTestCase {
         let pill = app.buttons["datePill"]
         XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
 
-        // A finger that barely moved is a tap and not a drag that went
-        // nowhere, so a short pull leaves it where it was.
-        drag(pill, by: 8)
-        expect(pill, toHaveValue: "Week")
-        drag(pill, by: -8)
-        expect(pill, toHaveValue: "Closed")
-
         // Pulled far enough down to be unambiguous, it goes the whole way in
         // one gesture rather than one state at a time.
         drag(pill, by: 400)
         expect(pill, toHaveValue: "Month")
 
-        // And back up, from wherever it had got to.
-        drag(pill, by: -400)
+        // And back up. A state at a time on the way up, because the pill is at
+        // the top of the screen and a finger cannot be pulled off it.
+        drag(pill, by: -110)
+        expect(pill, toHaveValue: "Week")
+
+        drag(pill, by: -110)
         expect(pill, toHaveValue: "Closed")
+
+        // Let go between two states, it takes the nearer one rather than
+        // staying between them — which is what a pill with three states and a
+        // continuous gesture has to do, and what nothing on screen could be
+        // left saying.
+        drag(pill, by: 160)
+        expect(pill, toHaveValue: "Week")
     }
 
     func testPickingADayFromTheDatePillOpensItAndShutsThePill() throws {
@@ -2411,26 +2429,16 @@ final class AujourUITests: XCTestCase {
             pill.tap()
             // Given the settle a moment to finish, so the next tap steps from
             // where this one left it rather than from mid-flight.
-            Thread.sleep(forTimeInterval: 0.5)
+            Thread.sleep(forTimeInterval: 0.8)
         }
         XCTAssertEqual(pill.value as? String, state, "the date pill would not open to \(state)")
-    }
-
-    /// How many days of the grid a finger could actually land on — which is
-    /// what tells a week strip from a month, since both have the same
-    /// forty-two cells and only one of them has them on screen.
-    private func daysAFingerCanReach(in app: XCUIApplication) -> Int {
-        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'day-'"))
-            .allElementsBoundByIndex
-            .filter { $0.isHittable }
-            .count
     }
 
     /// Pulls something down (or up, for a negative distance) and lets go.
     private func drag(_ element: XCUIElement, by distance: CGFloat) {
         let from = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         from.press(
-            forDuration: 0.05,
+            forDuration: 0.2,
             thenDragTo: from.withOffset(CGVector(dx: 0, dy: distance))
         )
         // The spring, which the next assertion would otherwise catch part-way

@@ -534,6 +534,29 @@ it is a writing preference, how big somebody wants their own words, and it
 governs the Entry alone. Everything else in the app follows the system's own
 text size, which is a decision the user already made for everything they read.
 
+### Identity
+The one place that answers what colour, what size, what corner and what
+shadow. A screen names a *role* — the card, the faint ink, a row's label, a
+control's corner — and never a value, which is what lets the look be re-cut
+without a hunt through the app for hex codes somebody typed in once.
+
+Four sets and a typeface. The **Palette** is the paper, the ink and its two
+muted steps, the rules and fields, and the three glass recipes; every token is
+a dynamic colour resolved against the screen it lands on, never a pair a
+screen picks between. The **type scale** is a set of named roles, all of which
+answer Dynamic Type. **Rounding** and **Spacing** are four steps each, and
+**Elevation** is what lifts a surface off the one behind it. **Newsreader** is
+the prose voice — a bundled variable font, three weights in two slants.
+
+Two things about it are not a screen's to reopen. Every ink and every accent
+clears the contrast floor (ADR 0006), which is asserted rather than intended:
+a sentence clears 4.5:1 on every ground it can land on, a marker or a chevron
+clears 3:1, and the faint ink is the one token deliberately below the sentence
+floor — held to it, it would land on top of the muted step and the identity
+would lose a step it uses everywhere. And *everything* on the type scale is
+chrome and follows the system's text size; the S/M/L/XL control is a writing
+preference and reaches the Entry alone.
+
 ### Theme
 Which of light and dark Aujour is drawn in, or `auto` — the default, and the
 only one of the three that leaves the choice to the device rather than

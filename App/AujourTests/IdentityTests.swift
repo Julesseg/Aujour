@@ -189,6 +189,31 @@ struct AccentContrastTests {
         }
     }
 
+    /// The other way round: a mark written *on* a fill of the accent rather
+    /// than in it, which is the pressed key on the accessory row and the only
+    /// place in the app that happens. `Palette.onAccent` is the paper of the
+    /// appearance the accent was tuned against — near-white in light, where
+    /// the accents are dark enough to carry it, near-black in dark, where they
+    /// are light.
+    ///
+    /// Held to 4.5:1 and not the 3:1 a mark could settle for, because all nine
+    /// clear it with room and a floor nobody is pressed against is a floor
+    /// worth keeping.
+    @Test("what is written on a fill of the accent clears 4.5:1", arguments: Accent.allCases)
+    func onAccentClearsTheFloorOnTheAccent(accent: Accent) {
+        for appearance in appearances {
+            let fill = Landed(accent.uiColor, in: appearance.style)
+            let mark = Landed(Palette.onAccent, in: appearance.style, over: accent.uiColor)
+            #expect(
+                mark.contrast(against: fill) >= 4.5,
+                """
+                a mark on \(accent.name) in \(appearance.name) is \
+                \(mark.contrast(against: fill)), under 4.5:1
+                """
+            )
+        }
+    }
+
     @Test("each accent is a different colour in light and in dark", arguments: Accent.allCases)
     func accentsTurnWithTheAppearance(accent: Accent) {
         #expect(accent.uiColor.hex(in: .light) != accent.uiColor.hex(in: .dark))

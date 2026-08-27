@@ -24,6 +24,40 @@ import UIKit
 /// docked above a hardware one. A day nobody is writing in has no keyboard and
 /// no row — which is the same rule live preview draws by, and leaves a day
 /// being read as a document with nothing over it.
+///
+/// ## The pane it is drawn on
+///
+/// A pill of glass floating over the words, inset from both edges and lifted
+/// off the keyboard, rather than a bar filling the width: the identity's
+/// chrome sits *over* the paper and lets it show through, and a row that
+/// reached both edges would read as part of the keyboard rather than as
+/// something the app put there.
+///
+/// It is the platform's own glass, tinted to `Palette.glass`, rather than the
+/// blur-and-paint the design file spells out in CSS. The mock is a web page
+/// approximating a material the web does not have; on iOS 26 the material is
+/// real, and `.62` of cream laid *over* a blur is simply cream — the pane
+/// stops being a pane. Tinted, so it is still the identity's paper and not the
+/// system's white. Glass lights and shades itself, so there is no ring and no
+/// shadow here either; two rims that disagree look worse than one.
+///
+/// Reduce Transparency is the exception, and gets all of it back: no pane, so
+/// `Palette.glassSolid` — the opaque colour glass averages to — with the ring
+/// for an edge and `Elevation.floating` for the lift, because a cream capsule
+/// on a cream page has nothing else to say it is in front.
+///
+/// The pill is a capsule rather than one of `Rounding`'s four corners, which
+/// is that set's own instruction: a pill has no entry there because it is half
+/// its own height, at every size the type scale can grow this row to.
+///
+/// ## What is behind it
+///
+/// Nothing, today. SwiftUI's keyboard avoidance shrinks the editor above this
+/// row, so the words stop short of it and the pane is over blank paper — which
+/// makes glass and paint identical on screen, and is why this file is not
+/// worth a third opinion until that changes. The identity draws the row over
+/// the text; when the editor stops moving out from under it, this is already
+/// the thing that will show it.
 final class MarkdownAccessoryRow: UIInputView {
     /// What a control does when it is tapped. The row knows the commands and
     /// nothing about the text they are for.
@@ -37,12 +71,38 @@ final class MarkdownAccessoryRow: UIInputView {
     /// is not ready.
     private let insertPhoto: (() -> Void)?
 
-    init(insertPhoto: (() -> Void)? = nil, format: @escaping (MarkdownFormatting) -> Void) {
+    /// The app's own colour, which is what a key fills with under a thumb.
+    ///
+    /// Handed in rather than read off `tintColor`, because an accessory view
+    /// does not live in the app's window: the keyboard puts it in one of its
+    /// own, where the app's tint does not reach and the answer would quietly
+    /// be the system's blue. Settable, because the accent is a Device Setting
+    /// and moving it has to reach a row that is already on screen.
+    var accent: UIColor {
+        didSet {
+            guard accent != oldValue else { return }
+            for control in controls { control.setNeedsUpdateConfiguration() }
+        }
+    }
+
+    /// The pane of glass the keys sit on, which rounds and lifts itself.
+    private let pill = GlassPill()
+
+    /// Every key, in the order they sit in — held so that the accent moving
+    /// can reach them without a walk back down the view tree.
+    private var controls: [UIButton] = []
+
+    init(
+        accent: UIColor,
+        insertPhoto: (() -> Void)? = nil,
+        format: @escaping (MarkdownFormatting) -> Void
+    ) {
+        self.accent = accent
         self.insertPhoto = insertPhoto
         self.format = format
         super.init(
             frame: CGRect(x: 0, y: 0, width: 0, height: MarkdownAccessoryRow.rowHeight),
-            inputViewStyle: .keyboard
+            inputViewStyle: .default
         )
 
         // The height is this view's own to say, and it says it through
@@ -53,12 +113,25 @@ final class MarkdownAccessoryRow: UIInputView {
         accessibilityIdentifier = "markdownAccessoryRow"
 
         layOutControls()
+        drawTheGlass()
 
         // Dynamic Type moves the symbols, and the row has to be as tall as
         // whatever they came out.
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) {
             (row: Self, _) in row.invalidateIntrinsicContentSize()
         }
+        // The ring is a `CGColor` on a layer, which is the one kind of colour
+        // in UIKit that does not turn with the appearance by itself.
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) {
+            (row: Self, _) in row.drawTheGlass()
+        }
+        // And a reader who turns translucency off with the keyboard already up.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(drawTheGlass),
+            name: UIAccessibility.reduceTransparencyStatusDidChangeNotification,
+            object: nil
+        )
     }
 
     /// Never happens: an accessory row is made with the editor it sits over,
@@ -69,18 +142,31 @@ final class MarkdownAccessoryRow: UIInputView {
 
     // MARK: - How tall it is
 
-    /// A thumb's worth, grown with the text size — a row whose symbols are
-    /// larger than the room they are in is a row somebody is aiming at from
+    /// A thumb's worth of key, grown with the text size — a key whose symbol
+    /// is larger than the room it is in is a key somebody is aiming at from
     /// memory. Capped, because past a point it is the keyboard that has to
     /// stay on screen.
-    private static var rowHeight: CGFloat {
+    private static var keyHeight: CGFloat {
         min(UIFontMetrics(forTextStyle: .body).scaledValue(for: 44), 64)
     }
 
+    /// The gap above and below the keys — inside the pane, and again between
+    /// the pane and the row's own edges.
+    private static let padding = Spacing.tight
+
+    /// How far the pane is held off the two screen edges, which is the inset
+    /// the identity gives every piece of chrome that floats over the paper.
+    private static let inset = Spacing.close
+
+    /// The keys, the room around them, and the room around the pane.
+    private static var rowHeight: CGFloat {
+        keyHeight + padding * 4
+    }
+
     override var intrinsicContentSize: CGSize {
-        // Plus whatever the device keeps for itself below: docked above a
-        // hardware keyboard on an iPad, the row is the last thing before the
-        // home indicator.
+        // The pill, the gap above and below it, and then whatever the device
+        // keeps for itself: docked above a hardware keyboard on an iPad, the
+        // row is the last thing before the home indicator.
         CGSize(
             width: UIView.noIntrinsicMetric,
             height: MarkdownAccessoryRow.rowHeight + safeAreaInsets.bottom
@@ -92,13 +178,50 @@ final class MarkdownAccessoryRow: UIInputView {
         invalidateIntrinsicContentSize()
     }
 
+    // MARK: - The glass
+
+    /// The pane's tint, its ring, and whether it is a pane at all.
+    ///
+    /// Called again whenever one of the two things it reads moves: the
+    /// appearance, because a ring is a `CGColor` and those do not turn by
+    /// themselves, and Reduce Transparency, because a reader can ask for it
+    /// while looking at this row.
+    @objc private func drawTheGlass() {
+        guard !UIAccessibility.isReduceTransparencyEnabled else {
+            // No pane, so the pill has to be a surface by itself: the opaque
+            // colour glass averages to, and the ring and the lift it would
+            // otherwise have got from the glass.
+            pill.pane.effect = nil
+            pill.pane.contentView.backgroundColor = Palette.glassSolid
+            pill.pane.layer.borderWidth = 0.5
+            pill.pane.layer.borderColor =
+                Palette.glassRing.resolvedColor(with: traitCollection).cgColor
+            pill.lifted(true)
+            return
+        }
+
+        // The platform's own glass, tinted to the identity's paper rather than
+        // painted over with it: a cream at `.62` laid on top of a blur is a
+        // cream, and the pane stops being a pane.
+        let glass = UIGlassEffect(style: .regular)
+        glass.tintColor = Palette.glass
+        pill.pane.effect = glass
+        pill.pane.contentView.backgroundColor = .clear
+
+        // Glass draws its own edge and its own shadow, and a second of either
+        // is not twice as convincing — it is two rims that do not agree.
+        pill.pane.layer.borderWidth = 0
+        pill.lifted(false)
+    }
+
     // MARK: - The controls
 
     private func layOutControls() {
-        let controls = UIStackView(arrangedSubviews: buttons())
-        controls.axis = .horizontal
-        controls.spacing = 2
-        controls.translatesAutoresizingMaskIntoConstraints = false
+        controls = buttons()
+        let keys = UIStackView(arrangedSubviews: controls)
+        keys.axis = .horizontal
+        keys.spacing = Spacing.tight
+        keys.translatesAutoresizingMaskIntoConstraints = false
 
         // Scrolled, because there are nine controls and a phone can be narrow
         // and its text large: a row that ran off the edge would be a row whose
@@ -106,24 +229,57 @@ final class MarkdownAccessoryRow: UIInputView {
         let scroller = UIScrollView()
         scroller.translatesAutoresizingMaskIntoConstraints = false
         scroller.showsHorizontalScrollIndicator = false
-        scroller.addSubview(controls)
-        addSubview(scroller)
+        scroller.addSubview(keys)
+
+        pill.translatesAutoresizingMaskIntoConstraints = false
+        pill.pane.contentView.addSubview(scroller)
+        addSubview(pill)
+
+        // An accessory view is built before anything has told it how wide it
+        // is, and a pane inset from both edges of nothing at all is a pane of
+        // negative width. Breakable, so that the one layout pass at zero
+        // resolves instead of being logged as a mistake.
+        let trailing = pill.trailingAnchor.constraint(
+            equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -Self.inset
+        )
+        trailing.priority = .required - 1
 
         NSLayoutConstraint.activate([
-            scroller.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor),
-            scroller.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor),
-            scroller.topAnchor.constraint(equalTo: topAnchor),
-            scroller.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor),
+            // Inset from both edges and off the keyboard: a pane over the
+            // paper rather than a bar across the bottom of it.
+            pill.leadingAnchor.constraint(
+                equalTo: safeAreaLayoutGuide.leadingAnchor, constant: Self.inset
+            ),
+            trailing,
+            pill.topAnchor.constraint(equalTo: topAnchor, constant: Self.padding),
+            pill.bottomAnchor.constraint(
+                equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -Self.padding
+            ),
 
-            controls.leadingAnchor.constraint(
-                equalTo: scroller.contentLayoutGuide.leadingAnchor, constant: 8
+            // Edge to edge across the pane, so the keys scroll under its own
+            // curve rather than stopping short of it; held off the top and
+            // bottom, so a pressed key's fill never reaches the rim.
+            scroller.leadingAnchor.constraint(equalTo: pill.pane.contentView.leadingAnchor),
+            scroller.trailingAnchor.constraint(equalTo: pill.pane.contentView.trailingAnchor),
+            scroller.topAnchor.constraint(
+                equalTo: pill.pane.contentView.topAnchor, constant: Self.padding
             ),
-            controls.trailingAnchor.constraint(
-                equalTo: scroller.contentLayoutGuide.trailingAnchor, constant: -8
+            scroller.bottomAnchor.constraint(
+                equalTo: pill.pane.contentView.bottomAnchor, constant: -Self.padding
             ),
-            controls.topAnchor.constraint(equalTo: scroller.contentLayoutGuide.topAnchor),
-            controls.bottomAnchor.constraint(equalTo: scroller.contentLayoutGuide.bottomAnchor),
-            controls.heightAnchor.constraint(equalTo: scroller.frameLayoutGuide.heightAnchor),
+
+            // The same gap the keys have above and below them. The pane's own
+            // curve is what holds the first key off its edge, and 9 keys are
+            // 8 points from fitting a phone as it is.
+            keys.leadingAnchor.constraint(
+                equalTo: scroller.contentLayoutGuide.leadingAnchor, constant: Self.padding
+            ),
+            keys.trailingAnchor.constraint(
+                equalTo: scroller.contentLayoutGuide.trailingAnchor, constant: -Self.padding
+            ),
+            keys.topAnchor.constraint(equalTo: scroller.contentLayoutGuide.topAnchor),
+            keys.bottomAnchor.constraint(equalTo: scroller.contentLayoutGuide.bottomAnchor),
+            keys.heightAnchor.constraint(equalTo: scroller.frameLayoutGuide.heightAnchor),
         ])
     }
 
@@ -194,30 +350,141 @@ final class MarkdownAccessoryRow: UIInputView {
         return button
     }
 
+    /// One key: a symbol in ink, and the accent under it while a thumb is
+    /// down.
+    ///
+    /// The pressed state is the whole reason these are configured rather than
+    /// drawn: a key on glass has nothing behind it to darken, so UIKit's own
+    /// highlight — the image fading out — reads as the row going wrong rather
+    /// than as a key going down. The identity fills the key instead and turns
+    /// the mark to `Palette.onAccent`, which is the one place in the app a
+    /// mark is written on the accent rather than in it.
+    /// What a key is drawn in, given what state it is in.
+    ///
+    /// A plain function of the three things it depends on, and separate from
+    /// the button so that it can be asked. The alternative is a test that sets
+    /// `isHighlighted` on a button in no window and hopes UIKit agrees a
+    /// thumb is down, which is a test of UIKit rather than of the identity.
+    static func colours(accent: UIColor, enabled: Bool, pressed: Bool) -> (
+        fill: UIColor, mark: UIColor
+    ) {
+        switch (enabled, pressed) {
+        // Configuring a button takes away the dimming `type: .system` did for
+        // free, so the one control that can be unavailable has to say so here
+        // or stop saying it at all. `inkFaint` is the marker step, which is
+        // what a symbol is.
+        case (false, _): (.clear, Palette.inkFaint)
+        case (true, true): (accent, Palette.onAccent)
+        case (true, false): (.clear, Palette.ink)
+        }
+    }
+
     private func button(
         _ symbol: String,
         _ label: String,
         _ identifier: String,
         tapped: (() -> Void)?
     ) -> UIButton {
+        var configuration = UIButton.Configuration.plain()
+        configuration.image = UIImage(systemName: symbol)
+        configuration.preferredSymbolConfigurationForImage =
+            UIImage.SymbolConfiguration(textStyle: .body)
+        configuration.background.cornerRadius = Rounding.control
+        // A configured button pads its own image by default, which would set
+        // the key's width before the constraint below ever got a say — and
+        // nine keys padded twice over do not fit the pane.
+        configuration.contentInsets = .zero
+
         let button = UIButton(
-            type: .system,
-            primaryAction: tapped.map { tapped in
-                UIAction(image: UIImage(systemName: symbol)) { _ in tapped() }
-            }
+            configuration: configuration,
+            primaryAction: tapped.map { tapped in UIAction { _ in tapped() } }
         )
-        // Set again for the menu button, which has no action to carry it.
-        button.setImage(UIImage(systemName: symbol), for: .normal)
-        button.setPreferredSymbolConfiguration(
-            UIImage.SymbolConfiguration(textStyle: .body), forImageIn: .normal
-        )
-        // A thumb's worth of button, whatever the symbol inside it measures.
-        button.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        button.configurationUpdateHandler = { [weak self] key in
+            guard let self else { return }
+            let drawn = Self.colours(
+                accent: accent, enabled: key.isEnabled, pressed: key.isHighlighted
+            )
+            key.configuration?.background.backgroundColor = drawn.fill
+            key.configuration?.baseForegroundColor = drawn.mark
+        }
+        // Wide enough to aim at, whatever the symbol inside it measures — the
+        // width the identity draws these at, and the width nine of them fit
+        // the pane at.
+        //
+        // Narrower than the 44 a control standing on its own would take, and
+        // the height is what carries the target instead: these are keys in a
+        // strip with keys either side, the way a keyboard's are, and a
+        // photograph control nobody can see because it is 6 points past the
+        // edge is worse aim than one 6 points narrower.
+        button.widthAnchor.constraint(greaterThanOrEqualToConstant: 38).isActive = true
 
         // What a UI test presses it by, and — with a symbol for a label and no
         // words anywhere — the only thing VoiceOver has to say about it.
         button.accessibilityIdentifier = identifier
         button.accessibilityLabel = label
         return button
+    }
+}
+
+/// The pane the keys sit on: glass, a capsule, and the shadows that lift it.
+///
+/// Two views and not one, because a pane has to clip its blur to its own
+/// corners and a view that clips cannot cast anything past them — so the
+/// outer one casts and the inner one clips.
+///
+/// It shapes itself. A capsule is half of however tall the view came out, and
+/// the shadows are cast in that same outline, so both are answers only a
+/// laid-out view has: the row above cannot give them, because when the row
+/// lays out its own subviews this one has not laid out its own yet.
+private final class GlassPill: UIView {
+    let pane = UIVisualEffectView()
+    private var shadows: [CALayer] = []
+
+    init() {
+        super.init(frame: .zero)
+
+        pane.clipsToBounds = true
+        // Circular rather than continuous: at half its own height the corner
+        // *is* a semicircle, and the shadow underneath is cast with the same
+        // arc — two curves that disagreed by a point would show as a rim.
+        pane.layer.cornerCurve = .circular
+        pane.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(pane)
+
+        shadows = Elevation.floating.castOn(self)
+
+        NSLayoutConstraint.activate([
+            pane.leadingAnchor.constraint(equalTo: leadingAnchor),
+            pane.trailingAnchor.constraint(equalTo: trailingAnchor),
+            pane.topAnchor.constraint(equalTo: topAnchor),
+            pane.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+
+    /// Never happens: the row builds one and nothing archives it.
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    /// Whether the pill casts its own shadows.
+    ///
+    /// It does not, while it is glass: the platform lights and shades a pane
+    /// of its own accord, and a hand-cast shadow under one is a second lift
+    /// disagreeing with the first. It does when it cannot be glass, because
+    /// then it is a cream capsule on a cream page and nothing else says it is
+    /// in front.
+    func lifted(_ casting: Bool) {
+        for shadow in shadows { shadow.isHidden = !casting }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let corner = bounds.height / 2
+        pane.layer.cornerRadius = corner
+        Elevation.shape(
+            shadows,
+            like: UIBezierPath(roundedRect: bounds, cornerRadius: corner),
+            in: bounds
+        )
     }
 }

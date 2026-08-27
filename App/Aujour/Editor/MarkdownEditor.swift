@@ -133,7 +133,9 @@ struct MarkdownEditor: UIViewRepresentable {
 
         context.coordinator.asks = asks
         context.coordinator.answersTaps(in: textView)
-        context.coordinator.formats(in: textView, addingPhotographs: photographs)
+        context.coordinator.formats(
+            in: textView, addingPhotographs: photographs, accent: styling.box
+        )
         storage.setSource(text)
         return textView
     }
@@ -169,6 +171,9 @@ struct MarkdownEditor: UIViewRepresentable {
             // answered to, with a blue cursor left blinking in the middle of
             // it, is the one place the choice would look unfinished.
             textView.tintColor = wanted.box
+            // And the row above the keyboard, whose pressed key is the same
+            // colour for the same reason.
+            context.coordinator.recolours(in: textView, to: wanted.box)
         }
 
         // Only when the text came from somewhere other than this text view —
@@ -307,9 +312,14 @@ struct MarkdownEditor: UIViewRepresentable {
         /// this text view's. The photograph control is the one that is not
         /// punctuation, and it is offered exactly when there is an Entry
         /// behind this editor for a photograph to be written beside.
-        func formats(in textView: UITextView, addingPhotographs: InsertedPhotographs?) {
+        func formats(
+            in textView: UITextView,
+            addingPhotographs: InsertedPhotographs?,
+            accent: UIColor
+        ) {
             insertsPhotographs(from: addingPhotographs, into: textView)
             textView.inputAccessoryView = MarkdownAccessoryRow(
+                accent: accent,
                 insertPhoto: addingPhotographs == nil
                     ? nil
                     : { [weak self, weak textView] in
@@ -320,6 +330,17 @@ struct MarkdownEditor: UIViewRepresentable {
                 guard let self, let textView else { return }
                 format(command, in: textView)
             }
+        }
+
+        /// The accent moved, and the row above the keyboard is drawn in it too
+        /// — a pressed key fills with the app's own colour like every other
+        /// control that answers a tap.
+        ///
+        /// Set on the row that is already there rather than building another
+        /// one: the row can be on screen while this happens, and replacing an
+        /// `inputAccessoryView` under a live keyboard is a flicker at best.
+        func recolours(in textView: UITextView, to accent: UIColor) {
+            (textView.inputAccessoryView as? MarkdownAccessoryRow)?.accent = accent
         }
 
         /// Points both ways into a photograph at this text view — the control

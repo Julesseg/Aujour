@@ -79,7 +79,9 @@ final class OpenEditor {
         textView.delegate = coordinator
         coordinator.asks = { [weak self] question in self?.asked = question }
         coordinator.answersTaps(in: textView)
-        coordinator.formats(in: textView, addingPhotographs: photographs)
+        coordinator.formats(
+            in: textView, addingPhotographs: photographs, accent: styling.box
+        )
 
         storage.setSource(source)
         layoutManager.ensureLayout(for: container)

@@ -21,8 +21,11 @@ struct DatePillTests {
         #expect(!pill.isBeingDragged)
     }
 
-    @Test("tapping steps it closed → week → month → closed")
-    func tappingCyclesThroughTheThreeStates() {
+    /// The pill opens on a tap and then goes back and forth between the two
+    /// things it has to show. Tapping never shuts it: the way out is the day's
+    /// own words behind it, and picking a day out of the grid.
+    @Test("tapping opens it, and then goes between the week and the month")
+    func tappingGoesBetweenTheWeekAndTheMonth() {
         var pill = DatePill()
 
         pill.tapped()
@@ -32,7 +35,10 @@ struct DatePillTests {
         #expect(pill.detent == .month)
 
         pill.tapped()
-        #expect(pill.detent == .closed)
+        #expect(pill.detent == .week)
+
+        pill.tapped()
+        #expect(pill.detent == .month)
     }
 
     @Test("a drag downward opens it by however far the finger went")
@@ -152,15 +158,16 @@ struct DatePillTests {
         pill.dragged(by: DatePill.travel * 2)
         #expect(pill.detent == .month)
 
-        // Tapped round to shut.
+        // Tapped back to the week.
         pill.tapped()
-        #expect(pill.detent == .closed)
+        #expect(pill.detent == .week)
         #expect(!pill.isBeingDragged)
 
-        // And a fresh drag opens it by its own distance, from where the pill
-        // is rather than from where the abandoned one had got to.
+        // And a fresh drag moves it by its own distance from where the pill
+        // now is. Still anchored to the abandoned drag, this would start from
+        // the closed pill that one began on and land a whole state short.
         pill.dragged(by: DatePill.travel)
-        #expect(pill.progress == 1)
+        #expect(pill.progress == 2)
     }
 
     @Test("picking a day shuts it, wherever it had been left")

@@ -41,6 +41,14 @@ struct DatePillView: View {
     /// How much width there is to grow into.
     @State private var roomToOpenInto: CGFloat = 0
 
+    /// How far sideways a finger has pushed the grid, and what a stepped week
+    /// or month settles back from.
+    ///
+    /// Only the grid moves: the weekday names over it say the same thing in
+    /// every week of every month, and a heading that slid with the days would
+    /// be movement that carried no news.
+    @State private var sideways: CGFloat = 0
+
     // The grid's geometry, which is arithmetic and so has to be numbers rather
     // than whatever SwiftUI would have laid out: the panel's height, the
     // distance the grid slides and the width the glass grows to are all read
@@ -100,14 +108,34 @@ struct DatePillView: View {
     private var header: some View {
         headerContent
             .contentShape(.rect)
-            // One gesture for both, which is why `minimumDistance` is zero: a
-            // tap and a drag arrive as the same finger, and two gestures
-            // competing over it is how a pill ends up ignoring one of them.
-            // Which one it was is `DatePill`'s to say.
+            // One gesture for all three, which is why `minimumDistance` is
+            // zero: a tap, a pull and a walk arrive as the same finger, and
+            // gestures competing over one finger is how a pill ends up
+            // ignoring one of them. Which of the first two it was is
+            // `DatePill`'s to say; sideways is the pill's own business,
+            // because it is the calendar being walked rather than opened.
             .gesture(
                 DragGesture(minimumDistance: 0)
-                    .onChanged { pill.dragged(by: $0.translation.height) }
-                    .onEnded { pill.letGo(afterMoving: $0.translation.height) }
+                    .onChanged { finger in
+                        pill.dragged(by: finger.translation.height)
+                        sideways = pill.detent == .closed ? 0 : held(finger)
+                    }
+                    .onEnded { finger in
+                        let across = finger.translation.width
+                        if wentSideways(finger), pill.detent != .closed {
+                            // Put back where the finger found it: a walk across
+                            // the pill is not a small pull down it, and a
+                            // sideways swipe that opened the month on the way
+                            // past would be the pill answering a question
+                            // nobody asked.
+                            pill.dragged(by: 0)
+                            pill.letGo(afterMoving: across)
+                            step(by: across < 0 ? 1 : -1)
+                        } else {
+                            pill.letGo(afterMoving: finger.translation.height)
+                        }
+                        withAnimation(settle) { sideways = 0 }
+                    }
             )
             // Measured and not drawn: the same row at its own natural width,
             // which is what the pill shrinks back to.
@@ -195,15 +223,25 @@ struct DatePillView: View {
         switch pill.detent {
         case .closed: "Shows the week around this day"
         case .week: "Shows the whole month"
-        case .month: "Closes the calendar"
+        case .month: "Shows the week around this day"
         }
     }
 
     /// The way back to today, offered only when the app is not on it.
+    ///
+    /// With an arrow on it, because a chip reading "Today" beside a date that
+    /// is *not* today reads as a label on the date — a badge saying this is
+    /// the current day — rather than as the way back to it. The arrow is what
+    /// says the chip goes somewhere, and it points the way it travels: no day
+    /// past today can be picked, so the journey back is always forwards.
     private var todayChip: some View {
-        Button("Today") {
+        Button {
             pick(calendar.today)
             pill.close()
+        } label: {
+            Label("Today", systemImage: "arrow.uturn.forward")
+                .labelStyle(.titleAndIcon)
+                .imageScale(.small)
         }
         .lettering(.chipLabel)
         .foregroundStyle(accent.ink)
@@ -212,6 +250,7 @@ struct DatePillView: View {
         .background(accent.soft, in: Capsule())
         .buttonStyle(.plain)
         .accessibilityIdentifier("backToToday")
+        .accessibilityLabel("Today")
     }
 
     /// The day named on the pill — with its year only when that is news, since
@@ -254,6 +293,81 @@ struct DatePillView: View {
         // the pill unopenable.
         .contentShape(.rect)
         .onTapGesture {}
+        // Sideways is the other way through the calendar, and the one there is
+        // no room on a strip to put a pair of chevrons for.
+        //
+        // Ahead of the day cells rather than beside them. A cell is a button,
+        // and a button pressed and then dragged off still counts the press —
+        // so a swipe that began on a Tuesday would pick that Tuesday and shut
+        // the pill it was drawn across. Given the first claim on the finger,
+        // this only takes it once the finger has travelled, which is exactly
+        // the difference between choosing a day and walking past it.
+        .highPriorityGesture(walkSideways)
+        // The same journey for a reader who scrolls by gesture rather than by
+        // finger, since the week strip has no control on it that does this.
+        .accessibilityScrollAction { edge in
+            switch edge {
+            case .leading: step(by: -1)
+            case .trailing: step(by: 1)
+            default: break
+            }
+        }
+    }
+
+    /// A finger dragged across the grid: the week or the month either side of
+    /// this one, depending on how much of the calendar is out.
+    private var walkSideways: some Gesture {
+        DragGesture(minimumDistance: Self.startsWalking)
+            .onChanged { sideways = held($0) }
+            .onEnded { finger in
+                if wentSideways(finger) { step(by: finger.translation.width < 0 ? 1 : -1) }
+                withAnimation(settle) { sideways = 0 }
+            }
+    }
+
+    /// Whether a finger was walking the calendar rather than opening it.
+    ///
+    /// Sideways and not merely a bit sideways: a finger on its way up to shut
+    /// the pill passes over the grid on the way, and a gesture that took every
+    /// diagonal for a walk would step the month as it went out.
+    private func wentSideways(_ finger: DragGesture.Value) -> Bool {
+        abs(finger.translation.width) > Self.stepsAcross
+            && abs(finger.translation.width) > abs(finger.translation.height)
+    }
+
+    /// How far a finger has to travel before it is walking the calendar rather
+    /// than resting on a day.
+    private static let startsWalking: CGFloat = 12
+
+    /// And how far before letting go steps rather than springs back.
+    private static let stepsAcross: CGFloat = 40
+
+    /// How far the grid follows a finger sideways.
+    ///
+    /// Nought until the finger is going sideways more than it is going down,
+    /// so that pulling the pill open along a slightly crooked line does not
+    /// drag the days with it — and so that a walk turned downward mid-gesture
+    /// puts them back as it turns.
+    ///
+    /// And only so far, because there is nothing drawn either side of this
+    /// month to pull into view: a grid that came all the way off would be a
+    /// swipe onto an empty pane.
+    private func held(_ finger: DragGesture.Value) -> CGFloat {
+        let across = finger.translation.width
+        guard abs(across) > abs(finger.translation.height) else { return 0 }
+        let limit = max(roomToOpenInto, 1) / 3
+        return min(max(across, -limit), limit)
+    }
+
+    /// One step through the calendar, in whichever unit is on screen: the
+    /// month when the month is out, and otherwise the week.
+    private func step(by direction: Int) {
+        switch (pill.detent, direction) {
+        case (.month, 1...): calendar.showNextMonth()
+        case (.month, _): calendar.showPreviousMonth()
+        case (_, 1...): calendar.showNextWeek()
+        case (_, _): calendar.showPreviousWeek()
+        }
     }
 
     private var monthRow: some View {
@@ -338,6 +452,9 @@ struct DatePillView: View {
         .frame(height: CGFloat(calendar.month.weeks.count) * rowHeight, alignment: .top)
         .clipped()
         .padding(.horizontal, Spacing.close)
+        // After the padding, so that what a sideways walk pushes the days past
+        // is the edge of the glass rather than the inside of the grid.
+        .offset(x: sideways)
     }
 
     /// Whether a row of the grid is one a finger can reach: on screen in
@@ -388,7 +505,7 @@ struct DatePillView: View {
     }
 
     private var gridSlide: CGFloat {
-        let row = CGFloat(calendar.month.weekBeingWritten ?? 0)
+        let row = CGFloat(calendar.month.weekOnScreen)
         // Nought at both ends and a whole row's travel at the week strip in
         // between, which is the same thing said forwards and then backwards.
         return -row * rowHeight * (pill.openness - pill.spread)
@@ -446,7 +563,12 @@ extension View {
                 RoomForTheShutPill()
             }
         }
-        .overlay {
+        // Aligned to the top, and not left to the overlay's own middle. A shut
+        // pill is one row tall, so an overlay sized to its content and centred
+        // would hang the day's name halfway down the page — and then jump it
+        // to the top the moment the calendar came out, because an open pill
+        // carries the full-height way out of itself and fills the screen.
+        .overlay(alignment: .top) {
             if let calendar {
                 DatePillOverThePage(calendar: calendar, accent: accent, pick: pick)
             }

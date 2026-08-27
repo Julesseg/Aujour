@@ -113,6 +113,15 @@ public final class JournalCalendar {
         public var weekBeingWritten: Int? {
             weeks.firstIndex { $0.contains(where: \.isBeingWritten) }
         }
+
+        /// Which row the week strip is showing: the week of the day being
+        /// written, until a week is stepped to.
+        ///
+        /// A row of this grid and not a week of its own, because the strip is
+        /// this grid slid up — which is why stepping a week off the end of the
+        /// grid brings the next month on screen underneath it rather than
+        /// leaving the strip somewhere the grid does not reach.
+        public let weekOnScreen: Int
     }
 
     /// The month on screen.
@@ -125,6 +134,14 @@ public final class JournalCalendar {
     /// picked should move on to the new day, and one left open on March 1st
     /// because somebody chose March 1st should not.
     private var picked: JournalDay?
+
+    /// A day in the week the strip is showing, or `nil` while the strip
+    /// follows the day being written.
+    ///
+    /// Absence again rather than a copy, and for the same reason: a strip that
+    /// had been *told* it was on this week would stay on it after a day was
+    /// picked out of another one.
+    private var weekAnchor: JournalDay?
 
     /// What went wrong with the last scan, if it did.
     ///
@@ -206,7 +223,8 @@ public final class JournalCalendar {
             month: today.month,
             name: "",
             weekdayNames: [],
-            weeks: []
+            weeks: [],
+            weekOnScreen: 0
         )
         // The grid is on screen from the first frame, with no indicators on
         // it yet: those arrive when the folder answers a `scan()`.
@@ -292,6 +310,7 @@ public final class JournalCalendar {
     /// between.
     public func showTheMonthBeingWritten() {
         let day = dayBeingWritten
+        weekAnchor = nil
         visible = (day.year, day.month)
         layOutTheMonth()
     }
@@ -325,7 +344,7 @@ public final class JournalCalendar {
         layOutTheMonth()
     }
 
-    // MARK: - Moving through the months
+    // MARK: - Moving through the months and the weeks
 
     public func showPreviousMonth() {
         show(monthsFromHere: -1)
@@ -342,8 +361,44 @@ public final class JournalCalendar {
         // turn of the year is its problem and not this one.
         let shifted = gridCalendar.date(byAdding: .month, value: months, to: anchor)!
         let parts = gridCalendar.dateComponents([.year, .month], from: shifted)
+        // The strip goes back to following the month, which is its first row —
+        // the week the month opens on. A week held over from the month before
+        // would be a strip showing days the grid under it no longer has.
+        weekAnchor = nil
         visible = (parts.year!, parts.month!)
         layOutTheMonth()
+    }
+
+    public func showPreviousWeek() {
+        show(weeksFromHere: -1)
+    }
+
+    public func showNextWeek() {
+        show(weeksFromHere: 1)
+    }
+
+    /// Steps the week strip, and brings the month along when the week it
+    /// stepped to has left the grid.
+    ///
+    /// The strip is a row of the six-week grid, so stepping through the year
+    /// by weeks is stepping through rows until there are no more, and then
+    /// re-laying the grid over the month the new week lands in. Which is also
+    /// why this is here and not in the view: "the week after this one" is a
+    /// question about the calendar, and the answer at the end of a month is
+    /// the whole of it.
+    private func show(weeksFromHere weeks: Int) {
+        let anchor = (weekAnchor ?? dayBeingWritten).adding(days: 7 * weeks)
+        weekAnchor = anchor
+        if row(of: anchor) == nil {
+            visible = (anchor.year, anchor.month)
+        }
+        layOutTheMonth()
+    }
+
+    /// Which row of the grid as it stands a day falls in, or `nil` when the
+    /// grid does not reach it.
+    private func row(of day: JournalDay) -> Int? {
+        month.weeks.firstIndex { week in week.contains { $0.day == day } }
     }
 
     // MARK: - Opening a day
@@ -406,6 +461,11 @@ public final class JournalCalendar {
             )
         }
 
+        let weeks = stride(from: 0, to: cells.count, by: 7).map { Array(cells[$0..<$0 + 7]) }
+        // The week stepped to, or the one being written in — and the first row
+        // of the grid when neither is on it, which is the week this month
+        // opens on.
+        let onScreen = weekAnchor ?? dayBeingWritten
         month = Month(
             year: visible.year,
             month: visible.month,
@@ -413,7 +473,8 @@ public final class JournalCalendar {
                 Date.FormatStyle(locale: locale, timeZone: timeZone).month(.wide).year()
             ),
             weekdayNames: weekdayNames(in: calendar),
-            weeks: stride(from: 0, to: cells.count, by: 7).map { Array(cells[$0..<$0 + 7]) }
+            weeks: weeks,
+            weekOnScreen: weeks.firstIndex { week in week.contains { $0.day == onScreen } } ?? 0
         )
     }
 

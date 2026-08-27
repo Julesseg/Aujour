@@ -73,7 +73,15 @@ public struct DatePill: Equatable, Sendable {
     /// How far it is from the week strip towards the month grid, 0 through 1.
     public var spread: Double { max(0, progress - 1) }
 
-    /// Steps it on: closed, week, month, and back to closed.
+    /// Steps it on: closed opens to the week, and from there a tap goes
+    /// between the week and the month and back for as long as it is tapped.
+    ///
+    /// Not a cycle round through closed, deliberately. The day's name is the
+    /// one thing on the pill that is worth reading at a glance, and a third
+    /// tap that took the calendar away would make the two states either side
+    /// of it reachable only by going round — so shutting it is what the page
+    /// behind it is for, and what picking a day does. What a tap is for is the
+    /// one question the pill actually asks: this week, or this month.
     ///
     /// Lets go of the drag as well as moving the pill, and that is not
     /// housekeeping: a gesture can be *taken away* rather than ended — the
@@ -84,7 +92,7 @@ public struct DatePill: Equatable, Sendable {
     /// and jump.
     public mutating func tapped() {
         draggedFrom = nil
-        progress = Double((detent.rawValue + 1) % Detent.allCases.count)
+        progress = Double(detent == .month ? Detent.week.rawValue : detent.rawValue + 1)
     }
 
     /// Follows a finger.

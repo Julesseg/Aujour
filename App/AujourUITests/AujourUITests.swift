@@ -1263,7 +1263,7 @@ final class AujourUITests: XCTestCase {
     // arithmetic, and a synthesized drag is the wrong instrument for
     // arithmetic.
 
-    func testTheDatePillStepsThroughItsThreeStates() throws {
+    func testTheDatePillOpensAndGoesBetweenTheWeekAndTheMonth() throws {
         let app = launchApp()
         let pill = app.buttons["datePill"]
         XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
@@ -1285,8 +1285,14 @@ final class AujourUITests: XCTestCase {
         pill.tap()
         expect(pill, toHaveValue: "Month")
 
+        // And back to the week, rather than round to shut: what a tap on the
+        // pill is for is the one question it asks — this week, or this month.
+        // Shutting it is the page behind it, and picking a day out of it.
         pill.tap()
-        expect(pill, toHaveValue: "Closed")
+        expect(pill, toHaveValue: "Week")
+
+        pill.tap()
+        expect(pill, toHaveValue: "Month")
 
         // A strip is one week and not a month with five of its rows painted
         // out. A row the grid has slid past is drawn nowhere *and* is not
@@ -1314,6 +1320,85 @@ final class AujourUITests: XCTestCase {
         XCTAssertTrue(
             app.buttons["backToToday"].waitForExistence(timeout: 5),
             "the week before could not be picked with the whole month showing"
+        )
+    }
+
+    /// Where the shut pill sits, which is the one thing about it that is not a
+    /// question of how far open it is.
+    ///
+    /// The failure this catches is an overlay left to its own alignment: sized
+    /// to a pill one row tall, it centres it, and the day's name hangs halfway
+    /// down the page until the calendar comes out and the way out of it fills
+    /// the screen — at which point the pill jumps to the top.
+    func testTheShutDatePillSitsAtTheTopOfThePage() throws {
+        let app = launchApp()
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
+        expect(pill, toHaveValue: "Closed")
+
+        let window = app.windows.firstMatch.frame
+        let shut = pill.frame
+        XCTAssertLessThan(
+            shut.midY, window.minY + window.height / 4,
+            "the shut pill was not near the top of the page: \(shut) in \(window)"
+        )
+
+        // And it was there all along, rather than arriving there when the
+        // calendar came out.
+        openTheDatePill(app, to: "Week")
+        XCTAssertEqual(
+            pill.frame.minY, shut.minY, accuracy: 1,
+            "the pill moved up the page when it was opened: \(pill.frame) from \(shut)"
+        )
+    }
+
+    /// The other way through the calendar, and the only one a week strip has
+    /// room for: a finger drawn across it.
+    ///
+    /// What a walk arrives at is asked by picking the day it walked to, rather
+    /// than by measuring where a cell has got to. The strip is the month grid
+    /// slid up under a ceiling, and a row the grid has slid past is not there
+    /// to be picked — so a day off the strip that *can* be picked is a strip
+    /// that moved onto it, which is the whole claim.
+    func testTheDatePillIsWalkedSidewaysAWeekAndAMonthAtATime() throws {
+        let app = launchApp()
+        let today = app.buttons["day-\(todaysEntryName())"]
+        let aWeekAgo = app.buttons["day-\(entryName(for: try XCTUnwrap(daysBeforeToday(7))))"]
+
+        openTheDatePill(app, to: "Week")
+        XCTAssertTrue(today.waitForExistence(timeout: 5), "the week strip had no days on it")
+        XCTAssertTrue(today.isHittable, "today was not on the strip to begin with")
+
+        // Rightwards is backwards: a week ago is the same weekday one row up,
+        // off the strip until the strip is walked to it.
+        swipe(today, across: 160)
+        aWeekAgo.tap()
+        XCTAssertTrue(
+            app.buttons["backToToday"].waitForExistence(timeout: 5),
+            "a swipe across the strip did not bring the week before onto it"
+        )
+
+        // With the whole month out the same finger steps months instead: one
+        // of whatever unit is on screen.
+        openTheDatePill(app, to: "Month")
+        let month = app.staticTexts["pillMonth"]
+        XCTAssertTrue(month.waitForExistence(timeout: 5), "the month was not named over the grid")
+        let thisMonth = month.label
+
+        swipe(month, across: -160)
+        XCTAssertTrue(
+            waitFor { month.label != thisMonth },
+            "a swipe across the month did not step it on from \(thisMonth)"
+        )
+
+        swipe(month, across: 160)
+        expect(month, toHaveLabel: thisMonth)
+
+        // And walking the calendar is looking rather than choosing: the day
+        // the app is on is still the one picked out of the strip.
+        XCTAssertTrue(
+            app.buttons["backToToday"].exists,
+            "walking the months moved the day being written"
         )
     }
 
@@ -2449,13 +2534,13 @@ final class AujourUITests: XCTestCase {
         if months > 0 { app.buttons["nextMonth"].tap() }
     }
 
-    /// Opens the date pill as far as one of its three states, a tap at a time.
+    /// Opens the date pill on the week or on the month, a tap at a time.
     private func openTheDatePill(_ app: XCUIApplication, to state: String) {
         let pill = app.buttons["datePill"]
         XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
 
-        // Three taps at most: the pill cycles, so from anywhere it is at most
-        // one full turn back round to the state being asked for.
+        // Two taps at most: a shut pill opens on the week, and from there a
+        // tap goes between the week and the month.
         for _ in 0..<3 where pill.value as? String != state {
             pill.tap()
             // Given the settle a moment to finish, so the next tap steps from
@@ -2463,6 +2548,28 @@ final class AujourUITests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.8)
         }
         XCTAssertEqual(pill.value as? String, state, "the date pill would not open to \(state)")
+    }
+
+    /// Draws a finger across something — rightwards for a positive distance —
+    /// and lets go.
+    private func swipe(_ element: XCUIElement, across distance: CGFloat) {
+        let from = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        from.press(
+            forDuration: 0.2,
+            thenDragTo: from.withOffset(CGVector(dx: distance, dy: 0))
+        )
+        Thread.sleep(forTimeInterval: 0.5)
+    }
+
+    /// Waits for something to become true, for the settle a swipe or a tap
+    /// leaves behind.
+    private func waitFor(timeout: TimeInterval = 10, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return true }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return condition()
     }
 
     /// Pulls something down (or up, for a negative distance) and lets go.

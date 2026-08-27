@@ -80,7 +80,7 @@ struct AppearanceSettingsView: View {
             SectionHeader("Appearance")
 
             Picker("Appearance", selection: chosenTheme) {
-                ForEach(Theme.allCases, id: \.self) { theme in
+                ForEach(Theme.asOffered, id: \.self) { theme in
                     Text(theme.name).tag(theme)
                 }
             }

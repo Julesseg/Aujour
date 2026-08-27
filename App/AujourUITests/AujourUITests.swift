@@ -2084,6 +2084,88 @@ final class AujourUITests: XCTestCase {
         assertTheLayoutHolds(on: page)
     }
 
+    /// The other half of what S/M/L/XL is: a *writing* preference, so it moves
+    /// the day's own words and nothing else on the screen.
+    ///
+    /// Asked of the Entry and not of the specimen on the settings page. The
+    /// specimen shows what a step is worth; this is the claim the step is made
+    /// for — that the words the user is actually writing came out the way they
+    /// asked, and that the date over them did not move an inch.
+    ///
+    /// Measured on the prompt over an unwritten day, because that is the one
+    /// thing on this screen drawn in the editor's own face that a running app
+    /// can be asked the size of — a `UITextView`'s frame is the box it is in,
+    /// not the type in it.
+    ///
+    /// The two controls are moved one at a time and not together. A sentence
+    /// set bigger *and* in another face comes out a different width either
+    /// way, and a single measurement of both says only that something reached
+    /// the words.
+    ///
+    /// Measured after the sheet goes away, which is the one thing here that is
+    /// not the claim: on a phone the sheet is full height, so there is no
+    /// moment where the day and the control are both on screen to photograph.
+    /// That a change lands at once rather than on dismissal is held where it
+    /// is decided — `DeviceAppearance` publishes every choice as it is made
+    /// and there is no apply step to defer it to (`AppearanceTests`, "the
+    /// editor is told about a change the moment it is made").
+    func testTheEditorsFaceAndSizeMoveTheDaysOwnWordsAndNoneOfTheChrome() {
+        let app = launchApp()
+
+        let daysWords = app.staticTexts["aBlankPage"]
+        XCTAssertTrue(daysWords.waitForExistence(timeout: 30), "today's blank page never appeared")
+        // The date over the entry: chrome, on screen beside the words the whole
+        // time, so the two are asked the same question at the same moment.
+        let chrome = app.navigationBars.firstMatch.staticTexts.firstMatch
+        XCTAssertTrue(chrome.waitForExistence(timeout: 10), "the day's date was never on screen")
+
+        let asTheyCome = daysWords.frame
+        let chromeAsItComes = chrome.frame
+
+        // The size alone.
+        changeHowItLooks(in: app) { $0.segmentedControls["editorFontSize"].buttons["XL"].tap() }
+        let atXL = daysWords.frame
+        XCTAssertGreaterThan(
+            atXL.height, asTheyCome.height,
+            "the day's own words did not grow — they were \(asTheyCome.height) points tall "
+                + "at M and are \(atXL.height) at XL"
+        )
+
+        // And the face alone, at the size just chosen — so what moves now is
+        // the typeface and nothing else.
+        changeHowItLooks(in: app) {
+            $0.segmentedControls["editorFontFamily"].buttons["Mono"].tap()
+        }
+        let inMono = daysWords.frame
+        XCTAssertNotEqual(
+            inMono.width, atXL.width,
+            "the same sentence measures the same in mono as in sans — \(atXL.width) points "
+                + "either way — so the face never reached the day's own words"
+        )
+
+        XCTAssertEqual(
+            chrome.frame, chromeAsItComes,
+            "the date over the entry moved with the editor's controls — it was at "
+                + "\(chromeAsItComes) and is now at \(chrome.frame). Chrome follows the "
+                + "system's text size, not the one the writing is set in"
+        )
+    }
+
+    /// Moves one control on the appearance page and comes back out to the day,
+    /// where what it did can be measured.
+    private func changeHowItLooks(
+        in app: XCUIApplication,
+        by moving: (XCUIApplication) -> Void
+    ) {
+        openHowItLooks(in: app)
+        moving(app)
+        goBack(app)
+        app.buttons["Done"].tap()
+        XCTAssertTrue(
+            app.staticTexts["aBlankPage"].waitForExistence(timeout: 10), "the day never came back"
+        )
+    }
+
     /// That everything the page is showing has a frame of its own: within the
     /// page's width, and touching nothing else's.
     ///

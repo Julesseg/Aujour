@@ -228,3 +228,117 @@ extension UIColor {
         return 0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue)
     }
 }
+
+@Suite("The screen the appearance is chosen on")
+struct AppearanceScreenTests {
+    @Test("every theme there is can be picked, auto included")
+    func everyThemeIsOnTheControl() {
+        // Auto above all, which has been in the model since the beginning
+        // and had no screen able to select it: a theme the store can hold and
+        // the control cannot offer is a setting the user can only arrive at
+        // by accident.
+        #expect(Set(Theme.asOffered) == Set(Theme.allCases))
+        // And each of them once, so a duplicate cannot stand in for a missing
+        // one and still make the set match.
+        #expect(Theme.asOffered.count == Theme.allCases.count)
+    }
+
+    @Test("auto is offered after the two that are instructions")
+    func autoComesLast() {
+        // The order the design file's own segmented control reads in
+        // (`docs/design/identity/Aujour.dc.html`, the Appearance sheet), and
+        // the order the two kinds fall into: light and dark say what to do,
+        // auto says who decides.
+        #expect(Theme.asOffered == [.light, .dark, .system])
+    }
+}
+
+@Suite("The editor's size control governs the Entry alone")
+struct WritingPreferenceReachTests {
+    /// Where the app's own sources are, from this file.
+    private var appSources: URL {
+        URL(filePath: #filePath)  // App/AujourTests/<this file>
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appending(path: "Aujour")
+    }
+
+    /// The six files the editor's own typeface is allowed to pass through:
+    /// where it is defined, where it is made, where it is put into the
+    /// environment, the control that chooses it, and the two that draw the
+    /// Entry's own words with it.
+    ///
+    /// A list and not a rule, because what is being held is an absence:
+    /// S/M/L/XL is a *writing* preference, and chrome that quietly started
+    /// following it would look correct on every screen and be wrong on the
+    /// one where the reader has turned the system's text size up
+    /// (`CONTEXT.md`, Device Settings; `Lettering`).
+    ///
+    /// By the path each lives at and not by its name, because the walk below
+    /// is recursive: a second `EntryView.swift` under a subfolder would
+    /// otherwise be exempt by coincidence. A test below holds every one of
+    /// these to a file that is really there, so a rename cannot leave an
+    /// exemption behind for a file nobody has to look at again.
+    private let mayDrawInIt: Set<String> = [
+        "Appearance.swift",  // defines EditorLook and the environment key
+        "DeviceAppearance.swift",  // answers with the one in force
+        "AujourApp.swift",  // puts it in the environment, once
+        "AppearanceSettingsView.swift",  // the control choosing it, and its specimen
+        "EntryView.swift",  // the prompt over a day nobody has written
+        "Editor/MarkdownEditor.swift",  // draws the day in it
+    ]
+
+    /// Both names the choice travels under: the value the environment carries,
+    /// and the stored preference underneath it. Lowercased, so that one term
+    /// catches the type and the property alike.
+    private let namesItTravelsUnder = ["editorlook", "editorfont"]
+
+    @Test("nothing but the editor is drawn in what the editor is drawn in")
+    func onlyTheEditorFollowsTheWritingPreference() throws {
+        let elsewhere = try swiftSources(in: appSources)
+            .filter { !mayDrawInIt.contains($0.path) }
+
+        for source in elsewhere {
+            let text = try String(contentsOf: source.url, encoding: .utf8).lowercased()
+            for name in namesItTravelsUnder {
+                #expect(
+                    !text.contains(name),
+                    """
+                    \(source.path) is drawn in the editor's own font; the S/M/L/XL control \
+                    is a writing preference and reaches the Entry alone. Everything else \
+                    follows the system's text size, through `Lettering`.
+                    """
+                )
+            }
+        }
+    }
+
+    @Test("every file excused above is a file that is still there")
+    func theExemptionsAreHonest() throws {
+        let present = Set(try swiftSources(in: appSources).map(\.path))
+
+        for excused in mayDrawInIt {
+            #expect(
+                present.contains(excused),
+                """
+                \(excused) is excused from following the type scale and is not in the app \
+                any more — an exemption nobody can see is one the next file to take that \
+                name inherits
+                """
+            )
+        }
+    }
+
+    /// Every `.swift` file under a directory, however deeply nested — so a
+    /// source added later is covered without anyone remembering to list it.
+    /// Paired with the path it sits at relative to that directory, which is
+    /// what the list above names them by.
+    private func swiftSources(in directory: URL) throws -> [(path: String, url: URL)] {
+        let found = try FileManager.default
+            .subpathsOfDirectory(atPath: directory.path())
+            .filter { $0.hasSuffix(".swift") }
+            .map { (path: $0, url: directory.appending(path: $0)) }
+        #expect(!found.isEmpty, "found no sources to check at \(directory.path())")
+        return found
+    }
+}

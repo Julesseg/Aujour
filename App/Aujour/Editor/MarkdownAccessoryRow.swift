@@ -92,6 +92,11 @@ final class MarkdownAccessoryRow: UIInputView {
     /// can reach them without a walk back down the view tree.
     private var controls: [UIButton] = []
 
+    /// The floor and the ceiling on how wide a key is, held because both move
+    /// with the text size — the same way the row's own height does.
+    private var narrowKeys: [NSLayoutConstraint] = []
+    private var wideKeys: [NSLayoutConstraint] = []
+
     init(
         accent: UIColor,
         insertPhoto: (() -> Void)? = nil,
@@ -118,7 +123,9 @@ final class MarkdownAccessoryRow: UIInputView {
         // Dynamic Type moves the symbols, and the row has to be as tall as
         // whatever they came out.
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) {
-            (row: Self, _) in row.invalidateIntrinsicContentSize()
+            (row: Self, _) in
+            row.sizeTheKeys()
+            row.invalidateIntrinsicContentSize()
         }
         // The ring is a `CGColor` on a layer, which is the one kind of colour
         // in UIKit that does not turn with the appearance by itself.
@@ -178,6 +185,31 @@ final class MarkdownAccessoryRow: UIInputView {
         invalidateIntrinsicContentSize()
     }
 
+    // MARK: - How wide a key is
+
+    /// The narrowest a key is allowed to get.
+    ///
+    /// Nine keys and one pane: at any width this file picks, nine of them are
+    /// wider than a phone, and the one that goes over the edge is the last —
+    /// the photograph. So the keys divide the pane between them instead, one
+    /// width, whatever the room turns out to be, and this is the floor under
+    /// that.
+    ///
+    /// It is less than the 44 a control standing on its own would take,
+    /// because the height is what carries the target here: these are keys in
+    /// a strip with keys either side, the way the keyboard's own are, and
+    /// those are narrower than this. Under the floor the row scrolls, which
+    /// after this is only ever a narrow phone with its text turned up.
+    private static var narrowestKey: CGFloat {
+        min(UIFontMetrics(forTextStyle: .body).scaledValue(for: 34), 48)
+    }
+
+    /// The widest, which is as wide as a key is tall: past square it stops
+    /// reading as a key and starts reading as a button with a gap around it.
+    /// An iPad has room for more than that, and the keys stop rather than
+    /// take it.
+    private static var widestKey: CGFloat { keyHeight }
+
     // MARK: - The glass
 
     /// The pane's tint, its ring, and whether it is a pane at all.
@@ -221,11 +253,27 @@ final class MarkdownAccessoryRow: UIInputView {
         let keys = UIStackView(arrangedSubviews: controls)
         keys.axis = .horizontal
         keys.spacing = Spacing.tight
+        // One width between them, whatever that width comes out as: a key is
+        // aimed at by where it sits in the row, and nine keys of nine widths
+        // would be nine positions to learn instead of one strip.
+        keys.distribution = .fillEqually
         keys.translatesAutoresizingMaskIntoConstraints = false
 
-        // Scrolled, because there are nine controls and a phone can be narrow
-        // and its text large: a row that ran off the edge would be a row whose
-        // last controls do not exist.
+        // The two ends of that one width. What a key comes out at between
+        // them is the pane's to say, and it says it through the constraint at
+        // the bottom of this method.
+        narrowKeys = controls.map {
+            $0.widthAnchor.constraint(greaterThanOrEqualToConstant: Self.narrowestKey)
+        }
+        wideKeys = controls.map {
+            $0.widthAnchor.constraint(lessThanOrEqualToConstant: Self.widestKey)
+        }
+        NSLayoutConstraint.activate(narrowKeys + wideKeys)
+
+        // Scrolled, for the one case the keys cannot divide their way out of:
+        // a narrow phone with its text turned up, where nine keys at their
+        // floor are wider than the pane. A row that simply ran off the edge
+        // would be a row whose last controls do not exist.
         let scroller = UIScrollView()
         scroller.translatesAutoresizingMaskIntoConstraints = false
         scroller.showsHorizontalScrollIndicator = false
@@ -243,6 +291,11 @@ final class MarkdownAccessoryRow: UIInputView {
             equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -Self.inset
         )
         trailing.priority = .required - 1
+
+        let fill = keys.widthAnchor.constraint(
+            equalTo: scroller.frameLayoutGuide.widthAnchor, constant: -Self.padding * 2
+        )
+        fill.priority = .required - 1
 
         NSLayoutConstraint.activate([
             // Inset from both edges and off the keyboard: a pane over the
@@ -268,9 +321,8 @@ final class MarkdownAccessoryRow: UIInputView {
                 equalTo: pill.pane.contentView.bottomAnchor, constant: -Self.padding
             ),
 
-            // The same gap the keys have above and below them. The pane's own
-            // curve is what holds the first key off its edge, and 9 keys are
-            // 8 points from fitting a phone as it is.
+            // The same gap the keys have above and below them; the pane's own
+            // curve is what holds the first key off its edge.
             keys.leadingAnchor.constraint(
                 equalTo: scroller.contentLayoutGuide.leadingAnchor, constant: Self.padding
             ),
@@ -280,7 +332,28 @@ final class MarkdownAccessoryRow: UIInputView {
             keys.topAnchor.constraint(equalTo: scroller.contentLayoutGuide.topAnchor),
             keys.bottomAnchor.constraint(equalTo: scroller.contentLayoutGuide.bottomAnchor),
             keys.heightAnchor.constraint(equalTo: scroller.frameLayoutGuide.heightAnchor),
+
+            // And as wide as the pane, which is what turns `fillEqually` into
+            // a width: the keys share out the room there is rather than
+            // taking a number this file picked and leaving the rest of the
+            // pane empty beside them.
+            //
+            // Breakable both ways, and it breaks in both. Wider than nine
+            // keys are allowed to be — an iPad, where the ceiling wins and
+            // the keys stop growing. Narrower than nine keys can shrink to —
+            // a small phone at a large text size, where the floor wins and
+            // the row scrolls, which is what the scroller is here for. And
+            // the one layout pass before anything has said how wide the row
+            // is, which is neither.
+            fill,
         ])
+    }
+
+    /// Moves the two ends of a key's width to the text size the reader has
+    /// just changed to, the way the row's height moves with it.
+    private func sizeTheKeys() {
+        for key in narrowKeys { key.constant = Self.narrowestKey }
+        for key in wideKeys { key.constant = Self.widestKey }
     }
 
     /// The row, left to right: what a line is, then what a word is, then the
@@ -407,17 +480,6 @@ final class MarkdownAccessoryRow: UIInputView {
             key.configuration?.background.backgroundColor = drawn.fill
             key.configuration?.baseForegroundColor = drawn.mark
         }
-        // Wide enough to aim at, whatever the symbol inside it measures — the
-        // width the identity draws these at, and the width nine of them fit
-        // the pane at.
-        //
-        // Narrower than the 44 a control standing on its own would take, and
-        // the height is what carries the target instead: these are keys in a
-        // strip with keys either side, the way a keyboard's are, and a
-        // photograph control nobody can see because it is 6 points past the
-        // edge is worse aim than one 6 points narrower.
-        button.widthAnchor.constraint(greaterThanOrEqualToConstant: 38).isActive = true
-
         // What a UI test presses it by, and — with a symbol for a label and no
         // words anywhere — the only thing VoiceOver has to say about it.
         button.accessibilityIdentifier = identifier

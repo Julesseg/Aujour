@@ -255,34 +255,57 @@ struct MarkdownAccessoryRowTests {
         #expect(shadows(under: pane).allSatisfy { $0.shadowPath != nil && $0.mask != nil })
     }
 
-    // The width the identity draws a key at, asserted directly rather than
-    // through whether they all fit a screen.
+    // The keys divide the pane between them, and all nine of them land on it.
     //
-    // Because the way this goes wrong is silent: a configured button pads its
-    // own image, and that padding sets the width before the constraint here
-    // gets a say. The keys came out half as wide again as they should be, the
-    // row went on working, and every other test in this file went on passing
-    // — it only showed up in a photograph of the thing.
+    // Because the way this goes wrong is silent. At a fixed width nine keys
+    // asked 398 points of the row, which no iPhone narrower than an Air has:
+    // the row scrolled as it is built to, the photograph control sat off the
+    // screen, and every other test in this file went on passing. It only
+    // showed up in a photograph of the thing.
     //
-    // Nine of them at this width need 398 points, which the widest iPhones
-    // have and the narrower ones do not: the row scrolls there, as it is built
-    // to, and the control that goes under is the photograph.
-    @Test("a key is the width the identity draws it at")
-    func keyWidths() {
+    // Every width a phone comes in, and one an iPad does: 375 is the narrowest
+    // screen iOS 26 runs on, 393 is the common iPhone, 440 is the largest.
+    @Test("nine keys divide the pane, and every screen fits all nine")
+    func keyWidths() throws {
+        for screen in [375.0, 393.0, 440.0] as [CGFloat] {
+            let row = aRow { _ in }
+            row.frame = CGRect(
+                x: 0, y: 0, width: screen, height: row.intrinsicContentSize.height
+            )
+            row.layoutIfNeeded()
+
+            let keys = controls(of: row)
+            #expect(keys.count == 9)
+
+            // One width between them: nine keys of nine widths would be nine
+            // positions to learn instead of one strip.
+            let key = try #require(keys.first).bounds.size
+            #expect(keys.allSatisfy { abs($0.bounds.width - key.width) < 0.5 })
+
+            // Wide enough to aim at, and never wider than it is tall.
+            #expect(key.width >= 34)
+            #expect(key.width <= key.height)
+
+            // And the last of them is on the pane rather than past its edge,
+            // which is what a fixed width could not promise.
+            let pane = try #require(glass(of: row))
+            let photograph = try #require(keys.last)
+            let reached = row.convert(photograph.bounds, from: photograph).maxX
+            #expect(reached <= row.convert(pane.bounds, from: pane).maxX)
+        }
+    }
+
+    // An iPad has more room than nine keys should take. They stop at square,
+    // because past that a key stops reading as a key.
+    @Test("the keys stop growing at square")
+    func wideScreens() throws {
         let row = aRow { _ in }
-        row.frame = CGRect(x: 0, y: 0, width: 420, height: row.intrinsicContentSize.height)
+        row.frame = CGRect(x: 0, y: 0, width: 1024, height: row.intrinsicContentSize.height)
         row.layoutIfNeeded()
 
         let keys = controls(of: row)
         #expect(keys.count == 9)
-        #expect(keys.allSatisfy { $0.bounds.width == 38 })
-
-        // Which puts the last of them 386 points in, and asks 398 of the row
-        // once the gap and the inset past it are counted — more than a phone
-        // narrower than an Air has, so the row scrolls there as it is built to
-        // and the control that goes under is the photograph.
-        let photograph = keys.last
-        #expect(photograph.map { row.convert($0.bounds, from: $0).maxX } == 386)
+        #expect(keys.allSatisfy { abs($0.bounds.width - $0.bounds.height) < 0.5 })
     }
 
     // The row knows there is a photograph control and nothing about what one

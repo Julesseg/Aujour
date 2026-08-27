@@ -87,9 +87,17 @@ enum Palette {
 
     // MARK: - Glass
 
-    /// The fill of something floating over content: a banner, a toolbar, the
-    /// date pill. Translucent by design — what is behind it should be legible
-    /// as *being* behind it.
+    /// The fill of something floating over content: a banner, a toolbar.
+    /// Translucent by design — what is behind it should be legible as *being*
+    /// behind it.
+    ///
+    /// An *account* of glass and not the thing itself. Where a pane really
+    /// floats over a page of somebody's writing — the date pill — the system's
+    /// own `glassEffect` is what draws it: it refracts what scrolls under it
+    /// and answers Reduce Transparency without being asked, neither of which a
+    /// colour can do. What this is for is everything a colour still has to
+    /// answer, chiefly `glassSolid` below, which is the ground a contrast
+    /// floor is measured against.
     static let glass = dynamic(light: 0xFFFCF7, dark: 0x3C362F, lightAlpha: 0.62, darkAlpha: 0.55)
 
     /// The half-point border that gives a pane of glass an edge. Without it

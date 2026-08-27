@@ -1317,7 +1317,24 @@ final class AujourUITests: XCTestCase {
         )
     }
 
-    func testTheDatePillIsDraggedOpenAndDraggedShut() throws {
+    /// That a drag drives the pill at all, which is the half of the gesture no
+    /// unit test can reach.
+    ///
+    /// One pull, and a long one. Where a drag *settles* — the rounding to the
+    /// nearest state, the few points that are a tap rather than a drag, the
+    /// reversal halfway — is `DatePillTests` in Core, and it belongs there. A
+    /// synthesized drag is not a finger: it arrives often enough as a press
+    /// and *then* a drag that asking a point-exact question of one is asking
+    /// it of the harness. A pull long enough to clamp is the one answer that
+    /// is the same either way.
+    ///
+    /// Only downward, too. The pill sits an inch from the top of the screen,
+    /// so a finger on it has the whole page to pull down into and barely
+    /// seventy points to pull up — less than one state's worth. Dragging a
+    /// month shut is not something to leave a reader needing: tapping the pill
+    /// closes it, and so does tapping the day's own words
+    /// (`testTappingTheDaysWordsShutsTheDatePill`).
+    func testTheDatePillIsDraggedOpen() throws {
         let app = launchApp()
         let pill = app.buttons["datePill"]
         XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
@@ -1325,22 +1342,12 @@ final class AujourUITests: XCTestCase {
         // Pulled far enough down to be unambiguous, it goes the whole way in
         // one gesture rather than one state at a time.
         drag(pill, by: 400)
+
         expect(pill, toHaveValue: "Month")
-
-        // And back up. A state at a time on the way up, because the pill is at
-        // the top of the screen and a finger cannot be pulled off it.
-        drag(pill, by: -110)
-        expect(pill, toHaveValue: "Week")
-
-        drag(pill, by: -110)
-        expect(pill, toHaveValue: "Closed")
-
-        // Let go between two states, it takes the nearer one rather than
-        // staying between them — which is what a pill with three states and a
-        // continuous gesture has to do, and what nothing on screen could be
-        // left saying.
-        drag(pill, by: 160)
-        expect(pill, toHaveValue: "Week")
+        XCTAssertTrue(
+            app.buttons["day-\(todaysEntryName())"].waitForExistence(timeout: 5),
+            "the month a drag opened had no days on it"
+        )
     }
 
     func testPickingADayFromTheDatePillOpensItAndShutsThePill() throws {
@@ -1383,6 +1390,30 @@ final class AujourUITests: XCTestCase {
         // month again reads the folder and finds it.
         openTheDatePill(app, to: "Month")
         expect(cell, toHaveValue: "Written")
+    }
+
+    func testTappingTheDaysWordsShutsTheDatePill() throws {
+        let app = launchApp()
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+        let pill = app.buttons["datePill"]
+
+        openTheDatePill(app, to: "Month")
+
+        // Going back to the day's own words is a way of saying you are done
+        // with the calendar. Low down the page, so it is the page being tapped
+        // and not the grid hanging over the top of it.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)).tap()
+        expect(pill, toHaveValue: "Closed")
+
+        // And nothing was picked on the way out: shutting the calendar is not
+        // choosing a day from it.
+        XCTAssertFalse(
+            app.buttons["backToToday"].exists,
+            "shutting the pill by tapping the page picked a day"
+        )
     }
 
     func testAFutureDayCannotBePickedFromTheDatePill() throws {

@@ -74,7 +74,16 @@ public struct DatePill: Equatable, Sendable {
     public var spread: Double { max(0, progress - 1) }
 
     /// Steps it on: closed, week, month, and back to closed.
+    ///
+    /// Lets go of the drag as well as moving the pill, and that is not
+    /// housekeeping: a gesture can be *taken away* rather than ended — the
+    /// view it is on is rebuilt, or something else wins the finger — and then
+    /// no `letGo` ever arrives to clear where it began. A tap after one of
+    /// those would move the pill and leave it still anchored to a drag that is
+    /// over, so the next drag would start from wherever that one had got to
+    /// and jump.
     public mutating func tapped() {
+        draggedFrom = nil
         progress = Double((detent.rawValue + 1) % Detent.allCases.count)
     }
 

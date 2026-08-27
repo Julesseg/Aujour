@@ -139,6 +139,30 @@ struct DatePillTests {
         #expect(pill.detent == .month)
     }
 
+    /// A gesture is not always ended: it can be taken away, when the view it
+    /// is on is rebuilt or something else wins the finger, and then no `letGo`
+    /// arrives at all. What must not survive that is where the drag began —
+    /// the next one would start from there instead of from where the pill now
+    /// is, and jump a state or two on the first frame.
+    @Test("a drag that is never let go does not anchor the next one")
+    func anAbandonedDragDoesNotAnchorTheNextOne() {
+        var pill = DatePill()
+
+        // Opened all the way by a drag that is then taken away mid-flight.
+        pill.dragged(by: DatePill.travel * 2)
+        #expect(pill.detent == .month)
+
+        // Tapped round to shut.
+        pill.tapped()
+        #expect(pill.detent == .closed)
+        #expect(!pill.isBeingDragged)
+
+        // And a fresh drag opens it by its own distance, from where the pill
+        // is rather than from where the abandoned one had got to.
+        pill.dragged(by: DatePill.travel)
+        #expect(pill.progress == 1)
+    }
+
     @Test("picking a day shuts it, wherever it had been left")
     func closingPutsItBack() {
         var pill = DatePill()

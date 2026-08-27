@@ -27,7 +27,10 @@ struct DatePillView: View {
     /// day was chosen, and the screen behind it is the one that is over a day.
     let pick: (JournalDay) -> Void
 
-    @State private var pill = DatePill()
+    /// How far open it is. Held above this view rather than inside it, because
+    /// the rest of the screen is a way out of the pill and a state nothing
+    /// else could reach would be a pill only the pill could shut.
+    @Binding var pill: DatePill
 
     /// How wide the pill is when it is only the pill — measured rather than
     /// guessed, because it is a sentence in the reader's language at the
@@ -47,7 +50,6 @@ struct DatePillView: View {
     @ScaledMetric(relativeTo: .caption) private var monthRowHeight: CGFloat = 34
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         VStack(spacing: 0) {
@@ -61,10 +63,14 @@ struct DatePillView: View {
             }
         }
         .frame(width: width)
-        .background(glass, in: shape)
-        .overlay(shape.strokeBorder(Palette.glassRingColor, lineWidth: 0.5))
         .clipShape(shape)
-        .elevated(.floating)
+        // The system's own glass, rather than the identity's fill, ring and
+        // pair of shadows. What the palette has is an *account* of glass, kept
+        // for the grounds a contrast floor is measured against; a pane that
+        // floats over a page of somebody's writing should be the real thing —
+        // it refracts what scrolls under it, lights its own edge against it,
+        // and answers Reduce Transparency without being asked.
+        .glassEffect(.regular, in: shape)
         .frame(maxWidth: .infinity)
         .background(alignment: .top) { roomProbe }
         // While a finger is on it there is nothing to animate: the pill is
@@ -170,6 +176,10 @@ struct DatePillView: View {
         .accessibilityLabel(dayBeingWritten)
         .accessibilityValue(howOpenItIs)
         .accessibilityHint(whatATapWouldDo)
+        // The way out that tapping the page is, for somebody who is not
+        // aiming a finger at the page: an open pill is dismissible, and a
+        // two-finger scrub is how that is said.
+        .accessibilityAction(.escape) { pill.close() }
     }
 
     /// How far open the pill is, said in a word.
@@ -232,6 +242,18 @@ struct DatePillView: View {
         .frame(height: panelHeight, alignment: .top)
         .clipped()
         .opacity(min(pill.progress * 2.2, 1))
+        // A tap anywhere on the grid is the grid's, even where there is
+        // nothing on it to tap: the gap between two cells, and a day that has
+        // not arrived. Without this both would fall through to the way out
+        // behind the pill, and a finger aimed at a locked day would shut the
+        // month it was aimed into.
+        //
+        // On the grid and not on the whole pill, because the row above it is
+        // holding the one gesture that opens and closes this thing, and a
+        // second gesture over the top of that one wins often enough to leave
+        // the pill unopenable.
+        .contentShape(.rect)
+        .onTapGesture {}
     }
 
     private var monthRow: some View {
@@ -389,10 +411,6 @@ struct DatePillView: View {
         RoundedRectangle(cornerRadius: pillHeight / 2, style: .continuous)
     }
 
-    private var glass: Color {
-        reduceTransparency ? Palette.glassSolidColor : Palette.glassColor
-    }
-
     /// What it does when it is let go: the identity's own settle, or a plain
     /// short fade for a reader who asked for less movement.
     private var settle: Animation {
@@ -428,12 +446,46 @@ extension View {
                 RoomForTheShutPill()
             }
         }
-        .overlay(alignment: .top) {
+        .overlay {
             if let calendar {
-                DatePillView(calendar: calendar, accent: accent, pick: pick)
-                    .padding(.horizontal, Spacing.apart)
-                    .padding(.top, Spacing.close)
+                DatePillOverThePage(calendar: calendar, accent: accent, pick: pick)
             }
+        }
+    }
+}
+
+/// The pill, and the rest of the page under it — which is a way out of it.
+///
+/// The two are one view because they are one decision. How far open the pill
+/// is has to be reachable from outside the glass, or the only way to shut a
+/// month somebody opened by mistake would be to open it further first.
+private struct DatePillOverThePage: View {
+    let calendar: JournalCalendar
+    let accent: Accent
+    let pick: (JournalDay) -> Void
+
+    @State private var pill = DatePill()
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            // Going back to a day's own words is a way of saying you are done
+            // with the calendar, so it is one. Nothing is drawn here and the
+            // page is not dimmed: a grid over a page is left by returning to
+            // the page, and darkening it would be the app making more of the
+            // moment than the reader did.
+            if pill.detent != .closed {
+                Color.clear
+                    .contentShape(.rect)
+                    .onTapGesture { pill.close() }
+                    // Not a thing to be found and wondered about: the same way
+                    // out is on the pill itself, as the escape a dismissible
+                    // thing has.
+                    .accessibilityHidden(true)
+            }
+
+            DatePillView(calendar: calendar, accent: accent, pick: pick, pill: $pill)
+                .padding(.horizontal, Spacing.apart)
+                .padding(.top, Spacing.close)
         }
     }
 }
@@ -597,7 +649,9 @@ struct DayCellLook: Equatable {
 }
 
 #Preview("Closed, on today") {
-    DatePillView(calendar: previewCalendar(), accent: .driftwood) { _ in }
+    @Previewable @State var pill = DatePill()
+
+    DatePillView(calendar: previewCalendar(), accent: .driftwood, pick: { _ in }, pill: $pill)
         .padding(.horizontal, Spacing.apart)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Palette.backgroundColor)

@@ -277,10 +277,13 @@ struct MarkdownAccessoryRowTests {
             let keys = controls(of: row)
             #expect(keys.count == 9)
 
-            // One width between them: nine keys of nine widths would be nine
-            // positions to learn instead of one strip.
+            // One width between them, to the pixel the screen rounds them
+            // onto. Nine keys sharing a fractional number of points cannot all
+            // come out the same number of pixels, so on a 2x screen eight of
+            // them are 35.5 and one is 35.0 — the grid, not a difference, and
+            // not the nine widths this is here to catch.
             let key = try #require(keys.first).bounds.size
-            #expect(keys.allSatisfy { abs($0.bounds.width - key.width) < 0.5 })
+            #expect(keys.allSatisfy { abs($0.bounds.width - key.width) <= 1 })
 
             // Wide enough to aim at, and never wider than it is tall.
             #expect(key.width >= 34)

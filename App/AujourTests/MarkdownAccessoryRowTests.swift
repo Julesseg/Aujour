@@ -295,6 +295,32 @@ struct MarkdownAccessoryRowTests {
         }
     }
 
+    // A mark leaves most of its key clear around it.
+    //
+    // A mark is a label for the key, not a word in the Entry, and at body size
+    // it was not drawn like one: the widest of the nine — the photograph —
+    // came out 26 points across a 37-point key, which is seven tenths of it
+    // and reads as a symbol somebody forgot to leave room around. At footnote
+    // it is 20, and this is the line between the two.
+    //
+    // The sort of thing that otherwise only shows up in a photograph, which is
+    // how this one was found.
+    @Test("a mark leaves three fifths of its key clear around it")
+    func markSizes() throws {
+        let row = aRow { _ in }
+        row.frame = CGRect(x: 0, y: 0, width: 393, height: row.intrinsicContentSize.height)
+        row.layoutIfNeeded()
+
+        for key in controls(of: row) {
+            let symbol = try #require(key.configuration?.image)
+            let sizing = try #require(key.configuration?.preferredSymbolConfigurationForImage)
+            let drawn = try #require(symbol.applyingSymbolConfiguration(sizing)).size
+
+            #expect(drawn.width <= key.bounds.width * 0.6)
+            #expect(drawn.height <= key.bounds.height * 0.4)
+        }
+    }
+
     // An iPad has more room than nine keys should take. They stop at square,
     // because past that a key stops reading as a key.
     @Test("the keys stop growing at square")

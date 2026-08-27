@@ -460,8 +460,13 @@ final class MarkdownAccessoryRow: UIInputView {
     ) -> UIButton {
         var configuration = UIButton.Configuration.plain()
         configuration.image = UIImage(systemName: symbol)
+        // Drawn at the size of a footnote rather than of the prose. A mark on
+        // a key is a label for the key, not a word in the Entry: at body size
+        // it filled its key corner to corner, which reads as a symbol somebody
+        // forgot to leave room around. Still a text style and not a number, so
+        // it is a reader's own text size the mark grows with.
         configuration.preferredSymbolConfigurationForImage =
-            UIImage.SymbolConfiguration(textStyle: .body)
+            UIImage.SymbolConfiguration(textStyle: .footnote)
         configuration.background.cornerRadius = Rounding.control
         // A configured button pads its own image by default, which would set
         // the key's width before the constraint below ever got a say — and

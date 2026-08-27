@@ -114,6 +114,18 @@ struct MarkdownTextStorageTests {
         #expect(hash == styling.syntax)
     }
 
+    // Which quiet, exactly. The identity draws a mark in the faintest of its
+    // three inks — the step held to the marker floor rather than the sentence
+    // one, because a mark is punctuation waiting for a cursor and not a
+    // sentence (ADR 0006, `docs/design/v1-decisions.md`). Asserted against the
+    // palette rather than against `styling.syntax`, which would agree with
+    // itself whatever the editor had been handed.
+    @Test("a mark is drawn in the identity's faintest ink")
+    func syntaxIsDrawnInTheIdentitysFaintestInk() throws {
+        let storage = storage(holding: "## Morning")
+        #expect(try colour(in: storage, at: 0) == Palette.inkFaint)
+    }
+
     @Test("two stars make the words between them bold, and stay stars")
     func strongEmphasis() throws {
         let storage = storage(holding: "A **loud** word")

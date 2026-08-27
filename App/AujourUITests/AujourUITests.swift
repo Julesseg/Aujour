@@ -2109,21 +2109,31 @@ final class AujourUITests: XCTestCase {
     /// is decided — `DeviceAppearance` publishes every choice as it is made
     /// and there is no apply step to defer it to (`AppearanceTests`, "the
     /// editor is told about a change the moment it is made").
-    func testTheEditorsFaceAndSizeMoveTheDaysOwnWordsAndNoneOfTheChrome() {
+    func testTheEditorsFaceAndSizeMoveTheDaysOwnWordsAndNoneOfTheChrome() throws {
         let app = launchApp()
 
         let daysWords = app.staticTexts["aBlankPage"]
         XCTAssertTrue(daysWords.waitForExistence(timeout: 30), "today's blank page never appeared")
         // The date over the entry: chrome, on screen beside the words the whole
         // time, so the two are asked the same question at the same moment.
-        let chrome = app.navigationBars.firstMatch.staticTexts.firstMatch
+        //
+        // The day's own bar, named by the button that is only ever in it. Taken
+        // as the first navigation bar on screen it would be the journal sheet's
+        // for half of this test, and on iPad — where the sheet is a form sheet
+        // over a day that never goes away — it would be a coin toss.
+        let chrome = app.navigationBars
+            .containing(.button, identifier: "openTheJournalSheet")
+            .firstMatch
+            .staticTexts.firstMatch
         XCTAssertTrue(chrome.waitForExistence(timeout: 10), "the day's date was never on screen")
 
         let asTheyCome = daysWords.frame
         let chromeAsItComes = chrome.frame
 
         // The size alone.
-        changeHowItLooks(in: app) { $0.segmentedControls["editorFontSize"].buttons["XL"].tap() }
+        openHowItLooks(in: app)
+        app.segmentedControls["editorFontSize"].buttons["XL"].tap()
+        backToTheDay(in: app)
         let atXL = daysWords.frame
         XCTAssertGreaterThan(
             atXL.height, asTheyCome.height,
@@ -2133,9 +2143,9 @@ final class AujourUITests: XCTestCase {
 
         // And the face alone, at the size just chosen — so what moves now is
         // the typeface and nothing else.
-        changeHowItLooks(in: app) {
-            $0.segmentedControls["editorFontFamily"].buttons["Mono"].tap()
-        }
+        openHowItLooks(in: app)
+        app.segmentedControls["editorFontFamily"].buttons["Mono"].tap()
+        backToTheDay(in: app)
         let inMono = daysWords.frame
         XCTAssertNotEqual(
             inMono.width, atXL.width,
@@ -2151,16 +2161,23 @@ final class AujourUITests: XCTestCase {
         )
     }
 
-    /// Moves one control on the appearance page and comes back out to the day,
-    /// where what it did can be measured.
-    private func changeHowItLooks(
-        in app: XCUIApplication,
-        by moving: (XCUIApplication) -> Void
-    ) {
-        openHowItLooks(in: app)
-        moving(app)
-        goBack(app)
-        app.buttons["Done"].tap()
+    /// Out of the appearance page, off the journal sheet, and back to the day,
+    /// where what was just chosen can be measured.
+    ///
+    /// Each step by name and never by position. While the sheet is up there
+    /// are two navigation bars in the tree — the day's, behind it, and the
+    /// sheet's own — so "the first button on the first bar" is a button on the
+    /// wrong one: it opened the calendar on one device and dismissed the whole
+    /// sheet on another, and neither left anything called Done to press.
+    private func backToTheDay(in app: XCUIApplication) {
+        let back = app.buttons["BackButton"]
+        XCTAssertTrue(back.waitForExistence(timeout: 10), "the appearance page had no way back")
+        back.tap()
+
+        let done = app.buttons["Done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 10), "the journal sheet had no way out")
+        done.tap()
+
         XCTAssertTrue(
             app.staticTexts["aBlankPage"].waitForExistence(timeout: 10), "the day never came back"
         )

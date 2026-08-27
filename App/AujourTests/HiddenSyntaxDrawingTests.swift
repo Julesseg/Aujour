@@ -83,6 +83,36 @@ struct HiddenSyntaxDrawingTests {
         }
     }
 
+    // The other half of the same promise, and the one a reader is most likely
+    // to test by accident: a mark that is not drawn is still under the
+    // selection that runs over it, so it comes out on the pasteboard and it
+    // goes when the selection goes. Nothing is hidden from the hand — only
+    // from the eye.
+    @Test("a selection reaches the marks it cannot see, and takes them with it")
+    func selectingOverAHiddenMark() {
+        let entry = storage(holding: "# Sunday\n\nWoke *late*.", caret: 22)
+        #expect(undrawn(in: entry) == ["# ", "*", "*"])
+
+        // Selecting the heading reveals it, so that what is about to go is on
+        // screen before it goes.
+        let heading = NSRange(location: 0, length: 8)
+        entry.cursor = heading
+        #expect(undrawn(in: entry) == ["*", "*"])
+
+        // And a copy takes the text under the selection, hashes and all —
+        // including, on the day the selection was made without ever revealing
+        // them, the characters that were never drawn.
+        #expect(entry.attributedSubstring(from: heading).string == "# Sunday")
+
+        // What a delete takes is that same stretch: the file loses the hashes
+        // and what is left is a plain line, with the emphasis further down
+        // still hidden because the cursor is not in it.
+        entry.replaceCharacters(in: heading, with: "Sunday")
+        entry.cursor = NSRange(location: 6, length: 0)
+        #expect(entry.string == "Sunday\n\nWoke *late*.")
+        #expect(undrawn(in: entry) == ["*", "*"])
+    }
+
     // Deleting a delimiter leaves markdown that no longer says what it said,
     // and the marks that were hidden on its account have to be drawn again —
     // there is no span left for them to belong to.
@@ -189,59 +219,10 @@ struct HiddenSyntaxDrawingTests {
 
     // MARK: - Laying a day out for real
 
-    /// An Entry laid out by a real layout manager, with the delegate that
-    /// leaves hidden glyphs out — the only way to ask how wide anything
-    /// actually came out.
-    @MainActor
-    private struct LaidOut {
-        let layoutManager: NSLayoutManager
-        let container: NSTextContainer
-        /// Both held for the same reason, and neither of them decoration: a
-        /// layout manager keeps neither its delegate nor its text storage
-        /// alive, and a storage that went away under it would take the
-        /// attributes these measurements are about with it.
-        let storage: MarkdownTextStorage
-        let glyphs: MarkdownGlyphs
-
-        /// How much room a stretch of characters takes on screen — nothing at
-        /// all, for the ones that were not turned into glyphs.
-        func width(of characters: NSRange) -> CGFloat {
-            let glyphRange = layoutManager.glyphRange(
-                forCharacterRange: characters,
-                actualCharacterRange: nil
-            )
-            guard glyphRange.length > 0 else { return 0 }
-            return layoutManager.boundingRect(forGlyphRange: glyphRange, in: container).width
-        }
-
-        /// How wide the whole line a character sits on came out.
-        func lineWidth(atCharacter character: Int) -> CGFloat {
-            let glyph = layoutManager.glyphIndexForCharacter(at: character)
-            return layoutManager.lineFragmentUsedRect(forGlyphAt: glyph, effectiveRange: nil).width
-        }
-    }
-
-    private func laidOut(_ source: String, caret: Int) -> LaidOut {
-        let storage = MarkdownTextStorage(styling: styling)
-        let layoutManager = NSLayoutManager()
-        let glyphs = MarkdownGlyphs()
-        let container = NSTextContainer(
-            size: CGSize(width: 2000, height: CGFloat.greatestFiniteMagnitude)
-        )
-
-        layoutManager.delegate = glyphs
-        storage.addLayoutManager(layoutManager)
-        layoutManager.addTextContainer(container)
-
-        storage.setSource(source)
-        storage.cursor = NSRange(location: caret, length: 0)
-        layoutManager.ensureLayout(for: container)
-
-        return LaidOut(
-            layoutManager: layoutManager,
-            container: container,
-            storage: storage,
-            glyphs: glyphs
-        )
+    /// This suite's day: the plain layout manager, because every measurement
+    /// here is about the room a character takes rather than about anything
+    /// painted over one.
+    private func laidOut(_ source: String, caret: Int) -> LaidOutDay {
+        LaidOutDay(source, styling: styling, cursor: NSRange(location: caret, length: 0))
     }
 }

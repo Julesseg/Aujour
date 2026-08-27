@@ -116,6 +116,10 @@ documented model wins, and what they omit is extrapolated from it.
   Appearance sheet has no accent row and the default is Driftwood `#7B6A52`.
   The third editor face is the system sans — Source Sans 3 is dropped rather
   than bundle a webfont for one settings row.
+  That ticket was #31, and it landed on 2026-08-26: the sheet offers the
+  identity's nine accents, each raised to the contrast floor (ADR 0006), and
+  `CONTEXT.md` carries them under Device Settings. The "until then" above is
+  therefore spent, and the accent row stays.
 - **Settings speak prose, not the glossary.** "When the day turns", not
   "Rollover Hour". Attachment Path Template and embed syntax stay two rows,
   not one, and the sheet is split into "Your journal" (syncs) and "This

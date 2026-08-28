@@ -48,7 +48,6 @@ struct ContentView: View {
     /// The two ways back into a day that is not today's: by when it was, and
     /// by what was written in it.
     private enum WayIntoTheJournal: Hashable {
-        case calendar
         case search
     }
 
@@ -169,15 +168,10 @@ struct ContentView: View {
                             .navigationBarTitleDisplayMode(.inline)
                             .toolbar {
                                 ToolbarItem(placement: .topBarLeading) {
-                                    Button("Calendar", systemImage: "calendar") {
-                                        wayIn = .calendar
-                                    }
-                                    .accessibilityIdentifier("openCalendar")
-                                }
-                                ToolbarItem(placement: .topBarLeading) {
-                                    // Beside the calendar, because they are
-                                    // the two ways back into a day: by when it
-                                    // was, and by what was written in it.
+                                    // The other way back into a day, and now
+                                    // the only one in the bar: by when it was
+                                    // is the pill's, and by what was written
+                                    // in it is this.
                                     Button("Search", systemImage: "magnifyingglass") {
                                         wayIn = .search
                                     }
@@ -233,15 +227,11 @@ struct ContentView: View {
             // opens it: a destination registered only while one branch of a
             // switch is on screen is one the stack can find itself without.
             //
-            // Today's Entry is what the app is for, so both of these are a
-            // step away from it and back — and coming back is what re-reads
-            // the folder for a day just filled in.
+            // Today's Entry is what the app is for, so this is a step away
+            // from it and back — and coming back is what re-reads the folder
+            // for a day just filled in.
             .navigationDestination(item: $wayIn) { wayIn in
                 switch wayIn {
-                case .calendar:
-                    if let calendar = journal.calendar {
-                        JournalCalendarView(calendar: calendar, journal: journal)
-                    }
                 case .search:
                     if let search = journal.search {
                         JournalSearchView(search: search, journal: journal)

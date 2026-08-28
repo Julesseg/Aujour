@@ -41,6 +41,10 @@ struct DatePillView: View {
     /// How much width there is to grow into.
     @State private var roomToOpenInto: CGFloat = 0
 
+    /// How tall the sentence under the grid is, when there is one — measured,
+    /// because it is prose at the reader's own text size.
+    @State private var noticeHeight: CGFloat = 0
+
     /// How far along the pages a finger has walked, in points: nought on the
     /// page being read, a page's width either side.
     ///
@@ -82,6 +86,7 @@ struct DatePillView: View {
         .glassEffect(.regular, in: shape)
         .frame(maxWidth: .infinity)
         .background(alignment: .top) { roomProbe }
+        .background(alignment: .top) { noticeProbe }
         // While a finger is on it there is nothing to animate: the pill is
         // wherever the finger left it. The spring is only for the settling.
         .animation(pill.isBeingDragged ? nil : settle, value: pill.progress)
@@ -272,6 +277,7 @@ struct DatePillView: View {
             monthRow
             weekdayNames
             grid
+            whatTheGridCannotSayForItself
         }
         // Pulled up by the month row's height until the month is nearly out,
         // so that in the week strip the weekday names sit at the top of the
@@ -428,6 +434,96 @@ struct DatePillView: View {
         min(max(Int((-walked / pageWidth).rounded()), -1), 1)
     }
 
+    // MARK: - What a grid of numbers cannot say for itself
+
+    /// The sentence under the month, where there is one to say.
+    ///
+    /// A grid with no marks on it is four different things, and three of them
+    /// must never be dressed up as the fourth (ADR 0001): a folder nothing has
+    /// looked in yet, a folder that would not answer, a month a journal does
+    /// not reach into, and a journal nobody has written in. `JournalCalendar`
+    /// says which; this draws it.
+    ///
+    /// A line and not a page. On the screen this came off it could be a
+    /// `ContentUnavailableView` with room around it, and on a pane of glass an
+    /// inch tall it cannot — but the beginning of a journal is worth a
+    /// sentence wherever it is said, because the grid *is* the way in and
+    /// somebody who has just installed the app has no reason to know that.
+    @ViewBuilder private var whatTheGridCannotSayForItself: some View {
+        if somethingToSay {
+            noticeContent
+                // With the month row, because it belongs to the month the same
+                // way: no grid, nothing to say about one. And out of the
+                // reading order until then, because opacity is drawing and
+                // VoiceOver does not read what is drawn.
+                .opacity(monthIsOut)
+                .accessibilityHidden(pill.detent != .month)
+        }
+    }
+
+    private var noticeContent: some View {
+        notice
+            .lettering(.note)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, Spacing.comfortable)
+            .padding(.vertical, Spacing.close)
+    }
+
+    /// The sentence at its natural height, laid out where nothing squeezes it
+    /// and drawn nowhere.
+    ///
+    /// Measured *inside* the panel it would be measured at whatever height the
+    /// panel had opened to — and the panel opens to a height worked out from
+    /// this, which is a loop that lays out until something gives. So it is
+    /// measured out here, at the width the open pill has, and the panel is
+    /// told how much room to leave.
+    @ViewBuilder private var noticeProbe: some View {
+        if somethingToSay, roomToOpenInto > 0 {
+            noticeContent
+                .frame(width: roomToOpenInto)
+                .fixedSize(horizontal: false, vertical: true)
+                .hidden()
+                .accessibilityHidden(true)
+                .allowsHitTesting(false)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                    noticeHeight = $0
+                }
+        }
+    }
+
+    /// Whether there is a sentence to put under the grid at all — and so
+    /// whether the panel has to open far enough to hold one.
+    private var somethingToSay: Bool {
+        calendar.problem != nil || calendar.nothingToShow != nil
+    }
+
+    @ViewBuilder private var notice: some View {
+        if let problem = calendar.problem {
+            // Said rather than swallowed. A folder that would not answer gives
+            // a month with no marks on it, which is exactly what a journal
+            // nobody has written in looks like.
+            Text("Aujour couldn't read your folder, so days you've written may not be marked.")
+                .foregroundStyle(Palette.inkFaintColor)
+                .accessibilityIdentifier("indicatorsProblem")
+                .accessibilityLabel(StorageProblem(problem).message)
+        } else if let nothing = calendar.nothingToShow {
+            switch nothing {
+            case .aJournalNobodyHasWrittenIn:
+                Text("Your journal starts here. Tap any day up to today and write it.")
+                    .foregroundStyle(Palette.inkFaintColor)
+                    .accessibilityIdentifier("aJournalNobodyHasWrittenIn")
+
+            case .aMonthNobodyWroteIn:
+                // The journal has a past, this month is simply not part of it
+                // — an ordinary gap, said as one.
+                Text("Nothing written in \(calendar.month.name).")
+                    .foregroundStyle(Palette.inkFaintColor)
+                    .accessibilityIdentifier("aMonthNobodyWroteIn")
+            }
+        }
+    }
+
     private var monthRow: some View {
         HStack(spacing: 0) {
             Button("Previous month", systemImage: "chevron.left") {
@@ -462,7 +558,7 @@ struct DatePillView: View {
         .frame(height: monthRowHeight)
         // Only once the month is nearly all the way out: it names the grid,
         // and there is no grid to name until there is more than one week of it.
-        .opacity(min(max((pill.progress - 1.45) * 3, 0), 1))
+        .opacity(monthIsOut)
         // And out of a finger's way until then. Clipping is drawing and not
         // hit testing: this row is above the ceiling in the week strip, drawn
         // nowhere and still sitting squarely on the pill it came out of.
@@ -555,8 +651,10 @@ struct DatePillView: View {
     /// in the room the panel is currently open to.
     private func rowIsUnderTheCeiling(_ row: Int, of grid: JournalCalendar.Month) -> Bool {
         // Within the panel, the grid starts below whatever of the month row
-        // has come out, and below the weekday names.
-        let ceiling = panelHeight - monthRowHeight * pill.spread - weekdayHeight
+        // has come out and below the weekday names, and stops above whatever
+        // of the sentence under it has come out with the month.
+        let notice = (somethingToSay ? noticeHeight : 0) * pill.spread
+        let ceiling = panelHeight - monthRowHeight * pill.spread - weekdayHeight - notice
         let top = CGFloat(row) * rowHeight + gridSlide(of: grid)
         // Half a point of slack, because these are two sums of the same
         // scaled numbers and a row exactly on the line should be reachable.
@@ -593,9 +691,16 @@ struct DatePillView: View {
         let week = weekdayHeight + rowHeight
         let month = monthRowHeight + weekdayHeight
             + CGFloat(calendar.month.weeks.count) * rowHeight
+            + (somethingToSay ? noticeHeight : 0)
         return pill.spread > 0
             ? week + (month - week) * pill.spread
             : week * pill.openness
+    }
+
+    /// How far out the month is, as the fraction the things that belong to it
+    /// alone are drawn at: the name over the grid, and the sentence under it.
+    private var monthIsOut: Double {
+        min(max((pill.progress - 1.45) * 3, 0), 1)
     }
 
     private func gridSlide(of grid: JournalCalendar.Month) -> CGFloat {

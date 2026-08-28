@@ -239,7 +239,12 @@ struct MarkdownAccessoryRowTests {
 
         // A capsule, which is what `Rounding` says a pill is — it has no entry
         // there because it is half its own height at whatever size it came out.
-        #expect(pane.layer.cornerRadius == pane.bounds.height / 2)
+        //
+        // Asked of the configuration rather than read off the layer, because
+        // the configuration is where it has to be said: the heading key morphs
+        // this pane into a menu and back, and a radius UIKit was not told about
+        // does not survive the trip.
+        #expect(pane.effectiveRadius(corner: .allCorners) == pane.bounds.height / 2)
 
         // Off both edges and off the keyboard. Measured in the row's own
         // coordinates, because the pane sits inside the view that lifts it.

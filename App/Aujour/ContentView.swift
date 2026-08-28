@@ -214,14 +214,11 @@ struct ContentView: View {
 
                 case .open:
                     theDayOnScreen
-                        // Under the pill rather than over it: the pill takes
-                        // its own finger, and a swipe belongs to the day's own
-                        // page.
-                        .swipingBetweenDays(turning: turn)
                         .datePill(
                             over: journal.calendar,
                             accent: appearance.accent,
                             pick: pick,
+                            turning: turn,
                             // Written down before the month is read: the marks
                             // are a scan of the folder, and a day being filled
                             // in this second is a day whose file is not there

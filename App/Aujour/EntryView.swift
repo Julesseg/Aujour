@@ -175,7 +175,7 @@ struct EntryView: View {
         // A day nobody wrote, said above the day rather than in it: the words
         // on screen are a Content Template spawned for that day, and they look
         // exactly like a day somebody wrote — which is the one thing about a
-        // Backfill worth telling whoever swiped back to it.
+        // Backfill worth telling whoever walked back to it.
         .safeAreaInset(edge: .top, spacing: 0) {
             if editor.isABackfill { ABackfillInvite() }
         }
@@ -309,8 +309,8 @@ private struct ABlankPage: View {
 /// looks, headings and all, like a Monday somebody did. What tells them apart
 /// is this: the file is not in the folder, and it will not be until a word is
 /// typed (`CONTEXT.md`, Backfill). A day opened and left alone leaves nothing
-/// behind, which is a promise worth making before somebody worries they have
-/// just created an empty Monday.
+/// behind, which is a promise worth making before somebody who walked back
+/// through a week of them worries they have just created seven empty days.
 ///
 /// A quiet line and not a banner. There is nothing wrong here — the app is not
 /// warning anybody — and the day underneath is still the thing on screen.

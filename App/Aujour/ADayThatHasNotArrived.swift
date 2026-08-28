@@ -13,9 +13,9 @@ import SwiftUI
 /// clock — which is the Rollover Hour, the setting that decides when a Journal
 /// Day turns. Without it "not yet" is a wall; with it, it is a time.
 ///
-/// No way out on it. The way back is the Today chip on the pill above, which
-/// is on the pill the whole time the app is not on today, and the swipe that
-/// got here goes back the other way.
+/// No way out on it. The way back is on the pill above: the Today chip, which
+/// is there the whole time the app is not on today, and the same sideways
+/// swipe that got here drawn the other way.
 struct ADayThatHasNotArrived: View {
     /// When the Journal Day turns, and so when this day begins.
     ///
@@ -38,10 +38,9 @@ struct ADayThatHasNotArrived: View {
             )
             .accessibilityIdentifier("whenWritingOpens")
         }
-        // The whole of the page, so that the swipe that got here has the whole
-        // of the page to be drawn back across.
+        // The whole of the page, because that is what this is: the day's own
+        // words are not underneath it waiting to be uncovered, there are none.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .contentShape(.rect)
     }
 }
 

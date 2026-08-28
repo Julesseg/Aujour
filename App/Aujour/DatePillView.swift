@@ -27,6 +27,16 @@ struct DatePillView: View {
     /// day was chosen, and the screen behind it is the one that is over a day.
     let pick: (JournalDay) -> Void
 
+    /// What walking the journal a day does, as a number of days: the day
+    /// before is -1 and the day after is 1.
+    ///
+    /// Not `pick`, and the difference is the point. Picking is refused for a
+    /// day that has not arrived, because a cell in the grid is the way *in* to
+    /// writing a day and a locked one has to refuse where it cannot be tapped
+    /// around. Walking is looking, so it reaches tomorrow and the screen
+    /// behind puts up a page saying the day has not started.
+    let turn: (Int) -> Void
+
     /// What has to be written down before the folder is read.
     ///
     /// The marks are a scan of the folder and nothing else (ADR 0001), so a
@@ -41,6 +51,13 @@ struct DatePillView: View {
     /// the rest of the screen is a way out of the pill and a state nothing
     /// else could reach would be a pill only the pill could shut.
     @Binding var pill: DatePill
+
+    /// The sideways gesture on a shut pill, which walks the journal a day.
+    ///
+    /// Held here and not above, unlike how far open the pill is: nothing
+    /// outside the glass is a way of walking a day, and this is back at nought
+    /// by the time anything could ask it a question.
+    @State private var swipe = DaySwipe()
 
     /// How wide the pill is when it is only the pill — measured rather than
     /// guessed, because it is a sentence in the reader's language at the
@@ -97,9 +114,23 @@ struct DatePillView: View {
         .frame(maxWidth: .infinity)
         .background(alignment: .top) { roomProbe }
         .background(alignment: .top) { noticeProbe }
+        // Leaning towards the day being asked for. The whole pane and not what
+        // is written in it: the pill is sized to the day it names, so a name
+        // slid inside it would be a name half under the glass's own edge,
+        // while the pane has room either side to lean into.
+        .offset(x: swipe.carried)
         // While a finger is on it there is nothing to animate: the pill is
         // wherever the finger left it. The spring is only for the settling.
         .animation(pill.isBeingDragged ? nil : settle, value: pill.progress)
+        .animation(swipe.isBeingDragged ? nil : settle, value: swipe.carried)
+        // And the width the pill shrinks back to, which changes when the day
+        // it names does: the days of the week are not all the same length, so
+        // a walk lands on a pill that has to be a different size. Keyed on the
+        // measured width rather than on the day, because that measurement
+        // arrives from a geometry reading of its own and not in the same
+        // breath as the day it was taken for — an animation hung off the day
+        // would be over before the number it was meant to ease had moved.
+        .animation(settle, value: closedWidth)
         // Opening puts the month being written back on screen, whatever month
         // was browsed to last time it was open. Straight away and not in a
         // task, so the grid is the right month in the first frame of the
@@ -125,19 +156,40 @@ struct DatePillView: View {
     private var header: some View {
         headerContent
             .contentShape(.rect)
-            // One gesture for all three, which is why `minimumDistance` is
-            // zero: a tap, a pull and a walk arrive as the same finger, and
-            // gestures competing over one finger is how a pill ends up
-            // ignoring one of them. Which of the first two it was is
-            // `DatePill`'s to say; sideways is the pill's own business,
-            // because it is the calendar being walked rather than opened.
+            // One gesture for all four, which is why `minimumDistance` is
+            // zero: a tap, a pull, a walk through the pages and a walk through
+            // the days arrive as the same finger, and gestures competing over
+            // one finger is how a pill ends up ignoring one of them.
+            //
+            // Sideways steps whatever unit the pill is showing — a week on the
+            // strip, a month on the grid, and a day when it is shut and naming
+            // one. Which is why the axis has to be *declared* here rather than
+            // read off each frame: a shut pill answers a sideways finger by
+            // walking the journal, and a pull that wandered a few points
+            // across must not both open the calendar and change the day.
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { finger in
+                        swipe.dragged(
+                            across: finger.translation.width,
+                            down: finger.translation.height
+                        )
+                        // A shut pill going sideways is not being opened at
+                        // all: it leans towards the day being asked for, and
+                        // nothing else on it moves.
+                        guard !isWalkingTheDays else { return }
                         pill.dragged(by: finger.translation.height)
                         walked = pill.detent == .closed ? 0 : followed(finger)
                     }
                     .onEnded { finger in
+                        if isWalkingTheDays {
+                            let landing = swipe.letGo(
+                                heading: finger.predictedEndTranslation.width
+                            )
+                            if landing != .whereItStarted { turn(landing.days) }
+                            return
+                        }
+                        swipe.calledOff()
                         if pill.detent != .closed, pageItLandsOn(finger) != 0 {
                             // Put the pill back where the finger found it: a
                             // walk across the pill is not a small pull down it,
@@ -172,6 +224,16 @@ struct DatePillView: View {
                         closedWidth = $0
                     }
             }
+    }
+
+    /// Whether the finger on the pill is walking the journal a day at a time:
+    /// sideways, on a pill that is shut and so naming one day.
+    ///
+    /// Sideways on an *open* pill is the pages being walked instead — a week
+    /// on the strip, a month on the grid — because what a sideways finger
+    /// steps is whatever unit is on screen, and there is a grid on screen.
+    private var isWalkingTheDays: Bool {
+        swipe.axis == .sideways && pill.detent == .closed
     }
 
     private var headerContent: some View {
@@ -223,6 +285,12 @@ struct DatePillView: View {
         // aiming a finger at the page: an open pill is dismissible, and a
         // two-finger scrub is how that is said.
         .accessibilityAction(.escape) { pill.close() }
+        // And the walk, as two named actions rather than as an adjustable
+        // value. The pill's value is how far open it is, and a control that
+        // announced "Closed" and then changed the day when it was adjusted
+        // would be answering with one thing and moving another.
+        .accessibilityAction(named: "Previous day") { turn(-1) }
+        .accessibilityAction(named: "Next day") { turn(1) }
     }
 
     /// How far open the pill is, said in a word.
@@ -775,6 +843,7 @@ extension View {
         over calendar: JournalCalendar?,
         accent: Accent,
         pick: @escaping (JournalDay) -> Void,
+        turning turn: @escaping (Int) -> Void,
         settling settleTheDayOnScreen: @escaping () async -> Void
     ) -> some View {
         safeAreaInset(edge: .top, spacing: 0) {
@@ -793,6 +862,7 @@ extension View {
                     calendar: calendar,
                     accent: accent,
                     pick: pick,
+                    turn: turn,
                     settleTheDayOnScreen: settleTheDayOnScreen
                 )
             }
@@ -809,6 +879,7 @@ private struct DatePillOverThePage: View {
     let calendar: JournalCalendar
     let accent: Accent
     let pick: (JournalDay) -> Void
+    let turn: (Int) -> Void
     let settleTheDayOnScreen: () async -> Void
 
     @State private var pill = DatePill()
@@ -834,6 +905,7 @@ private struct DatePillOverThePage: View {
                 calendar: calendar,
                 accent: accent,
                 pick: pick,
+                turn: turn,
                 settleTheDayOnScreen: settleTheDayOnScreen,
                 pill: $pill
             )
@@ -1008,6 +1080,7 @@ struct DayCellLook: Equatable {
         calendar: previewCalendar(),
         accent: .driftwood,
         pick: { _ in },
+        turn: { _ in },
         settleTheDayOnScreen: {},
         pill: $pill
     )
@@ -1023,6 +1096,12 @@ struct DayCellLook: Equatable {
             .lettering(.prose)
             .padding(Spacing.apart)
     }
-    .datePill(over: calendar, accent: .driftwood, pick: { calendar.pick($0) }, settling: {})
+    .datePill(
+        over: calendar,
+        accent: .driftwood,
+        pick: { calendar.pick($0) },
+        turning: { $0 > 0 ? calendar.showNextDay() : calendar.showPreviousDay() },
+        settling: {}
+    )
     .background(Palette.backgroundColor)
 }

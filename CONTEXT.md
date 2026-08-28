@@ -105,18 +105,19 @@ current Path Template and are kept nowhere else — a disposable cache in ADR
 0001's sense, where deleting it loses nothing and rebuilding it *is* reading
 the journal. The Calendar is also a way into a day: every day up to today
 can be opened (see Backfill), and days that have not arrived are shown and
-locked. The other way into the day either side of the one on screen is a
-sideways swipe across it, which is the same journey without the grid — and
-being a walk rather than a choice, it reaches a day that has not arrived and
-finds it locked there too.
+locked. The day either side of the one on screen is also reached by swiping
+sideways on the date pill, which is the same journey without the grid: a
+sideways finger steps whatever unit the pill is showing, so a shut pill steps
+a day. Being a walk rather than a choice, it reaches a day that has not
+arrived and finds it locked there too.
 
 ### Backfill
 Writing a past Journal Day after the fact: opening a day whose Entry does not
 exist and spawning it for *that* day, so a Monday nobody wrote on is not a
 permanent hole in the Journal. Reached from the calendar, where every day up
-to today can be opened, or by swiping back across the day on screen; days that
-have not arrived are shown and locked, since there is no Entry to write before
-the day exists. A backfilled day is spawned and saved exactly like today's —
+to today can be opened, or by swiping back on the date pill; days that have
+not arrived are shown and locked, since there is no Entry to write before the
+day exists. A backfilled day is spawned and saved exactly like today's —
 the file appears at the first edit — and the Content Template's dates describe
 the day being written about, carrying the clock time it is being written at.
 

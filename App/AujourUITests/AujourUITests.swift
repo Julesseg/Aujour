@@ -1595,19 +1595,21 @@ final class AujourUITests: XCTestCase {
         )
     }
 
-    // MARK: - Moving between days without the calendar
+    // MARK: - Walking the journal a day at a time
 
-    // The other way through the journal: a finger drawn across the day's own
-    // writing, and the two days that are not an ordinary written day — one
-    // that has not arrived, and one already gone that nobody wrote.
+    // The way through the journal that does not open the grid: a finger drawn
+    // sideways across the shut pill, which steps a day the same way a finger
+    // across the open one steps a week or a month. And the two days that are
+    // not an ordinary written day — one that has not arrived, and one already
+    // gone that nobody wrote.
     //
     // What is asked here is what only a running app can show: that a finger
-    // moves the journal at all, that it does not take the day with it when it
-    // was pulling the pill open, and that the pages either end of the ordinary
-    // case are the ones that appear. Where a swipe settles, how much of the
-    // finger the day takes and which day it lands on are `DaySwipeTests` in
-    // Core — they are arithmetic, and a synthesized drag is the wrong
-    // instrument for arithmetic.
+    // moves the journal at all, that it does not do it while it is pulling the
+    // pill open, and that the pages either end of the ordinary case are the
+    // ones that appear. Where a swipe settles, how much of the finger the pill
+    // takes and which day it lands on are `DaySwipeTests` in Core — they are
+    // arithmetic, and a synthesized drag is the wrong instrument for
+    // arithmetic.
 
     func testADayIsSwipedAsideToReachTheDayEitherSideOfIt() throws {
         let yesterday = try XCTUnwrap(dayBeforeToday())
@@ -1639,8 +1641,10 @@ final class AujourUITests: XCTestCase {
     }
 
     /// A swipe is a thing somebody has to mean. The threshold itself is Core's
-    /// (`DaySwipeTests`); what this asks is that the app honours it, and that
-    /// a finger which changed its mind leaves the journal where it found it.
+    /// (`DaySwipeTests`); what this asks is that the app honours it, that a
+    /// finger which changed its mind leaves the journal where it found it —
+    /// and that the pill it was drawn across is still shut, because a short
+    /// sideways drag must not come out as the tap that opens the calendar.
     func testAShortSwipeLeavesTheDayWhereItWas() throws {
         let yesterday = try XCTUnwrap(dayBeforeToday())
         let app = launchApp(
@@ -1657,11 +1661,13 @@ final class AujourUITests: XCTestCase {
             app.buttons["backToToday"].exists,
             "a swipe too short to mean it moved the journal anyway"
         )
+        expect(app.buttons["datePill"], toHaveValue: "Closed")
     }
 
-    /// The axis lock, asked the only way a running app can ask it: a finger
-    /// drawn *down* the page is the date pill being pulled open, and the day
-    /// under it must not slide out from beneath it on the way.
+    /// The axis lock, asked the only way a running app can ask it. Both
+    /// gestures live on the pill and share a finger now, so a pull down it —
+    /// which no finger draws exactly vertically — must open the calendar and
+    /// nothing else, however far off true it wanders.
     func testPullingThePillOpenDoesNotTakeTheDayWithIt() throws {
         let app = launchApp(todaysEntry: "At the desk all day.\n")
         let pill = app.buttons["datePill"]
@@ -1676,6 +1682,47 @@ final class AujourUITests: XCTestCase {
         )
     }
 
+    /// The other half of the same finger. Sideways on the pill steps whatever
+    /// unit is on screen, so an *open* pill steps a week or a month and never
+    /// a day — and the risk is new, because one gesture means two things now
+    /// and which one is decided by whether the pill is shut.
+    ///
+    /// Drawn across the pill itself and not across the grid under it: the grid
+    /// has a gesture of its own, and the one this is about is the header's —
+    /// the same header a shut pill walks the days from.
+    ///
+    /// Asked with the month out, because a month is the one page of the
+    /// calendar that says out loud which one it is. Which week a strip is over
+    /// is only legible from the days on it, and the days off the strip are
+    /// laid out and clipped rather than absent.
+    func testSwipingTheOpenPillWalksTheCalendarAndNotTheDay() throws {
+        let app = launchApp(todaysEntry: "At the desk all day.\n")
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
+        let today = pill.label
+
+        openTheDatePill(app, to: "Month")
+        let month = app.staticTexts["pillMonth"]
+        XCTAssertTrue(month.waitForExistence(timeout: 5), "the month was not named over the grid")
+        let thisMonth = month.label
+
+        // Leftwards is forwards, and on an open pill that is a month and not
+        // a day.
+        swipe(pill, across: -160)
+
+        XCTAssertTrue(
+            waitFor { month.label != thisMonth },
+            "a swipe across the open pill did not step it on from \(thisMonth)"
+        )
+        // And the day being written stayed exactly where it was, which is the
+        // whole of what an open pill has to promise a sideways finger.
+        expect(pill, toHaveLabel: today)
+        XCTAssertFalse(
+            app.buttons["backToToday"].exists,
+            "walking the months moved the day being written"
+        )
+    }
+
     func testADayThatHasNotArrivedIsLockedAndSaysWhenWritingOpens() throws {
         let app = launchApp(todaysEntry: "At the desk all day.\n")
         let editor = app.textViews["entryEditor"]
@@ -1683,6 +1730,7 @@ final class AujourUITests: XCTestCase {
 
         // Forwards, off the end of the days there are to write.
         swipeTheDay(app, across: -160)
+
 
         let locked = app.staticTexts["aDayThatHasNotArrived"]
         XCTAssertTrue(
@@ -2880,8 +2928,8 @@ final class AujourUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 1)
     }
 
-    /// Draws a finger across the day's own page — rightwards for a positive
-    /// distance — deliberately, and holds still before letting go.
+    /// Draws a finger sideways across the shut date pill — rightwards for a
+    /// positive distance — deliberately, and holds still before letting go.
     ///
     /// Held at the end because the app reads where the finger was *going* as
     /// well as where it got to, so that a flick turns the day. A synthesized
@@ -2890,16 +2938,15 @@ final class AujourUITests: XCTestCase {
     /// would be asking about the harness's velocity rather than about the
     /// distance it was given.
     ///
-    /// Begun at the side the finger is coming from rather than in the middle,
-    /// because the narrowest screen Aujour ships to is not wide enough for a
-    /// swipe that means it to start halfway across and end on the screen.
-    ///
-    /// On the page and not on the editor: the same gesture has to work over a
-    /// day that has not arrived, which has no editor on it at all.
+    /// Begun at the pill's own middle, which is the middle of the screen: the
+    /// pill is a couple of inches of glass, and a finger that started at its
+    /// edge would spend half the swipe deciding whether it had begun on it.
     private func swipeTheDay(_ app: XCUIApplication, across distance: CGFloat) {
-        let from = app.coordinate(
-            withNormalizedOffset: CGVector(dx: distance > 0 ? 0.2 : 0.8, dy: 0.55)
-        )
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
+        XCTAssertEqual(pill.value as? String, "Closed", "the pill was not shut to be walked")
+
+        let from = pill.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         from.press(
             forDuration: 0.1,
             thenDragTo: from.withOffset(CGVector(dx: distance, dy: 0)),

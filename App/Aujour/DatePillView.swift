@@ -27,6 +27,16 @@ struct DatePillView: View {
     /// day was chosen, and the screen behind it is the one that is over a day.
     let pick: (JournalDay) -> Void
 
+    /// What has to be written down before the folder is read.
+    ///
+    /// The marks are a scan of the folder and nothing else (ADR 0001), so a
+    /// day being written in this second is a day with no file yet — and a
+    /// month opened over it would say, correctly and uselessly, that nothing
+    /// had been written on it. The screen this came off saved the day it was
+    /// leaving on the way in; the pill leaves nothing, so it settles what is
+    /// underneath it instead.
+    let settleTheDayOnScreen: () async -> Void
+
     /// How far open it is. Held above this view rather than inside it, because
     /// the rest of the screen is a way out of the pill and a state nothing
     /// else could reach would be a pill only the pill could shut.
@@ -105,6 +115,7 @@ struct DatePillView: View {
         // reading it started rather than stacking another on it.
         .task(id: pill.detent == .closed) {
             guard pill.detent != .closed else { return }
+            await settleTheDayOnScreen()
             await calendar.scan()
         }
     }
@@ -763,7 +774,8 @@ extension View {
     func datePill(
         over calendar: JournalCalendar?,
         accent: Accent,
-        pick: @escaping (JournalDay) -> Void
+        pick: @escaping (JournalDay) -> Void,
+        settling settleTheDayOnScreen: @escaping () async -> Void
     ) -> some View {
         safeAreaInset(edge: .top, spacing: 0) {
             if calendar != nil {
@@ -777,7 +789,12 @@ extension View {
         // carries the full-height way out of itself and fills the screen.
         .overlay(alignment: .top) {
             if let calendar {
-                DatePillOverThePage(calendar: calendar, accent: accent, pick: pick)
+                DatePillOverThePage(
+                    calendar: calendar,
+                    accent: accent,
+                    pick: pick,
+                    settleTheDayOnScreen: settleTheDayOnScreen
+                )
             }
         }
     }
@@ -792,6 +809,7 @@ private struct DatePillOverThePage: View {
     let calendar: JournalCalendar
     let accent: Accent
     let pick: (JournalDay) -> Void
+    let settleTheDayOnScreen: () async -> Void
 
     @State private var pill = DatePill()
 
@@ -812,7 +830,13 @@ private struct DatePillOverThePage: View {
                     .accessibilityHidden(true)
             }
 
-            DatePillView(calendar: calendar, accent: accent, pick: pick, pill: $pill)
+            DatePillView(
+                calendar: calendar,
+                accent: accent,
+                pick: pick,
+                settleTheDayOnScreen: settleTheDayOnScreen,
+                pill: $pill
+            )
                 .padding(.horizontal, Spacing.apart)
                 .padding(.top, Spacing.close)
         }
@@ -980,7 +1004,13 @@ struct DayCellLook: Equatable {
 #Preview("Closed, on today") {
     @Previewable @State var pill = DatePill()
 
-    DatePillView(calendar: previewCalendar(), accent: .driftwood, pick: { _ in }, pill: $pill)
+    DatePillView(
+        calendar: previewCalendar(),
+        accent: .driftwood,
+        pick: { _ in },
+        settleTheDayOnScreen: {},
+        pill: $pill
+    )
         .padding(.horizontal, Spacing.apart)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Palette.backgroundColor)
@@ -993,6 +1023,6 @@ struct DayCellLook: Equatable {
             .lettering(.prose)
             .padding(Spacing.apart)
     }
-    .datePill(over: calendar, accent: .driftwood) { calendar.pick($0) }
+    .datePill(over: calendar, accent: .driftwood, pick: { calendar.pick($0) }, settling: {})
     .background(Palette.backgroundColor)
 }

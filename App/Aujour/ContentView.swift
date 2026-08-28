@@ -159,7 +159,16 @@ struct ContentView: View {
                             placesFrom: journal.places
                         )
                             .parkedFilesNotice(from: journal, for: onScreen.day)
-                            .datePill(over: journal.calendar, accent: appearance.accent, pick: pick)
+                            .datePill(
+                                over: journal.calendar,
+                                accent: appearance.accent,
+                                pick: pick,
+                                // Written down before the month is read: the
+                                // marks are a scan of the folder, and a day
+                                // being filled in this second is a day whose
+                                // file is not there yet.
+                                settling: { await onScreen.editor.save() }
+                            )
                             // The pill names the day now, so the bar carries
                             // the ways out of it and nothing else — a title
                             // saying the same thing twice, once in each of two

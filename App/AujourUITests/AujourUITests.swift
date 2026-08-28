@@ -467,7 +467,7 @@ final class AujourUITests: XCTestCase {
             "today was offered a photograph from another day"
         )
 
-        openCalendar(app, showingTheMonthOf: yesterday)
+        openTheMonth(app, showing: yesterday)
         let cell = app.buttons["day-\(entryName(for: yesterday))"]
         XCTAssertTrue(cell.waitForExistence(timeout: 10), "yesterday was not on the calendar")
         cell.tap()
@@ -800,12 +800,12 @@ final class AujourUITests: XCTestCase {
             "a blank first day said nothing at all"
         )
 
-        openCalendar(app, showingTheMonthOf: Date())
+        openTheMonth(app, showing: Date())
         XCTAssertTrue(
             app.staticTexts["aJournalNobodyHasWrittenIn"].waitForExistence(timeout: 15),
-            "a calendar with no dots on it was left as a grid of numbers"
+            "a month with no marks on it was left as a grid of numbers"
         )
-        goBack(app)
+        shutTheDatePill(app)
 
         openSearch(app)
         XCTAssertTrue(
@@ -824,7 +824,7 @@ final class AujourUITests: XCTestCase {
         )
         Thread.sleep(forTimeInterval: 4)
 
-        openCalendar(app, showingTheMonthOf: Date())
+        openTheMonth(app, showing: Date())
         expect(app.buttons["day-\(todaysEntryName())"], toHaveValue: "Written")
         XCTAssertFalse(
             app.staticTexts["aJournalNobodyHasWrittenIn"].exists,
@@ -834,7 +834,7 @@ final class AujourUITests: XCTestCase {
         // And a month it does not reach into is said as that, and not as a
         // journal nobody has written in: the difference is the whole reason
         // there are two sentences.
-        app.buttons["nextMonth"].tap()
+        app.buttons["pillNextMonth"].tap()
         XCTAssertTrue(
             app.staticTexts["aMonthNobodyWroteIn"].waitForExistence(timeout: 10),
             "an empty month in a journal with a past said nothing"
@@ -1108,7 +1108,7 @@ final class AujourUITests: XCTestCase {
             "today's entry never appeared"
         )
 
-        openCalendar(app, showingTheMonthOf: yesterday)
+        openTheMonth(app, showing: yesterday)
         let cell = app.buttons["day-\(entryName(for: yesterday))"]
         XCTAssertTrue(cell.waitForExistence(timeout: 10), "yesterday was not on the calendar")
         cell.tap()
@@ -1185,7 +1185,7 @@ final class AujourUITests: XCTestCase {
             "today's entry never appeared"
         )
 
-        openCalendar(app, showingTheMonthOf: yesterday)
+        openTheMonth(app, showing: yesterday)
         let cell = app.buttons["day-\(entryName(for: yesterday))"]
         XCTAssertTrue(cell.waitForExistence(timeout: 10), "yesterday was not on the calendar")
         cell.tap()
@@ -1215,7 +1215,7 @@ final class AujourUITests: XCTestCase {
         )
 
         let yesterday = try XCTUnwrap(dayBeforeToday())
-        openCalendar(app, showingTheMonthOf: yesterday)
+        openTheMonth(app, showing: yesterday)
 
         // A day nobody has written on, which is the whole premise of
         // backfilling it.
@@ -1239,16 +1239,18 @@ final class AujourUITests: XCTestCase {
 
         editor.tap()
         editor.typeText("Filled in the next morning.")
-        goBack(app)
 
         // The indicator follows the file: the day was written on, so it is
-        // marked, and it was marked by re-reading the folder.
+        // marked, and it was marked by re-reading the folder. Opened again
+        // rather than gone back to — the day was opened in place, so there is
+        // no screen between here and it.
+        openTheMonth(app, showing: yesterday)
         expect(cell, toHaveValue: "Written")
 
         // And it is all in a file — which the next launch, with nothing kept
         // from this one, is what proves.
         relaunch(app)
-        openCalendar(app, showingTheMonthOf: yesterday)
+        openTheMonth(app, showing: yesterday)
         XCTAssertTrue(cell.waitForExistence(timeout: 30), "yesterday was not on the calendar")
         expect(cell, toHaveValue: "Written")
         cell.tap()
@@ -1265,23 +1267,331 @@ final class AujourUITests: XCTestCase {
         )
     }
 
-    func testAFutureDayIsOnTheCalendarAndCannotBeWrittenIn() throws {
+    // MARK: - The date pill
+
+    // The header on iPhone, and the spine of the app: the day being written,
+    // the week around it and the whole month, in one container that grows.
+    //
+    // What is asked here is what only a running app can show — that a tap and
+    // a drag both move it, that a day picked out of the grid becomes the day
+    // on screen, and that the grid marks what the folder holds. Where it
+    // settles when a finger lets go of it mid-travel, and that a reversal
+    // part-way through is honoured, are `DatePillTests` in Core: they are
+    // arithmetic, and a synthesized drag is the wrong instrument for
+    // arithmetic.
+
+    func testTheDatePillOpensAndGoesBetweenTheWeekAndTheMonth() throws {
+        let app = launchApp()
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
+        XCTAssertEqual(pill.value as? String, "Closed")
+
+        // Nothing of the grid is reachable while it is shut — a shut pill is
+        // not a calendar with the lights off.
+        XCTAssertFalse(
+            app.buttons["day-\(todaysEntryName())"].exists,
+            "the month was reachable behind a shut pill"
+        )
+
+        pill.tap()
+        expect(pill, toHaveValue: "Week")
+        let today = app.buttons["day-\(todaysEntryName())"]
+        XCTAssertTrue(today.waitForExistence(timeout: 5), "the week strip had no days on it")
+        XCTAssertTrue(today.isHittable, "today could not be tapped in the week strip")
+
+        pill.tap()
+        expect(pill, toHaveValue: "Month")
+
+        // And back to the week, rather than round to shut: what a tap on the
+        // pill is for is the one question it asks — this week, or this month.
+        // Shutting it is the page behind it, and picking a day out of it.
+        pill.tap()
+        expect(pill, toHaveValue: "Week")
+
+        pill.tap()
+        expect(pill, toHaveValue: "Month")
+
+        // A strip is one week and not a month with five of its rows painted
+        // out. A row the grid has slid past is drawn nowhere *and* is not
+        // there to be tapped — those rows sit squarely on the pill they came
+        // out of, so a week's worth of invisible buttons there would pick a
+        // day nobody aimed at, and swallow the tap that opens the month.
+        //
+        // A week ago is the same weekday one row up, so it is always on the
+        // grid and never on the strip.
+        let aWeekAgo = try XCTUnwrap(daysBeforeToday(7))
+        let aRowUp = app.buttons["day-\(entryName(for: aWeekAgo))"]
+        openTheDatePill(app, to: "Week")
+        XCTAssertTrue(aRowUp.exists, "the week before was not on the grid")
+        if aRowUp.isHittable { aRowUp.tap() }
+        XCTAssertFalse(
+            app.buttons["backToToday"].exists,
+            "a day the strip had slid past was picked through the ceiling"
+        )
+
+        // And with the whole month out it is a day like any other. Which is
+        // also what says the ceiling is not simply shut: a grid nothing could
+        // be picked from would pass every check above.
+        openTheDatePill(app, to: "Month")
+        aRowUp.tap()
+        XCTAssertTrue(
+            app.buttons["backToToday"].waitForExistence(timeout: 5),
+            "the week before could not be picked with the whole month showing"
+        )
+    }
+
+    /// Where the shut pill sits, which is the one thing about it that is not a
+    /// question of how far open it is.
+    ///
+    /// The failure this catches is an overlay left to its own alignment: sized
+    /// to a pill one row tall, it centres it, and the day's name hangs halfway
+    /// down the page until the calendar comes out and the way out of it fills
+    /// the screen — at which point the pill jumps to the top.
+    func testTheShutDatePillSitsAtTheTopOfThePage() throws {
+        let app = launchApp()
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
+        expect(pill, toHaveValue: "Closed")
+
+        let window = app.windows.firstMatch.frame
+        let shut = pill.frame
+        XCTAssertLessThan(
+            shut.midY, window.minY + window.height / 4,
+            "the shut pill was not near the top of the page: \(shut) in \(window)"
+        )
+
+        // And it was there all along, rather than arriving there when the
+        // calendar came out.
+        openTheDatePill(app, to: "Week")
+        XCTAssertEqual(
+            pill.frame.minY, shut.minY, accuracy: 1,
+            "the pill moved up the page when it was opened: \(pill.frame) from \(shut)"
+        )
+    }
+
+    /// The other way through the calendar, and the only one a week strip has
+    /// room for: a finger drawn across it.
+    ///
+    /// What a walk arrives at is asked by picking the day it walked to, rather
+    /// than by measuring where a cell has got to. The strip is the month grid
+    /// slid up under a ceiling, and a row the grid has slid past is not there
+    /// to be picked — so a day off the strip that *can* be picked is a strip
+    /// that moved onto it, which is the whole claim.
+    func testTheDatePillIsWalkedSidewaysAWeekAndAMonthAtATime() throws {
+        let app = launchApp()
+        let today = app.buttons["day-\(todaysEntryName())"]
+        let aWeekAgo = app.buttons["day-\(entryName(for: try XCTUnwrap(daysBeforeToday(7))))"]
+
+        openTheDatePill(app, to: "Week")
+        XCTAssertTrue(today.waitForExistence(timeout: 5), "the week strip had no days on it")
+        XCTAssertTrue(today.isHittable, "today was not on the strip to begin with")
+
+        // Rightwards is backwards: a week ago is the same weekday one row up,
+        // off the strip until the strip is walked to it.
+        swipe(today, across: 160)
+        aWeekAgo.tap()
+        XCTAssertTrue(
+            app.buttons["backToToday"].waitForExistence(timeout: 5),
+            "a swipe across the strip did not bring the week before onto it"
+        )
+
+        // With the whole month out the same finger steps months instead: one
+        // of whatever unit is on screen.
+        openTheDatePill(app, to: "Month")
+        let month = app.staticTexts["pillMonth"]
+        XCTAssertTrue(month.waitForExistence(timeout: 5), "the month was not named over the grid")
+        let thisMonth = month.label
+
+        swipe(month, across: -160)
+        XCTAssertTrue(
+            waitFor { month.label != thisMonth },
+            "a swipe across the month did not step it on from \(thisMonth)"
+        )
+
+        swipe(month, across: 160)
+        expect(month, toHaveLabel: thisMonth)
+
+        // And walking the calendar is looking rather than choosing: the day
+        // the app is on is still the one picked out of the strip.
+        XCTAssertTrue(
+            app.buttons["backToToday"].exists,
+            "walking the months moved the day being written"
+        )
+    }
+
+    /// That a drag drives the pill at all, which is the half of the gesture no
+    /// unit test can reach.
+    ///
+    /// One pull, and a long one. Where a drag *settles* — the rounding to the
+    /// nearest state, the few points that are a tap rather than a drag, the
+    /// reversal halfway — is `DatePillTests` in Core, and it belongs there. A
+    /// synthesized drag is not a finger: it arrives often enough as a press
+    /// and *then* a drag that asking a point-exact question of one is asking
+    /// it of the harness. A pull long enough to clamp is the one answer that
+    /// is the same either way.
+    ///
+    /// Only downward, too. The pill sits an inch from the top of the screen,
+    /// so a finger on it has the whole page to pull down into and barely
+    /// seventy points to pull up — less than one state's worth. Dragging a
+    /// month shut is not something to leave a reader needing: tapping the pill
+    /// closes it, and so does tapping the day's own words
+    /// (`testTappingTheDaysWordsShutsTheDatePill`).
+    func testTheDatePillIsDraggedOpen() throws {
+        let app = launchApp()
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
+
+        // Pulled far enough down to be unambiguous, it goes the whole way in
+        // one gesture rather than one state at a time.
+        drag(pill, by: 400)
+
+        expect(pill, toHaveValue: "Month")
+        XCTAssertTrue(
+            app.buttons["day-\(todaysEntryName())"].waitForExistence(timeout: 5),
+            "the month a drag opened had no days on it"
+        )
+    }
+
+    func testPickingADayFromTheDatePillOpensItAndShutsThePill() throws {
+        let app = launchApp(contentTemplate: "# {{title}}\n")
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+
+        openTheDatePill(app, to: "Month")
+        let cell = app.buttons["day-\(entryName(for: yesterday))"]
+        XCTAssertTrue(cell.waitForExistence(timeout: 10), "yesterday was not on the month")
+        XCTAssertEqual(cell.value as? String, "Not written")
+        cell.tap()
+
+        // Picked, so the pill has nothing left to say and shuts itself.
+        let pill = app.buttons["datePill"]
+        expect(pill, toHaveValue: "Closed")
+
+        // And the day it named is the day now open — spawned from the template
+        // with *that* day's date, in place, without a screen being pushed.
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), "yesterday's entry never opened")
+        let spawned = try XCTUnwrap(editor.value as? String)
+        XCTAssertTrue(
+            spawned.contains("# \(entryName(for: yesterday))"),
+            "expected yesterday's entry to be titled after its own day, got: \(spawned)"
+        )
+
+        editor.tap()
+        editor.typeText("Filled in the next morning.")
+
+        // The way back, offered only because the app is no longer on today.
+        let backToToday = app.buttons["backToToday"]
+        XCTAssertTrue(backToToday.waitForExistence(timeout: 5), "there was no way back to today")
+        backToToday.tap()
+
+        // The mark follows the file: the day was written on, so opening the
+        // month again reads the folder and finds it.
+        openTheDatePill(app, to: "Month")
+        expect(cell, toHaveValue: "Written")
+    }
+
+    func testTappingTheDaysWordsShutsTheDatePill() throws {
+        let app = launchApp()
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+        let pill = app.buttons["datePill"]
+
+        openTheDatePill(app, to: "Month")
+
+        // Going back to the day's own words is a way of saying you are done
+        // with the calendar. Low down the page, so it is the page being tapped
+        // and not the grid hanging over the top of it.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)).tap()
+        expect(pill, toHaveValue: "Closed")
+
+        // And nothing was picked on the way out: shutting the calendar is not
+        // choosing a day from it.
+        XCTAssertFalse(
+            app.buttons["backToToday"].exists,
+            "shutting the pill by tapping the page picked a day"
+        )
+    }
+
+    func testAFutureDayCannotBePickedFromTheDatePill() throws {
         let app = launchApp()
         let tomorrow = try XCTUnwrap(dayAfterToday())
-        openCalendar(app, showingTheMonthOf: tomorrow)
 
+        openTheDatePill(app, to: "Month")
         let cell = app.buttons["day-\(entryName(for: tomorrow))"]
-        XCTAssertTrue(cell.waitForExistence(timeout: 10), "tomorrow was not on the calendar")
+        XCTAssertTrue(cell.waitForExistence(timeout: 10), "tomorrow was not on the month")
         XCTAssertFalse(cell.isEnabled, "a day that has not arrived cannot be written in")
 
         // Tapped anyway: a locked day is one that does nothing, not one that
-        // opens an editor nobody can save from. Guarded because a tap at a
-        // place the app will not accept one is a failure about the tap, and
-        // this test is not about taps.
+        // opens an editor nobody can save from.
         if cell.isHittable { cell.tap() }
+
+        // Nothing moved: the pill is still open on the month, and the app is
+        // still on today.
+        expect(app.buttons["datePill"], toHaveValue: "Month")
         XCTAssertFalse(
-            app.textViews["entryEditor"].waitForExistence(timeout: 3),
-            "tomorrow was opened for editing"
+            app.buttons["backToToday"].exists,
+            "a day that has not arrived was opened"
+        )
+    }
+
+    func testTheMonthOnTheDatePillMarksTheDaysTheFolderHolds() throws {
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let theDayBefore = try XCTUnwrap(daysBeforeToday(2))
+        let app = launchApp(
+            entries: "\(entryName(for: yesterday)) Walked to the market with Robin."
+        )
+
+        openTheDatePill(app, to: "Month")
+
+        expect(app.buttons["day-\(entryName(for: yesterday))"], toHaveValue: "Written")
+        expect(
+            app.buttons["day-\(entryName(for: theDayBefore))"],
+            toHaveValue: "Not written"
+        )
+    }
+
+    /// The claim the pill's own geometry is bounded by: a month is seven
+    /// columns across whatever the reader's text size, so at the largest one
+    /// the grid still fits between the edges of the screen.
+    ///
+    /// The failure this catches is the one a fixed cell size causes and a
+    /// screenshot would not: the tint under a day drawn at a size measured
+    /// off the row rather than off the column, spilling onto the day beside
+    /// it, on the one setting nobody develops at.
+    func testTheDatePillHoldsTogetherAtTheLargestTextSize() throws {
+        let app = launchApp(textSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        openTheDatePill(app, to: "Month")
+
+        let window = app.windows.firstMatch.frame
+        let cells = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'day-'")
+        )
+        XCTAssertGreaterThan(cells.count, 0, "the month had no days on it")
+
+        for cell in cells.allElementsBoundByIndex {
+            let frame = cell.frame
+            XCTAssertGreaterThanOrEqual(
+                frame.minX, window.minX - 0.5,
+                "a day of the month hangs off the left of the screen: \(cell.label) at \(frame)"
+            )
+            XCTAssertLessThanOrEqual(
+                frame.maxX, window.maxX + 0.5,
+                "a day of the month hangs off the right of the screen: \(cell.label) at \(frame)"
+            )
+        }
+
+        // And the day being written is still nameable, which is what the pill
+        // is for — the one thing on it that does grow all the way.
+        let pill = app.buttons["datePill"]
+        XCTAssertLessThanOrEqual(
+            pill.frame.maxX, window.maxX + 0.5,
+            "the pill hangs off the side at the largest text size: \(pill.frame)"
         )
     }
 
@@ -1345,7 +1655,7 @@ final class AujourUITests: XCTestCase {
         )
 
         let yesterday = try XCTUnwrap(dayBeforeToday())
-        openCalendar(app, showingTheMonthOf: yesterday)
+        openTheMonth(app, showing: yesterday)
 
         let cell = app.buttons["day-\(entryName(for: yesterday))"]
         XCTAssertTrue(cell.waitForExistence(timeout: 10), "yesterday was not on the calendar")
@@ -1570,7 +1880,7 @@ final class AujourUITests: XCTestCase {
 
         // Not on the calendar either — a skipped migration orphans the old
         // files completely, which is the deal ADR 0002 makes.
-        openCalendar(app, showingTheMonthOf: Date())
+        openTheMonth(app, showing: Date())
         let today = app.buttons["day-\(todaysEntryName())"]
         XCTAssertTrue(today.waitForExistence(timeout: 10), "today was not on the calendar")
         XCTAssertEqual(today.value as? String, "Not written")
@@ -2152,14 +2462,11 @@ final class AujourUITests: XCTestCase {
         // The date over the entry: chrome, on screen beside the words the whole
         // time, so the two are asked the same question at the same moment.
         //
-        // The day's own bar, named by the button that is only ever in it. Taken
-        // as the first navigation bar on screen it would be the journal sheet's
-        // for half of this test, and on iPad — where the sheet is a form sheet
-        // over a day that never goes away — it would be a coin toss.
-        let chrome = app.navigationBars
-            .containing(.button, identifier: "openTheJournalSheet")
-            .firstMatch
-            .staticTexts.firstMatch
+        // The pill and not a navigation title. The day's name is on the glass
+        // now and the bar carries only the ways out of the day, so the pill is
+        // what has to hold still — it is set in the system's text size, and the
+        // writing's is none of its business.
+        let chrome = app.buttons["datePill"]
         XCTAssertTrue(chrome.waitForExistence(timeout: 10), "the day's date was never on screen")
 
         let asTheyCome = daysWords.frame
@@ -2317,27 +2624,117 @@ final class AujourUITests: XCTestCase {
         return entryCount.label
     }
 
-    /// Opens the calendar and steps to the month a day is in.
+    /// Opens the month on the date pill and steps it to the month a day is in.
     ///
     /// One step at most, because the days these tests are about are either
     /// side of today — and the step is needed at all only on the 1st and the
     /// last of a month, which is exactly when a calendar gets it wrong.
-    private func openCalendar(_ app: XCUIApplication, showingTheMonthOf day: Date) {
-        let calendar = app.buttons["openCalendar"]
-        XCTAssertTrue(calendar.waitForExistence(timeout: 30), "the journal never opened")
-        calendar.tap()
+    ///
+    /// Stepped by the name over the grid and not by counting from today: the
+    /// pill opens over whichever day the app is *on*, and a test that has
+    /// already picked one out of the grid is not where it started.
+    private func openTheMonth(_ app: XCUIApplication, showing day: Date) {
+        openTheDatePill(app, to: "Month")
         XCTAssertTrue(
-            app.staticTexts["calendarMonth"].waitForExistence(timeout: 10),
-            "the calendar never appeared"
+            app.staticTexts["pillMonth"].waitForExistence(timeout: 10),
+            "the month never came out of the pill"
         )
 
-        let months = Calendar.current.dateComponents(
-            [.month],
-            from: startOfMonth(Date()),
-            to: startOfMonth(day)
-        ).month ?? 0
-        if months < 0 { app.buttons["previousMonth"].tap() }
-        if months > 0 { app.buttons["nextMonth"].tap() }
+        // Which month is out is asked of the grid and not of the name over it.
+        // The name is in the app's language and this test runs in the Mac's,
+        // and the two are not the same machine's idea of August.
+        //
+        // The 15th of a month is on that month's grid and on no other: six
+        // whole weeks reach at most five days into the month after and six
+        // into the month before, so neither ever carries a 15th but its own.
+        let middle = app.buttons["day-\(entryName(for: theMiddleOf(day)))"]
+        guard !middle.exists else { return }
+
+        // At most one step either way, because the days these tests are about
+        // are either side of today — and a step is needed at all only on the
+        // 1st and the last of a month, which is exactly when a calendar gets
+        // it wrong.
+        app.buttons["pillNextMonth"].tap()
+        Thread.sleep(forTimeInterval: 0.4)
+        guard !middle.exists else { return }
+
+        // And back past where it started, which is the other direction.
+        app.buttons["pillPreviousMonth"].tap()
+        Thread.sleep(forTimeInterval: 0.4)
+        app.buttons["pillPreviousMonth"].tap()
+        XCTAssertTrue(
+            middle.waitForExistence(timeout: 5),
+            "the pill would not step to the month of \(entryName(for: day))"
+        )
+    }
+
+    /// The 15th of the month a day falls in.
+    private func theMiddleOf(_ day: Date) -> Date {
+        var parts = Calendar.current.dateComponents([.year, .month], from: day)
+        parts.day = 15
+        return Calendar.current.date(from: parts)!
+    }
+
+    /// Puts the calendar away, which is done by going back to the day's own
+    /// words rather than by a button: the pill is over the page and not a
+    /// screen on top of it.
+    private func shutTheDatePill(_ app: XCUIApplication) {
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)).tap()
+        expect(app.buttons["datePill"], toHaveValue: "Closed")
+    }
+
+    /// Opens the date pill on the week or on the month, a tap at a time.
+    private func openTheDatePill(_ app: XCUIApplication, to state: String) {
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
+
+        // Two taps at most: a shut pill opens on the week, and from there a
+        // tap goes between the week and the month.
+        for _ in 0..<3 where pill.value as? String != state {
+            pill.tap()
+            // Given the settle a moment to finish, so the next tap steps from
+            // where this one left it rather than from mid-flight.
+            Thread.sleep(forTimeInterval: 0.8)
+        }
+        XCTAssertEqual(pill.value as? String, state, "the date pill would not open to \(state)")
+    }
+
+    /// Draws a finger across something — rightwards for a positive distance —
+    /// and lets go.
+    ///
+    /// The wait is for the pages to land: the walk is only taken once the page
+    /// being carried in has arrived, so a question asked before the snap has
+    /// finished is asked of the page that is on its way out.
+    private func swipe(_ element: XCUIElement, across distance: CGFloat) {
+        let from = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        from.press(
+            forDuration: 0.2,
+            thenDragTo: from.withOffset(CGVector(dx: distance, dy: 0))
+        )
+        Thread.sleep(forTimeInterval: 1)
+    }
+
+    /// Waits for something to become true, for the settle a swipe or a tap
+    /// leaves behind.
+    private func waitFor(timeout: TimeInterval = 10, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return true }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return condition()
+    }
+
+    /// Pulls something down (or up, for a negative distance) and lets go.
+    private func drag(_ element: XCUIElement, by distance: CGFloat) {
+        let from = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        from.press(
+            forDuration: 0.2,
+            thenDragTo: from.withOffset(CGVector(dx: 0, dy: distance))
+        )
+        // The spring, which the next assertion would otherwise catch part-way
+        // through.
+        Thread.sleep(forTimeInterval: 0.5)
     }
 
     /// Opens the search screen, and waits for it to be there.
@@ -2364,7 +2761,7 @@ final class AujourUITests: XCTestCase {
         field.typeText(query)
     }
 
-    /// Back up one screen — the way out of a day, and out of the calendar.
+    /// Back up one screen — the way out of a day, and out of search.
     private func goBack(_ app: XCUIApplication) {
         app.navigationBars.buttons.element(boundBy: 0).tap()
     }
@@ -2444,12 +2841,6 @@ final class AujourUITests: XCTestCase {
 
     private func dayAfterToday() -> Date? {
         Calendar.current.date(byAdding: .day, value: 1, to: Date())
-    }
-
-    private func startOfMonth(_ date: Date) -> Date {
-        Calendar.current.date(
-            from: Calendar.current.dateComponents([.year, .month], from: date)
-        )!
     }
 
     /// Brings something into view in a sheet that scrolls.

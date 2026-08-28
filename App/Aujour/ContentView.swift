@@ -20,6 +20,17 @@ struct ContentView: View {
     /// destinations the stack picks between, and which one a tap opens stops
     /// being a thing this screen decides.
     @State private var wayIn: WayIntoTheJournal?
+
+    /// The day the app is on, when it is not today's — its editor, made once
+    /// and kept for as long as that day is on screen.
+    ///
+    /// `nil` while today is the day being written, because today's Entry is
+    /// the Journal's own and there must never be two editors over one file:
+    /// two of them autosaving over each other is a day's words losing to
+    /// themselves. Which of the two is on screen is the calendar's to say, and
+    /// this is only where the other one is kept.
+    @State private var dayPickedOutOfTheGrid: OpenedDay?
+
     @Environment(\.scenePhase) private var scenePhase
 
     /// What this window is actually drawing in, light or dark — never "no
@@ -37,7 +48,6 @@ struct ContentView: View {
     /// The two ways back into a day that is not today's: by when it was, and
     /// by what was written in it.
     private enum WayIntoTheJournal: Hashable {
-        case calendar
         case search
     }
 
@@ -74,6 +84,61 @@ struct ContentView: View {
         return { await journal.useAujoursOwnFolder() }
     }
 
+    /// The day the app is showing, and the editor over it.
+    ///
+    /// Today's until a day is picked out of the grid, and today's again the
+    /// moment today is picked — which is the calendar's answer and not a copy
+    /// of it kept here, so that a phone left open past the rollover moves on
+    /// to the new day rather than staying on the old one.
+    private var entryOnScreen: OpenedDay? {
+        if let picked = dayPickedOutOfTheGrid, journal.calendar?.dayBeingWritten == picked.day {
+            return picked
+        }
+        return journal.today.map { OpenedDay(day: $0.day, editor: $0) }
+    }
+
+    /// Opens a day picked out of the date pill's grid.
+    ///
+    /// The day left behind is saved and the folder read again before anything
+    /// else — which is what puts the dot on a day that has just been filled in,
+    /// and what keeps the app to one editor per Entry.
+    private func pick(_ day: JournalDay) {
+        guard let calendar = journal.calendar, day != calendar.dayBeingWritten else { return }
+        let leaving = dayPickedOutOfTheGrid
+        // Refused for a day that has not arrived — the cell is disabled, and
+        // this is the same refusal said where it cannot be tapped around.
+        guard calendar.pick(day) else { return }
+
+        // Today's Entry is the Journal's own, so picking today is putting this
+        // one down rather than making another. One assignment either way, so
+        // the day held here and the day the calendar is on cannot come apart.
+        dayPickedOutOfTheGrid =
+            calendar.isOnToday
+            ? nil
+            : calendar.editor(for: day).map { OpenedDay(day: day, editor: $0) }
+
+        if let opened = dayPickedOutOfTheGrid {
+            Task {
+                // Before it is read, for the same reason today's Entry is: a
+                // past day can have been written on two devices too —
+                // backfilled on the iPad on the train and on the iPhone that
+                // evening — and the version that loses its path is set aside
+                // rather than left in iCloud where nobody would ever see it.
+                await journal.settleAnyDivergence(before: opened.editor)
+                await opened.editor.open()
+            }
+        }
+
+        Task {
+            if let leaving {
+                await leaving.editor.save()
+            } else {
+                await journal.today?.save()
+            }
+            await calendar.scan()
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -87,26 +152,35 @@ struct ContentView: View {
                     // There is no open journal without today's Entry over it
                     // — but a blank page is the one thing this screen must
                     // never be, so the unreachable case is the spinner.
-                    if let today = journal.today {
+                    if let onScreen = entryOnScreen {
                         EntryView(
-                            editor: today,
+                            editor: onScreen.editor,
                             photographsFrom: journal.photoLibrary,
                             placesFrom: journal.places
                         )
-                            .parkedFilesNotice(from: journal, for: today.day)
-                            .navigationTitle(today.day.spelledOut())
+                            .parkedFilesNotice(from: journal, for: onScreen.day)
+                            .datePill(
+                                over: journal.calendar,
+                                accent: appearance.accent,
+                                pick: pick,
+                                // Written down before the month is read: the
+                                // marks are a scan of the folder, and a day
+                                // being filled in this second is a day whose
+                                // file is not there yet.
+                                settling: { await onScreen.editor.save() }
+                            )
+                            // The pill names the day now, so the bar carries
+                            // the ways out of it and nothing else — a title
+                            // saying the same thing twice, once in each of two
+                            // typefaces, is the redesign's own worst screen.
+                            .navigationTitle("")
                             .navigationBarTitleDisplayMode(.inline)
                             .toolbar {
                                 ToolbarItem(placement: .topBarLeading) {
-                                    Button("Calendar", systemImage: "calendar") {
-                                        wayIn = .calendar
-                                    }
-                                    .accessibilityIdentifier("openCalendar")
-                                }
-                                ToolbarItem(placement: .topBarLeading) {
-                                    // Beside the calendar, because they are
-                                    // the two ways back into a day: by when it
-                                    // was, and by what was written in it.
+                                    // The other way back into a day, and now
+                                    // the only one in the bar: by when it was
+                                    // is the pill's, and by what was written
+                                    // in it is this.
                                     Button("Search", systemImage: "magnifyingglass") {
                                         wayIn = .search
                                     }
@@ -162,15 +236,11 @@ struct ContentView: View {
             // opens it: a destination registered only while one branch of a
             // switch is on screen is one the stack can find itself without.
             //
-            // Today's Entry is what the app is for, so both of these are a
-            // step away from it and back — and coming back is what re-reads
-            // the folder for a day just filled in.
+            // Today's Entry is what the app is for, so this is a step away
+            // from it and back — and coming back is what re-reads the folder
+            // for a day just filled in.
             .navigationDestination(item: $wayIn) { wayIn in
                 switch wayIn {
-                case .calendar:
-                    if let calendar = journal.calendar {
-                        JournalCalendarView(calendar: calendar, journal: journal)
-                    }
                 case .search:
                     if let search = journal.search {
                         JournalSearchView(search: search, journal: journal)
@@ -188,6 +258,13 @@ struct ContentView: View {
             WelcomeView(journal: journal)
         }
         .task { await journal.open() }
+        // A journal that has been reopened — a folder changed, a Path Template
+        // changed — is a new calendar over new files, and a day held from the
+        // old one is an editor over a store nothing is journaling into any
+        // more.
+        .onChange(of: journal.calendar.map(ObjectIdentifier.init)) { _, _ in
+            dayPickedOutOfTheGrid = nil
+        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .inactive, .background:
@@ -199,15 +276,26 @@ struct ContentView: View {
                 // way: whether today still needs asking about is decided by
                 // whether today's Entry is a file, and the words that would
                 // make it one are the ones being saved here.
+                //
+                // Both editors, because a day backfilled from the pill is
+                // being written into just as literally as today is.
                 Task {
                     await journal.today?.save()
+                    await dayPickedOutOfTheGrid?.editor.save()
                     await journal.reconsiderTheDailyReminder()
                 }
             case .active:
                 // What coming back to the front means for a journal that is
                 // files in a folder — a new day, and a folder that moved on
-                // while nothing was listening — is the Journal's to say.
-                Task { await journal.cameBackToTheFront() }
+                // while nothing was listening — is the Journal's to say. It
+                // says it for today's Entry; a day picked out of the grid is
+                // this screen's own, and catches up the same way, taking on
+                // what its file says wherever nothing here is waiting to be
+                // written to it.
+                Task {
+                    await journal.cameBackToTheFront()
+                    await dayPickedOutOfTheGrid?.editor.reloadIfClean()
+                }
             @unknown default:
                 break
             }

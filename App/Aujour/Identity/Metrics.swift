@@ -79,8 +79,9 @@ struct Elevation: Equatable {
     /// would look wrong without it.
     static let resting = Elevation(layers: [Layer(opacity: 0.25, radius: 1.5, y: 1)])
 
-    /// A surface floating over content that scrolls under it: a banner, the
-    /// date pill, a toolbar.
+    /// A surface floating over content that scrolls under it: a banner, a
+    /// toolbar. Not the date pill, which is drawn in the system's own glass
+    /// and lifts itself.
     static let floating = Elevation(
         layers: [
             Layer(opacity: 0.05, radius: 1, y: 1),

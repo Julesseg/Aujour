@@ -172,6 +172,13 @@ struct EntryView: View {
                 }
             }
         }
+        // A day nobody wrote, said above the day rather than in it: the words
+        // on screen are a Content Template spawned for that day, and they look
+        // exactly like a day somebody wrote — which is the one thing about a
+        // Backfill worth telling whoever swiped back to it.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if editor.isABackfill { ABackfillInvite() }
+        }
         // Along the bottom rather than over the text: something that could not
         // be written must be impossible to miss, and equally impossible to be
         // stopped by — the words are still on screen and still being typed.
@@ -290,6 +297,40 @@ private struct ABlankPage: View {
             // Never in the way of the finger going to the place it describes.
             .allowsHitTesting(false)
             .accessibilityIdentifier("aBlankPage")
+    }
+}
+
+/// A day already gone that nobody wrote, offered as the thing it is: a day
+/// still open to be filled in.
+///
+/// The one thing about a Backfill worth saying out loud, and it is not
+/// "nothing here" — the page is rarely blank. A day with no Entry is spawned
+/// from the Content Template exactly as today is, so a Monday nobody wrote
+/// looks, headings and all, like a Monday somebody did. What tells them apart
+/// is this: the file is not in the folder, and it will not be until a word is
+/// typed (`CONTEXT.md`, Backfill). A day opened and left alone leaves nothing
+/// behind, which is a promise worth making before somebody worries they have
+/// just created an empty Monday.
+///
+/// A quiet line and not a banner. There is nothing wrong here — the app is not
+/// warning anybody — and the day underneath is still the thing on screen.
+/// Nothing to dismiss either: it goes when the day is written, which is what
+/// it is for.
+///
+/// And it states rather than urges, because the page is doing the urging: on a
+/// journal with no Content Template this sits directly over a blank editor
+/// already asking to be written in, and a second sentence telling somebody to
+/// type would be the app saying the same thing twice.
+private struct ABackfillInvite: View {
+    var body: some View {
+        Text("Nothing was written on this day. It joins your journal at the first word.")
+            .lettering(.note)
+            .foregroundStyle(Palette.inkFaintColor)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, Spacing.apart)
+            .padding(.vertical, Spacing.close)
+            .accessibilityIdentifier("aBackfillInvite")
     }
 }
 

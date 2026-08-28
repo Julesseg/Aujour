@@ -1595,6 +1595,171 @@ final class AujourUITests: XCTestCase {
         )
     }
 
+    // MARK: - Moving between days without the calendar
+
+    // The other way through the journal: a finger drawn across the day's own
+    // writing, and the two days that are not an ordinary written day — one
+    // that has not arrived, and one already gone that nobody wrote.
+    //
+    // What is asked here is what only a running app can show: that a finger
+    // moves the journal at all, that it does not take the day with it when it
+    // was pulling the pill open, and that the pages either end of the ordinary
+    // case are the ones that appear. Where a swipe settles, how much of the
+    // finger the day takes and which day it lands on are `DaySwipeTests` in
+    // Core — they are arithmetic, and a synthesized drag is the wrong
+    // instrument for arithmetic.
+
+    func testADayIsSwipedAsideToReachTheDayEitherSideOfIt() throws {
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let app = launchApp(
+            entries: "\(entryName(for: yesterday)) Walked to the market with Robin.",
+            todaysEntry: "At the desk all day.\n"
+        )
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        expect(editor, toHaveValue: "At the desk all day.\n")
+
+        // Rightwards is backwards, as it is everywhere else in the app.
+        swipeTheDay(app, across: 160)
+        expect(editor, toHaveValue: "Walked to the market with Robin.\n")
+        XCTAssertTrue(
+            app.buttons["backToToday"].exists,
+            "a swipe moved the day without the app knowing it had left today"
+        )
+
+        // And leftwards is forwards, back to the day it started on — which is
+        // today, and so is following the clock again rather than pinned to
+        // today's date.
+        swipeTheDay(app, across: -160)
+        expect(editor, toHaveValue: "At the desk all day.\n")
+        XCTAssertFalse(
+            app.buttons["backToToday"].exists,
+            "swiping back onto today left the app thinking it was elsewhere"
+        )
+    }
+
+    /// A swipe is a thing somebody has to mean. The threshold itself is Core's
+    /// (`DaySwipeTests`); what this asks is that the app honours it, and that
+    /// a finger which changed its mind leaves the journal where it found it.
+    func testAShortSwipeLeavesTheDayWhereItWas() throws {
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let app = launchApp(
+            entries: "\(entryName(for: yesterday)) Walked to the market with Robin.",
+            todaysEntry: "At the desk all day.\n"
+        )
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        swipeTheDay(app, across: 40)
+
+        expect(editor, toHaveValue: "At the desk all day.\n")
+        XCTAssertFalse(
+            app.buttons["backToToday"].exists,
+            "a swipe too short to mean it moved the journal anyway"
+        )
+    }
+
+    /// The axis lock, asked the only way a running app can ask it: a finger
+    /// drawn *down* the page is the date pill being pulled open, and the day
+    /// under it must not slide out from beneath it on the way.
+    func testPullingThePillOpenDoesNotTakeTheDayWithIt() throws {
+        let app = launchApp(todaysEntry: "At the desk all day.\n")
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
+
+        drag(pill, by: 400)
+
+        expect(pill, toHaveValue: "Month")
+        XCTAssertFalse(
+            app.buttons["backToToday"].exists,
+            "pulling the pill open moved the day being written"
+        )
+    }
+
+    func testADayThatHasNotArrivedIsLockedAndSaysWhenWritingOpens() throws {
+        let app = launchApp(todaysEntry: "At the desk all day.\n")
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        // Forwards, off the end of the days there are to write.
+        swipeTheDay(app, across: -160)
+
+        let locked = app.staticTexts["aDayThatHasNotArrived"]
+        XCTAssertTrue(
+            locked.waitForExistence(timeout: 10),
+            "a day that has not arrived did not say so — the screen is showing: "
+                + app.staticTexts.allElementsBoundByIndex.map { $0.label }.joined(separator: " / ")
+        )
+        // Cannot be typed in, which is the whole of what "locked" means here:
+        // an editor is the only thing that can write an Entry, and there is
+        // not one.
+        XCTAssertFalse(editor.exists, "a day that has not arrived had an editor on it")
+
+        // And it names the hour writing opens at, which is this journal's
+        // Rollover Hour — midnight, until somebody changes it.
+        let opens = app.staticTexts["whenWritingOpens"]
+        XCTAssertTrue(
+            opens.label.contains(onTheClock(hour: 0)),
+            "the locked day did not name when writing opens: \(opens.label)"
+        )
+
+        // The pill is over it like any other day, with the way back on it.
+        XCTAssertTrue(
+            app.buttons["backToToday"].exists,
+            "a day that has not arrived had no way back to today on it"
+        )
+
+        // Left the way it was arrived at.
+        swipeTheDay(app, across: 160)
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), "the day could not be swiped back out of")
+        expect(editor, toHaveValue: "At the desk all day.\n")
+    }
+
+    func testAnUnwrittenPastDayInvitesABackfillAndWritesNothingUntilItIsTyped() throws {
+        let app = launchApp(contentTemplate: "# {{title}}\n")
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        // Today is spawned from the same template into the same absence of a
+        // file, and is not being invited to anything: today has not been
+        // missed.
+        XCTAssertFalse(
+            app.staticTexts["aBackfillInvite"].exists,
+            "today's own entry was offered as a day to fill in"
+        )
+
+        swipeTheDay(app, across: 160)
+
+        let invite = app.staticTexts["aBackfillInvite"]
+        XCTAssertTrue(
+            invite.waitForExistence(timeout: 10),
+            "an unwritten past day did not invite a backfill"
+        )
+
+        // Spawned for *that* day and not for today, which is what backfilling
+        // one means.
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        expect(editor, toHaveValue: "# \(entryName(for: yesterday))\n")
+
+        // And nothing is in the folder yet: the marks are a scan of it, so a
+        // day still marked unwritten is a day with no file.
+        openTheMonth(app, showing: yesterday)
+        expect(app.buttons["day-\(entryName(for: yesterday))"], toHaveValue: "Not written")
+        shutTheDatePill(app)
+
+        // The file appears at the first edit, and the invitation goes with it.
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), "the day went away with the pill")
+        editor.tap()
+        editor.typeText("Filled in the next morning.")
+
+        XCTAssertTrue(
+            waitFor { !invite.exists },
+            "the invitation stayed over a day that had been written"
+        )
+        openTheMonth(app, showing: yesterday)
+        expect(app.buttons["day-\(entryName(for: yesterday))"], toHaveValue: "Written")
+    }
+
     // MARK: - Sending a day somewhere
 
     // The acceptance-level claim of exporting: both forms are on offer over a
@@ -2211,11 +2376,12 @@ final class AujourUITests: XCTestCase {
     /// An hour of the day as this device's clock writes it — the same way the
     /// app writes it, so that a test does not assert an American clock on a
     /// simulator set to a French one.
+    ///
+    /// The whole hour, which is the Rollover Hour: `RolloverHour.spelledOut`
+    /// is a `TimeOfDay` at nought minutes, so it is written off the same
+    /// daylight-saving-free day as every other clock face in the app.
     private func onTheClock(hour: Int) -> String {
-        let midnight = Calendar.current.startOfDay(for: Date())
-        let atThatHour =
-            Calendar.current.date(byAdding: .hour, value: hour, to: midnight) ?? midnight
-        return atThatHour.formatted(date: .omitted, time: .shortened)
+        onTheClock(hour: hour, minute: 0)
     }
 
     /// A reminder's time as this device's clock writes it — measured off a day
@@ -2711,6 +2877,36 @@ final class AujourUITests: XCTestCase {
             forDuration: 0.2,
             thenDragTo: from.withOffset(CGVector(dx: distance, dy: 0))
         )
+        Thread.sleep(forTimeInterval: 1)
+    }
+
+    /// Draws a finger across the day's own page — rightwards for a positive
+    /// distance — deliberately, and holds still before letting go.
+    ///
+    /// Held at the end because the app reads where the finger was *going* as
+    /// well as where it got to, so that a flick turns the day. A synthesized
+    /// drag that stops dead at its destination is still travelling as far as
+    /// the gesture is concerned, and a test of the threshold asked with one
+    /// would be asking about the harness's velocity rather than about the
+    /// distance it was given.
+    ///
+    /// Begun at the side the finger is coming from rather than in the middle,
+    /// because the narrowest screen Aujour ships to is not wide enough for a
+    /// swipe that means it to start halfway across and end on the screen.
+    ///
+    /// On the page and not on the editor: the same gesture has to work over a
+    /// day that has not arrived, which has no editor on it at all.
+    private func swipeTheDay(_ app: XCUIApplication, across distance: CGFloat) {
+        let from = app.coordinate(
+            withNormalizedOffset: CGVector(dx: distance > 0 ? 0.2 : 0.8, dy: 0.55)
+        )
+        from.press(
+            forDuration: 0.1,
+            thenDragTo: from.withOffset(CGVector(dx: distance, dy: 0)),
+            withVelocity: .slow,
+            thenHoldForDuration: 0.4
+        )
+        // The spring, and the day either side being opened behind it.
         Thread.sleep(forTimeInterval: 1)
     }
 

@@ -89,6 +89,41 @@ public final class EntryEditor {
     /// so; the words stay in the editor, and the next edit tries again.
     public private(set) var saveProblem: (any Error)?
 
+    /// Whether this day is one being filled in after the fact: a day already
+    /// gone that the folder has no Entry for, spawned so it can be written
+    /// now — which is Backfill (`CONTEXT.md`).
+    ///
+    /// What the writing surface says something about. A day nobody wrote is
+    /// the one case where the app has news for whoever opened it: there is
+    /// nothing here, and there will be nothing in the folder until they type.
+    ///
+    /// Today is spawned in exactly the same way and is never one of these,
+    /// which is why the day's *relation* is half the answer: today has not
+    /// been missed, and a day it is still possible to write on time has
+    /// nothing to invite anybody to. It stops being true the moment the day
+    /// has a file — the first save, or a version arriving from another device
+    /// — and starts being true overnight, for an app left open on a day
+    /// nobody got round to.
+    public var isABackfill: Bool { hasNoFileYet && relation == .past }
+
+    /// Where the day on screen sits relative to now.
+    ///
+    /// Asked of the clock every time rather than fixed when the day was
+    /// opened, like ``JournalCalendar/today``: an app left open overnight is
+    /// on a day that has moved behind it.
+    private var relation: JournalDay.Relation {
+        day.relation(to: now(), in: timeZone, rolloverHour: settings.rolloverHour)
+    }
+
+    /// Whether the folder had no Entry for this day when it was last looked
+    /// at, and none has been written since.
+    ///
+    /// False before the day is open at all, and false again for a day that
+    /// could not be opened: neither is a day with nothing in it, they are days
+    /// nothing is known about, and an invitation to write into a folder Aujour
+    /// cannot read would be an offer it could not keep (ADR 0001).
+    private var hasNoFileYet = false
+
     @ObservationIgnored private let store: any JournalStore
     @ObservationIgnored private let settings: JournalSettings
 
@@ -249,8 +284,10 @@ public final class EntryEditor {
             // Either way this is the text that needs no saving: what the file
             // says, or what the template spawned and the user has not touched.
             savedContent = text
+            hasNoFileYet = !journaled
             state = .editing
         } catch {
+            hasNoFileYet = false
             state = .unavailable(error)
         }
     }
@@ -444,6 +481,9 @@ public final class EntryEditor {
             // arrives for an app left open overnight. Either way what came
             // back is about a day that is no longer the one to put on screen.
             guard state.isEditing, day == reloading, entryPath == path else { return }
+            // Written by somebody, somewhere: the day has a file now, whether
+            // or not what it says is any different from what is on screen.
+            hasNoFileYet = false
             guard !needsSaving, text != typedContent else { return }
 
             show(text)
@@ -541,6 +581,9 @@ public final class EntryEditor {
         do {
             try await store.writeText(saving, at: entryPath)
             savedContent = saving
+            // The first edit is what makes the file, so this is where a day
+            // stops being one nobody has written (`CONTEXT.md`).
+            hasNoFileYet = false
             saveProblem = nil
         } catch {
             saveProblem = error

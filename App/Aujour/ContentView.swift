@@ -84,13 +84,19 @@ struct ContentView: View {
         return { await journal.useAujoursOwnFolder() }
     }
 
-    /// The day the app is showing, and the editor over it.
+    /// The day the app is showing, and the editor over it — or `nil` for the
+    /// one day there is no editor for.
     ///
     /// Today's until a day is picked out of the grid, and today's again the
     /// moment today is picked — which is the calendar's answer and not a copy
     /// of it kept here, so that a phone left open past the rollover moves on
     /// to the new day rather than staying on the old one.
     private var entryOnScreen: OpenedDay? {
+        // A day that has not arrived has no Entry to open, and this is where
+        // the screen stops looking for one: an editor is the only thing that
+        // can write an Entry, so a day with no editor is a day with no file,
+        // however hard the screen is tapped.
+        guard journal.calendar?.writingOpensAt == nil else { return nil }
         if let picked = dayPickedOutOfTheGrid, journal.calendar?.dayBeingWritten == picked.day {
             return picked
         }
@@ -99,19 +105,50 @@ struct ContentView: View {
 
     /// Opens a day picked out of the date pill's grid.
     ///
-    /// The day left behind is saved and the folder read again before anything
-    /// else — which is what puts the dot on a day that has just been filled in,
-    /// and what keeps the app to one editor per Entry.
+    /// Every reason a pick might come to nothing is the calendar's, and this
+    /// takes its word for all of them: a day that has not arrived, which the
+    /// grid disables and the calendar refuses again where it cannot be tapped
+    /// around, and the day already being written, which would otherwise be a
+    /// second editor over one Entry.
     private func pick(_ day: JournalDay) {
-        guard let calendar = journal.calendar, day != calendar.dayBeingWritten else { return }
+        guard let calendar = journal.calendar else { return }
         let leaving = dayPickedOutOfTheGrid
-        // Refused for a day that has not arrived — the cell is disabled, and
-        // this is the same refusal said where it cannot be tapped around.
         guard calendar.pick(day) else { return }
+        openTheDayBeingWritten(leaving: leaving)
+    }
 
-        // Today's Entry is the Journal's own, so picking today is putting this
-        // one down rather than making another. One assignment either way, so
-        // the day held here and the day the calendar is on cannot come apart.
+    /// Moves the journal a day, which is what a finger drawn across the day's
+    /// own writing does.
+    ///
+    /// Not `pick`'s refusal, deliberately: a cell in the grid is the way *in*
+    /// to writing a day and a locked one has to refuse, while a swipe is the
+    /// calendar walked rather than chosen from. So this reaches a day that has
+    /// not arrived, and what is found there is a page saying so.
+    ///
+    /// - Parameter days: which way, as the number of days a swipe landed —
+    ///   the day before is -1 and the day after is 1.
+    private func turn(_ days: Int) {
+        guard let calendar = journal.calendar else { return }
+        let leaving = dayPickedOutOfTheGrid
+        if days > 0 { calendar.showNextDay() } else { calendar.showPreviousDay() }
+        openTheDayBeingWritten(leaving: leaving)
+    }
+
+    /// Puts an editor over whichever day the calendar has just moved to, and
+    /// puts down the one that was on screen.
+    ///
+    /// The day left behind is saved and the folder read again before anything
+    /// else — which is what puts the dot on a day that has just been filled
+    /// in, and what keeps the app to one editor per Entry.
+    private func openTheDayBeingWritten(leaving: OpenedDay?) {
+        guard let calendar = journal.calendar else { return }
+        let day = calendar.dayBeingWritten
+
+        // Today's Entry is the Journal's own, so arriving on today is putting
+        // this one down rather than making another — and a day that has not
+        // arrived has no editor to make at all. One assignment for all three,
+        // so the day held here and the day the calendar is on cannot come
+        // apart.
         dayPickedOutOfTheGrid =
             calendar.isOnToday
             ? nil
@@ -139,6 +176,33 @@ struct ContentView: View {
         }
     }
 
+    /// The page the day being written is: an Entry to write in, or the one
+    /// day there is no Entry for.
+    ///
+    /// Under the pill either way, and swiped between either way. A day that
+    /// has not arrived is a page of the journal like any other — it is
+    /// reachable, it names itself on the pill above, and it is left the way it
+    /// was arrived at — and the only thing it does not have is somewhere to
+    /// type.
+    @ViewBuilder private var theDayOnScreen: some View {
+        if let onScreen = entryOnScreen {
+            EntryView(
+                editor: onScreen.editor,
+                photographsFrom: journal.photoLibrary,
+                placesFrom: journal.places
+            )
+            .parkedFilesNotice(from: journal, for: onScreen.day)
+        } else if let calendar = journal.calendar, let opensAt = calendar.writingOpensAt {
+            ADayThatHasNotArrived(writingOpensAt: opensAt)
+        } else {
+            // There is no open journal without today's Entry over it — but a
+            // blank page is the one thing this screen must never be, so the
+            // unreachable case is the spinner.
+            ProgressView("Opening today's entry")
+                .accessibilityIdentifier("openingEntry")
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -149,58 +213,49 @@ struct ContentView: View {
                         .navigationTitle("Aujour")
 
                 case .open:
-                    // There is no open journal without today's Entry over it
-                    // — but a blank page is the one thing this screen must
-                    // never be, so the unreachable case is the spinner.
-                    if let onScreen = entryOnScreen {
-                        EntryView(
-                            editor: onScreen.editor,
-                            photographsFrom: journal.photoLibrary,
-                            placesFrom: journal.places
+                    theDayOnScreen
+                        // Under the pill rather than over it: the pill takes
+                        // its own finger, and a swipe belongs to the day's own
+                        // page.
+                        .swipingBetweenDays(turning: turn)
+                        .datePill(
+                            over: journal.calendar,
+                            accent: appearance.accent,
+                            pick: pick,
+                            // Written down before the month is read: the marks
+                            // are a scan of the folder, and a day being filled
+                            // in this second is a day whose file is not there
+                            // yet.
+                            settling: { await entryOnScreen?.editor.save() }
                         )
-                            .parkedFilesNotice(from: journal, for: onScreen.day)
-                            .datePill(
-                                over: journal.calendar,
-                                accent: appearance.accent,
-                                pick: pick,
-                                // Written down before the month is read: the
-                                // marks are a scan of the folder, and a day
-                                // being filled in this second is a day whose
-                                // file is not there yet.
-                                settling: { await onScreen.editor.save() }
-                            )
-                            // The pill names the day now, so the bar carries
-                            // the ways out of it and nothing else — a title
-                            // saying the same thing twice, once in each of two
-                            // typefaces, is the redesign's own worst screen.
-                            .navigationTitle("")
-                            .navigationBarTitleDisplayMode(.inline)
-                            .toolbar {
-                                ToolbarItem(placement: .topBarLeading) {
-                                    // The other way back into a day, and now
-                                    // the only one in the bar: by when it was
-                                    // is the pill's, and by what was written
-                                    // in it is this.
-                                    Button("Search", systemImage: "magnifyingglass") {
-                                        wayIn = .search
-                                    }
-                                    .accessibilityIdentifier("openSearch")
+                        // The pill names the day now, so the bar carries the
+                        // ways out of it and nothing else — a title saying the
+                        // same thing twice, once in each of two typefaces, is
+                        // the redesign's own worst screen.
+                        .navigationTitle("")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                // The other way back into a day, and now the
+                                // only one in the bar: by when it was is the
+                                // pill's, and by what was written in it is
+                                // this.
+                                Button("Search", systemImage: "magnifyingglass") {
+                                    wayIn = .search
                                 }
-                                ToolbarItem(placement: .topBarTrailing) {
-                                    // One way in for the folder and every
-                                    // setting over it, because they are one
-                                    // answer: this is your journal, and this
-                                    // is what Aujour will do with it.
-                                    Button("Your journal", systemImage: "folder.badge.gearshape") {
-                                        showingTheJournalItself = true
-                                    }
-                                    .accessibilityIdentifier("openTheJournalSheet")
-                                }
+                                .accessibilityIdentifier("openSearch")
                             }
-                    } else {
-                        ProgressView("Opening today's entry")
-                            .accessibilityIdentifier("openingEntry")
-                    }
+                            ToolbarItem(placement: .topBarTrailing) {
+                                // One way in for the folder and every setting
+                                // over it, because they are one answer: this
+                                // is your journal, and this is what Aujour
+                                // will do with it.
+                                Button("Your journal", systemImage: "folder.badge.gearshape") {
+                                    showingTheJournalItself = true
+                                }
+                                .accessibilityIdentifier("openTheJournalSheet")
+                            }
+                        }
 
                 case .unavailable(let problem):
                     StorageProblemNotice(

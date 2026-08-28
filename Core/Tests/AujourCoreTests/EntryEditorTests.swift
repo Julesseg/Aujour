@@ -906,3 +906,120 @@ private struct ADayInTheCalendar: DayItemSource {
         return [DayItem(title: MomentFormat("YYYY-MM-DD").render(day.start, timeZone: paris), time: nine)]
     }
 }
+
+/// A day already gone with no Entry in the folder — the state the writing
+/// surface says something about, because a day nobody wrote is the one place
+/// the app has news for whoever opened it: nothing is here, and nothing will be
+/// in the folder until you type.
+///
+/// Today is spawned exactly the same way and is not one of these. Today has
+/// not been missed.
+@Suite("A day being backfilled")
+@MainActor
+struct EntryEditorBackfillTests {
+    @Test("a past day with no file is a backfill")
+    func aPastDayWithNoFileIsABackfill() async throws {
+        let session = EditorSession(
+            spawningFrom: "# {{title}}\n",
+            day: JournalDay(year: 2026, month: 2, day: 26)
+        )
+
+        await session.open()
+
+        #expect(session.editor.isABackfill)
+    }
+
+    @Test("a past day the folder already holds is not")
+    func aPastDayWithAFileIsNot() async throws {
+        let session = EditorSession(
+            files: ["2026/02/2026-02-26.md": "Walked to the market.\n"],
+            day: JournalDay(year: 2026, month: 2, day: 26)
+        )
+
+        await session.open()
+
+        #expect(!session.editor.isABackfill)
+    }
+
+    /// Today's Entry is spawned from the same template into the same absence
+    /// of a file, and is not a Backfill: a day it is still possible to write
+    /// on time has nothing to invite anybody to.
+    @Test("today, unwritten, is not a backfill")
+    func todayIsNeverABackfill() async throws {
+        let session = EditorSession(spawningFrom: "# {{title}}\n")
+
+        await session.open()
+
+        #expect(!session.editor.isABackfill)
+    }
+
+    /// The whole of the claim `CONTEXT.md` makes about a spawned Entry: the
+    /// file appears at the first edit. So a day that has been opened and not
+    /// typed in has left nothing behind, and one that has been typed in is no
+    /// longer being invited to.
+    @Test("nothing reaches the folder until the first edit, and then it is written")
+    func theFileAppearsAtTheFirstEdit() async throws {
+        let session = EditorSession(
+            spawningFrom: "# {{title}}\n",
+            day: JournalDay(year: 2026, month: 2, day: 26)
+        )
+        await session.open()
+
+        #expect(session.store.writes.isEmpty)
+        #expect(session.editor.isABackfill)
+
+        await session.type("# 2026-02-26\n\nFilled in on Sunday.\n")
+
+        #expect(session.store.writes.map(\.path) == ["2026/02/2026-02-26.md"])
+        #expect(!session.editor.isABackfill)
+    }
+
+    /// The day turning under an app left open overnight: yesterday's Entry was
+    /// today's when it was opened, and by morning it is a day gone that nobody
+    /// wrote.
+    @Test("today becomes a backfill when the day turns under an unwritten one")
+    func aDayLeftUnwrittenOvernightBecomesOne() async throws {
+        let session = EditorSession(spawningFrom: "# {{title}}\n")
+        await session.open()
+        #expect(!session.editor.isABackfill)
+
+        session.now = instant(2026, 3, 2, 9, 30, in: paris)
+
+        #expect(session.editor.isABackfill)
+    }
+
+    /// The file arriving from somewhere else — Obsidian, or the iPad — while
+    /// the day sits open and untyped-in. It is a written day now, and there is
+    /// nothing left to invite anybody to.
+    @Test("a file arriving under an untouched day ends the invitation")
+    func aFileArrivingEndsIt() async throws {
+        let session = EditorSession(
+            spawningFrom: "# {{title}}\n",
+            day: JournalDay(year: 2026, month: 2, day: 26)
+        )
+        await session.open()
+        #expect(session.editor.isABackfill)
+
+        try await session.store.somebodyElseWrites(
+            "Written on the iPad.\n", at: "2026/02/2026-02-26.md"
+        )
+        await session.editor.reloadIfClean()
+
+        #expect(session.editor.content == "Written on the iPad.\n")
+        #expect(!session.editor.isABackfill)
+    }
+
+    /// A day that could not be opened is not a day being backfilled — it is a
+    /// day nobody knows anything about, and an invitation to write into a
+    /// folder Aujour cannot read is an offer it cannot keep (ADR 0001).
+    @Test("a day the folder would not open invites nothing")
+    func anUnreadableDayInvitesNothing() async throws {
+        let session = EditorSession(day: JournalDay(year: 2026, month: 2, day: 26))
+        session.store.refuseReads = JournalStoreError.pathIsAFolder("2026/02")
+
+        await session.open()
+
+        #expect(!session.editor.state.isEditing)
+        #expect(!session.editor.isABackfill)
+    }
+}

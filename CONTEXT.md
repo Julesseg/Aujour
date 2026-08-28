@@ -103,19 +103,22 @@ The Journal seen a month at a time: every Journal Day of a month, marked where
 its Entry file exists. The marks are a scan of the Journal Root against the
 current Path Template and are kept nowhere else — a disposable cache in ADR
 0001's sense, where deleting it loses nothing and rebuilding it *is* reading
-the journal. The Calendar is also the way into a day: every day up to today
+the journal. The Calendar is also a way into a day: every day up to today
 can be opened (see Backfill), and days that have not arrived are shown and
-locked.
+locked. The other way into the day either side of the one on screen is a
+sideways swipe across it, which is the same journey without the grid — and
+being a walk rather than a choice, it reaches a day that has not arrived and
+finds it locked there too.
 
 ### Backfill
 Writing a past Journal Day after the fact: opening a day whose Entry does not
 exist and spawning it for *that* day, so a Monday nobody wrote on is not a
 permanent hole in the Journal. Reached from the calendar, where every day up
-to today can be opened; days that have not arrived are shown and locked, since
-there is no Entry to write before the day exists. A backfilled day is spawned
-and saved exactly like today's — the file appears at the first edit — and the
-Content Template's dates describe the day being written about, carrying the
-clock time it is being written at.
+to today can be opened, or by swiping back across the day on screen; days that
+have not arrived are shown and locked, since there is no Entry to write before
+the day exists. A backfilled day is spawned and saved exactly like today's —
+the file appears at the first edit — and the Content Template's dates describe
+the day being written about, carrying the clock time it is being written at.
 
 ### Search
 The other way back into a day: by something written in it rather than by when

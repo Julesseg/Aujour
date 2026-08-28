@@ -2683,13 +2683,17 @@ final class AujourUITests: XCTestCase {
 
     /// Draws a finger across something — rightwards for a positive distance —
     /// and lets go.
+    ///
+    /// The wait is for the pages to land: the walk is only taken once the page
+    /// being carried in has arrived, so a question asked before the snap has
+    /// finished is asked of the page that is on its way out.
     private func swipe(_ element: XCUIElement, across distance: CGFloat) {
         let from = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         from.press(
             forDuration: 0.2,
             thenDragTo: from.withOffset(CGVector(dx: distance, dy: 0))
         )
-        Thread.sleep(forTimeInterval: 0.5)
+        Thread.sleep(forTimeInterval: 1)
     }
 
     /// Waits for something to become true, for the settle a swipe or a tap

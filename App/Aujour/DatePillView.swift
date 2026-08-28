@@ -41,13 +41,14 @@ struct DatePillView: View {
     /// How much width there is to grow into.
     @State private var roomToOpenInto: CGFloat = 0
 
-    /// How far sideways a finger has pushed the grid, and what a stepped week
-    /// or month settles back from.
+    /// How far along the pages a finger has walked, in points: nought on the
+    /// page being read, a page's width either side.
     ///
-    /// Only the grid moves: the weekday names over it say the same thing in
+    /// Only the grid moves. The weekday names over it say the same thing in
     /// every week of every month, and a heading that slid with the days would
-    /// be movement that carried no news.
-    @State private var sideways: CGFloat = 0
+    /// be movement carrying no news; the month's name is not slid but swapped,
+    /// at the moment the page it names is the nearer one.
+    @State private var walked: CGFloat = 0
 
     // The grid's geometry, which is arithmetic and so has to be numbers rather
     // than whatever SwiftUI would have laid out: the panel's height, the
@@ -118,23 +119,21 @@ struct DatePillView: View {
                 DragGesture(minimumDistance: 0)
                     .onChanged { finger in
                         pill.dragged(by: finger.translation.height)
-                        sideways = pill.detent == .closed ? 0 : held(finger)
+                        walked = pill.detent == .closed ? 0 : followed(finger)
                     }
                     .onEnded { finger in
-                        let across = finger.translation.width
-                        if wentSideways(finger), pill.detent != .closed {
-                            // Put back where the finger found it: a walk across
-                            // the pill is not a small pull down it, and a
-                            // sideways swipe that opened the month on the way
-                            // past would be the pill answering a question
+                        if pill.detent != .closed, pageItLandsOn(finger) != 0 {
+                            // Put the pill back where the finger found it: a
+                            // walk across the pill is not a small pull down it,
+                            // and a sideways swipe that opened the month on its
+                            // way past would be the pill answering a question
                             // nobody asked.
                             pill.dragged(by: 0)
-                            pill.letGo(afterMoving: across)
-                            step(by: across < 0 ? 1 : -1)
+                            pill.letGo(afterMoving: finger.translation.width)
                         } else {
                             pill.letGo(afterMoving: finger.translation.height)
                         }
-                        withAnimation(settle) { sideways = 0 }
+                        land(after: finger)
                     }
             )
             // Measured and not drawn: the same row at its own natural width,
@@ -307,67 +306,126 @@ struct DatePillView: View {
         // finger, since the week strip has no control on it that does this.
         .accessibilityScrollAction { edge in
             switch edge {
-            case .leading: step(by: -1)
-            case .trailing: step(by: 1)
+            case .leading: walk(-1)
+            case .trailing: walk(1)
             default: break
             }
         }
     }
 
-    /// A finger dragged across the grid: the week or the month either side of
-    /// this one, depending on how much of the calendar is out.
+    // MARK: - Walking the pages
+
+    /// A finger drawn across the grid, carrying the page either side of this
+    /// one into view and letting go on one of them.
     private var walkSideways: some Gesture {
         DragGesture(minimumDistance: Self.startsWalking)
-            .onChanged { sideways = held($0) }
-            .onEnded { finger in
-                if wentSideways(finger) { step(by: finger.translation.width < 0 ? 1 : -1) }
-                withAnimation(settle) { sideways = 0 }
-            }
+            .onChanged { walked = followed($0) }
+            .onEnded { land(after: $0) }
     }
 
-    /// Whether a finger was walking the calendar rather than opening it.
-    ///
-    /// Sideways and not merely a bit sideways: a finger on its way up to shut
-    /// the pill passes over the grid on the way, and a gesture that took every
-    /// diagonal for a walk would step the month as it went out.
-    private func wentSideways(_ finger: DragGesture.Value) -> Bool {
-        abs(finger.translation.width) > Self.stepsAcross
-            && abs(finger.translation.width) > abs(finger.translation.height)
-    }
-
-    /// How far a finger has to travel before it is walking the calendar rather
+    /// How far a finger has to travel before it is walking the pages rather
     /// than resting on a day.
     private static let startsWalking: CGFloat = 12
 
-    /// And how far before letting go steps rather than springs back.
-    private static let stepsAcross: CGFloat = 40
-
-    /// How far the grid follows a finger sideways.
+    /// How far along the pages the grid has been carried.
     ///
     /// Nought until the finger is going sideways more than it is going down,
     /// so that pulling the pill open along a slightly crooked line does not
-    /// drag the days with it — and so that a walk turned downward mid-gesture
+    /// take the days with it — and so that a walk turned downward mid-gesture
     /// puts them back as it turns.
     ///
-    /// And only so far, because there is nothing drawn either side of this
-    /// month to pull into view: a grid that came all the way off would be a
-    /// swipe onto an empty pane.
-    private func held(_ finger: DragGesture.Value) -> CGFloat {
+    /// And no further than the page waiting either side: there are three
+    /// drawn and there is not a fourth, so a finger that could carry the grid
+    /// past the last of them would be carrying it onto nothing.
+    private func followed(_ finger: DragGesture.Value) -> CGFloat {
         let across = finger.translation.width
         guard abs(across) > abs(finger.translation.height) else { return 0 }
-        let limit = max(roomToOpenInto, 1) / 3
-        return min(max(across, -limit), limit)
+        return min(max(across, -pageWidth), pageWidth)
+    }
+
+    /// Lets go of the pages on one of them, and never between two.
+    ///
+    /// The step is taken when the page it was heading for has arrived, and
+    /// that page becomes the middle one. Nothing moves as it does: what the
+    /// calendar now shows is already what is under the finger, so putting the
+    /// pages back where they started is a swap the eye cannot see.
+    private func land(after finger: DragGesture.Value) {
+        let page = pageItLandsOn(finger)
+        // On the animation being *gone* and not on it being logically over: a
+        // spring is logically over well before it has stopped moving, and the
+        // swap has to happen at the moment the page is where it is going to
+        // be. A frame early is the one thing that would show.
+        withAnimation(snap, completionCriteria: .removed) {
+            walked = -CGFloat(page) * pageWidth
+        } completion: {
+            if page != 0 { walk(page) }
+            walked = 0
+        }
+    }
+
+    /// Which page a finger has let go on.
+    ///
+    /// Read off where the finger was *going* and not merely where it got to,
+    /// so that a flick turns the page rather than needing to drag a third of
+    /// one out — which is what makes this a scroll rather than a threshold
+    /// somebody has to find.
+    private func pageItLandsOn(_ finger: DragGesture.Value) -> Int {
+        let heading = finger.predictedEndTranslation.width
+        let across = abs(heading) > abs(finger.translation.width)
+            ? heading
+            : finger.translation.width
+        // A finger on its way up to shut the pill passes over the grid, and a
+        // gesture that took every diagonal for a walk would turn the page on
+        // the way out.
+        guard abs(across) > abs(finger.translation.height) else { return 0 }
+        guard abs(across) > Self.turnsThePage(of: pageWidth) else { return 0 }
+        return across < 0 ? 1 : -1
+    }
+
+    /// How far a finger has to be going to turn a page of a given width.
+    ///
+    /// A third of it, and never more than a good push. A proportion alone is
+    /// right on a phone and wrong on a pill that runs the width of an iPad,
+    /// where a third of a page is most of a hand's reach — and the question a
+    /// walk asks is whether the finger meant it, which is a distance and a
+    /// flick rather than a fraction of however wide the glass happens to be.
+    private static func turnsThePage(of width: CGFloat) -> CGFloat {
+        min(width / 3, 120)
     }
 
     /// One step through the calendar, in whichever unit is on screen: the
     /// month when the month is out, and otherwise the week.
-    private func step(by direction: Int) {
-        switch (pill.detent, direction) {
+    private func walk(_ steps: Int) {
+        switch (pill.detent, steps) {
         case (.month, 1...): calendar.showNextMonth()
         case (.month, _): calendar.showPreviousMonth()
         case (_, 1...): calendar.showNextWeek()
         case (_, _): calendar.showPreviousWeek()
         }
+    }
+
+    /// The three pages a walk moves between: the one being read, and the one
+    /// either side of it.
+    ///
+    /// Three and not a run of them, because a page is one walk away from
+    /// becoming the middle one — what a finger can reach before it lets go is
+    /// the page next door, and the calendar is endless in both directions.
+    private static let pages = [-1, 0, 1]
+
+    /// How wide a page is, which is the room the open pill has: a page is what
+    /// fills the glass, so that letting go on one leaves it filling the glass.
+    private var pageWidth: CGFloat { max(roomToOpenInto, 1) }
+
+    /// The grid a page is drawn from — the month either side when the month is
+    /// out, and the week either side when it is a strip.
+    private func pageGrid(_ page: Int) -> JournalCalendar.Month {
+        pill.detent == .month ? calendar.monthAlong(page) : calendar.weekAlong(page)
+    }
+
+    /// Which page the grid is currently nearest, which is the one the month
+    /// over it should be naming.
+    private var pageNearest: Int {
+        min(max(Int((-walked / pageWidth).rounded()), -1), 1)
     }
 
     private var monthRow: some View {
@@ -381,7 +439,10 @@ struct DatePillView: View {
 
             Spacer(minLength: 0)
 
-            Text(calendar.month.name)
+            // Named for whichever page the grid is nearest rather than for the
+            // one the calendar is still on, so that a month scrolled halfway
+            // into view is not sitting under the name of the one it replaced.
+            Text(pageGrid(pageNearest).name)
                 .lettering(.sectionHeader)
                 .accessibilityIdentifier("pillMonth")
 
@@ -424,9 +485,40 @@ struct DatePillView: View {
         .frame(height: weekdayHeight)
     }
 
+    /// The pages, side by side, with the one being read in the middle.
+    ///
+    /// Laid out all three and carried across rather than swapped when the walk
+    /// is over: a page-turn tells you where you arrived, and a scroll tells you
+    /// where you are going while you are still deciding.
     private var grid: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(calendar.month.weeks.enumerated()), id: \.offset) { row, week in
+        let onHand = pagesOnHand
+        return HStack(spacing: 0) {
+            ForEach(onHand, id: \.self) { page($0) }
+        }
+        // Whichever page is first sits at the leading edge, so this is what
+        // brings the one being read back to it.
+        .offset(x: CGFloat(onHand.first ?? 0) * pageWidth + walked)
+        .frame(width: pageWidth, alignment: .leading)
+        .clipped()
+    }
+
+    /// Which pages are built: the one being read, and the one either side of
+    /// it only while a finger is walking between them.
+    ///
+    /// Not three at rest, and this is not thrift. In the week strip all three
+    /// pages are rows of one month, so every day would be in the tree three
+    /// times over with nothing to tell the copies apart — and the first one
+    /// found is the one off the side of the glass. Hiding them does not do it:
+    /// `accessibilityHidden` on a container leaves the buttons inside it
+    /// exactly where they were. So at rest there is one page and one of every
+    /// day, which is the state anything ever asks a question in.
+    private var pagesOnHand: [Int] { walked == 0 ? [0] : Self.pages }
+
+    private func page(_ page: Int) -> some View {
+        let grid = pageGrid(page)
+        let beingRead = page == 0
+        return VStack(spacing: 0) {
+            ForEach(Array(grid.weeks.enumerated()), id: \.offset) { row, week in
                 HStack(spacing: 0) {
                     // Identified by the place in the grid rather than by the
                     // day, so that a scan arriving mid-drag changes what a cell
@@ -442,28 +534,30 @@ struct DatePillView: View {
                 // only *clipped* would be five rows of invisible buttons — and
                 // the ones the grid has slid up past sit directly on the pill,
                 // swallowing the tap that would have opened it further.
-                .allowsHitTesting(rowIsUnderTheCeiling(row))
+                .allowsHitTesting(beingRead && rowIsUnderTheCeiling(row, of: grid))
             }
         }
-        // Slid up by whole rows until the week being written is under the
-        // weekday names, and back down as the month comes out. This is the
-        // week strip: there is no second view of one.
-        .offset(y: gridSlide)
-        .frame(height: CGFloat(calendar.month.weeks.count) * rowHeight, alignment: .top)
+        // Slid up by whole rows until the week being read is under the weekday
+        // names, and back down as the month comes out. This is the week strip:
+        // there is no second view of one.
+        .offset(y: gridSlide(of: grid))
+        .frame(height: CGFloat(grid.weeks.count) * rowHeight, alignment: .top)
         .clipped()
         .padding(.horizontal, Spacing.close)
-        // After the padding, so that what a sideways walk pushes the days past
-        // is the edge of the glass rather than the inside of the grid.
-        .offset(x: sideways)
+        .frame(width: pageWidth)
+        // A page either side is drawn, and that is all it is: it exists for
+        // the length of the walk and is not there to be reached into.
+        .accessibilityHidden(!beingRead)
+        .allowsHitTesting(beingRead)
     }
 
-    /// Whether a row of the grid is one a finger can reach: on screen in
-    /// whole, in the room the panel is currently open to.
-    private func rowIsUnderTheCeiling(_ row: Int) -> Bool {
+    /// Whether a row of a page is one a finger can reach: on screen in whole,
+    /// in the room the panel is currently open to.
+    private func rowIsUnderTheCeiling(_ row: Int, of grid: JournalCalendar.Month) -> Bool {
         // Within the panel, the grid starts below whatever of the month row
         // has come out, and below the weekday names.
         let ceiling = panelHeight - monthRowHeight * pill.spread - weekdayHeight
-        let top = CGFloat(row) * rowHeight + gridSlide
+        let top = CGFloat(row) * rowHeight + gridSlide(of: grid)
         // Half a point of slack, because these are two sums of the same
         // scaled numbers and a row exactly on the line should be reachable.
         return top >= -0.5 && top + rowHeight <= ceiling + 0.5
@@ -504,11 +598,10 @@ struct DatePillView: View {
             : week * pill.openness
     }
 
-    private var gridSlide: CGFloat {
-        let row = CGFloat(calendar.month.weekOnScreen)
+    private func gridSlide(of grid: JournalCalendar.Month) -> CGFloat {
         // Nought at both ends and a whole row's travel at the week strip in
         // between, which is the same thing said forwards and then backwards.
-        return -row * rowHeight * (pill.openness - pill.spread)
+        -CGFloat(grid.weekOnScreen) * rowHeight * (pill.openness - pill.spread)
     }
 
     private var width: CGFloat {
@@ -532,6 +625,15 @@ struct DatePillView: View {
     /// short fade for a reader who asked for less movement.
     private var settle: Animation {
         reduceMotion ? .easeOut(duration: 0.2) : .interpolatingSpring(stiffness: 320, damping: 30)
+    }
+
+    /// And what the pages land with, which is the settle given a duration.
+    ///
+    /// The walk is over at a moment this has to know — the calendar steps
+    /// then, and the pages go back to where they started — and a spring that
+    /// asymptotes towards its rest has no such moment to offer.
+    private var snap: Animation {
+        reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.32, bounce: 0.1)
     }
 
     private var roomProbe: some View {

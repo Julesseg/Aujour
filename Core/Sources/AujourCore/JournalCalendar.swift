@@ -355,18 +355,26 @@ public final class JournalCalendar {
     }
 
     private func show(monthsFromHere months: Int) {
-        let anchor = JournalDay(year: visible.year, month: visible.month, day: 1)
-            .startOfDay(in: timeZone)
-        // Stepped by the calendar rather than by counting to twelve, so the
-        // turn of the year is its problem and not this one.
-        let shifted = gridCalendar.date(byAdding: .month, value: months, to: anchor)!
-        let parts = gridCalendar.dateComponents([.year, .month], from: shifted)
         // The strip goes back to following the month, which is its first row —
         // the week the month opens on. A week held over from the month before
         // would be a strip showing days the grid under it no longer has.
         weekAnchor = nil
-        visible = (parts.year!, parts.month!)
+        visible = theMonth(months, along: visible)
         layOutTheMonth()
+    }
+
+    /// The month a given number of months from another one.
+    ///
+    /// Stepped by the calendar rather than by counting to twelve, so the turn
+    /// of the year is its problem and not this one.
+    private func theMonth(
+        _ steps: Int,
+        along from: (year: Int, month: Int)
+    ) -> (year: Int, month: Int) {
+        let anchor = JournalDay(year: from.year, month: from.month, day: 1).startOfDay(in: timeZone)
+        let shifted = gridCalendar.date(byAdding: .month, value: steps, to: anchor)!
+        let parts = gridCalendar.dateComponents([.year, .month], from: shifted)
+        return (parts.year!, parts.month!)
     }
 
     public func showPreviousWeek() {
@@ -387,18 +395,58 @@ public final class JournalCalendar {
     /// question about the calendar, and the answer at the end of a month is
     /// the whole of it.
     private func show(weeksFromHere weeks: Int) {
-        let anchor = (weekAnchor ?? dayBeingWritten).adding(days: 7 * weeks)
+        let anchor = theWeek(weeks)
         weekAnchor = anchor
-        if row(of: anchor) == nil {
-            visible = (anchor.year, anchor.month)
-        }
+        visible = theGridHolding(anchor)
         layOutTheMonth()
+    }
+
+    /// The day the week strip would be anchored to a given number of weeks
+    /// from where it is.
+    private func theWeek(_ steps: Int) -> JournalDay {
+        (weekAnchor ?? dayBeingWritten).adding(days: 7 * steps)
+    }
+
+    /// Which month's grid to lay a week out on: the one already on screen
+    /// where it reaches that far, and the week's own month where it does not.
+    ///
+    /// Staying put where it can is what keeps a walk through the weeks from
+    /// re-laying the grid under the strip at every step — six of them fit on
+    /// one grid, and only the seventh is a new month.
+    private func theGridHolding(_ day: JournalDay) -> (year: Int, month: Int) {
+        row(of: day) == nil ? (day.year, day.month) : visible
     }
 
     /// Which row of the grid as it stands a day falls in, or `nil` when the
     /// grid does not reach it.
     private func row(of day: JournalDay) -> Int? {
         month.weeks.firstIndex { week in week.contains { $0.day == day } }
+    }
+
+    // MARK: - The pages either side of the one on screen
+
+    /// The grid a given number of months along from the one on screen, laid
+    /// out the same way and marked from the same scan — without moving what is
+    /// on screen.
+    ///
+    /// What a finger pulls into view. A calendar that could only say what is
+    /// showing would leave the month being scrolled towards blank until the
+    /// scroll had finished, which is a page-turn rather than a scroll.
+    public func monthAlong(_ steps: Int) -> Month {
+        grid(over: theMonth(steps, along: visible), showingTheWeekOf: weekAnchor ?? dayBeingWritten)
+    }
+
+    /// The grid holding the week a given number of weeks along from the one
+    /// the strip is showing, with `weekOnScreen` on that week.
+    ///
+    /// A whole grid for one row of it, because that is what the strip is: the
+    /// month grid slid up until the week being read sits under the weekday
+    /// names. The page either side is the same grid slid one row further,
+    /// until the week runs off the end of it and the next month's grid takes
+    /// over.
+    public func weekAlong(_ steps: Int) -> Month {
+        let anchor = theWeek(steps)
+        return grid(over: theGridHolding(anchor), showingTheWeekOf: anchor)
     }
 
     // MARK: - Opening a day
@@ -435,6 +483,18 @@ public final class JournalCalendar {
     // MARK: - Laying out the grid
 
     private func layOutTheMonth() {
+        month = grid(over: visible, showingTheWeekOf: weekAnchor ?? dayBeingWritten)
+    }
+
+    /// One month laid out, marked from the last scan, slid to a given week.
+    ///
+    /// Takes what it is over rather than reading it off this object, so that
+    /// the pages either side of the one on screen are laid out by the same
+    /// arithmetic as the one on screen and not by a second copy of it.
+    private func grid(
+        over visible: (year: Int, month: Int),
+        showingTheWeekOf onScreen: JournalDay
+    ) -> Month {
         let calendar = gridCalendar
         let firstOfMonth = JournalDay(year: visible.year, month: visible.month, day: 1)
         let firstInstant = firstOfMonth.startOfDay(in: timeZone)
@@ -462,11 +522,9 @@ public final class JournalCalendar {
         }
 
         let weeks = stride(from: 0, to: cells.count, by: 7).map { Array(cells[$0..<$0 + 7]) }
-        // The week stepped to, or the one being written in — and the first row
-        // of the grid when neither is on it, which is the week this month
-        // opens on.
-        let onScreen = weekAnchor ?? dayBeingWritten
-        month = Month(
+        // And the first row of the grid when the week asked for is not on it,
+        // which is the week this month opens on.
+        return Month(
             year: visible.year,
             month: visible.month,
             name: firstInstant.formatted(

@@ -635,6 +635,58 @@ struct JournalCalendarPickingTests {
             == JournalDay(year: 2026, month: 4, day: 12))
     }
 
+    /// What a scroll needs that a page-turn does not: the month or the week
+    /// either side of this one, laid out and ready to be carried into view,
+    /// without the calendar having moved onto it.
+    @Test("the pages either side are laid out without moving what is on screen")
+    func thePagesEitherSideAreLaidOutWithoutMovingWhatIsOnScreen() {
+        let session = CalendarSession()
+
+        let before = session.calendar.monthAlong(-1)
+        let after = session.calendar.monthAlong(1)
+
+        #expect(before.month == 2)
+        #expect(before.name == "February 2026")
+        #expect(after.month == 4)
+        #expect(session.calendar.month.month == 3)
+        #expect(session.calendar.monthAlong(0) == session.calendar.month)
+    }
+
+    /// The strip is a row of the grid, so the week either side is usually the
+    /// same grid one row along — and a new grid only where the rows run out.
+    @Test("the week either side of the strip is a row of the same grid, until it is not")
+    func theWeekPagesAreRowsOfTheSameGrid() {
+        // 1 March 2026 is a Sunday and the day being written, so the strip is
+        // on the grid's first row and the row under it is the 8th.
+        let session = CalendarSession()
+
+        let after = session.calendar.weekAlong(1)
+        #expect(after.month == 3)
+        #expect(after.weekOnScreen == 1)
+
+        // And backwards there is no row above it, so February's grid takes
+        // over — where the week of 22 February is the fourth row.
+        let before = session.calendar.weekAlong(-1)
+        #expect(before.month == 2)
+        #expect(before.weekOnScreen == 3)
+        #expect(before.weeks[3].first?.day == JournalDay(year: 2026, month: 2, day: 22))
+
+        // None of which moved the strip.
+        #expect(session.calendar.month.month == 3)
+        #expect(session.calendar.month.weekOnScreen == 0)
+    }
+
+    @Test("a page is marked from the same scan the page on screen is")
+    func thePagesCarryTheMarksTheFolderHolds() async {
+        let session = CalendarSession(files: ["2026/02/2026-02-14.md": "Words.\n"])
+
+        await session.calendar.scan()
+
+        let before = session.calendar.monthAlong(-1)
+        #expect(before.days.contains { $0.day.day == 14 && $0.isJournaled })
+        #expect(before.days.allSatisfy { $0.day.day == 14 || !$0.isJournaled })
+    }
+
     @Test("the week walked to is given up when the pill goes back to the day being written")
     func theStripGoesBackToTheDayBeingWritten() {
         let session = CalendarSession()

@@ -503,6 +503,15 @@ final class MarkdownAccessoryRow: UIInputView {
 /// the shadows are cast in that same outline, so both are answers only a
 /// laid-out view has: the row above cannot give them, because when the row
 /// lays out its own subviews this one has not laid out its own yet.
+///
+/// The capsule is asked for as a *configuration* rather than written onto the
+/// layer, because the pane is glass and glass gets borrowed. Tapping the
+/// heading key morphs this pill into the menu of levels and back again, and
+/// through that animation the shape is UIKit's to interpolate: a radius set by
+/// hand in `layoutSubviews` is a number UIKit has no reason to consult, so the
+/// pane came back from the morph square and stayed square until the next thing
+/// on screen happened to lay it out again. `.capsule()` is the same shape said
+/// where the animation can read it.
 private final class GlassPill: UIView {
     let pane = UIVisualEffectView()
     private var shadows: [CALayer] = []
@@ -511,6 +520,10 @@ private final class GlassPill: UIView {
         super.init(frame: .zero)
 
         pane.clipsToBounds = true
+        // Half of however tall the pill came out, at every text size — and
+        // half of whatever it is *mid-morph*, which is the part a constant
+        // could not have said.
+        pane.cornerConfiguration = .capsule()
         // Circular rather than continuous: at half its own height the corner
         // *is* a semicircle, and the shadow underneath is cast with the same
         // arc — two curves that disagreed by a point would show as a rim.
@@ -546,11 +559,11 @@ private final class GlassPill: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let corner = bounds.height / 2
-        pane.layer.cornerRadius = corner
+        // The pane rounds itself; what is left is the shadows underneath it,
+        // cast in the outline it rounded to.
         Elevation.shape(
             shadows,
-            like: UIBezierPath(roundedRect: bounds, cornerRadius: corner),
+            like: UIBezierPath(roundedRect: bounds, cornerRadius: bounds.height / 2),
             in: bounds
         )
     }

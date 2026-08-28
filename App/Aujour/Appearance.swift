@@ -24,6 +24,17 @@ extension Theme {
         case .dark: "Dark"
         }
     }
+
+    /// The order the three are offered in: the two that are instructions,
+    /// and then the one that hands the decision back.
+    ///
+    /// Written out rather than taken off `allCases`, because the order a
+    /// control reads in is the screen's business and the order an enum is
+    /// declared in is the model's — `.system` is first there because it is
+    /// the default, and first on a segmented control it would be the odd one
+    /// between two that pair. A test holds this to every case there is, so a
+    /// fourth theme cannot arrive with no way to pick it.
+    static let asOffered: [Theme] = [.light, .dark, .system]
 }
 
 extension EditorFont.Family {

@@ -110,6 +110,24 @@ enum Palette {
     static let glassHighlight =
         dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.70, darkAlpha: 0.16)
 
+    // MARK: - On the accent
+
+    /// What a mark is when it is drawn *on* a fill of the accent rather than
+    /// in it: the pressed key on the accessory row.
+    ///
+    /// The paper of the appearance the accent was tuned against, which is why
+    /// it is not `card` or `background` under another name — it is near-white
+    /// in light, where the accents are dark enough to carry it, and near-black
+    /// in dark, where they are light. Every one of the nine clears 4.5:1
+    /// against it in both appearances (`AccentContrastTests`), so a mark here
+    /// is held to the sentence floor even though ADR 0006 would settle for the
+    /// marker one.
+    ///
+    /// Not an ink: it lands on the accent and never on paper, and on paper it
+    /// would be invisible. The floor tests hold the inks to the grounds and
+    /// hold this to the accents, which is the difference said in tests.
+    static let onAccent = dynamic(light: 0xFFFCF7, dark: 0x16130F)
+
     /// What a pane of glass is when it cannot be one: the opaque colour it
     /// averages to.
     ///
@@ -148,7 +166,7 @@ enum Palette {
         ("ink", ink), ("inkMuted", inkMuted), ("inkFaint", inkFaint),
         ("rule", rule), ("field", field), ("fieldStrong", fieldStrong),
         ("glass", glass), ("glassRing", glassRing), ("glassHighlight", glassHighlight),
-        ("glassSolid", glassSolid),
+        ("glassSolid", glassSolid), ("onAccent", onAccent),
     ]
 
     private static func dynamic(

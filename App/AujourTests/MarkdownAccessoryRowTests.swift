@@ -143,6 +143,10 @@ struct MarkdownAccessoryRowTests {
 
     // Above the keyboard is the text view's own accessory view, which is the
     // whole of how the row comes and goes with it.
+    //
+    // Nine controls and these nine. Every one of them writes a mark into the
+    // file; how big the Entry's text is is a writing preference and is asked
+    // for on the Appearance screen, so nothing here is a size control.
     @Test("the editor puts the row above the keyboard, with every control on it")
     func theRow() throws {
         let entry = OpenEditor(holding: "Milk")
@@ -158,12 +162,16 @@ struct MarkdownAccessoryRowTests {
         // A symbol is not something VoiceOver can read out, so every one of
         // them says what it is.
         #expect(controls(of: row).allSatisfy { $0.accessibilityLabel?.isEmpty == false })
+        // And every one of them has a symbol to say it with: a name UIKit does
+        // not know comes back as no image at all, which is a button that is
+        // there, is pressable, and looks like a gap in the row.
+        #expect(controls(of: row).allSatisfy { $0.configuration?.image != nil })
     }
 
     @Test("pressing a control asks for the command it stands for")
     func pressing() throws {
         let pressed = Pressed()
-        let row = MarkdownAccessoryRow { pressed.commands.append($0) }
+        let row = aRow { pressed.commands.append($0) }
 
         try control("formatBold", of: row).sendActions(for: .touchUpInside)
         try control("formatTaskList", of: row).sendActions(for: .touchUpInside)
@@ -176,11 +184,157 @@ struct MarkdownAccessoryRowTests {
     // and one tap opens it, because nobody presses and holds above a keyboard.
     @Test("the heading control offers the levels a journal is written in")
     func headings() throws {
-        let heading = try control("formatHeading", of: MarkdownAccessoryRow { _ in })
+        let heading = try control("formatHeading", of: aRow { _ in })
 
         #expect(heading.showsMenuAsPrimaryAction)
         let levels = try #require(heading.menu?.children as? [UIAction])
         #expect(levels.map(\.title) == ["Heading 1", "Heading 2", "Heading 3"])
+    }
+
+    // What the menu is for. Which level a line comes out at is Core's, and a
+    // menu whose items were built at the wrong level would be wrong in the one
+    // place nothing else looks: the three items are asked for one at a time,
+    // and each is the level it is named after.
+    @Test("picking a level asks for a heading at that level")
+    func headingLevels() throws {
+        let pressed = Pressed()
+        let heading = try control(
+            "formatHeading", of: aRow { pressed.commands.append($0) }
+        )
+        let levels = try #require(heading.menu?.children as? [UIAction])
+
+        for level in levels { level.performWithSender(nil, target: nil) }
+
+        #expect(
+            pressed.commands == [.heading(level: 1), .heading(level: 2), .heading(level: 3)]
+        )
+    }
+
+    // MARK: - The pane it is drawn on
+
+    // The platform's glass, tinted to the identity's paper rather than painted
+    // over with it — and shaped as a pill inset from both edges, because the
+    // chrome sits over the paper rather than across the bottom of it.
+    @Test("the row is a pill of the platform's glass, tinted and inset")
+    func theGlass() throws {
+        let row = aRow { _ in }
+        row.frame = CGRect(x: 0, y: 0, width: 390, height: row.intrinsicContentSize.height)
+        row.layoutIfNeeded()
+
+        let pane = try #require(glass(of: row))
+        let seeThrough = !UIAccessibility.isReduceTransparencyEnabled
+        if seeThrough {
+            let glass = try #require(pane.effect as? UIGlassEffect)
+            #expect(glass.tintColor == Palette.glass)
+            // Glass draws its own edge and its own lift; a second of either is
+            // two rims that do not agree.
+            #expect(pane.layer.borderWidth == 0)
+            #expect(shadows(under: pane).allSatisfy { $0.isHidden })
+        } else {
+            #expect(pane.effect == nil)
+            #expect(pane.contentView.backgroundColor == Palette.glassSolid)
+            #expect(pane.layer.borderWidth == 0.5)
+            #expect(shadows(under: pane).allSatisfy { !$0.isHidden })
+        }
+
+        // A capsule, which is what `Rounding` says a pill is — it has no entry
+        // there because it is half its own height at whatever size it came out.
+        #expect(pane.layer.cornerRadius == pane.bounds.height / 2)
+
+        // Off both edges and off the keyboard. Measured in the row's own
+        // coordinates, because the pane sits inside the view that lifts it.
+        let pill = row.convert(pane.bounds, from: pane)
+        #expect(pill.minX > 0)
+        #expect(pill.maxX < row.bounds.width)
+        #expect(pill.height < row.bounds.height)
+
+        // And the shadows are shaped, whether or not they are showing: a
+        // shadow with no path casts nothing, and one with no mask would lay
+        // its own outline down under the pane.
+        #expect(shadows(under: pane).count == Elevation.floating.layers.count)
+        #expect(shadows(under: pane).allSatisfy { $0.shadowPath != nil && $0.mask != nil })
+    }
+
+    // The keys divide the pane between them, and all nine of them land on it.
+    //
+    // Because the way this goes wrong is silent. At a fixed width nine keys
+    // asked 398 points of the row, which no iPhone narrower than an Air has:
+    // the row scrolled as it is built to, the photograph control sat off the
+    // screen, and every other test in this file went on passing. It only
+    // showed up in a photograph of the thing.
+    //
+    // Every width a phone comes in, and one an iPad does: 375 is the narrowest
+    // screen iOS 26 runs on, 393 is the common iPhone, 440 is the largest.
+    @Test("nine keys divide the pane, and every screen fits all nine")
+    func keyWidths() throws {
+        for screen in [375.0, 393.0, 440.0] as [CGFloat] {
+            let row = aRow { _ in }
+            row.frame = CGRect(
+                x: 0, y: 0, width: screen, height: row.intrinsicContentSize.height
+            )
+            row.layoutIfNeeded()
+
+            let keys = controls(of: row)
+            #expect(keys.count == 9)
+
+            // One width between them, to the pixel the screen rounds them
+            // onto. Nine keys sharing a fractional number of points cannot all
+            // come out the same number of pixels, so on a 2x screen eight of
+            // them are 35.5 and one is 35.0 — the grid, not a difference, and
+            // not the nine widths this is here to catch.
+            let key = try #require(keys.first).bounds.size
+            #expect(keys.allSatisfy { abs($0.bounds.width - key.width) <= 1 })
+
+            // Wide enough to aim at, and never wider than it is tall.
+            #expect(key.width >= 34)
+            #expect(key.width <= key.height)
+
+            // And the last of them is on the pane rather than past its edge,
+            // which is what a fixed width could not promise.
+            let pane = try #require(glass(of: row))
+            let photograph = try #require(keys.last)
+            let reached = row.convert(photograph.bounds, from: photograph).maxX
+            #expect(reached <= row.convert(pane.bounds, from: pane).maxX)
+        }
+    }
+
+    // A mark leaves most of its key clear around it.
+    //
+    // A mark is a label for the key, not a word in the Entry, and at body size
+    // it was not drawn like one: the widest of the nine — the photograph —
+    // came out 26 points across a 37-point key, which is seven tenths of it
+    // and reads as a symbol somebody forgot to leave room around. At footnote
+    // it is 20, and this is the line between the two.
+    //
+    // The sort of thing that otherwise only shows up in a photograph, which is
+    // how this one was found.
+    @Test("a mark leaves three fifths of its key clear around it")
+    func markSizes() throws {
+        let row = aRow { _ in }
+        row.frame = CGRect(x: 0, y: 0, width: 393, height: row.intrinsicContentSize.height)
+        row.layoutIfNeeded()
+
+        for key in controls(of: row) {
+            let symbol = try #require(key.configuration?.image)
+            let sizing = try #require(key.configuration?.preferredSymbolConfigurationForImage)
+            let drawn = try #require(symbol.applyingSymbolConfiguration(sizing)).size
+
+            #expect(drawn.width <= key.bounds.width * 0.6)
+            #expect(drawn.height <= key.bounds.height * 0.4)
+        }
+    }
+
+    // An iPad has more room than nine keys should take. They stop at square,
+    // because past that a key stops reading as a key.
+    @Test("the keys stop growing at square")
+    func wideScreens() throws {
+        let row = aRow { _ in }
+        row.frame = CGRect(x: 0, y: 0, width: 1024, height: row.intrinsicContentSize.height)
+        row.layoutIfNeeded()
+
+        let keys = controls(of: row)
+        #expect(keys.count == 9)
+        #expect(keys.allSatisfy { abs($0.bounds.width - $0.bounds.height) < 0.5 })
     }
 
     // The row knows there is a photograph control and nothing about what one
@@ -190,10 +344,10 @@ struct MarkdownAccessoryRowTests {
     // looks live and does nothing.
     @Test("the photo control is offered exactly when something can answer it")
     func photographs() throws {
-        #expect(try !control("insertPhoto", of: MarkdownAccessoryRow { _ in }).isEnabled)
+        #expect(try !control("insertPhoto", of: aRow { _ in }).isEnabled)
 
         let pressed = Pressed()
-        let ready = MarkdownAccessoryRow(insertPhoto: { pressed.photographs += 1 }) { _ in }
+        let ready = aRow(insertPhoto: { pressed.photographs += 1 }) { _ in }
         let photo = try control("insertPhoto", of: ready)
 
         #expect(photo.isEnabled)
@@ -208,6 +362,35 @@ struct MarkdownAccessoryRowTests {
     private final class Pressed {
         var commands: [MarkdownFormatting] = []
         var photographs = 0
+    }
+
+    /// A row, with an accent for the pressed key. Terracotta rather than the
+    /// default, so that a key drawn in the wrong colour is a key drawn in a
+    /// colour no test asked for.
+    private func aRow(
+        insertPhoto: (() -> Void)? = nil,
+        format: @escaping (MarkdownFormatting) -> Void
+    ) -> MarkdownAccessoryRow {
+        MarkdownAccessoryRow(
+            accent: Accent.terracotta.uiColor, insertPhoto: insertPhoto, format: format
+        )
+    }
+
+    /// The shadows the pill casts, which live on the view the pane sits in.
+    private func shadows(under pane: UIView) -> [CALayer] {
+        (pane.superview?.layer.sublayers ?? []).filter { $0.shadowOpacity > 0 }
+    }
+
+    /// The pane the keys sit on, found the way anything private is: by looking.
+    private func glass(of row: MarkdownAccessoryRow) -> UIVisualEffectView? {
+        func pane(in view: UIView) -> UIVisualEffectView? {
+            for subview in view.subviews {
+                if let pane = subview as? UIVisualEffectView { return pane }
+                if let pane = pane(in: subview) { return pane }
+            }
+            return nil
+        }
+        return pane(in: row)
     }
 
     /// Every button on the row, left to right.

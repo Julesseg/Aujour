@@ -261,6 +261,41 @@ final class AujourUITests: XCTestCase {
         )
     }
 
+    /// The heading control, which is the one on the row that is a menu.
+    ///
+    /// Which characters a level writes, and that a heading asked for another
+    /// level is re-levelled rather than taken away, is decided in Core and
+    /// tested there against the text it rewrites; that the menu is built at
+    /// the levels it names is `MarkdownAccessoryRowTests`, headless. What only
+    /// a running app can show is the tap itself — that one press opens the
+    /// menu over the keyboard rather than needing a press and hold, that
+    /// picking a level reaches the line the cursor is on, and that picking
+    /// another one leaves a heading behind rather than a plain line.
+    func testTheHeadingControlLevelsTheLineAndThenRelevelsIt() throws {
+        let app = launchApp()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        editor.tap()
+        let headings = app.buttons["formatHeading"]
+        XCTAssertTrue(headings.waitForExistence(timeout: 10), "the formatting row never appeared")
+
+        editor.typeText("Sunday")
+
+        // One tap opens it, because nobody presses and holds above a keyboard.
+        headings.tap()
+        tapTheOption(labelled: "Heading 2", in: app)
+        expect(editor, toHaveValue: "## Sunday")
+
+        // And the same control again, at another level: nobody presses
+        // *Heading 1* on a Heading 2 meaning "not a heading", so the line is
+        // re-levelled rather than left plain.
+        headings.tap()
+        tapTheOption(labelled: "Heading 1", in: app)
+        expect(editor, toHaveValue: "# Sunday")
+    }
+
     /// A photograph, from the row to the folder.
     ///
     /// Where the file goes, what it is called there and what the embed says
@@ -2410,6 +2445,105 @@ final class AujourUITests: XCTestCase {
             page.swipeUp(velocity: .fast)
         }
         assertTheLayoutHolds(on: page)
+    }
+
+    /// The other half of what S/M/L/XL is: a *writing* preference, so it moves
+    /// the day's own words and nothing else on the screen.
+    ///
+    /// Asked of the Entry and not of the specimen on the settings page. The
+    /// specimen shows what a step is worth; this is the claim the step is made
+    /// for — that the words the user is actually writing came out the way they
+    /// asked, and that the date over them did not move an inch.
+    ///
+    /// Measured on the prompt over an unwritten day, because that is the one
+    /// thing on this screen drawn in the editor's own face that a running app
+    /// can be asked the size of — a `UITextView`'s frame is the box it is in,
+    /// not the type in it.
+    ///
+    /// The two controls are moved one at a time and not together. A sentence
+    /// set bigger *and* in another face comes out a different width either
+    /// way, and a single measurement of both says only that something reached
+    /// the words.
+    ///
+    /// Measured after the sheet goes away, which is the one thing here that is
+    /// not the claim: on a phone the sheet is full height, so there is no
+    /// moment where the day and the control are both on screen to photograph.
+    /// That a change lands at once rather than on dismissal is held where it
+    /// is decided — `DeviceAppearance` publishes every choice as it is made
+    /// and there is no apply step to defer it to (`AppearanceTests`, "the
+    /// editor is told about a change the moment it is made").
+    func testTheEditorsFaceAndSizeMoveTheDaysOwnWordsAndNoneOfTheChrome() throws {
+        let app = launchApp()
+
+        let daysWords = app.staticTexts["aBlankPage"]
+        XCTAssertTrue(daysWords.waitForExistence(timeout: 30), "today's blank page never appeared")
+        // The date over the entry: chrome, on screen beside the words the whole
+        // time, so the two are asked the same question at the same moment.
+        //
+        // The day's own bar, named by the button that is only ever in it. Taken
+        // as the first navigation bar on screen it would be the journal sheet's
+        // for half of this test, and on iPad — where the sheet is a form sheet
+        // over a day that never goes away — it would be a coin toss.
+        let chrome = app.navigationBars
+            .containing(.button, identifier: "openTheJournalSheet")
+            .firstMatch
+            .staticTexts.firstMatch
+        XCTAssertTrue(chrome.waitForExistence(timeout: 10), "the day's date was never on screen")
+
+        let asTheyCome = daysWords.frame
+        let chromeAsItComes = chrome.frame
+
+        // The size alone.
+        openHowItLooks(in: app)
+        app.segmentedControls["editorFontSize"].buttons["XL"].tap()
+        backToTheDay(in: app)
+        let atXL = daysWords.frame
+        XCTAssertGreaterThan(
+            atXL.height, asTheyCome.height,
+            "the day's own words did not grow — they were \(asTheyCome.height) points tall "
+                + "at M and are \(atXL.height) at XL"
+        )
+
+        // And the face alone, at the size just chosen — so what moves now is
+        // the typeface and nothing else.
+        openHowItLooks(in: app)
+        app.segmentedControls["editorFontFamily"].buttons["Mono"].tap()
+        backToTheDay(in: app)
+        let inMono = daysWords.frame
+        XCTAssertNotEqual(
+            inMono.width, atXL.width,
+            "the same sentence measures the same in mono as in sans — \(atXL.width) points "
+                + "either way — so the face never reached the day's own words"
+        )
+
+        XCTAssertEqual(
+            chrome.frame, chromeAsItComes,
+            "the date over the entry moved with the editor's controls — it was at "
+                + "\(chromeAsItComes) and is now at \(chrome.frame). Chrome follows the "
+                + "system's text size, not the one the writing is set in"
+        )
+    }
+
+    /// Out of the appearance page, off the journal sheet, and back to the day,
+    /// where what was just chosen can be measured.
+    ///
+    /// Each step by name and never by position. While the sheet is up there
+    /// are two navigation bars in the tree — the day's, behind it, and the
+    /// sheet's own — so "the first button on the first bar" is a button on the
+    /// wrong one: it opened the calendar on one device and dismissed the whole
+    /// sheet on another, and neither left anything called Done to press.
+    private func backToTheDay(in app: XCUIApplication) {
+        let back = app.buttons["BackButton"]
+        XCTAssertTrue(back.waitForExistence(timeout: 10), "the appearance page had no way back")
+        back.tap()
+
+        let done = app.buttons["Done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 10), "the journal sheet had no way out")
+        done.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["aBlankPage"].waitForExistence(timeout: 10), "the day never came back"
+        )
     }
 
     /// That everything the page is showing has a frame of its own: within the

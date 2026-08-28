@@ -2480,14 +2480,11 @@ final class AujourUITests: XCTestCase {
         // The date over the entry: chrome, on screen beside the words the whole
         // time, so the two are asked the same question at the same moment.
         //
-        // The day's own bar, named by the button that is only ever in it. Taken
-        // as the first navigation bar on screen it would be the journal sheet's
-        // for half of this test, and on iPad — where the sheet is a form sheet
-        // over a day that never goes away — it would be a coin toss.
-        let chrome = app.navigationBars
-            .containing(.button, identifier: "openTheJournalSheet")
-            .firstMatch
-            .staticTexts.firstMatch
+        // The pill and not a navigation title. The day's name is on the glass
+        // now and the bar carries only the ways out of the day, so the pill is
+        // what has to hold still — it is set in the system's text size, and the
+        // writing's is none of its business.
+        let chrome = app.buttons["datePill"]
         XCTAssertTrue(chrome.waitForExistence(timeout: 10), "the day's date was never on screen")
 
         let asTheyCome = daysWords.frame

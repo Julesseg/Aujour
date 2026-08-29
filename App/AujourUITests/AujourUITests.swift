@@ -2426,6 +2426,98 @@ final class AujourUITests: XCTestCase {
         )
     }
 
+    // MARK: - How the day's own data is written out
+
+    /// The screen the redesign left undesigned longest: a row per data
+    /// placeholder, each opening the fields that decide what it puts in the
+    /// file.
+    ///
+    /// What each field *means* is Core's and proved there. What only a running
+    /// app can show is the round trip — a marker typed into a settings field
+    /// coming back out of the next day Aujour spawns, on a launch after the
+    /// one it was typed on.
+    func testTheCalendarsLinesAreWrittenTheWayTheSettingSays() throws {
+        let app = launchApp(
+            contentTemplate: "## Today\n{{events}}\n",
+            events: "09:30 Standup"
+        )
+        openSettings(app)
+
+        let events = app.buttons["dataPlaceholder-events"]
+        scrollTo(events, in: app)
+        events.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["wholeDayExample"].waitForExistence(timeout: 10),
+            "the page never showed what a day would read like"
+        )
+        // The one field this placeholder has no business offering: an event is
+        // a thing that happens rather than a thing to do, so a done marker for
+        // it could never change a single line.
+        XCTAssertFalse(
+            app.textFields["donePrefixField"].exists,
+            "{{events}} was offered a done marker, and an event is never done"
+        )
+
+        replaceTheText(in: "linePrefixField", with: "* ", in: app)
+        // The worked example follows the field as it is typed, before anything
+        // has been changed — which is the whole reason the field has one.
+        let asItWouldRead = app.staticTexts["linePrefixExample"]
+        scrollTo(asItWouldRead, in: app)
+        XCTAssertTrue(
+            asItWouldRead.label.hasPrefix("* "),
+            "the example did not follow the field — it reads \(asItWouldRead.label)"
+        )
+
+        replaceTheText(in: "timeFormatField", with: "[at] HH:mm", in: app)
+
+        let change = app.buttons["changeHowItIsWritten"]
+        scrollTo(change, in: app)
+        change.tap()
+
+        // A launch later, because that is the claim: the setting travels
+        // through the synced seam, and the next day spawned is written by it.
+        relaunch(app)
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never came back")
+        let spawned = try XCTUnwrap(editor.value as? String)
+        XCTAssertEqual(spawned, "## Today\n* at 09:30 Standup\n")
+    }
+
+    func testTheRemindersHaveADoneMarkerAndSayWhenTheDayHeldNothing() throws {
+        // No reminders seeded, which is the day the empty text is for: a
+        // heading with nothing under it, unless the user asked to be told.
+        let app = launchApp(contentTemplate: "## To do\n{{reminders}}\n")
+        openSettings(app)
+
+        let reminders = app.buttons["dataPlaceholder-reminders"]
+        scrollTo(reminders, in: app)
+        reminders.tap()
+
+        // The field {{events}} does not get: a reminder is a thing to do, and
+        // a day written up later held what that day's list held.
+        XCTAssertTrue(
+            app.textFields["donePrefixField"].waitForExistence(timeout: 10),
+            "{{reminders}} was not offered a done marker, and a reminder gets ticked"
+        )
+
+        replaceTheText(in: "whenEmptyField", with: "Nothing on the list.", in: app)
+        let onAnEmptyDay = app.staticTexts["whenEmptyExample"]
+        scrollTo(onAnEmptyDay, in: app)
+        XCTAssertEqual(onAnEmptyDay.label, "Nothing on the list.")
+
+        let change = app.buttons["changeHowItIsWritten"]
+        scrollTo(change, in: app)
+        change.tap()
+
+        relaunch(app)
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never came back")
+        XCTAssertEqual(editor.value as? String, "## To do\nNothing on the list.\n")
+    }
+
     // MARK: - Driving the app
 
     /// Launches the app onto a journal folder of this test's own.
@@ -2620,6 +2712,16 @@ final class AujourUITests: XCTestCase {
     }
 
     /// Replaces what is in the entry path field, and puts the keyboard away.
+    private func typeEntryPath(_ path: String, into app: XCUIApplication) {
+        replaceTheText(in: "entryPathField", with: path, in: app)
+    }
+
+    /// Replaces what is in a settings field named by its identifier, and puts
+    /// the keyboard away — the data placeholder pages are four of them on one
+    /// screen.
+    ///
+    /// Scrolled to first, because these sit below the fold on a small phone,
+    /// and a field that is not on screen cannot be tapped into.
     ///
     /// Cleared a character at a time from the end, because a text field's
     /// whole contents cannot be selected without a hardware keyboard the
@@ -2627,8 +2729,12 @@ final class AujourUITests: XCTestCase {
     ///
     /// The keyboard is dismissed afterwards for a plain reason: it covers the
     /// button the test is about to press.
-    private func typeEntryPath(_ path: String, into app: XCUIApplication) {
-        let field = app.textFields["entryPathField"]
+    private func replaceTheText(
+        in identifier: String,
+        with text: String,
+        in app: XCUIApplication
+    ) {
+        let field = app.textFields[identifier]
         scrollTo(field, in: app)
         giveTheKeyboardTo(field, in: app)
 
@@ -2637,10 +2743,10 @@ final class AujourUITests: XCTestCase {
         // the field ended up.
         let existing = (field.value as? String) ?? ""
         field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: existing.count))
-        field.typeText(path)
+        field.typeText(text)
         field.typeText("\n")
 
-        XCTAssertEqual(field.value as? String, path)
+        XCTAssertEqual(field.value as? String, text)
     }
 
     /// Puts the caret at the end of a text field, and lets the sheet stop

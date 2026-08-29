@@ -883,6 +883,32 @@ final class Journal {
         await change { $0.attachmentPathTemplate = template.format }
     }
 
+    // MARK: - How the day's own data is written
+
+    /// How one data placeholder writes itself into a spawned Entry: what its
+    /// lines start with, what a line the day saw through starts with, the
+    /// shape its times take, and what it says on a day that held nothing.
+    func howItIsWritten(_ placeholder: DataPlaceholder) -> DataPlaceholderFormat {
+        settings.dataPlaceholders[placeholder]
+    }
+
+    /// Changes how a data placeholder writes itself from here on.
+    ///
+    /// Nothing already in the folder is rewritten, and there is nothing to
+    /// offer to: a placeholder is resolved once, at spawn, into plain markdown
+    /// (ADR 0001) — so the lines in the days already written are the user's
+    /// own text now, and this decides only what the next day spawned says.
+    ///
+    /// All four fields at once, because that is what the screen changing them
+    /// has: they are one answer to one question, and writing them one at a
+    /// time would reopen the journal four times over a single edit.
+    func changeHowItIsWritten(
+        _ placeholder: DataPlaceholder,
+        to format: DataPlaceholderFormat
+    ) async {
+        await change { $0.dataPlaceholders[placeholder] = format }
+    }
+
     /// Writes today's words where they belong now, then adopts a
     /// journal-shaping change — the shape every settings change here has.
     ///

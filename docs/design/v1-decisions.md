@@ -128,6 +128,11 @@ documented model wins, and what they omit is extrapolated from it.
   opening its `linePrefix` / `donePrefix` / `timeFormat` / `whenEmpty` fields,
   reusing the live-preview-with-guidance field the path template already uses.
   Done marker shown only for placeholders that have a done state.
+  That ticket was #87, and it landed on 2026-08-30: the row shows the token as
+  its value rather than its label, and each field's worked example is rendered
+  over a made-up day rather than the user's own — a real day may hold nothing,
+  which is exactly the day the empty text is for and the worst one to check the
+  other three fields against.
 - **No compare view for a Parked File.** The design's "Compare" label had no
   handler and no referent in the model; it becomes "Show in Files". Merging
   happens in the user's own editor — see `CONTEXT.md`, Parked File.

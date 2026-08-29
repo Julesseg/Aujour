@@ -98,10 +98,12 @@ struct SettingsSheet: View {
     /// *carry out* a change, which is each button's own business.
     ///
     /// In the order somebody asks them in: what the files are called, what is
-    /// in one when it starts, which day it is, and then the photographs —
-    /// where they go, and how the day points at them. Two questions and two
-    /// controls: a photograph that has moved folders is written the same way
-    /// it was before, and one written wiki-style lands in the same folder.
+    /// in one when it starts — the template it is spawned from, and how the
+    /// day's own data writes itself into it — which day it is, and then the
+    /// photographs: where they go, and how the day points at them. Two
+    /// questions and two controls there: a photograph that has moved folders
+    /// is written the same way it was before, and one written wiki-style
+    /// lands in the same folder.
     private var journalSettings: some View {
         SettingsGroup(
             "Your journal",
@@ -114,6 +116,7 @@ struct SettingsSheet: View {
         ) {
             EntryPathSection(journal: journal)
             ContentTemplateSection(journal: journal)
+            DataPlaceholderSection(journal: journal)
             RolloverHourSection(journal: journal)
             AttachmentPathSection(journal: journal)
             EmbedSyntaxSection(journal: journal)

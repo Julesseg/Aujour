@@ -184,9 +184,68 @@ struct JournalSettingsChangeTests {
         }
     }
 
+    @Test("how a data placeholder writes itself reaches the seam and the next spawn")
+    func changingAPlaceholderFormatReachesTheNextSpawn() async throws {
+        let yesterdaysList = ADayOfItems([
+            DayItem(title: "Call the plumber", isDone: false),
+            DayItem(title: "Buy bread", isDone: true),
+        ])
+        try await withAJournal(holding: DayData([.reminders: yesterdaysList])) { aujour in
+            try aujour.root.seed("## To do\n{{reminders}}\n", at: "Daily.md")
+            await aujour.journal.open()
+            await aujour.journal.useAsTheContentTemplate(aujour.root.appending(path: "Daily.md"))
+
+            await aujour.journal.changeHowItIsWritten(
+                .reminders,
+                to: DataPlaceholderFormat(
+                    linePrefix: "* ",
+                    donePrefix: "* ~~",
+                    timeFormat: nil,
+                    whenEmpty: "Nothing on the list."
+                )
+            )
+
+            // The seam the user's other device reads (ADR 0003).
+            #expect(aujour.settings.settings.dataPlaceholders[.reminders].linePrefix == "* ")
+            #expect(aujour.settings.settings.dataPlaceholders[.reminders].donePrefix == "* ~~")
+            #expect(aujour.journal.howItIsWritten(.reminders).whenEmpty == "Nothing on the list.")
+
+            // And what the next day spawned is written with — a day with no
+            // file yet, which is the only kind a spawn happens for.
+            let editor = try #require(aujour.journal.editor(for: aujour.journal.dayOnScreen.adding(days: -3)))
+            await editor.open()
+            #expect(editor.content == "## To do\n* Call the plumber\n* ~~Buy bread\n")
+        }
+    }
+
+    @Test("a day that held nothing is spawned with the empty text rather than a gap")
+    func aDayThatHeldNothingSaysSo() async throws {
+        try await withAJournal(holding: DayData([.events: ADayOfItems([])])) { aujour in
+            try aujour.root.seed("## Today\n{{events}}\n", at: "Daily.md")
+            await aujour.journal.open()
+            await aujour.journal.useAsTheContentTemplate(aujour.root.appending(path: "Daily.md"))
+
+            await aujour.journal.changeHowItIsWritten(
+                .events,
+                to: DataPlaceholderFormat(whenEmpty: "Nothing in the diary.")
+            )
+
+            let editor = try #require(aujour.journal.editor(for: aujour.journal.dayOnScreen.adding(days: -3)))
+            await editor.open()
+            #expect(editor.content == "## Today\nNothing in the diary.\n")
+        }
+    }
+
     /// A journal over folders of its own, with settings and a picked template
     /// that live and die with the test — never this machine's real ones.
-    private func withAJournal(_ body: (AJournalUnderTest) async throws -> Void) async throws {
+    ///
+    /// - Parameter dayData: what the device has to say about a day being
+    ///   spawned. Nothing at all by default, which is every test here that is
+    ///   not about the data placeholders.
+    private func withAJournal(
+        holding dayData: DayData = DayData(),
+        _ body: (AJournalUnderTest) async throws -> Void
+    ) async throws {
         try await withTemporaryFolder { folders in
             let root = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
             let settings = JournalSettingsStore.inMemory()
@@ -196,7 +255,8 @@ struct JournalSettingsChangeTests {
                     journal: Journal(
                         locator: .test(iCloudDocuments: root, folders: folders),
                         settings: settings,
-                        templateElsewhere: bookmark
+                        templateElsewhere: bookmark,
+                        dayData: dayData
                     ),
                     settings: settings,
                     bookmark: bookmark,
@@ -206,6 +266,17 @@ struct JournalSettingsChangeTests {
             )
         }
     }
+}
+
+/// A day of items answered from memory, standing where EventKit stands in the
+/// app — so that what a placeholder writes is a claim a test can make without
+/// the machine's own calendar having anything on it.
+private struct ADayOfItems: DayItemSource {
+    let items: [DayItem]
+
+    init(_ items: [DayItem]) { self.items = items }
+
+    func items(during day: DateInterval) async -> [DayItem] { items }
 }
 
 /// One installation of Aujour as this suite has it: the journal, what it is

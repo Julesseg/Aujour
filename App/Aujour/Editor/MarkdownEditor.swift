@@ -43,6 +43,14 @@ struct MarkdownEditor: UIViewRepresentable {
     /// day is on, not the text view the token is in.
     let asks: (PlaceholderQuestion) -> Void
 
+    /// Whether these words are a Content Template spawned for a day with no
+    /// file rather than anything the reader has written — the one thing about
+    /// a page of prose that the prose cannot say for itself.
+    ///
+    /// ``EntryEditor`` answers it, because whether the folder has an Entry for
+    /// this day and whether anybody has typed since are both its own.
+    var isUnwritten = false
+
     /// What a UI test finds this by, and what VoiceOver calls it. Set on the
     /// text view itself rather than through SwiftUI's accessibility
     /// modifiers, which would describe the wrapper instead of the thing being
@@ -77,8 +85,15 @@ struct MarkdownEditor: UIViewRepresentable {
         y: textInset.top
     )
 
+    /// How this Entry draws: the device's own choice of typeface and accent,
+    /// and the words quieter while nobody has written the day.
+    private func styling(compatibleWith traits: UITraitCollection?) -> MarkdownStyling {
+        let styling = look.styling(compatibleWith: traits)
+        return isUnwritten ? styling.forADayNobodyHasWritten : styling
+    }
+
     func makeUIView(context: Context) -> UITextView {
-        let styling = look.styling(compatibleWith: nil)
+        let styling = self.styling(compatibleWith: nil)
         let storage = MarkdownTextStorage(styling: styling)
         // Its own layout manager, because a box and a picture are painted
         // where their glyphs ended up and nothing above the layout knows
@@ -152,18 +167,22 @@ struct MarkdownEditor: UIViewRepresentable {
         storage.pictures = pictures
         context.coordinator.insertsPhotographs(from: photographs, into: textView)
 
-        // The three things that move how an Entry is drawn without a word of
-        // it changing: Dynamic Type, the editor font, and the accent. All of
-        // them arrive here as a styling that is not the one in force, and all
-        // of them mean drawing the day again.
+        // The four things that move how an Entry is drawn without a word of it
+        // changing: Dynamic Type, the editor font, the accent, and the day
+        // ceasing to be one nobody has written. All of them arrive here as a
+        // styling that is not the one in force, and all of them mean drawing
+        // the day again.
         //
-        // Compared by the font and the colour rather than by the whole
+        // Compared by the font and the two colours rather than by the whole
         // styling, because this runs on every keystroke: the rest of a styling
-        // is system colours that never move, and comparing a dynamic colour
-        // built afresh each time would restyle a long day for a colour that
-        // only looks new.
-        let wanted = look.styling(compatibleWith: textView.traitCollection)
-        if storage.styling.body != wanted.body || storage.styling.box != wanted.box {
+        // is system colours that never move. All three are values held once
+        // rather than built afresh, which is what makes comparing them mean
+        // anything — a dynamic colour made on every body would look new every
+        // time (`Palette`).
+        let wanted = styling(compatibleWith: textView.traitCollection)
+        if storage.styling.body != wanted.body || storage.styling.box != wanted.box
+            || storage.styling.words != wanted.words
+        {
             storage.styling = wanted
             textView.typingAttributes = wanted.baseAttributes
             // The caret and the selection too, which are the text view's own

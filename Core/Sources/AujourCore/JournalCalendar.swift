@@ -241,35 +241,34 @@ public final class JournalCalendar {
         JournalDay.current(at: now(), in: timeZone, rolloverHour: settings.rolloverHour)
     }
 
-    /// Why the month on screen has no marks on it — or `nil` when it has some,
-    /// and when there is nothing honest to say about it having none.
+    /// Whether the grid is empty because the *journal* is: nothing anywhere in
+    /// the folder, which is a beginning rather than a gap.
     ///
     /// A grid with no dots is four different things, and three of them must
     /// never be dressed up as the fourth (ADR 0001): a folder nothing has
     /// looked in yet, a folder that would not answer, a month a journal simply
-    /// does not reach into, and a journal nobody has written in. Only the last
-    /// two are the user's to be told about, and only the last is a beginning
-    /// rather than an absence — so the calendar says which, and the screen
-    /// draws it.
+    /// does not reach into, and a journal nobody has written in. What tells
+    /// them apart is what the calendar owes the screen; what the screen owes
+    /// the reader is narrower, and it is only this one.
     ///
-    /// Silent before the first scan and silent while there is a `problem`,
+    /// The others need no sentence. A folder that would not answer has
+    /// `problem`, which is a different thing being said. A folder nothing has
+    /// read yet says nothing, because it knows nothing. And a month a journal
+    /// does not reach into is an ordinary gap that the grid already states by
+    /// having no marks on it — a line under it explaining that August was
+    /// quiet is the app narrating what the reader is looking at.
+    ///
+    /// Only a beginning is worth words, because it is the one empty grid that
+    /// is not a gap at all: somebody who has just installed Aujour has no
+    /// reason to know the grid is the way in.
+    ///
+    /// False before the first scan and false while there is a `problem`,
     /// because both are the app saying it does not know: a journal of ten years
     /// whose folder has not come down from iCloud looks exactly like a journal
     /// of none, and calling it empty is the one thing this screen must not do.
-    public var nothingToShow: NothingToShow? {
-        guard hasBeenRead, problem == nil else { return nil }
-        guard !month.days.contains(where: \.isJournaled) else { return nil }
-        return journaledDays.isEmpty ? .aJournalNobodyHasWrittenIn : .aMonthNobodyWroteIn
-    }
-
-    /// The two empty months worth saying something about.
-    public enum NothingToShow: Hashable, Sendable {
-        /// Nothing anywhere in the folder: a journal at its beginning, which
-        /// is a thing to invite somebody into rather than a gap to explain.
-        case aJournalNobodyHasWrittenIn
-
-        /// Days elsewhere in the journal, none of them in this month.
-        case aMonthNobodyWroteIn
+    public var theJournalIsAtItsBeginning: Bool {
+        guard hasBeenRead, problem == nil else { return false }
+        return journaledDays.isEmpty
     }
 
     // MARK: - The day being written
@@ -296,13 +295,67 @@ public final class JournalCalendar {
     /// A day from a neighbouring month is a day like any other, and picking
     /// one brings its month on screen — which is how a grid of six weeks is
     /// walked through the year without a control for it.
+    ///
+    /// Says no to the day already being written too, because `true` is what
+    /// the screen builds a fresh editor on and two editors over one Entry
+    /// would autosave a day's words over themselves. Unless that day is
+    /// today's, which is not a tap on the day on screen but the one decision
+    /// the way back to today exists to make: a day swiped to while it was
+    /// still to come and left there until the clock caught up with it *is*
+    /// today, and is still pinned — so the way back has to still be a way
+    /// back, and not a button that does nothing.
     @discardableResult
     public func pick(_ day: JournalDay) -> Bool {
         guard relation(of: day).allowsWriting else { return false }
+        guard day != dayBeingWritten || day == today else { return false }
         picked = day == today ? nil : day
         // Which is now this day's month, whichever month the grid was over.
         showTheMonthBeingWritten()
         return true
+    }
+
+    /// When writing opens on the day being written — or `nil` for a day that
+    /// is already open, which is every day up to today.
+    ///
+    /// The whole of what there is to say about a day that has not arrived:
+    /// there is no Entry to write before the day exists (`CONTEXT.md`), and it
+    /// begins at the Rollover Hour. An hour rather than a flag, because the
+    /// screen has to name it — "you can write it from four" is the answer, and
+    /// a `Bool` would send the screen back to the settings for the rest of it.
+    ///
+    /// Reachable at all only because a swipe is not a pick. The grid refuses a
+    /// day that has not arrived, since a cell is the way *in* to writing one;
+    /// a finger drawn across the day's own words is looking rather than
+    /// choosing, and what it finds one day past today is this.
+    public var writingOpensAt: RolloverHour? {
+        relation(of: dayBeingWritten) == .future ? settings.rolloverHour : nil
+    }
+
+    /// Moves the app a day back — a finger drawn rightwards across the shut
+    /// date pill, which is the way to yesterday that is not the grid.
+    public func showPreviousDay() {
+        show(daysFromHere: -1)
+    }
+
+    /// And a day on, which is the only way to a day that has not arrived.
+    public func showNextDay() {
+        show(daysFromHere: 1)
+    }
+
+    /// Steps the day being written, and brings its month along.
+    ///
+    /// Deliberately not `pick`: that refuses a day that has not arrived, and
+    /// says so, because a cell in the grid is the way in to *writing* a day
+    /// and a locked one must refuse where it cannot be tapped around. Walking
+    /// the days is the other thing — the calendar walked rather than chosen
+    /// from — and it stops nowhere, because there is nowhere principled to
+    /// stop it: the journal is endless in both directions, every day that has
+    /// not arrived is locked in exactly the same way, and each one names
+    /// itself on the pill with the way back to today beside it.
+    private func show(daysFromHere days: Int) {
+        let day = dayBeingWritten.adding(days: days)
+        picked = day == today ? nil : day
+        showTheMonthBeingWritten()
     }
 
     /// Puts the month of the day being written back on screen — what a pill

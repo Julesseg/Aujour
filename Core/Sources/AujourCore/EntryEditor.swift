@@ -75,6 +75,10 @@ public final class EntryEditor {
             // Typing into a day that is still opening, or into a failure
             // notice, is not an edit of anything.
             guard state.isEditing, newValue != typedContent else { return }
+            // And this is the first edit, which is what makes the file — so it
+            // is the moment the day stops being one nobody has written, a
+            // second before the folder has heard about it.
+            isUnwritten = false
             show(newValue)
             scheduleSave()
         }
@@ -88,6 +92,32 @@ public final class EntryEditor {
     /// saving is the one failure that costs words (ADR 0001). The screen says
     /// so; the words stay in the editor, and the next edit tries again.
     public private(set) var saveProblem: (any Error)?
+
+    /// Whether nobody has written this day: the folder has no Entry for it,
+    /// and nothing has been typed into the one on screen.
+    ///
+    /// The difference between the day's own words and a Content Template
+    /// spawned for it, which is a difference nothing else on screen can make.
+    /// A day with no file is spawned exactly as today is, so a Monday nobody
+    /// wrote arrives headings and all, looking like a Monday somebody did —
+    /// and the screen draws these words quieter until they are somebody's.
+    ///
+    /// True of today as readily as of a day years back, because it is a fact
+    /// about the Entry and not about the date: what it says is that there is
+    /// nothing in the folder, which is equally true of this morning.
+    ///
+    /// It ends at the first *edit* rather than at the save that follows it.
+    /// The file appears at the first edit (`CONTEXT.md`), so that keystroke is
+    /// the moment the day becomes the user's — and a page that stayed quiet
+    /// for the second the autosave takes would be the app disagreeing with the
+    /// person typing into it. Also ends when a file arrives from somewhere
+    /// else, which is the same day written on another device.
+    ///
+    /// False before the day is open at all, and false again for a day that
+    /// could not be opened: neither is a day with nothing in it — they are
+    /// days nothing is known about, and drawing an unreadable folder as an
+    /// empty one is the mistake ADR 0001 exists to name.
+    public private(set) var isUnwritten = false
 
     @ObservationIgnored private let store: any JournalStore
     @ObservationIgnored private let settings: JournalSettings
@@ -249,8 +279,10 @@ public final class EntryEditor {
             // Either way this is the text that needs no saving: what the file
             // says, or what the template spawned and the user has not touched.
             savedContent = text
+            isUnwritten = !journaled
             state = .editing
         } catch {
+            isUnwritten = false
             state = .unavailable(error)
         }
     }
@@ -444,6 +476,9 @@ public final class EntryEditor {
             // arrives for an app left open overnight. Either way what came
             // back is about a day that is no longer the one to put on screen.
             guard state.isEditing, day == reloading, entryPath == path else { return }
+            // Written by somebody, somewhere: the day has a file now, whether
+            // or not what it says is any different from what is on screen.
+            isUnwritten = false
             guard !needsSaving, text != typedContent else { return }
 
             show(text)

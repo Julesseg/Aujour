@@ -301,33 +301,35 @@ struct JournalCalendarIndicatorTests {
         #expect(session.calendar.problem != nil)
     }
 
-    @Test("a month with days on it has nothing to say for itself")
-    func aMonthWithMarksSaysNothing() async {
+    @Test("a journal with days in it is not at its beginning")
+    func aJournalWithAPastIsNotABeginning() async {
         let session = CalendarSession(files: Self.folder)
 
         await session.calendar.scan()
 
-        #expect(session.calendar.nothingToShow == nil)
+        #expect(!session.calendar.theJournalIsAtItsBeginning)
     }
 
-    @Test("a journal nobody has written in says so, and a month nobody wrote in says only that")
-    func theTwoWaysAMonthCanBeEmpty() async {
+    /// The distinction the sentence turns on: one day anywhere in the folder
+    /// and this is a journal with a past, whatever the month on screen holds.
+    /// A month it does not reach into is an ordinary gap, and the grid states
+    /// that by having no marks on it — saying so in words as well would be the
+    /// app narrating what the reader is looking at.
+    @Test("one day anywhere ends the beginning, even in another month")
+    func oneDayAnywhereEndsTheBeginning() async {
         let session = CalendarSession()
 
         await session.calendar.scan()
-        #expect(session.calendar.nothingToShow == .aJournalNobodyHasWrittenIn)
+        #expect(session.calendar.theJournalIsAtItsBeginning)
 
-        // One day, in a month that is not the one on screen: the journal has
-        // a past now, and this month simply has no part of it. Saying "nobody
-        // has written in this journal" over a March that follows a February
-        // full of days would be the app forgetting them.
+        // A day in February, with March on screen. Saying "nobody has written
+        // in this journal" over a March that follows a February full of days
+        // would be the app forgetting them.
         try? await session.store.writeText("Snow, and soup.\n", at: "2026/02/2026-02-14.md")
         await session.calendar.scan()
-        #expect(session.calendar.nothingToShow == .aMonthNobodyWroteIn)
 
-        session.calendar.showPreviousMonth()
-        await session.calendar.scan()
-        #expect(session.calendar.nothingToShow == nil)
+        #expect(!session.calendar.theJournalIsAtItsBeginning)
+        #expect(session.calendar.month.days.filter(\.isJournaled).isEmpty)
     }
 
     @Test("a folder nobody has read yet is not a journal nobody has written in")
@@ -337,10 +339,10 @@ struct JournalCalendarIndicatorTests {
         // The grid is on screen from the first frame, before any scan. An
         // empty-state notice drawn then would be a claim about a folder
         // nothing has looked in (ADR 0001).
-        #expect(session.calendar.nothingToShow == nil)
+        #expect(!session.calendar.theJournalIsAtItsBeginning)
 
         await session.calendar.scan()
-        #expect(session.calendar.nothingToShow == .aJournalNobodyHasWrittenIn)
+        #expect(session.calendar.theJournalIsAtItsBeginning)
     }
 
     @Test("a folder that would not answer is a problem, never an empty journal")
@@ -355,7 +357,7 @@ struct JournalCalendarIndicatorTests {
         // as a journal with nothing in it. The problem notice is what says
         // what happened.
         #expect(session.calendar.problem != nil)
-        #expect(session.calendar.nothingToShow == nil)
+        #expect(!session.calendar.theJournalIsAtItsBeginning)
     }
 
     @Test("a Path Template that cannot name a day is reported, not guessed at")
@@ -712,7 +714,7 @@ struct JournalCalendarPickingTests {
 
     /// The neighbouring months' days are on the grid now, and a mark on one of
     /// them is not a mark on this month.
-    @Test("a month nobody wrote in is not rescued by a mark on the month before")
+    @Test("a mark on the month before is not one of this month's days")
     func aNeighbouringMonthsMarkIsNotThisMonths() async {
         // April 2026 opens on a Wednesday, so the last three days of March are
         // on its grid — and one of them was written in.
@@ -724,6 +726,176 @@ struct JournalCalendarPickingTests {
         await session.calendar.scan()
 
         #expect(session.calendar.month.cells.contains { $0.day.month == 3 && $0.isJournaled })
-        #expect(session.calendar.nothingToShow == .aMonthNobodyWroteIn)
+        #expect(session.calendar.month.days.filter(\.isJournaled).isEmpty)
+    }
+}
+
+/// The third way through the journal, after the month and the week: one day at
+/// a time, which is what a finger drawn across the day's own writing does.
+///
+/// Not the grid's way, and the difference is the whole of this suite. The grid
+/// locks a day that has not arrived because a locked cell is one that cannot
+/// be written in; a swipe is looking rather than choosing, so it reaches
+/// tomorrow and finds a day that says it has not begun.
+@Suite("Moving a day at a time")
+@MainActor
+struct JournalCalendarDayWalkingTests {
+    @Test("the day after and the day before are one step either side")
+    func steppingADayMovesTheDayBeingWritten() {
+        let session = CalendarSession(now: instant(2026, 3, 14, 9, 30, in: paris))
+
+        session.calendar.showPreviousDay()
+
+        #expect(session.calendar.dayBeingWritten == JournalDay(year: 2026, month: 3, day: 13))
+        #expect(!session.calendar.isOnToday)
+        #expect(session.calendar.month.cell(13)?.isBeingWritten == true)
+
+        session.calendar.showNextDay()
+
+        #expect(session.calendar.dayBeingWritten == JournalDay(year: 2026, month: 3, day: 14))
+        #expect(session.calendar.isOnToday)
+    }
+
+    /// Absence and not a copy of today's date, exactly as picking today is:
+    /// stepping back to today puts the app on whatever day it is, so a journal
+    /// left open past the rollover moves on to the new one.
+    @Test("stepping back onto today follows the clock again")
+    func steppingOntoTodayFollowsTheClockAgain() {
+        let session = CalendarSession(
+            settings: JournalSettings(rolloverHour: RolloverHour(hour: 4)!),
+            now: instant(2026, 3, 1, 22, 0, in: paris)
+        )
+        session.calendar.showPreviousDay()
+        session.calendar.showNextDay()
+        #expect(session.calendar.isOnToday)
+
+        // Past midnight and past the rollover: it is March 2nd now.
+        session.now = instant(2026, 3, 2, 9, 0, in: paris)
+
+        #expect(session.calendar.dayBeingWritten == JournalDay(year: 2026, month: 3, day: 2))
+    }
+
+    /// The one the grid refuses and this does not. A day that has not arrived
+    /// is on the calendar to be seen, and a swipe is a way of seeing it — what
+    /// it has is no Entry, which is `writingOpensAt` saying so and
+    /// `editor(for:)` saying it again.
+    @Test("a swipe reaches a day that has not arrived, and finds it locked")
+    func aDayThatHasNotArrivedIsReachedAndLocked() {
+        let session = CalendarSession(now: instant(2026, 3, 14, 9, 30, in: paris))
+        #expect(session.calendar.writingOpensAt == nil)
+
+        session.calendar.showNextDay()
+
+        #expect(session.calendar.dayBeingWritten == JournalDay(year: 2026, month: 3, day: 15))
+        #expect(session.calendar.writingOpensAt == RolloverHour.midnight)
+        #expect(session.calendar.editor(for: session.calendar.dayBeingWritten) == nil)
+    }
+
+    /// The hour named is the one this journal turns its day at, not midnight
+    /// by default: the locked page says when writing opens, and that is a
+    /// setting.
+    @Test("the locked day names this journal's own rollover hour")
+    func theLockedDayNamesTheRolloverHour() {
+        let session = CalendarSession(
+            settings: JournalSettings(rolloverHour: RolloverHour(hour: 4)!),
+            now: instant(2026, 3, 14, 9, 30, in: paris)
+        )
+
+        session.calendar.showNextDay()
+
+        #expect(session.calendar.writingOpensAt == RolloverHour(hour: 4)!)
+    }
+
+    /// Which is what the way back is for: the Today chip is on the pill the
+    /// whole time a locked day is on screen, because the app is not on today.
+    @Test("a day that has not arrived is walked back out of the way it was walked into")
+    func aLockedDayIsWalkedBackOutOf() {
+        let session = CalendarSession(now: instant(2026, 3, 14, 9, 30, in: paris))
+        session.calendar.showNextDay()
+        session.calendar.showNextDay()
+        #expect(session.calendar.dayBeingWritten == JournalDay(year: 2026, month: 3, day: 16))
+        #expect(!session.calendar.isOnToday)
+
+        session.calendar.showPreviousDay()
+        session.calendar.showPreviousDay()
+
+        #expect(session.calendar.isOnToday)
+        #expect(session.calendar.writingOpensAt == nil)
+    }
+
+    /// The pill is over whichever day the app is on, so stepping off the end
+    /// of a month brings the next one under it — the same thing picking a day
+    /// out of a neighbouring month does.
+    @Test("stepping off the end of a month brings the next month on screen")
+    func steppingPastTheEndOfAMonthMovesTheGrid() {
+        let session = CalendarSession(now: instant(2026, 3, 31, 9, 30, in: paris))
+
+        session.calendar.showNextDay()
+
+        #expect(session.calendar.month.month == 4)
+        #expect(session.calendar.month.name == "April 2026")
+        #expect(session.calendar.dayBeingWritten == JournalDay(year: 2026, month: 4, day: 1))
+    }
+
+    @Test("and off the start of one brings the month before")
+    func steppingBackPastTheStartOfAMonthMovesTheGrid() {
+        let session = CalendarSession(now: instant(2026, 3, 1, 9, 30, in: paris))
+
+        session.calendar.showPreviousDay()
+
+        #expect(session.calendar.month.month == 2)
+        #expect(session.calendar.dayBeingWritten == JournalDay(year: 2026, month: 2, day: 28))
+    }
+
+    /// The one a swipe forwards makes reachable and nothing else could: a day
+    /// picked while it was still to come, left on screen, and overtaken by the
+    /// clock.
+    ///
+    /// It is now both the day being written and today, and the app is still
+    /// pinned to it rather than following the clock — so the way back to today
+    /// is still offered, and it has to still work. Picking today is a decision
+    /// even when today is already the day on screen.
+    @Test("a day swiped to before it arrived can be handed back to the clock once it has")
+    func aPickedDayOvertakenByTheClockGoesBackToTheClock() {
+        let session = CalendarSession(now: instant(2026, 3, 14, 9, 30, in: paris))
+        session.calendar.showNextDay()
+        #expect(session.calendar.writingOpensAt != nil)
+
+        // Overnight: the day that had not arrived is today.
+        session.now = instant(2026, 3, 15, 9, 30, in: paris)
+        #expect(session.calendar.dayBeingWritten == JournalDay(year: 2026, month: 3, day: 15))
+        #expect(session.calendar.writingOpensAt == nil)
+        #expect(!session.calendar.isOnToday)
+
+        #expect(session.calendar.pick(session.calendar.today))
+
+        #expect(session.calendar.isOnToday)
+    }
+
+    /// And the ordinary case that must stay a no-op: tapping the day already
+    /// being written rebuilds nothing, because rebuilding is what the app does
+    /// with a `true` from here — a second editor over one Entry is a day's
+    /// words autosaving over themselves.
+    @Test("picking the day already being written changes nothing")
+    func pickingTheDayAlreadyOnScreenIsANoOp() {
+        let session = CalendarSession(now: instant(2026, 3, 14, 9, 30, in: paris))
+        session.calendar.pick(JournalDay(year: 2026, month: 3, day: 10))
+
+        #expect(session.calendar.pick(JournalDay(year: 2026, month: 3, day: 10)) == false)
+
+        #expect(session.calendar.dayBeingWritten == JournalDay(year: 2026, month: 3, day: 10))
+    }
+
+    /// A past day with no Entry is what a swipe backwards mostly lands on, and
+    /// it is not locked: it is spawned for that day, which is Backfill
+    /// (`CONTEXT.md`).
+    @Test("a past day with no entry has an editor waiting on it")
+    func aPastDayIsBackfilledRatherThanLocked() {
+        let session = CalendarSession(now: instant(2026, 3, 14, 9, 30, in: paris))
+
+        session.calendar.showPreviousDay()
+
+        #expect(session.calendar.writingOpensAt == nil)
+        #expect(session.calendar.editor(for: session.calendar.dayBeingWritten) != nil)
     }
 }

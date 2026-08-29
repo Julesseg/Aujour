@@ -219,3 +219,70 @@ final class ObservedSettings {
         updates.append(settings)
     }
 }
+
+/// The Rollover Hour as a thing to say out loud.
+///
+/// One screen sets it and another names it — the page over a day that has not
+/// arrived says when writing opens on it — and the two have to say the same
+/// hour in the same words, which is what having one of these rather than two
+/// clock formatters is for.
+///
+/// Asked about the conventions and not about the punctuation. Which character
+/// sits between the minutes and the "AM" is ICU's business and it has changed
+/// under this app before; whether the reader is shown a 12-hour clock is not.
+@Suite("The Rollover Hour, spelled out")
+struct RolloverHourSpellingTests {
+    private let english = Locale(identifier: "en_US")
+    private let french = Locale(identifier: "fr_FR")
+
+    @Test("it is written on a 12-hour clock for a reader whose region is on one")
+    func itFollowsTheReadersClock() {
+        let fourInTheMorning = RolloverHour(hour: 4)!.spelledOut(locale: english)
+
+        #expect(fourInTheMorning.hasPrefix("4:00"))
+        #expect(fourInTheMorning.contains("AM"))
+    }
+
+    /// The default, and the hour the two conventions disagree about most:
+    /// midnight is the twelfth hour on one clock and the zeroth on the other.
+    @Test("and on a 24-hour clock for a reader whose region is on that")
+    func aFrenchClockHasNoMeridiem() {
+        #expect(RolloverHour(hour: 13)!.spelledOut(locale: french).hasPrefix("13:00"))
+        #expect(!RolloverHour.midnight.spelledOut(locale: french).contains("AM"))
+        #expect(RolloverHour.midnight.spelledOut(locale: english).contains("12:00"))
+    }
+
+    /// The claim that matters more than either spelling: the hour a day turns
+    /// at is written by the same clock face as every other time in the app,
+    /// so the settings row and the locked page cannot come to disagree.
+    @Test("every hour is the clock face the rest of the app writes")
+    func everyHourIsTheAppsOwnClockFace() {
+        for hour in 0..<24 {
+            #expect(
+                RolloverHour(hour: hour)!.spelledOut(locale: english)
+                    == TimeOfDay(hour: hour, minute: 0)!.spelledOut(locale: english)
+            )
+        }
+    }
+
+    /// Measured off a day with no daylight saving in it, like every other
+    /// clock face in the app: no two hours of the day may come out saying the
+    /// same thing, which is what an hour hung off a real date does twice a
+    /// year.
+    @Test("no two hours of the day are written the same way")
+    func everyHourIsItsOwn() {
+        let spellings = (0..<24).map { RolloverHour(hour: $0)!.spelledOut(locale: english) }
+
+        #expect(Set(spellings).count == 24)
+    }
+}
+
+extension RolloverHourSpellingTests {
+    /// What the screen that offers them counts through, so it never has to
+    /// deal with an hour there is no such thing as.
+    @Test("there are twenty-four hours a day could turn at, in order")
+    func everyHourOfTheDayIsThere() {
+        #expect(RolloverHour.everyHourOfTheDay.map(\.hour) == Array(0..<24))
+        #expect(RolloverHour.everyHourOfTheDay.first == .midnight)
+    }
+}

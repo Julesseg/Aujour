@@ -785,6 +785,11 @@ final class AujourUITests: XCTestCase {
     /// beginning rather than a grid of numbers, and a search box that does not
     /// tell somebody their query was not found in a journal they have not
     /// written yet.
+    ///
+    /// And that they stop. A beginning is the one empty grid worth words,
+    /// because the grid is the way in and nobody who has just installed the
+    /// app knows that; every other empty month is a gap the grid states for
+    /// itself.
     func testAFreshJournalSaysSoOnEveryScreenWithNothingToShow() throws {
         let app = launchApp()
 
@@ -831,15 +836,19 @@ final class AujourUITests: XCTestCase {
             "a journal with a day in it was still being called empty"
         )
 
-        // And a month it does not reach into is said as that, and not as a
-        // journal nobody has written in: the difference is the whole reason
-        // there are two sentences.
+        // And a month it does not reach into says nothing at all. It is an
+        // ordinary gap, which the grid states by having no marks on it — a
+        // line underneath explaining that next month was quiet would be the
+        // app narrating what the reader is looking at, and calling it a
+        // journal nobody has written in would be the app forgetting today.
         app.buttons["pillNextMonth"].tap()
+        Thread.sleep(forTimeInterval: 1)
         XCTAssertTrue(
-            app.staticTexts["aMonthNobodyWroteIn"].waitForExistence(timeout: 10),
-            "an empty month in a journal with a past said nothing"
+            app.staticTexts.matching(
+                NSPredicate(format: "identifier == %@", "aJournalNobodyHasWrittenIn")
+            ).count == 0,
+            "an empty month in a journal with a past was called a journal with nothing in it"
         )
-        XCTAssertFalse(app.staticTexts["aJournalNobodyHasWrittenIn"].exists)
     }
 
     /// An interactive placeholder is a question the file itself carries: it
@@ -1388,11 +1397,15 @@ final class AujourUITests: XCTestCase {
 
         // Rightwards is backwards: a week ago is the same weekday one row up,
         // off the strip until the strip is walked to it.
-        swipe(today, across: 160)
+        swipeTheWeekStrip(app, alongside: today, across: 160)
+        XCTAssertTrue(
+            waitFor { aWeekAgo.isHittable },
+            "a swipe across the strip did not bring the week before onto it"
+        )
         aWeekAgo.tap()
         XCTAssertTrue(
             app.buttons["backToToday"].waitForExistence(timeout: 5),
-            "a swipe across the strip did not bring the week before onto it"
+            "the day tapped on the strip was not opened"
         )
 
         // With the whole month out the same finger steps months instead: one
@@ -1593,6 +1606,266 @@ final class AujourUITests: XCTestCase {
             pill.frame.maxX, window.maxX + 0.5,
             "the pill hangs off the side at the largest text size: \(pill.frame)"
         )
+    }
+
+    // MARK: - Walking the journal a day at a time
+
+    // The way through the journal that does not open the grid: a finger drawn
+    // sideways across the shut pill, which steps a day the same way a finger
+    // across the open one steps a week or a month. And the two days that are
+    // not an ordinary written day — one that has not arrived, and one already
+    // gone that nobody wrote.
+    //
+    // What is asked here is what only a running app can show: that a finger
+    // moves the journal at all, that it does not do it while it is pulling the
+    // pill open, and that the pages either end of the ordinary case are the
+    // ones that appear. Where a swipe settles, how much of the finger the pill
+    // takes and which day it lands on are `DaySwipeTests` in Core — they are
+    // arithmetic, and a synthesized drag is the wrong instrument for
+    // arithmetic.
+
+    func testADayIsSwipedAsideToReachTheDayEitherSideOfIt() throws {
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let app = launchApp(
+            entries: "\(entryName(for: yesterday)) Walked to the market with Robin.",
+            todaysEntry: "At the desk all day.\n"
+        )
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        expect(editor, toHaveValue: "At the desk all day.\n")
+
+        // Rightwards is backwards, as it is everywhere else in the app.
+        swipeTheDay(app, across: 160)
+        expect(editor, toHaveValue: "Walked to the market with Robin.\n")
+        XCTAssertTrue(
+            app.buttons["backToToday"].exists,
+            "a swipe moved the day without the app knowing it had left today"
+        )
+
+        // And leftwards is forwards, back to the day it started on — which is
+        // today, and so is following the clock again rather than pinned to
+        // today's date.
+        swipeTheDay(app, across: -160)
+        expect(editor, toHaveValue: "At the desk all day.\n")
+        XCTAssertFalse(
+            app.buttons["backToToday"].exists,
+            "swiping back onto today left the app thinking it was elsewhere"
+        )
+    }
+
+    /// A swipe is a thing somebody has to mean. The threshold itself is Core's
+    /// (`DaySwipeTests`); what this asks is that the app honours it, that a
+    /// finger which changed its mind leaves the journal where it found it —
+    /// and that the pill it was drawn across is still shut, because a short
+    /// sideways drag must not come out as the tap that opens the calendar.
+    func testAShortSwipeLeavesTheDayWhereItWas() throws {
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let app = launchApp(
+            entries: "\(entryName(for: yesterday)) Walked to the market with Robin.",
+            todaysEntry: "At the desk all day.\n"
+        )
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        swipeTheDay(app, across: 40)
+
+        expect(editor, toHaveValue: "At the desk all day.\n")
+        XCTAssertFalse(
+            app.buttons["backToToday"].exists,
+            "a swipe too short to mean it moved the journal anyway"
+        )
+        expect(app.buttons["datePill"], toHaveValue: "Closed")
+    }
+
+    /// The axis lock, asked the only way a running app can ask it. Both
+    /// gestures live on the pill and share a finger now, so a pull down it —
+    /// which no finger draws exactly vertically — must open the calendar and
+    /// nothing else, however far off true it wanders.
+    func testPullingThePillOpenDoesNotTakeTheDayWithIt() throws {
+        let app = launchApp(todaysEntry: "At the desk all day.\n")
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
+
+        drag(pill, by: 400)
+
+        expect(pill, toHaveValue: "Month")
+        XCTAssertFalse(
+            app.buttons["backToToday"].exists,
+            "pulling the pill open moved the day being written"
+        )
+    }
+
+    /// Sideways on an open pill answers nothing. The pages under the header
+    /// are what a sideways finger moves, and they carry a gesture of their own
+    /// — a header that walked the days as well would be a second answer to one
+    /// finger, and one that merely leaned would be the whole pane sliding
+    /// while the grid inside it slid the other way.
+    ///
+    /// Three things it must not do, and the pill has done all three: step the
+    /// day, step the month, or come out as the tap that goes between the week
+    /// and the month.
+    func testSwipingTheOpenPillAnswersNothingAndLeavesThePagesToTheGrid() throws {
+        let app = launchApp(todaysEntry: "At the desk all day.\n")
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
+        let today = pill.label
+
+        openTheDatePill(app, to: "Month")
+        let month = app.staticTexts["pillMonth"]
+        XCTAssertTrue(month.waitForExistence(timeout: 5), "the month was not named over the grid")
+        let thisMonth = month.label
+
+        // Drawn across the header, which is the pill itself.
+        swipe(pill, across: -160)
+
+        expect(pill, toHaveValue: "Month")
+        expect(month, toHaveLabel: thisMonth)
+        expect(pill, toHaveLabel: today)
+        XCTAssertFalse(
+            app.buttons["backToToday"].exists,
+            "a swipe across the open pill moved the day being written"
+        )
+
+        // And across the grid under it, which is where sideways does belong.
+        swipe(month, across: -160)
+
+        XCTAssertTrue(
+            waitFor { month.label != thisMonth },
+            "a swipe across the grid did not step the month on from \(thisMonth)"
+        )
+        expect(pill, toHaveLabel: today)
+    }
+
+    func testADayThatHasNotArrivedIsLockedAndSaysWhenWritingOpens() throws {
+        let app = launchApp(todaysEntry: "At the desk all day.\n")
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        // Forwards, off the end of the days there are to write.
+        swipeTheDay(app, across: -160)
+
+
+        let locked = app.staticTexts["aDayThatHasNotArrived"]
+        XCTAssertTrue(
+            locked.waitForExistence(timeout: 10),
+            "a day that has not arrived did not say so — the screen is showing: "
+                + app.staticTexts.allElementsBoundByIndex.map { $0.label }.joined(separator: " / ")
+        )
+        // Cannot be typed in, which is the whole of what "locked" means here:
+        // an editor is the only thing that can write an Entry, and there is
+        // not one.
+        XCTAssertFalse(editor.exists, "a day that has not arrived had an editor on it")
+
+        // And it names the hour writing opens at, which is this journal's
+        // Rollover Hour — midnight, until somebody changes it.
+        let opens = app.staticTexts["whenWritingOpens"]
+        XCTAssertTrue(
+            opens.label.contains(onTheClock(hour: 0)),
+            "the locked day did not name when writing opens: \(opens.label)"
+        )
+
+        // The pill is over it like any other day, with the way back on it.
+        XCTAssertTrue(
+            app.buttons["backToToday"].exists,
+            "a day that has not arrived had no way back to today on it"
+        )
+
+        // Left the way it was arrived at.
+        swipeTheDay(app, across: 160)
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), "the day could not be swiped back out of")
+        expect(editor, toHaveValue: "At the desk all day.\n")
+    }
+
+    /// A day nobody has written is drawn quieter than one somebody has, and
+    /// stops being quiet at the first keystroke rather than at the file that
+    /// keystroke eventually makes.
+    ///
+    /// The ink itself is `UnwrittenDayStylingTests`, which holds the two steps
+    /// to being two steps and the quiet one to the ink a sentence takes. What
+    /// only a running app can show is that the words on screen actually change
+    /// when the day does — so this asks the pixels, and asks them of the same
+    /// text twice over: a character typed and taken straight back out again
+    /// leaves the day saying exactly what it said, in the other ink.
+    ///
+    /// Both readings are taken with the keyboard up. It covers a third of the
+    /// screen, and a before that had it down would be a comparison of two
+    /// different pictures.
+    func testAnUnwrittenPastDayIsDrawnQuietlyUntilItIsTypedIn() throws {
+        // Enough prose that ink is a fair share of the pixels: a page holding
+        // one short line would put the whole difference inside the rounding.
+        let template = """
+            # {{title}}
+
+            Walked to the market and back the long way round.
+            The stalls were packing up by the time I got there.
+            Bought bread, and a paper nobody had opened.
+            Sat on the wall by the church and read the front of it.
+            Rain came in off the hill at about four.
+            Home, and the kettle on before the coat was off.
+            Wrote none of this down until the next morning.
+            """
+        let app = launchApp(contentTemplate: template)
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        swipeTheDay(app, across: 160)
+
+        // Spawned for *that* day and not for today, which is what filling one
+        // in after the fact means.
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let itsOwnTitle = "# \(entryName(for: yesterday))"
+        XCTAssertTrue(
+            waitFor { (editor.value as? String)?.contains(itsOwnTitle) == true },
+            "expected yesterday's entry to be titled after its own day, got: "
+                + ((editor.value as? String) ?? "nothing")
+        )
+        let spawned = try XCTUnwrap(editor.value as? String)
+
+        // And nothing is in the folder: the marks are a scan of it, so a day
+        // still marked unwritten is a day with no file.
+        openTheMonth(app, showing: yesterday)
+        let cell = app.buttons["day-\(entryName(for: yesterday))"]
+        expect(cell, toHaveValue: "Not written")
+        // Put away by hand rather than through `shutTheDatePill`, for the
+        // failure message: the tap is a bare coordinate below an open month,
+        // and the one thing worth knowing when it misses is how far down the
+        // panel actually reached.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)).tap()
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(
+            waitFor { pill.value as? String == "Closed" },
+            "the tap below the month did not shut the pill — the pill is at "
+                + "\(pill.frame) in a window of \(app.windows.firstMatch.frame)"
+        )
+
+        XCTAssertTrue(editor.waitForExistence(timeout: 10), "the day went away with the pill")
+        editor.tap()
+        let quiet = try brightness(of: editor)
+
+        // One character in and straight back out: the day says exactly what it
+        // said, and it is no longer a day nobody has written.
+        editor.typeText("x")
+        editor.typeText(XCUIKeyboardKey.delete.rawValue)
+        expect(editor, toHaveValue: spawned)
+        let written = try brightness(of: editor)
+
+        XCTAssertGreaterThan(
+            abs(quiet - written), 0.01,
+            "the same words came out the same on a day nobody had written and a day "
+                + "somebody had — \(quiet) against \(written)"
+        )
+
+        // At the keystroke and not at the file, which is the whole of what
+        // "until the first edit" means: the day says exactly what it said, so
+        // there is still nothing in the folder to mark, and it is drawn as a
+        // day somebody has written anyway.
+        //
+        // Last, because the keyboard is up from here on and it covers the page
+        // the pill is put away by tapping. That the file does arrive once
+        // there is something to put in it is
+        // `testAPastDayIsFilledInFromTheCalendar`.
+        openTheMonth(app, showing: yesterday)
+        expect(cell, toHaveValue: "Not written")
     }
 
     // MARK: - Sending a day somewhere
@@ -2211,11 +2484,12 @@ final class AujourUITests: XCTestCase {
     /// An hour of the day as this device's clock writes it — the same way the
     /// app writes it, so that a test does not assert an American clock on a
     /// simulator set to a French one.
+    ///
+    /// The whole hour, which is the Rollover Hour: `RolloverHour.spelledOut`
+    /// is a `TimeOfDay` at nought minutes, so it is written off the same
+    /// daylight-saving-free day as every other clock face in the app.
     private func onTheClock(hour: Int) -> String {
-        let midnight = Calendar.current.startOfDay(for: Date())
-        let atThatHour =
-            Calendar.current.date(byAdding: .hour, value: hour, to: midnight) ?? midnight
-        return atThatHour.formatted(date: .omitted, time: .shortened)
+        onTheClock(hour: hour, minute: 0)
     }
 
     /// A reminder's time as this device's clock writes it — measured off a day
@@ -2711,6 +2985,63 @@ final class AujourUITests: XCTestCase {
             forDuration: 0.2,
             thenDragTo: from.withOffset(CGVector(dx: distance, dy: 0))
         )
+        Thread.sleep(forTimeInterval: 1)
+    }
+
+    /// Draws a finger sideways across the shut date pill — rightwards for a
+    /// positive distance — deliberately, and holds still before letting go.
+    ///
+    /// Held at the end because the app reads where the finger was *going* as
+    /// well as where it got to, so that a flick turns the day. A synthesized
+    /// drag that stops dead at its destination is still travelling as far as
+    /// the gesture is concerned, and a test of the threshold asked with one
+    /// would be asking about the harness's velocity rather than about the
+    /// distance it was given.
+    ///
+    /// Begun at the pill's own middle, which is the middle of the screen: the
+    /// pill is a couple of inches of glass, and a finger that started at its
+    /// edge would spend half the swipe deciding whether it had begun on it.
+    private func swipeTheDay(_ app: XCUIApplication, across distance: CGFloat) {
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
+        XCTAssertEqual(pill.value as? String, "Closed", "the pill was not shut to be walked")
+
+        let from = pill.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        from.press(
+            forDuration: 0.1,
+            thenDragTo: from.withOffset(CGVector(dx: distance, dy: 0)),
+            withVelocity: .slow,
+            thenHoldForDuration: 0.4
+        )
+        // The spring, and the day either side being opened behind it.
+        Thread.sleep(forTimeInterval: 1)
+    }
+
+    /// Draws a finger across the week strip, along the row a given day is on.
+    ///
+    /// Begun from a column of the *screen* rather than from that day's own
+    /// cell, which is what this used to do. Today is whichever weekday it
+    /// happens to be, and a swipe begun on the last column of an iPhone runs a
+    /// hundred points off the side before it has gone far enough to turn a
+    /// page — so the test passed all week and failed on Saturdays, and passed
+    /// on the iPad every day because there the screen is wide enough to
+    /// swallow it. Which cell the finger lands on does not matter: the gesture
+    /// that walks the pages belongs to the panel and not to any day in it.
+    private func swipeTheWeekStrip(
+        _ app: XCUIApplication,
+        alongside day: XCUIElement,
+        across distance: CGFloat
+    ) {
+        let window = app.windows.firstMatch.frame
+        let from = app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(
+                CGVector(
+                    dx: distance > 0 ? window.width * 0.2 : window.width * 0.8,
+                    dy: day.frame.midY
+                )
+            )
+        from.press(forDuration: 0.2, thenDragTo: from.withOffset(CGVector(dx: distance, dy: 0)))
+        // The snap, and the page it lands on being taken.
         Thread.sleep(forTimeInterval: 1)
     }
 

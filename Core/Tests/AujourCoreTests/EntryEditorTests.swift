@@ -906,3 +906,127 @@ private struct ADayInTheCalendar: DayItemSource {
         return [DayItem(title: MomentFormat("YYYY-MM-DD").render(day.start, timeZone: paris), time: nine)]
     }
 }
+
+/// A day nobody has written: no Entry in the folder, and nothing typed into
+/// the one on screen.
+///
+/// The one thing about a day the screen cannot read off its words, and the
+/// reason it needs telling: a day with no file is spawned from the Content
+/// Template exactly as today is, so it arrives headings and all, looking like
+/// a day somebody wrote.
+@Suite("A day nobody has written")
+@MainActor
+struct EntryEditorUnwrittenTests {
+    @Test("a past day with no file is unwritten")
+    func aPastDayWithNoFileIsUnwritten() async throws {
+        let session = EditorSession(
+            spawningFrom: "# {{title}}\n",
+            day: JournalDay(year: 2026, month: 2, day: 26)
+        )
+
+        await session.open()
+
+        #expect(session.editor.isUnwritten)
+    }
+
+    @Test("a day the folder already holds is not")
+    func aDayWithAFileIsNot() async throws {
+        let session = EditorSession(
+            files: ["2026/02/2026-02-26.md": "Walked to the market.\n"],
+            day: JournalDay(year: 2026, month: 2, day: 26)
+        )
+
+        await session.open()
+
+        #expect(!session.editor.isUnwritten)
+    }
+
+    /// Today too, and that is the point rather than an oversight: what this
+    /// says is that there is nothing in the folder, which is as true of this
+    /// morning as of a Monday years back. Today's Entry is spawned from the
+    /// same template into the same absence of a file.
+    @Test("today, before a word of it is typed, is unwritten like any other day")
+    func todayIsUnwrittenUntilItIsWritten() async throws {
+        let session = EditorSession(spawningFrom: "# {{title}}\n")
+
+        await session.open()
+
+        #expect(session.editor.isUnwritten)
+    }
+
+    /// At the first edit and not at the save that follows it. The file appears
+    /// at the first edit (`CONTEXT.md`), so that keystroke is when the day
+    /// becomes the user's — a page that stayed quiet for the second an
+    /// autosave takes would be the app disagreeing with the person typing.
+    @Test("the first keystroke ends it, before the folder has heard about it")
+    func theFirstEditEndsItBeforeTheSave() async throws {
+        let session = EditorSession(
+            spawningFrom: "# {{title}}\n",
+            day: JournalDay(year: 2026, month: 2, day: 26)
+        )
+        await session.open()
+        // Nothing typed will reach the folder while this is held open, which
+        // is the second between a keystroke and the save it becomes.
+        session.holdsTheSaveOpen = true
+
+        session.editor.content = "# 2026-02-26\n\nFilled in on Sunday.\n"
+
+        #expect(!session.editor.isUnwritten)
+        #expect(session.store.writes.isEmpty)
+        session.holdsTheSaveOpen = false
+    }
+
+    /// The whole of the claim `CONTEXT.md` makes about a spawned Entry: the
+    /// file appears at the first edit. So a day that has been opened and not
+    /// typed in has left nothing behind.
+    @Test("nothing reaches the folder until the first edit, and then it is written")
+    func theFileAppearsAtTheFirstEdit() async throws {
+        let session = EditorSession(
+            spawningFrom: "# {{title}}\n",
+            day: JournalDay(year: 2026, month: 2, day: 26)
+        )
+        await session.open()
+
+        #expect(session.store.writes.isEmpty)
+        #expect(session.editor.isUnwritten)
+
+        await session.type("# 2026-02-26\n\nFilled in on Sunday.\n")
+
+        #expect(session.store.writes.map(\.path) == ["2026/02/2026-02-26.md"])
+        #expect(!session.editor.isUnwritten)
+    }
+
+    /// The file arriving from somewhere else — Obsidian, or the iPad — while
+    /// the day sits open and untyped-in. Somebody wrote it, so it is written.
+    @Test("a file arriving under an untouched day ends it")
+    func aFileArrivingEndsIt() async throws {
+        let session = EditorSession(
+            spawningFrom: "# {{title}}\n",
+            day: JournalDay(year: 2026, month: 2, day: 26)
+        )
+        await session.open()
+        #expect(session.editor.isUnwritten)
+
+        try await session.store.somebodyElseWrites(
+            "Written on the iPad.\n", at: "2026/02/2026-02-26.md"
+        )
+        await session.editor.reloadIfClean()
+
+        #expect(session.editor.content == "Written on the iPad.\n")
+        #expect(!session.editor.isUnwritten)
+    }
+
+    /// A day that could not be opened is not a day with nothing in it — it is
+    /// a day nothing is known about, and drawing an unreadable folder as an
+    /// empty one is the mistake ADR 0001 exists to name.
+    @Test("a day the folder would not open is not drawn as an empty one")
+    func anUnreadableDayIsNotUnwritten() async throws {
+        let session = EditorSession(day: JournalDay(year: 2026, month: 2, day: 26))
+        session.store.refuseReads = JournalStoreError.pathIsAFolder("2026/02")
+
+        await session.open()
+
+        #expect(!session.editor.state.isEditing)
+        #expect(!session.editor.isUnwritten)
+    }
+}

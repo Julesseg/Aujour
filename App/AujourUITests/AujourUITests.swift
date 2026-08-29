@@ -1682,20 +1682,16 @@ final class AujourUITests: XCTestCase {
         )
     }
 
-    /// The other half of the same finger. Sideways on the pill steps whatever
-    /// unit is on screen, so an *open* pill steps a week or a month and never
-    /// a day — and the risk is new, because one gesture means two things now
-    /// and which one is decided by whether the pill is shut.
+    /// Sideways on an open pill answers nothing. The pages under the header
+    /// are what a sideways finger moves, and they carry a gesture of their own
+    /// — a header that walked the days as well would be a second answer to one
+    /// finger, and one that merely leaned would be the whole pane sliding
+    /// while the grid inside it slid the other way.
     ///
-    /// Drawn across the pill itself and not across the grid under it: the grid
-    /// has a gesture of its own, and the one this is about is the header's —
-    /// the same header a shut pill walks the days from.
-    ///
-    /// Asked with the month out, because a month is the one page of the
-    /// calendar that says out loud which one it is. Which week a strip is over
-    /// is only legible from the days on it, and the days off the strip are
-    /// laid out and clipped rather than absent.
-    func testSwipingTheOpenPillWalksTheCalendarAndNotTheDay() throws {
+    /// Three things it must not do, and the pill has done all three: step the
+    /// day, step the month, or come out as the tap that goes between the week
+    /// and the month.
+    func testSwipingTheOpenPillAnswersNothingAndLeavesThePagesToTheGrid() throws {
         let app = launchApp(todaysEntry: "At the desk all day.\n")
         let pill = app.buttons["datePill"]
         XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
@@ -1706,21 +1702,25 @@ final class AujourUITests: XCTestCase {
         XCTAssertTrue(month.waitForExistence(timeout: 5), "the month was not named over the grid")
         let thisMonth = month.label
 
-        // Leftwards is forwards, and on an open pill that is a month and not
-        // a day.
+        // Drawn across the header, which is the pill itself.
         swipe(pill, across: -160)
 
-        XCTAssertTrue(
-            waitFor { month.label != thisMonth },
-            "a swipe across the open pill did not step it on from \(thisMonth)"
-        )
-        // And the day being written stayed exactly where it was, which is the
-        // whole of what an open pill has to promise a sideways finger.
+        expect(pill, toHaveValue: "Month")
+        expect(month, toHaveLabel: thisMonth)
         expect(pill, toHaveLabel: today)
         XCTAssertFalse(
             app.buttons["backToToday"].exists,
-            "walking the months moved the day being written"
+            "a swipe across the open pill moved the day being written"
         )
+
+        // And across the grid under it, which is where sideways does belong.
+        swipe(month, across: -160)
+
+        XCTAssertTrue(
+            waitFor { month.label != thisMonth },
+            "a swipe across the grid did not step the month on from \(thisMonth)"
+        )
+        expect(pill, toHaveLabel: today)
     }
 
     func testADayThatHasNotArrivedIsLockedAndSaysWhenWritingOpens() throws {

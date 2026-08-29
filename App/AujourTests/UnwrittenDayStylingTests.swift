@@ -25,18 +25,26 @@ struct UnwrittenDayStylingTests {
         box: Accent.driftwood.uiColor
     )
 
-    @Test("its words are the muted ink, which is the step a sentence takes")
-    func theWordsTakeTheMutedInk() {
-        #expect(written.forADayNobodyHasWritten.words == Palette.inkMuted)
+    /// The step the identity keeps for markers and for a field's placeholder,
+    /// which is what a Content Template spawned into a day with no file is:
+    /// not somebody's prose, but what stands in the Entry until they write it.
+    ///
+    /// Below the sentence floor on purpose, and `IdentityTests` holds it to
+    /// the marker floor it *is* held to. What makes that the right side of the
+    /// line is that nothing drawn in it is the reader's own — the first
+    /// keystroke takes the page to the full ink, so no word anybody wrote is
+    /// ever drawn this quietly.
+    @Test("its words are the faint ink, which is the step a placeholder takes")
+    func theWordsTakeTheFaintInk() {
+        #expect(written.forADayNobodyHasWritten.words == Palette.inkFaint)
     }
 
-    /// The faint step is the one the identity keeps deliberately below the
-    /// sentence floor, for markers and chevrons and small capitals
-    /// (`Palette.inkFaint`, ADR 0006). A page of somebody's writing is
-    /// sentences, however provisional they are.
-    @Test("and not the faint ink, which is never a sentence")
-    func theWordsAreNotTheFaintInk() {
-        #expect(written.forADayNobodyHasWritten.words != Palette.inkFaint)
+    /// The reader's own words are never drawn below the sentence floor, which
+    /// is the promise the step above buys its quiet with.
+    @Test("a day somebody has written is not drawn in it")
+    func awrittenDayKeepsTheFullInk() {
+        #expect(written.words != Palette.inkFaint)
+        #expect(written.words != Palette.inkMuted)
     }
 
     /// The distinction has to be visible, which means the two stylings cannot
@@ -54,7 +62,12 @@ struct UnwrittenDayStylingTests {
 
     /// Only the words. A link is still a link and a task's box is still a
     /// control — both drawn in the accent this device chose, and both held to a
-    /// floor of their own — and a template's marks are already the faint step.
+    /// floor of their own.
+    ///
+    /// Which does leave the marks and the words at one step on an unwritten
+    /// day: there is nothing under the faint one to move the marks to. The
+    /// distinction comes back at the first keystroke, with the reason to want
+    /// it.
     @Test("nothing but the words is touched")
     func onlyTheWordsMove() {
         let quieter = written.forADayNobodyHasWritten

@@ -49,15 +49,14 @@ struct DataPlaceholderSection: View {
                 .accessibilityIdentifier("dataPlaceholder-\(placeholder.rawValue)")
             }
 
-            Text(
-                """
-                Put these in your template and Aujour fills them in when the \
-                day is spawned — as plain markdown, so the file reads the same \
-                in Obsidian and nothing has to be worked out again to read it.
-                """
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            // One line and not the paragraph this deserves. The sheet is
+            // scrolled to reach what is under it, and a caption three lines
+            // long at the largest text size is most of a screen of scrolling
+            // between the journal's settings and the device's — the rest of
+            // what there is to say is on the page each row opens.
+            Text("Put these in your template; Aujour fills them in as the day is spawned.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -67,19 +66,15 @@ struct DataPlaceholderSection: View {
 /// a line the day already saw through starts with, the shape its times take,
 /// and what it says on a day that held nothing.
 ///
-/// Every field is a format string nobody can evaluate in their head, which is
-/// the same problem the Path Template has and is solved here the same way: the
-/// line it would write, underneath it, changing as it is typed. The example
-/// day is invented rather than read off the user's calendar — a real day may
-/// hold nothing, and a preview that changed as the afternoon went on would be
-/// one nobody could check a typed character against.
+/// Every field is a `FormatField`, for the reason that type exists: these are
+/// format strings nobody can evaluate in their head, and the entry path solved
+/// that years of screens ago by putting the line they would write underneath
+/// them. The example day is invented rather than read off the user's calendar
+/// — see ``DataPlaceholder/exampleDay(on:in:)``.
 ///
 /// The done marker is only asked about where a day can have seen something
-/// through. An event is a thing that happens rather than a thing to do, so a
-/// marker for it would be a field that could never change a single line.
-///
-/// One button for all four fields. They are one answer, and saving them one at
-/// a time would reopen the journal four times over a single edit.
+/// through (``DataPlaceholder/itemsCanBeDone``), so `{{events}}` asks three
+/// questions and `{{reminders}}` four.
 struct HowADataPlaceholderIsWrittenView: View {
     let journal: Journal
     let placeholder: DataPlaceholder
@@ -98,6 +93,9 @@ struct HowADataPlaceholderIsWrittenView: View {
         self.placeholder = placeholder
         let inForce = journal.howItIsWritten(placeholder)
         _linePrefix = State(initialValue: inForce.linePrefix)
+        // Kept even for a placeholder that never shows the field, so that
+        // changing one of the others cannot quietly rewrite a marker the user
+        // was never offered.
         _donePrefix = State(initialValue: inForce.donePrefix)
         _timeFormat = State(initialValue: inForce.timeFormat?.pattern ?? "")
         _whenEmpty = State(initialValue: inForce.whenEmpty)
@@ -108,10 +106,7 @@ struct HowADataPlaceholderIsWrittenView: View {
     private var typed: DataPlaceholderFormat {
         DataPlaceholderFormat(
             linePrefix: linePrefix,
-            // A placeholder whose items never get done has no marker of its
-            // own to keep: it takes the line prefix, which is what leaves its
-            // lines reading the same either way.
-            donePrefix: placeholder.itemsCanBeDone ? donePrefix : nil,
+            donePrefix: donePrefix,
             timeFormat: timeFormat.isEmpty ? nil : MomentFormat(timeFormat),
             whenEmpty: whenEmpty
         )
@@ -131,18 +126,27 @@ struct HowADataPlaceholderIsWrittenView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: Spacing.apart) {
+                // The one thing that can stop a change here, and the reason it
+                // is said on this page rather than only on the sheet behind:
+                // a folder that will not take today's words takes no settings
+                // change either, and the button that did nothing is this one.
+                if let problem = journal.folderProblem {
+                    FolderProblemNotice(problem: problem, identifier: "dataPlaceholderProblem")
+                }
                 aWholeDay
-                Divider()
+                Hairline()
                 whatEachLineStartsWith
                 if placeholder.itemsCanBeDone {
-                    Divider()
+                    Hairline()
                     whatADoneLineStartsWith
                 }
-                Divider()
+                Hairline()
                 howTimesAreWritten
-                Divider()
+                Hairline()
                 whatADayThatHeldNothingSays
+                // One button for all four fields — see
+                // `Journal.changeHowItIsWritten`.
                 Button("Change") {
                     Task { await journal.changeHowItIsWritten(placeholder, to: typed) }
                 }
@@ -151,7 +155,7 @@ struct HowADataPlaceholderIsWrittenView: View {
                 .accessibilityIdentifier("changeHowItIsWritten")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
+            .padding(Spacing.apart)
         }
         .navigationTitle(placeholder.inProse)
         .navigationBarTitleDisplayMode(.inline)
@@ -191,106 +195,69 @@ struct HowADataPlaceholderIsWrittenView: View {
     }
 
     private var whatEachLineStartsWith: some View {
-        field(
-            titled: "What each line starts with",
-            text: $linePrefix,
+        FormatField(
+            title: "What each line starts with",
             prompt: "Line marker",
-            identifier: "linePrefix",
-            example: written([example.atAnHour]),
-            saying: """
+            text: $linePrefix,
+            saying: .example(written([example.atAnHour])),
+            guidance: """
                 A markdown list marker keeps this part of the day a list in \
                 Aujour and a list in Obsidian. Leave it empty for plain lines.
-                """
+                """,
+            identifier: "linePrefix"
         )
     }
 
     private var whatADoneLineStartsWith: some View {
-        field(
-            titled: "What something you'd already done starts with",
-            text: $donePrefix,
+        FormatField(
+            title: "What something you'd already done starts with",
             prompt: "Done marker",
-            identifier: "donePrefix",
-            example: example.alreadyDone.map { written([$0]) } ?? "",
-            saying: """
+            text: $donePrefix,
+            saying: .example(example.alreadyDone.map { written([$0]) } ?? ""),
+            guidance: """
                 A day written up later held everything that day's list held, \
                 and what got done is written as done rather than as still to \
                 do — a ticked box says so, and so does anything else you put \
                 here.
-                """
+                """,
+            identifier: "donePrefix"
         )
     }
 
     private var howTimesAreWritten: some View {
-        field(
-            titled: "How times are written",
-            text: $timeFormat,
+        FormatField(
+            title: "How times are written",
             prompt: "Time format",
-            identifier: "timeFormat",
-            example: written([example.atAnHour, example.withoutAnHour]),
-            saying: """
+            text: $timeFormat,
+            saying: .example(written([example.atAnHour, example.withoutAnHour])),
+            guidance: """
                 The same date tokens as your entry path — HH:mm for a 24-hour \
                 clock, h:mm a for a 12-hour one. Leave it empty to write no \
                 times at all. Anything the day held without an hour is written \
                 without one either way.
-                """
+                """,
+            identifier: "timeFormat"
         )
     }
 
     private var whatADayThatHeldNothingSays: some View {
-        field(
-            titled: "What a day that held nothing says",
-            text: $whenEmpty,
+        FormatField(
+            title: "What a day that held nothing says",
             prompt: "On an empty day",
-            identifier: "whenEmpty",
-            // Said in words rather than shown as the nothing it is: an example
-            // line that is blank looks like an example that failed to render.
-            example: whenEmpty.isEmpty ? "Nothing at all — the day is left blank there." : whenEmpty,
-            saying: """
+            text: $whenEmpty,
+            // The one example said in words rather than shown as the nothing
+            // it is: a blank line under a field reads as an example that
+            // failed to render.
+            saying: .example(
+                written([]).isEmpty ? "Nothing at all — the day is left blank there." : written([])
+            ),
+            guidance: """
                 Empty leaves no trace of the placeholder having been asked, so \
                 a heading with nothing under it stays a heading with nothing \
                 under it.
-                """
+                """,
+            identifier: "whenEmpty"
         )
-    }
-
-    /// One field of the format: what it is called, what is in it, the line it
-    /// would write, and the one thing worth saying about it.
-    ///
-    /// The same shape the entry path and the photo folder already have —
-    /// typed above, worked example below, prose under that — because it is
-    /// the same problem: a format string is easier to check against one real
-    /// line than to read.
-    private func field(
-        titled title: String,
-        text: Binding<String>,
-        prompt: String,
-        identifier: String,
-        example: String,
-        saying: String
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            TextField(prompt, text: text)
-                .textFieldStyle(.roundedBorder)
-                .font(.callout.monospaced())
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-                .submitLabel(.done)
-                .accessibilityIdentifier("\(identifier)Field")
-
-            Text(example)
-                .font(.caption.monospaced())
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("\(identifier)Example")
-
-            Text(saying)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

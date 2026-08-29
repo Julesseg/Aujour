@@ -2368,6 +2368,8 @@ final class AujourUITests: XCTestCase {
         let journals: [(String, XCUIElement)] = [
             ("where each day's entry goes", app.textFields["entryPathField"]),
             ("what a new day starts from", app.buttons["contentTemplateFile"]),
+            ("how the calendar is written out", app.buttons["dataPlaceholder-events"]),
+            ("how the reminders are written out", app.buttons["dataPlaceholder-reminders"]),
             ("when the day turns", app.buttons["rolloverHour"]),
             ("where photos go", app.textFields["attachmentPathField"]),
             ("how photos are written", app.segmentedControls["embedSyntax"]),
@@ -2451,9 +2453,8 @@ final class AujourUITests: XCTestCase {
             app.staticTexts["wholeDayExample"].waitForExistence(timeout: 10),
             "the page never showed what a day would read like"
         )
-        // The one field this placeholder has no business offering: an event is
-        // a thing that happens rather than a thing to do, so a done marker for
-        // it could never change a single line.
+        // The one field this placeholder has no business offering, for the
+        // reason `DataPlaceholder.itemsCanBeDone` gives.
         XCTAssertFalse(
             app.textFields["donePrefixField"].exists,
             "{{events}} was offered a done marker, and an event is never done"
@@ -2495,8 +2496,7 @@ final class AujourUITests: XCTestCase {
         scrollTo(reminders, in: app)
         reminders.tap()
 
-        // The field {{events}} does not get: a reminder is a thing to do, and
-        // a day written up later held what that day's list held.
+        // The field {{events}} does not get.
         XCTAssertTrue(
             app.textFields["donePrefixField"].waitForExistence(timeout: 10),
             "{{reminders}} was not offered a done marker, and a reminder gets ticked"

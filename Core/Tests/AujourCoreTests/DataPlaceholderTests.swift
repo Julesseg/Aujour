@@ -547,7 +547,7 @@ struct DataPlaceholderExampleTests {
             #expect(example.atAnHour.time != nil)
             #expect(example.withoutAnHour.time == nil)
             #expect(example.atAnHour.isDone == false)
-            #expect(example.alreadyDone?.isDone != false)
+            if let alreadyDone = example.alreadyDone { #expect(alreadyDone.isDone) }
             // Named, all of them: a nameless line is one nobody could read a
             // marker off.
             #expect(!example.atAnHour.title.isEmpty)

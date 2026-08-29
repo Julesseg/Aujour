@@ -517,13 +517,19 @@ struct DatePillView: View {
 
     // MARK: - What a grid of numbers cannot say for itself
 
-    /// The sentence under the month, where there is one to say.
+    /// The sentence under the month, on the two occasions there is one.
     ///
-    /// A grid with no marks on it is four different things, and three of them
-    /// must never be dressed up as the fourth (ADR 0001): a folder nothing has
-    /// looked in yet, a folder that would not answer, a month a journal does
-    /// not reach into, and a journal nobody has written in. `JournalCalendar`
-    /// says which; this draws it.
+    /// A grid with no marks on it is four different things (ADR 0001): a
+    /// folder nothing has looked in yet, a folder that would not answer, a
+    /// month a journal does not reach into, and a journal nobody has written
+    /// in. `JournalCalendar` tells them apart; only two of them are worth
+    /// saying anything about.
+    ///
+    /// A month a journal does not reach into is not one of them. It is an
+    /// ordinary gap — August was quiet — and the grid has already said so by
+    /// having no marks on it; a line underneath explaining the same thing in
+    /// words is the app narrating what the reader is looking at. Nor is a
+    /// folder nobody has read yet, which knows nothing and so says nothing.
     ///
     /// A line and not a page. On the screen this came off it could be a
     /// `ContentUnavailableView` with room around it, and on a pane of glass an
@@ -576,7 +582,7 @@ struct DatePillView: View {
     /// Whether there is a sentence to put under the grid at all — and so
     /// whether the panel has to open far enough to hold one.
     private var somethingToSay: Bool {
-        calendar.problem != nil || calendar.nothingToShow != nil
+        calendar.problem != nil || calendar.theJournalIsAtItsBeginning
     }
 
     @ViewBuilder private var notice: some View {
@@ -588,20 +594,10 @@ struct DatePillView: View {
                 .foregroundStyle(Palette.inkFaintColor)
                 .accessibilityIdentifier("indicatorsProblem")
                 .accessibilityLabel(StorageProblem(problem).message)
-        } else if let nothing = calendar.nothingToShow {
-            switch nothing {
-            case .aJournalNobodyHasWrittenIn:
-                Text("Your journal starts here. Tap any day up to today and write it.")
-                    .foregroundStyle(Palette.inkFaintColor)
-                    .accessibilityIdentifier("aJournalNobodyHasWrittenIn")
-
-            case .aMonthNobodyWroteIn:
-                // The journal has a past, this month is simply not part of it
-                // — an ordinary gap, said as one.
-                Text("Nothing written in \(calendar.month.name).")
-                    .foregroundStyle(Palette.inkFaintColor)
-                    .accessibilityIdentifier("aMonthNobodyWroteIn")
-            }
+        } else if calendar.theJournalIsAtItsBeginning {
+            Text("Your journal starts here. Tap any day up to today and write it.")
+                .foregroundStyle(Palette.inkFaintColor)
+                .accessibilityIdentifier("aJournalNobodyHasWrittenIn")
         }
     }
 

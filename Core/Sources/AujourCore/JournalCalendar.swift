@@ -241,35 +241,34 @@ public final class JournalCalendar {
         JournalDay.current(at: now(), in: timeZone, rolloverHour: settings.rolloverHour)
     }
 
-    /// Why the month on screen has no marks on it — or `nil` when it has some,
-    /// and when there is nothing honest to say about it having none.
+    /// Whether the grid is empty because the *journal* is: nothing anywhere in
+    /// the folder, which is a beginning rather than a gap.
     ///
     /// A grid with no dots is four different things, and three of them must
     /// never be dressed up as the fourth (ADR 0001): a folder nothing has
     /// looked in yet, a folder that would not answer, a month a journal simply
-    /// does not reach into, and a journal nobody has written in. Only the last
-    /// two are the user's to be told about, and only the last is a beginning
-    /// rather than an absence — so the calendar says which, and the screen
-    /// draws it.
+    /// does not reach into, and a journal nobody has written in. What tells
+    /// them apart is what the calendar owes the screen; what the screen owes
+    /// the reader is narrower, and it is only this one.
     ///
-    /// Silent before the first scan and silent while there is a `problem`,
+    /// The others need no sentence. A folder that would not answer has
+    /// `problem`, which is a different thing being said. A folder nothing has
+    /// read yet says nothing, because it knows nothing. And a month a journal
+    /// does not reach into is an ordinary gap that the grid already states by
+    /// having no marks on it — a line under it explaining that August was
+    /// quiet is the app narrating what the reader is looking at.
+    ///
+    /// Only a beginning is worth words, because it is the one empty grid that
+    /// is not a gap at all: somebody who has just installed Aujour has no
+    /// reason to know the grid is the way in.
+    ///
+    /// False before the first scan and false while there is a `problem`,
     /// because both are the app saying it does not know: a journal of ten years
     /// whose folder has not come down from iCloud looks exactly like a journal
     /// of none, and calling it empty is the one thing this screen must not do.
-    public var nothingToShow: NothingToShow? {
-        guard hasBeenRead, problem == nil else { return nil }
-        guard !month.days.contains(where: \.isJournaled) else { return nil }
-        return journaledDays.isEmpty ? .aJournalNobodyHasWrittenIn : .aMonthNobodyWroteIn
-    }
-
-    /// The two empty months worth saying something about.
-    public enum NothingToShow: Hashable, Sendable {
-        /// Nothing anywhere in the folder: a journal at its beginning, which
-        /// is a thing to invite somebody into rather than a gap to explain.
-        case aJournalNobodyHasWrittenIn
-
-        /// Days elsewhere in the journal, none of them in this month.
-        case aMonthNobodyWroteIn
+    public var theJournalIsAtItsBeginning: Bool {
+        guard hasBeenRead, problem == nil else { return false }
+        return journaledDays.isEmpty
     }
 
     // MARK: - The day being written

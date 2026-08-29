@@ -301,33 +301,35 @@ struct JournalCalendarIndicatorTests {
         #expect(session.calendar.problem != nil)
     }
 
-    @Test("a month with days on it has nothing to say for itself")
-    func aMonthWithMarksSaysNothing() async {
+    @Test("a journal with days in it is not at its beginning")
+    func aJournalWithAPastIsNotABeginning() async {
         let session = CalendarSession(files: Self.folder)
 
         await session.calendar.scan()
 
-        #expect(session.calendar.nothingToShow == nil)
+        #expect(!session.calendar.theJournalIsAtItsBeginning)
     }
 
-    @Test("a journal nobody has written in says so, and a month nobody wrote in says only that")
-    func theTwoWaysAMonthCanBeEmpty() async {
+    /// The distinction the sentence turns on: one day anywhere in the folder
+    /// and this is a journal with a past, whatever the month on screen holds.
+    /// A month it does not reach into is an ordinary gap, and the grid states
+    /// that by having no marks on it — saying so in words as well would be the
+    /// app narrating what the reader is looking at.
+    @Test("one day anywhere ends the beginning, even in another month")
+    func oneDayAnywhereEndsTheBeginning() async {
         let session = CalendarSession()
 
         await session.calendar.scan()
-        #expect(session.calendar.nothingToShow == .aJournalNobodyHasWrittenIn)
+        #expect(session.calendar.theJournalIsAtItsBeginning)
 
-        // One day, in a month that is not the one on screen: the journal has
-        // a past now, and this month simply has no part of it. Saying "nobody
-        // has written in this journal" over a March that follows a February
-        // full of days would be the app forgetting them.
+        // A day in February, with March on screen. Saying "nobody has written
+        // in this journal" over a March that follows a February full of days
+        // would be the app forgetting them.
         try? await session.store.writeText("Snow, and soup.\n", at: "2026/02/2026-02-14.md")
         await session.calendar.scan()
-        #expect(session.calendar.nothingToShow == .aMonthNobodyWroteIn)
 
-        session.calendar.showPreviousMonth()
-        await session.calendar.scan()
-        #expect(session.calendar.nothingToShow == nil)
+        #expect(!session.calendar.theJournalIsAtItsBeginning)
+        #expect(session.calendar.month.days.filter(\.isJournaled).isEmpty)
     }
 
     @Test("a folder nobody has read yet is not a journal nobody has written in")
@@ -337,10 +339,10 @@ struct JournalCalendarIndicatorTests {
         // The grid is on screen from the first frame, before any scan. An
         // empty-state notice drawn then would be a claim about a folder
         // nothing has looked in (ADR 0001).
-        #expect(session.calendar.nothingToShow == nil)
+        #expect(!session.calendar.theJournalIsAtItsBeginning)
 
         await session.calendar.scan()
-        #expect(session.calendar.nothingToShow == .aJournalNobodyHasWrittenIn)
+        #expect(session.calendar.theJournalIsAtItsBeginning)
     }
 
     @Test("a folder that would not answer is a problem, never an empty journal")
@@ -355,7 +357,7 @@ struct JournalCalendarIndicatorTests {
         // as a journal with nothing in it. The problem notice is what says
         // what happened.
         #expect(session.calendar.problem != nil)
-        #expect(session.calendar.nothingToShow == nil)
+        #expect(!session.calendar.theJournalIsAtItsBeginning)
     }
 
     @Test("a Path Template that cannot name a day is reported, not guessed at")
@@ -712,7 +714,7 @@ struct JournalCalendarPickingTests {
 
     /// The neighbouring months' days are on the grid now, and a mark on one of
     /// them is not a mark on this month.
-    @Test("a month nobody wrote in is not rescued by a mark on the month before")
+    @Test("a mark on the month before is not one of this month's days")
     func aNeighbouringMonthsMarkIsNotThisMonths() async {
         // April 2026 opens on a Wednesday, so the last three days of March are
         // on its grid — and one of them was written in.
@@ -724,7 +726,7 @@ struct JournalCalendarPickingTests {
         await session.calendar.scan()
 
         #expect(session.calendar.month.cells.contains { $0.day.month == 3 && $0.isJournaled })
-        #expect(session.calendar.nothingToShow == .aMonthNobodyWroteIn)
+        #expect(session.calendar.month.days.filter(\.isJournaled).isEmpty)
     }
 }
 

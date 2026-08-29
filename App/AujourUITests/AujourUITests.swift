@@ -785,6 +785,11 @@ final class AujourUITests: XCTestCase {
     /// beginning rather than a grid of numbers, and a search box that does not
     /// tell somebody their query was not found in a journal they have not
     /// written yet.
+    ///
+    /// And that they stop. A beginning is the one empty grid worth words,
+    /// because the grid is the way in and nobody who has just installed the
+    /// app knows that; every other empty month is a gap the grid states for
+    /// itself.
     func testAFreshJournalSaysSoOnEveryScreenWithNothingToShow() throws {
         let app = launchApp()
 
@@ -831,15 +836,19 @@ final class AujourUITests: XCTestCase {
             "a journal with a day in it was still being called empty"
         )
 
-        // And a month it does not reach into is said as that, and not as a
-        // journal nobody has written in: the difference is the whole reason
-        // there are two sentences.
+        // And a month it does not reach into says nothing at all. It is an
+        // ordinary gap, which the grid states by having no marks on it — a
+        // line underneath explaining that next month was quiet would be the
+        // app narrating what the reader is looking at, and calling it a
+        // journal nobody has written in would be the app forgetting today.
         app.buttons["pillNextMonth"].tap()
+        Thread.sleep(forTimeInterval: 1)
         XCTAssertTrue(
-            app.staticTexts["aMonthNobodyWroteIn"].waitForExistence(timeout: 10),
-            "an empty month in a journal with a past said nothing"
+            app.staticTexts.matching(
+                NSPredicate(format: "identifier == %@", "aJournalNobodyHasWrittenIn")
+            ).count == 0,
+            "an empty month in a journal with a past was called a journal with nothing in it"
         )
-        XCTAssertFalse(app.staticTexts["aJournalNobodyHasWrittenIn"].exists)
     }
 
     /// An interactive placeholder is a question the file itself carries: it

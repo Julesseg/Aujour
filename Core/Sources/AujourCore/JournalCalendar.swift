@@ -331,23 +331,6 @@ public final class JournalCalendar {
         relation(of: dayBeingWritten) == .future ? settings.rolloverHour : nil
     }
 
-    /// The day a walk of a given number of days would land on, without taking
-    /// the walk.
-    ///
-    /// The sibling of ``monthAlong(_:)`` and ``weekAlong(_:)``, and there for
-    /// the same reason they are: a screen has to have the page it is moving
-    /// towards in hand before it moves. For the day that means reading the
-    /// Entry out of the folder, and that read cannot wait for the walk that
-    /// would make this the day being written — a page that turned first and
-    /// read afterwards would slide the word "Opening" into view and land the
-    /// day's words in place behind it.
-    ///
-    /// Counted from the day being written and not from today, so a second step
-    /// goes one further along rather than back beside today.
-    public func dayAlong(_ steps: Int) -> JournalDay {
-        dayBeingWritten.adding(days: steps)
-    }
-
     /// Moves the app a day back — a finger drawn rightwards across the shut
     /// date pill, which is the way to yesterday that is not the grid.
     public func showPreviousDay() {

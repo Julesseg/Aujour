@@ -75,6 +75,30 @@ struct MarkdownStyling: Equatable {
         self.lineSpacing = lineSpacing
     }
 
+    /// The same styling for a day nobody has written yet: the words quieter,
+    /// and nothing else touched.
+    ///
+    /// A day with no file is spawned from the Content Template exactly as
+    /// today is, so it arrives headings and all and looks like a day somebody
+    /// wrote. This is the difference, said in the one place a page of prose
+    /// can say anything about itself — the ink it is in. It goes at the first
+    /// keystroke, which is when the words become the reader's own.
+    ///
+    /// The muted step and not the faint one, and that is ADR 0006 rather than
+    /// taste: this is a page of sentences, and the faint ink is held to the
+    /// marker floor precisely because it is never a sentence
+    /// (``Palette/inkFaint``). Quieter than a written day, and still a thing
+    /// somebody can read.
+    ///
+    /// Only the words. A link is still a link and a task's box is still a
+    /// control, both drawn in the accent this device chose and both held to a
+    /// floor of their own; a template's marks are already the faint step.
+    var forADayNobodyHasWritten: MarkdownStyling {
+        var quieter = self
+        quieter.words = Palette.inkMuted
+        return quieter
+    }
+
     /// What every character is before anything markdown has to say about it,
     /// and what the editor types in.
     var baseAttributes: [NSAttributedString.Key: Any] {

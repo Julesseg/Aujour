@@ -1763,49 +1763,96 @@ final class AujourUITests: XCTestCase {
         expect(editor, toHaveValue: "At the desk all day.\n")
     }
 
-    func testAnUnwrittenPastDayInvitesABackfillAndWritesNothingUntilItIsTyped() throws {
-        let app = launchApp(contentTemplate: "# {{title}}\n")
+    /// A day nobody has written is drawn quieter than one somebody has, and
+    /// stops being quiet at the first keystroke rather than at the file that
+    /// keystroke eventually makes.
+    ///
+    /// The ink itself is `UnwrittenDayStylingTests`, which holds the two steps
+    /// to being two steps and the quiet one to the ink a sentence takes. What
+    /// only a running app can show is that the words on screen actually change
+    /// when the day does — so this asks the pixels, and asks them of the same
+    /// text twice over: a character typed and taken straight back out again
+    /// leaves the day saying exactly what it said, in the other ink.
+    ///
+    /// Both readings are taken with the keyboard up. It covers a third of the
+    /// screen, and a before that had it down would be a comparison of two
+    /// different pictures.
+    func testAnUnwrittenPastDayIsDrawnQuietlyUntilItIsTypedIn() throws {
+        // Enough prose that ink is a fair share of the pixels: a page holding
+        // one short line would put the whole difference inside the rounding.
+        let template = """
+            # {{title}}
+
+            Walked to the market and back the long way round.
+            The stalls were packing up by the time I got there.
+            Bought bread, and a paper nobody had opened.
+            Sat on the wall by the church and read the front of it.
+            Rain came in off the hill at about four.
+            Home, and the kettle on before the coat was off.
+            Wrote none of this down until the next morning.
+            """
+        let app = launchApp(contentTemplate: template)
         let editor = app.textViews["entryEditor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
 
-        // Today is spawned from the same template into the same absence of a
-        // file, and is not being invited to anything: today has not been
-        // missed.
-        XCTAssertFalse(
-            app.staticTexts["aBackfillInvite"].exists,
-            "today's own entry was offered as a day to fill in"
-        )
-
         swipeTheDay(app, across: 160)
 
-        let invite = app.staticTexts["aBackfillInvite"]
+        // Spawned for *that* day and not for today, which is what filling one
+        // in after the fact means.
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let itsOwnTitle = "# \(entryName(for: yesterday))"
         XCTAssertTrue(
-            invite.waitForExistence(timeout: 10),
-            "an unwritten past day did not invite a backfill"
+            waitFor { (editor.value as? String)?.contains(itsOwnTitle) == true },
+            "expected yesterday's entry to be titled after its own day, got: "
+                + ((editor.value as? String) ?? "nothing")
+        )
+        let spawned = try XCTUnwrap(editor.value as? String)
+
+        // And nothing is in the folder: the marks are a scan of it, so a day
+        // still marked unwritten is a day with no file.
+        openTheMonth(app, showing: yesterday)
+        let cell = app.buttons["day-\(entryName(for: yesterday))"]
+        expect(cell, toHaveValue: "Not written")
+        // Put away by hand rather than through `shutTheDatePill`, for the
+        // failure message: the tap is a bare coordinate below an open month,
+        // and the one thing worth knowing when it misses is how far down the
+        // panel actually reached.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)).tap()
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(
+            waitFor { pill.value as? String == "Closed" },
+            "the tap below the month did not shut the pill — the pill is at "
+                + "\(pill.frame) in a window of \(app.windows.firstMatch.frame)"
         )
 
-        // Spawned for *that* day and not for today, which is what backfilling
-        // one means.
-        let yesterday = try XCTUnwrap(dayBeforeToday())
-        expect(editor, toHaveValue: "# \(entryName(for: yesterday))\n")
-
-        // And nothing is in the folder yet: the marks are a scan of it, so a
-        // day still marked unwritten is a day with no file.
-        openTheMonth(app, showing: yesterday)
-        expect(app.buttons["day-\(entryName(for: yesterday))"], toHaveValue: "Not written")
-        shutTheDatePill(app)
-
-        // The file appears at the first edit, and the invitation goes with it.
         XCTAssertTrue(editor.waitForExistence(timeout: 10), "the day went away with the pill")
         editor.tap()
-        editor.typeText("Filled in the next morning.")
+        let quiet = try brightness(of: editor)
 
-        XCTAssertTrue(
-            waitFor { !invite.exists },
-            "the invitation stayed over a day that had been written"
+        // One character in and straight back out: the day says exactly what it
+        // said, and it is no longer a day nobody has written.
+        editor.typeText("x")
+        editor.typeText(XCUIKeyboardKey.delete.rawValue)
+        expect(editor, toHaveValue: spawned)
+        let written = try brightness(of: editor)
+
+        XCTAssertGreaterThan(
+            abs(quiet - written), 0.01,
+            "the same words came out the same on a day nobody had written and a day "
+                + "somebody had — \(quiet) against \(written)"
         )
+
+        // At the keystroke and not at the file, which is the whole of what
+        // "until the first edit" means: the day says exactly what it said, so
+        // there is still nothing in the folder to mark, and it is drawn as a
+        // day somebody has written anyway.
+        //
+        // Last, because the keyboard is up from here on and it covers the page
+        // the pill is put away by tapping. That the file does arrive once
+        // there is something to put in it is
+        // `testAPastDayIsFilledInFromTheCalendar`.
         openTheMonth(app, showing: yesterday)
-        expect(app.buttons["day-\(entryName(for: yesterday))"], toHaveValue: "Written")
+        expect(cell, toHaveValue: "Not written")
     }
 
     // MARK: - Sending a day somewhere

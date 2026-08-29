@@ -1397,11 +1397,15 @@ final class AujourUITests: XCTestCase {
 
         // Rightwards is backwards: a week ago is the same weekday one row up,
         // off the strip until the strip is walked to it.
-        swipe(today, across: 160)
+        swipeTheWeekStrip(app, alongside: today, across: 160)
+        XCTAssertTrue(
+            waitFor { aWeekAgo.isHittable },
+            "a swipe across the strip did not bring the week before onto it"
+        )
         aWeekAgo.tap()
         XCTAssertTrue(
             app.buttons["backToToday"].waitForExistence(timeout: 5),
-            "a swipe across the strip did not bring the week before onto it"
+            "the day tapped on the strip was not opened"
         )
 
         // With the whole month out the same finger steps months instead: one
@@ -3010,6 +3014,34 @@ final class AujourUITests: XCTestCase {
             thenHoldForDuration: 0.4
         )
         // The spring, and the day either side being opened behind it.
+        Thread.sleep(forTimeInterval: 1)
+    }
+
+    /// Draws a finger across the week strip, along the row a given day is on.
+    ///
+    /// Begun from a column of the *screen* rather than from that day's own
+    /// cell, which is what this used to do. Today is whichever weekday it
+    /// happens to be, and a swipe begun on the last column of an iPhone runs a
+    /// hundred points off the side before it has gone far enough to turn a
+    /// page — so the test passed all week and failed on Saturdays, and passed
+    /// on the iPad every day because there the screen is wide enough to
+    /// swallow it. Which cell the finger lands on does not matter: the gesture
+    /// that walks the pages belongs to the panel and not to any day in it.
+    private func swipeTheWeekStrip(
+        _ app: XCUIApplication,
+        alongside day: XCUIElement,
+        across distance: CGFloat
+    ) {
+        let window = app.windows.firstMatch.frame
+        let from = app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(
+                CGVector(
+                    dx: distance > 0 ? window.width * 0.2 : window.width * 0.8,
+                    dy: day.frame.midY
+                )
+            )
+        from.press(forDuration: 0.2, thenDragTo: from.withOffset(CGVector(dx: distance, dy: 0)))
+        // The snap, and the page it lands on being taken.
         Thread.sleep(forTimeInterval: 1)
     }
 

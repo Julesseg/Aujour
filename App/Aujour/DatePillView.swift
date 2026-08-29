@@ -123,14 +123,15 @@ struct DatePillView: View {
         // wherever the finger left it. The spring is only for the settling.
         .animation(pill.isBeingDragged ? nil : settle, value: pill.progress)
         .animation(swipe.isBeingDragged ? nil : settle, value: swipe.carried)
-        // And the width the pill shrinks back to, which changes when the day
-        // it names does: the days of the week are not all the same length, so
-        // a walk lands on a pill that has to be a different size. Keyed on the
-        // measured width rather than on the day, because that measurement
-        // arrives from a geometry reading of its own and not in the same
-        // breath as the day it was taken for — an animation hung off the day
-        // would be over before the number it was meant to ease had moved.
-        .animation(settle, value: closedWidth)
+        // And nothing at all when the day changes, which is a page being
+        // turned behind this and not a thing happening to the pill. The pill
+        // is as wide as the day it names, and that width is a measurement
+        // taken a frame after the name it belongs to — so a spring hung on it
+        // starts from the old day's geometry, and a page turn that carries an
+        // ambient animation with it would pick up the same stale start. It
+        // snaps to the new day's width instead, which is what a label doing
+        // nothing but changing should do.
+        .animation(nil, value: dayBeingWritten)
         // Opening puts the month being written back on screen, whatever month
         // was browsed to last time it was open. Straight away and not in a
         // task, so the grid is the right month in the first frame of the

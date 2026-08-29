@@ -884,6 +884,36 @@ struct JournalCalendarDayWalkingTests {
         #expect(session.calendar.dayBeingWritten == JournalDay(year: 2026, month: 3, day: 10))
     }
 
+    /// Where a walk would land, asked without taking it.
+    ///
+    /// What a screen needs in order to have something ready before it moves:
+    /// the day arriving is read out of the folder before it goes on screen,
+    /// and that read cannot wait for the walk that would make it the day being
+    /// written.
+    @Test("the day a walk would land on can be had without walking to it")
+    func theDayAlongIsAnsweredWithoutMoving() {
+        let session = CalendarSession(now: instant(2026, 3, 14, 9, 30, in: paris))
+
+        #expect(session.calendar.dayAlong(1) == JournalDay(year: 2026, month: 3, day: 15))
+        #expect(session.calendar.dayAlong(-1) == JournalDay(year: 2026, month: 3, day: 13))
+        #expect(session.calendar.dayAlong(0) == session.calendar.dayBeingWritten)
+
+        // And nothing moved by the asking.
+        #expect(session.calendar.dayBeingWritten == JournalDay(year: 2026, month: 3, day: 14))
+        #expect(session.calendar.isOnToday)
+    }
+
+    /// It counts from the day being written and not from today, so a walk
+    /// taken from a day already walked to lands one further along and not back
+    /// beside today.
+    @Test("it counts from the day being written")
+    func theDayAlongCountsFromWhereTheJournalIs() {
+        let session = CalendarSession(now: instant(2026, 3, 14, 9, 30, in: paris))
+        session.calendar.showPreviousDay()
+
+        #expect(session.calendar.dayAlong(-1) == JournalDay(year: 2026, month: 3, day: 12))
+    }
+
     /// A past day with no Entry is what a swipe backwards mostly lands on, and
     /// it is not locked: it is spawned for that day, which is Backfill
     /// (`CONTEXT.md`).

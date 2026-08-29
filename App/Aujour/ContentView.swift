@@ -31,6 +31,19 @@ struct ContentView: View {
     /// this is only where the other one is kept.
     @State private var dayPickedOutOfTheGrid: OpenedDay?
 
+    /// The day the page on screen is for — what makes a page a page, and so
+    /// what turning one is a change of.
+    ///
+    /// The calendar is the authority on which day the journal is on, and this
+    /// is not a second opinion: it is set in the same breath as the calendar
+    /// moves, and a change in the journal that came from anywhere else puts it
+    /// back in step. It is held here for one reason — a transition runs only
+    /// when the change that triggered it was made inside the animation, and an
+    /// identity read straight off the calendar is an observed read that
+    /// SwiftUI is free to deliver in an update of its own. That is a page that
+    /// turns sometimes and appears the rest of the time.
+    @State private var dayOnScreen: JournalDay?
+
     /// Which way the journal last moved, so that the day leaving the screen
     /// goes the way the reader sent it and the day arriving comes from the
     /// other side.
@@ -129,7 +142,7 @@ struct ContentView: View {
     /// journal the reader went, and the 3rd picked from the 14th went back.
     private func pick(_ day: JournalDay) {
         guard let calendar = journal.calendar else { return }
-        move(forwards: day > calendar.dayBeingWritten) { calendar.pick(day) }
+        move(forwards: day > calendar.dayBeingWritten, onto: day) { calendar.pick(day) }
     }
 
     /// Moves the journal a day, which is what a finger drawn sideways across
@@ -144,69 +157,86 @@ struct ContentView: View {
     ///   the day before is -1 and the day after is 1.
     private func turn(_ days: Int) {
         guard let calendar = journal.calendar else { return }
-        move(forwards: days > 0) {
+        move(forwards: days > 0, onto: calendar.dayAlong(days)) {
             if days > 0 { calendar.showNextDay() } else { calendar.showPreviousDay() }
             return true
         }
     }
 
-    /// Moves the journal, and slides the day on screen out the way it went.
+    /// Moves the journal onto a day, and turns the page to it.
+    ///
+    /// The day arriving is read out of the folder *before* it goes on screen,
+    /// and that is the difference between a page turning and a page
+    /// appearing. An editor put on screen the moment it is made is one that
+    /// has not read anything yet, so what a slide would carry is the word
+    /// "Opening", with the day's words landing in place behind it — and for
+    /// those frames the page is one line tall, which takes the rest of the
+    /// screen with it as everything reflows around a page that is not there.
+    /// The wait is a folder read, which is a frame for anything local; the
+    /// pill springing back from the finger is what says the swipe arrived.
+    ///
+    /// Nothing on screen moves until it can all move together, which is why
+    /// the calendar is moved in here rather than before: the day the pill
+    /// names, the editor under it and the page's own identity are three
+    /// answers to one question, and a screen that changed them in three
+    /// transactions would be one that flashed a different day between two of
+    /// them.
     ///
     /// The direction is handed in rather than worked out afterwards from the
     /// two days, and that is a timing matter and not a taste one: a transition
-    /// is chosen at the moment the day on screen changes identity, so a
-    /// direction settled from the day it turned out to be would arrive one
-    /// frame after the slide it was meant to shape. Both callers know which
-    /// way they are going before they go.
+    /// is chosen at the moment the page changes identity, so a direction
+    /// settled from the day it turned out to be would arrive one frame after
+    /// the slide it was meant to shape. Both callers know which way they are
+    /// going before they go.
     ///
-    /// - Parameter go: the move itself, answering whether anything changed.
-    ///   Asked rather than compared afterwards, because "the day on screen is
-    ///   the same day" is not the same as "nothing happened": picking today
-    ///   while pinned to it hands the journal back to the clock without moving
-    ///   it a day.
-    private func move(forwards: Bool, _ go: () -> Bool) {
-        let leaving = dayPickedOutOfTheGrid
-
-        goingForwards = forwards
-        withAnimation(theDaySlidesBy) {
-            guard go() else { return }
-            openTheDayBeingWritten(leaving: leaving)
-        }
-    }
-
-    /// Puts an editor over whichever day the calendar has just moved to, and
-    /// puts down the one that was on screen.
-    ///
-    /// The day left behind is saved and the folder read again before anything
-    /// else — which is what puts the dot on a day that has just been filled
-    /// in, and what keeps the app to one editor per Entry.
-    private func openTheDayBeingWritten(leaving: OpenedDay?) {
+    /// - Parameters:
+    ///   - onto: where the journal is going, which has to be known before it
+    ///     goes there — that is the day whose Entry is read.
+    ///   - go: the move itself, answering whether anything changed. Asked
+    ///     rather than compared afterwards, because "the day on screen is the
+    ///     same day" is not the same as "nothing happened": picking today
+    ///     while pinned to it hands the journal back to the clock without
+    ///     moving it a day.
+    private func move(forwards: Bool, onto day: JournalDay, _ go: @escaping () -> Bool) {
         guard let calendar = journal.calendar else { return }
-        let day = calendar.dayBeingWritten
+        let leaving = dayPickedOutOfTheGrid
 
         // Today's Entry is the Journal's own, so arriving on today is putting
         // this one down rather than making another — and a day that has not
-        // arrived has no editor to make at all. One assignment for all three,
-        // so the day held here and the day the calendar is on cannot come
-        // apart.
-        dayPickedOutOfTheGrid =
-            calendar.isOnToday
+        // arrived has no editor to make at all.
+        let arriving =
+            day == calendar.today
             ? nil
             : calendar.editor(for: day).map { OpenedDay(day: day, editor: $0) }
 
-        if let opened = dayPickedOutOfTheGrid {
-            Task {
+        Task {
+            if let arriving {
                 // Before it is read, for the same reason today's Entry is: a
                 // past day can have been written on two devices too —
                 // backfilled on the iPad on the train and on the iPhone that
                 // evening — and the version that loses its path is set aside
                 // rather than left in iCloud where nobody would ever see it.
-                await journal.settleAnyDivergence(before: opened.editor)
-                await opened.editor.open()
+                await journal.settleAnyDivergence(before: arriving.editor)
+                await arriving.editor.open()
             }
-        }
 
-        Task {
+            goingForwards = forwards
+            var moved = false
+            withAnimation(theDaySlidesBy) {
+                // Refused, and the editor read for nothing: a day that has not
+                // arrived, or the day already being written. Both are cheap to
+                // be wrong about — a read discarded — and neither is a thing
+                // to ask the calendar twice about, once here and once in it.
+                guard go() else { return }
+                moved = true
+                dayPickedOutOfTheGrid = arriving
+                dayOnScreen = calendar.dayBeingWritten
+            }
+            guard moved else { return }
+
+            // The day left behind is saved and the folder read again — which
+            // is what puts the dot on a day that has just been filled in, and
+            // what keeps the app to one editor per Entry.
             if let leaving {
                 await leaving.editor.save()
             } else {
@@ -241,6 +271,11 @@ struct ContentView: View {
             ProgressView("Opening today's entry")
                 .accessibilityIdentifier("openingEntry")
         }
+    }
+
+    /// Which day the journal is on, as something that can be watched.
+    private var theDayTheJournalIsOn: JournalDay? {
+        journal.calendar?.dayBeingWritten ?? journal.today?.day
     }
 
     /// How the day leaving and the day arriving pass each other: out the way
@@ -287,9 +322,15 @@ struct ContentView: View {
                     // nothing to slide out.
                     ZStack {
                         theDayOnScreen
-                            .id(journal.calendar?.dayBeingWritten)
+                            .id(dayOnScreen)
                             .transition(theDaySlides)
                     }
+                    // The page is the page whatever is on it. Left to size
+                    // itself, a container holding one day's writing would take
+                    // the shape of whatever the day happened to be — and a day
+                    // that is briefly a single line of prose would gather the
+                    // whole screen in around it, pill and all.
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
                     .datePill(
                         over: journal.calendar,
@@ -393,6 +434,15 @@ struct ContentView: View {
         // more.
         .onChange(of: journal.calendar.map(ObjectIdentifier.init)) { _, _ in
             dayPickedOutOfTheGrid = nil
+        }
+        // Kept in step with the journal for every way the day moves that is
+        // not somebody moving it: the first day there is one, the morning an
+        // app left open overnight comes back to, a journal reopened onto
+        // another folder. Those turn no page — there is nothing to slide out
+        // of the way of a day that arrived on its own — so they are a plain
+        // swap, and this is where they are noticed rather than three places.
+        .onChange(of: theDayTheJournalIsOn, initial: true) { _, day in
+            dayOnScreen = day
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {

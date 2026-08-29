@@ -31,7 +31,20 @@ struct ContentView: View {
     /// this is only where the other one is kept.
     @State private var dayPickedOutOfTheGrid: OpenedDay?
 
+    /// Which way the journal last moved, so that the day leaving the screen
+    /// goes the way the reader sent it and the day arriving comes from the
+    /// other side.
+    ///
+    /// Forwards until something says otherwise, which is also what the clock
+    /// does: a journal left open across the rollover moves on to the new day,
+    /// and that is a step forwards like any other.
+    @State private var goingForwards = true
+
     @Environment(\.scenePhase) private var scenePhase
+
+    /// Whether this reader has asked for less movement, which the day sliding
+    /// in and out is squarely a piece of.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// What this window is actually drawing in, light or dark — never "no
     /// preference", because this is the answer and not the question.
@@ -110,15 +123,17 @@ struct ContentView: View {
     /// grid disables and the calendar refuses again where it cannot be tapped
     /// around, and the day already being written, which would otherwise be a
     /// second editor over one Entry.
+    ///
+    /// A jump through the grid slides the same way a step does, because it is
+    /// the same journey: what the direction says is which way through the
+    /// journal the reader went, and the 3rd picked from the 14th went back.
     private func pick(_ day: JournalDay) {
         guard let calendar = journal.calendar else { return }
-        let leaving = dayPickedOutOfTheGrid
-        guard calendar.pick(day) else { return }
-        openTheDayBeingWritten(leaving: leaving)
+        move(forwards: day > calendar.dayBeingWritten) { calendar.pick(day) }
     }
 
-    /// Moves the journal a day, which is what a finger drawn across the day's
-    /// own writing does.
+    /// Moves the journal a day, which is what a finger drawn sideways across
+    /// the shut date pill does.
     ///
     /// Not `pick`'s refusal, deliberately: a cell in the grid is the way *in*
     /// to writing a day and a locked one has to refuse, while a swipe is the
@@ -129,9 +144,34 @@ struct ContentView: View {
     ///   the day before is -1 and the day after is 1.
     private func turn(_ days: Int) {
         guard let calendar = journal.calendar else { return }
+        move(forwards: days > 0) {
+            if days > 0 { calendar.showNextDay() } else { calendar.showPreviousDay() }
+            return true
+        }
+    }
+
+    /// Moves the journal, and slides the day on screen out the way it went.
+    ///
+    /// The direction is handed in rather than worked out afterwards from the
+    /// two days, and that is a timing matter and not a taste one: a transition
+    /// is chosen at the moment the day on screen changes identity, so a
+    /// direction settled from the day it turned out to be would arrive one
+    /// frame after the slide it was meant to shape. Both callers know which
+    /// way they are going before they go.
+    ///
+    /// - Parameter go: the move itself, answering whether anything changed.
+    ///   Asked rather than compared afterwards, because "the day on screen is
+    ///   the same day" is not the same as "nothing happened": picking today
+    ///   while pinned to it hands the journal back to the clock without moving
+    ///   it a day.
+    private func move(forwards: Bool, _ go: () -> Bool) {
         let leaving = dayPickedOutOfTheGrid
-        if days > 0 { calendar.showNextDay() } else { calendar.showPreviousDay() }
-        openTheDayBeingWritten(leaving: leaving)
+
+        goingForwards = forwards
+        withAnimation(theDaySlidesBy) {
+            guard go() else { return }
+            openTheDayBeingWritten(leaving: leaving)
+        }
     }
 
     /// Puts an editor over whichever day the calendar has just moved to, and
@@ -203,6 +243,31 @@ struct ContentView: View {
         }
     }
 
+    /// How the day leaving and the day arriving pass each other: out the way
+    /// the reader sent it, and in from the other side.
+    ///
+    /// The whole of what this adds is *which way*. A day changing on its own
+    /// would say the journal had moved and leave the reader to work out where
+    /// to; a day that leaves to the left says they went forwards, which is the
+    /// one thing the pill above cannot say without being read.
+    ///
+    /// A plain fade for a reader who asked for less movement — the direction
+    /// is worth having and is not worth sliding a screenful of somebody's
+    /// writing across the page to say.
+    private var theDaySlides: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        return .asymmetric(
+            insertion: .move(edge: goingForwards ? .trailing : .leading),
+            removal: .move(edge: goingForwards ? .leading : .trailing)
+        )
+    }
+
+    /// What it slides with: the pill's own page-turn, because that is what
+    /// this is — one of the pages under it, turned.
+    private var theDaySlidesBy: Animation {
+        reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.32, bounce: 0.1)
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -213,46 +278,58 @@ struct ContentView: View {
                         .navigationTitle("Aujour")
 
                 case .open:
-                    theDayOnScreen
-                        .datePill(
-                            over: journal.calendar,
-                            accent: appearance.accent,
-                            pick: pick,
-                            turning: turn,
-                            // Written down before the month is read: the marks
-                            // are a scan of the folder, and a day being filled
-                            // in this second is a day whose file is not there
-                            // yet.
-                            settling: { await entryOnScreen?.editor.save() }
-                        )
-                        // The pill names the day now, so the bar carries the
-                        // ways out of it and nothing else — a title saying the
-                        // same thing twice, once in each of two typefaces, is
-                        // the redesign's own worst screen.
-                        .navigationTitle("")
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarLeading) {
-                                // The other way back into a day, and now the
-                                // only one in the bar: by when it was is the
-                                // pill's, and by what was written in it is
-                                // this.
-                                Button("Search", systemImage: "magnifyingglass") {
-                                    wayIn = .search
-                                }
-                                .accessibilityIdentifier("openSearch")
+                    // A container of its own, and not the day itself: for the
+                    // length of a slide there are two days on screen, and they
+                    // need something to be laid over each other in and clipped
+                    // to. Identified by the day, because that is what makes
+                    // this a change of page rather than a change of contents —
+                    // the same view told to say something else would have
+                    // nothing to slide out.
+                    ZStack {
+                        theDayOnScreen
+                            .id(journal.calendar?.dayBeingWritten)
+                            .transition(theDaySlides)
+                    }
+                    .clipped()
+                    .datePill(
+                        over: journal.calendar,
+                        accent: appearance.accent,
+                        pick: pick,
+                        turning: turn,
+                        // Written down before the month is read: the marks
+                        // are a scan of the folder, and a day being filled
+                        // in this second is a day whose file is not there
+                        // yet.
+                        settling: { await entryOnScreen?.editor.save() }
+                    )
+                    // The pill names the day now, so the bar carries the
+                    // ways out of it and nothing else — a title saying the
+                    // same thing twice, once in each of two typefaces, is
+                    // the redesign's own worst screen.
+                    .navigationTitle("")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            // The other way back into a day, and now the
+                            // only one in the bar: by when it was is the
+                            // pill's, and by what was written in it is
+                            // this.
+                            Button("Search", systemImage: "magnifyingglass") {
+                                wayIn = .search
                             }
-                            ToolbarItem(placement: .topBarTrailing) {
-                                // One way in for the folder and every setting
-                                // over it, because they are one answer: this
-                                // is your journal, and this is what Aujour
-                                // will do with it.
-                                Button("Your journal", systemImage: "folder.badge.gearshape") {
-                                    showingTheJournalItself = true
-                                }
-                                .accessibilityIdentifier("openTheJournalSheet")
-                            }
+                            .accessibilityIdentifier("openSearch")
                         }
+                        ToolbarItem(placement: .topBarTrailing) {
+                            // One way in for the folder and every setting
+                            // over it, because they are one answer: this
+                            // is your journal, and this is what Aujour
+                            // will do with it.
+                            Button("Your journal", systemImage: "folder.badge.gearshape") {
+                                showingTheJournalItself = true
+                            }
+                            .accessibilityIdentifier("openTheJournalSheet")
+                        }
+                    }
 
                 case .unavailable(let problem):
                     StorageProblemNotice(
@@ -344,6 +421,11 @@ struct ContentView: View {
                 // this screen's own, and catches up the same way, taking on
                 // what its file says wherever nothing here is waiting to be
                 // written to it.
+                // Whatever the last move was, the one that may be about to
+                // happen here is the clock's, and the clock only goes one way:
+                // an app left open across the rollover comes back to a new day
+                // that arrived from ahead of it.
+                goingForwards = true
                 Task {
                     await journal.cameBackToTheFront()
                     await dayPickedOutOfTheGrid?.editor.reloadIfClean()

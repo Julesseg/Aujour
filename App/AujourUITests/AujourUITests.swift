@@ -41,13 +41,13 @@ final class AujourUITests: XCTestCase {
 
         // Asking iCloud for the app's container is slow the first time on a
         // device, so this is a wait rather than an assertion about a frame.
-        let theJournal = app.buttons["openTheJournalSheet"]
+        let settings = app.buttons["openSettings"]
         XCTAssertTrue(
-            theJournal.waitForExistence(timeout: 30),
+            settings.waitForExistence(timeout: 30),
             "the app did not settle on a journal folder — it is showing: "
                 + app.staticTexts.allElementsBoundByIndex.map { $0.label }.joined(separator: " / ")
         )
-        theJournal.tap()
+        settings.tap()
 
         let location = app.staticTexts["journalRootLocation"]
         XCTAssertTrue(location.waitForExistence(timeout: 5))
@@ -84,7 +84,7 @@ final class AujourUITests: XCTestCase {
         // And none of it is a file: a day nobody wrote on leaves no husk
         // behind, which the next launch is what proves.
         relaunch(app)
-        XCTAssertEqual(entryCountAfterOpeningTheJournalSheet(app), "0 entries")
+        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "0 entries")
     }
 
     func testWhatIsTypedIsStillThereAfterARelaunch() throws {
@@ -104,7 +104,7 @@ final class AujourUITests: XCTestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, "Walked to the market.")
-        XCTAssertEqual(entryCountAfterOpeningTheJournalSheet(app), "1 entry")
+        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
     }
 
     /// The claim the editor is worth nothing without: it draws markdown, and
@@ -149,7 +149,7 @@ final class AujourUITests: XCTestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, entry)
-        XCTAssertEqual(entryCountAfterOpeningTheJournalSheet(app), "1 entry")
+        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
     }
 
     /// A checkbox is the one thing in an Entry that answers a tap, and the
@@ -194,7 +194,7 @@ final class AujourUITests: XCTestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, "- [x] Milk\n- [ ] Bread")
-        XCTAssertEqual(entryCountAfterOpeningTheJournalSheet(app), "1 entry")
+        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
     }
 
     /// The formatting row above the keyboard: the marks a journal is written
@@ -328,7 +328,7 @@ final class AujourUITests: XCTestCase {
             "today's entry never appeared"
         )
 
-        openTheJournalSheet(app)
+        openSettings(app)
         let example = app.staticTexts["embedSyntaxExample"]
         scrollTo(example, in: app)
         XCTAssertEqual(example.label, "![](\(todaysPhotograph(named: "jpg")))")
@@ -496,7 +496,7 @@ final class AujourUITests: XCTestCase {
             "today's entry never appeared"
         )
 
-        openTheJournalSheet(app)
+        openSettings(app)
         let chooseTemplate = app.buttons["contentTemplateFile"]
         scrollTo(chooseTemplate, in: app)
         chooseTemplate.tap()
@@ -515,7 +515,7 @@ final class AujourUITests: XCTestCase {
 
         // Until it is asked for no template, which forgets the file and
         // nothing else: today goes back to the blank page it was.
-        openTheJournalSheet(app)
+        openSettings(app)
         let noTemplate = app.buttons["noContentTemplate"]
         scrollTo(noTemplate, in: app)
         noTemplate.tap()
@@ -525,7 +525,7 @@ final class AujourUITests: XCTestCase {
 
     func testTheRolloverHourChosenIsTheOneStillInForceAfterARelaunch() throws {
         let app = launchApp()
-        openTheJournalSheet(app)
+        openSettings(app)
 
         // Four in the morning: the night owl's rollover, and the hour the
         // decision log uses to explain what one is for. Named the way this
@@ -545,7 +545,7 @@ final class AujourUITests: XCTestCase {
         )
 
         relaunch(app)
-        openTheJournalSheet(app)
+        openSettings(app)
         let afterARelaunch = app.buttons["rolloverHour"]
         XCTAssertTrue(afterARelaunch.waitForExistence(timeout: 15), "settings never came back")
         // The end of the label rather than any of it: an hour that merely
@@ -566,7 +566,7 @@ final class AujourUITests: XCTestCase {
     /// that survives a relaunch, and a switch that takes it away again.
     func testTheDailyReminderIsOffUntilATimeIsChosenAndStaysChosen() throws {
         let app = launchApp()
-        openTheJournalSheet(app)
+        openSettings(app)
 
         let reminder = app.switches["dailyReminder"]
         scrollTo(reminder, in: app)
@@ -602,7 +602,7 @@ final class AujourUITests: XCTestCase {
         tapTheOption(labelled: onTheClock(hour: 21, minute: 30), in: app)
 
         relaunch(app)
-        openTheJournalSheet(app)
+        openSettings(app)
         let afterARelaunch = app.buttons["dailyReminderTime"]
         scrollTo(afterARelaunch, in: app)
         XCTAssertTrue(
@@ -669,7 +669,7 @@ final class AujourUITests: XCTestCase {
 
         // Skipped means off, and not "on at some default hour": Aujour has
         // never nudged anybody who did not ask it to.
-        openTheJournalSheet(app)
+        openSettings(app)
         expect(app.staticTexts["journalEntryCount"], toHaveLabel: "1 entry")
         let reminder = app.switches["dailyReminder"]
         scrollTo(reminder, in: app)
@@ -727,7 +727,7 @@ final class AujourUITests: XCTestCase {
 
         // The same reminder, seen from the other end of the app: one setting,
         // set in the welcome and shown on the sheet.
-        openTheJournalSheet(app)
+        openSettings(app)
         let reminder = app.switches["dailyReminder"]
         scrollTo(reminder, in: app)
         XCTAssertEqual(reminder.value as? String, "1")
@@ -1373,7 +1373,7 @@ final class AujourUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 4)
 
         // Where a journal nobody has moved lives.
-        openTheJournalSheet(app)
+        openSettings(app)
         XCTAssertEqual(app.staticTexts["journalRootLocation"].label, aujoursOwnFolder)
         XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
 
@@ -1399,7 +1399,7 @@ final class AujourUITests: XCTestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, "Written in the folder I picked.")
-        openTheJournalSheet(app)
+        openSettings(app)
         XCTAssertEqual(app.staticTexts["journalRootLocation"].label, vault)
         XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
 
@@ -1448,7 +1448,7 @@ final class AujourUITests: XCTestCase {
 
         // The Parked File is beside the journal and not in it: one day
         // written, one entry, whatever else is in the folder (ADR 0002).
-        XCTAssertEqual(entryCountAfterOpeningTheJournalSheet(app), "1 entry")
+        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
         app.buttons["Done"].tap()
 
         // Dismissible, because the file itself is the lasting notice.
@@ -1466,7 +1466,7 @@ final class AujourUITests: XCTestCase {
             "today's entry never appeared"
         )
 
-        openTheJournalSheet(app)
+        openSettings(app)
         XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
         typeEntryPath("[Journal]/YYYY-MM-DD", into: app)
 
@@ -1501,7 +1501,7 @@ final class AujourUITests: XCTestCase {
         // journal-shaping setting does (ADR 0003).
         relaunch(app)
         XCTAssertTrue(app.textViews["entryEditor"].waitForExistence(timeout: 30))
-        XCTAssertEqual(entryCountAfterOpeningTheJournalSheet(app), "1 entry")
+        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
         XCTAssertEqual(app.textFields["entryPathField"].value as? String, "[Journal]/YYYY-MM-DD")
     }
 
@@ -1512,7 +1512,7 @@ final class AujourUITests: XCTestCase {
             "today's entry never appeared"
         )
 
-        openTheJournalSheet(app)
+        openSettings(app)
         typeEntryPath("[Journal]/YYYY-MM-DD", into: app)
         app.buttons["changeEntryPath"].tap()
         XCTAssertTrue(
@@ -1553,7 +1553,7 @@ final class AujourUITests: XCTestCase {
             "today's entry never appeared"
         )
 
-        openTheJournalSheet(app)
+        openSettings(app)
         typeEntryPath("[Journal]/YYYY-MM-DD", into: app)
         app.buttons["changeEntryPath"].tap()
 
@@ -1702,6 +1702,112 @@ final class AujourUITests: XCTestCase {
         XCTAssertEqual(spawned, "# \(todaysEntryName())\n\n## Today\n\n")
     }
 
+    // MARK: - What travels and what stays
+
+    /// ADR 0003's boundary, made visible: the settings sheet is two groups,
+    /// and which one a setting is in is the whole of what tells the user
+    /// whether changing it reaches their iPad.
+    ///
+    /// Asked by where each control sits rather than by reading the two
+    /// headings, because the headings are the easy half. A sheet can say
+    /// "these travel" over a group with the theme in it, and it would pass
+    /// every check that only looked for the words.
+    ///
+    /// Every frame is read at one scroll position and none of them is
+    /// scrolled to, which is what makes the comparison a comparison: the
+    /// sections are laid out whether or not they are on screen, and a swipe
+    /// between two readings would be measuring a position before it against a
+    /// position after it.
+    ///
+    /// The two the design files get wrong are in the travelling list on
+    /// purpose: where photographs go and how they are written are separate
+    /// controls, not one row called "Attachments".
+    func testTheSettingsSayWhichOfThemReachTheOtherDevices() throws {
+        let app = launchApp()
+        openSettings(app)
+
+        let travels = app.staticTexts["journalSettingsSaying"]
+        XCTAssertTrue(
+            travels.waitForExistence(timeout: 10),
+            "the sheet never said which of its settings reach the other devices"
+        )
+        let stays = app.staticTexts["deviceSettingsSaying"]
+        XCTAssertTrue(
+            stays.waitForExistence(timeout: 10),
+            "the sheet never said which of its settings stay on this device"
+        )
+
+        let travelling = travels.frame.minY
+        let onThisDevice = stays.frame.minY
+        XCTAssertLessThan(
+            travelling, onThisDevice,
+            "the two groups are not one above the other — the journal's are at "
+                + "\(travelling) and the device's at \(onThisDevice)"
+        )
+
+        // Every Journal Setting with a control of its own, under the heading
+        // that promises it travels.
+        let journals: [(String, XCUIElement)] = [
+            ("where each day's entry goes", app.textFields["entryPathField"]),
+            ("what a new day starts from", app.buttons["contentTemplateFile"]),
+            ("when the day turns", app.buttons["rolloverHour"]),
+            ("where photos go", app.textFields["attachmentPathField"]),
+            ("how photos are written", app.segmentedControls["embedSyntax"]),
+        ]
+        for (what, control) in journals {
+            XCTAssertTrue(control.exists, "\(what) is not on the settings sheet at all")
+            // Two comparisons rather than a range, which would trap on the
+            // very inversion this test exists to catch.
+            let y = control.frame.minY
+            XCTAssertTrue(
+                y > travelling && y < onThisDevice,
+                "\(what) is not among the settings that travel — it is at \(y), "
+                    + "and that group runs from \(travelling) to \(onThisDevice)"
+            )
+        }
+
+        // And every Device Setting under the heading that promises it does
+        // not. The half that would go unnoticed: a sheet with both headings
+        // and everything under the first one says nothing at all.
+        let devices: [(String, XCUIElement)] = [
+            ("how it looks", app.buttons["openHowItLooks"]),
+            ("the daily reminder", app.switches["dailyReminder"]),
+        ]
+        for (what, control) in devices {
+            XCTAssertTrue(control.exists, "\(what) is not on the settings sheet at all")
+            XCTAssertGreaterThan(
+                control.frame.minY, onThisDevice,
+                "\(what) is being promised to the user's other devices — it is at "
+                    + "\(control.frame.minY), above the line at \(onThisDevice)"
+            )
+        }
+
+        // And each heading says which kind it is in words, since that is what
+        // a user actually reads; the positions above are only how a test can
+        // tell. Told apart by whether the sentence names *this* device, which
+        // is the difference between them rather than a phrase to match: a
+        // group that stays is about this iPhone by name, and one that travels
+        // cannot be about any device in particular. Two sayings swapped
+        // between the groups fail here, which a check for the word "device"
+        // in both would not.
+        let thisDevice = UIDevice.current.model.lowercased()
+        XCTAssertTrue(
+            travels.label.lowercased().contains("devices"),
+            "the group that travels does not say where its settings go — it says "
+                + "\"\(travels.label)\""
+        )
+        XCTAssertFalse(
+            travels.label.lowercased().contains(thisDevice),
+            "the group that travels is talking about this \(UIDevice.current.model) "
+                + "in particular — it says \"\(travels.label)\""
+        )
+        XCTAssertTrue(
+            stays.label.lowercased().contains(thisDevice),
+            "the group that stays does not say which device it stays on — it says "
+                + "\"\(stays.label)\""
+        )
+    }
+
     // MARK: - Driving the app
 
     /// Launches the app onto a journal folder of this test's own.
@@ -1834,15 +1940,18 @@ final class AujourUITests: XCTestCase {
         return app
     }
 
-    /// Opens the one sheet: where the journal is kept, and every setting that
-    /// shapes what goes into it.
-    private func openTheJournalSheet(_ app: XCUIApplication) {
-        let theJournal = app.buttons["openTheJournalSheet"]
-        XCTAssertTrue(theJournal.waitForExistence(timeout: 30), "the journal never opened")
-        theJournal.tap()
+    /// Opens the one sheet: where the journal is kept, every setting that
+    /// shapes what goes into it, and the ones that stay on this device.
+    private func openSettings(_ app: XCUIApplication) {
+        let settings = app.buttons["openSettings"]
+        XCTAssertTrue(
+            settings.waitForExistence(timeout: 30),
+            "the settings button never appeared"
+        )
+        settings.tap()
         XCTAssertTrue(
             app.staticTexts["journalRootLocation"].waitForExistence(timeout: 10),
-            "the journal sheet never appeared"
+            "the settings sheet never appeared"
         )
     }
 
@@ -1954,9 +2063,9 @@ final class AujourUITests: XCTestCase {
 
         // The journal sheet says which accent is in force before it is opened,
         // which is the shortest proof that the choice outlived the process.
-        let theJournal = app.buttons["openTheJournalSheet"]
-        XCTAssertTrue(theJournal.waitForExistence(timeout: 30), "the app never came back")
-        theJournal.tap()
+        let settings = app.buttons["openSettings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 30), "the app never came back")
+        settings.tap()
 
         let howItLooks = app.buttons["openHowItLooks"]
         scrollTo(howItLooks, in: app)
@@ -2122,7 +2231,7 @@ final class AujourUITests: XCTestCase {
         // for half of this test, and on iPad — where the sheet is a form sheet
         // over a day that never goes away — it would be a coin toss.
         let chrome = app.navigationBars
-            .containing(.button, identifier: "openTheJournalSheet")
+            .containing(.button, identifier: "openSettings")
             .firstMatch
             .staticTexts.firstMatch
         XCTAssertTrue(chrome.waitForExistence(timeout: 10), "the day's date was never on screen")
@@ -2253,9 +2362,9 @@ final class AujourUITests: XCTestCase {
     /// The way in: the journal sheet, and the one row on it that is not about
     /// the journal.
     private func openHowItLooks(in app: XCUIApplication) {
-        let theJournal = app.buttons["openTheJournalSheet"]
-        XCTAssertTrue(theJournal.waitForExistence(timeout: 30), "the journal never opened")
-        theJournal.tap()
+        let settings = app.buttons["openSettings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 30), "the settings button never appeared")
+        settings.tap()
 
         let howItLooks = app.buttons["openHowItLooks"]
         scrollTo(howItLooks, in: app)
@@ -2272,10 +2381,12 @@ final class AujourUITests: XCTestCase {
         app.launch()
     }
 
-    private func entryCountAfterOpeningTheJournalSheet(_ app: XCUIApplication) -> String {
-        let theJournal = app.buttons["openTheJournalSheet"]
-        guard theJournal.waitForExistence(timeout: 30) else { return "the journal never opened" }
-        theJournal.tap()
+    private func entryCountFromTheSettingsSheet(_ app: XCUIApplication) -> String {
+        let settings = app.buttons["openSettings"]
+        guard settings.waitForExistence(timeout: 30) else {
+            return "the settings button never appeared"
+        }
+        settings.tap()
 
         let entryCount = app.staticTexts["journalEntryCount"]
         guard entryCount.waitForExistence(timeout: 5) else { return "no entry count was shown" }
@@ -2289,7 +2400,7 @@ final class AujourUITests: XCTestCase {
     /// last of a month, which is exactly when a calendar gets it wrong.
     private func openCalendar(_ app: XCUIApplication, showingTheMonthOf day: Date) {
         let calendar = app.buttons["openCalendar"]
-        XCTAssertTrue(calendar.waitForExistence(timeout: 30), "the journal never opened")
+        XCTAssertTrue(calendar.waitForExistence(timeout: 30), "the settings button never appeared")
         calendar.tap()
         XCTAssertTrue(
             app.staticTexts["calendarMonth"].waitForExistence(timeout: 10),
@@ -2308,7 +2419,7 @@ final class AujourUITests: XCTestCase {
     /// Opens the search screen, and waits for it to be there.
     private func openSearch(_ app: XCUIApplication) {
         let search = app.buttons["openSearch"]
-        XCTAssertTrue(search.waitForExistence(timeout: 30), "the journal never opened")
+        XCTAssertTrue(search.waitForExistence(timeout: 30), "the settings button never appeared")
         search.tap()
         XCTAssertTrue(
             app.searchFields.firstMatch.waitForExistence(timeout: 10),
@@ -2434,7 +2545,12 @@ final class AujourUITests: XCTestCase {
         let sheet = app.scrollViews.firstMatch
         let scroller = sheet.exists ? sheet : app
         var swipes = 0
-        while !element.isHittable, swipes < 12 {
+        // Enough of them to cross the longest page in the app at the largest
+        // accessibility text size, which is the settings sheet with every
+        // sentence on it three lines tall. A budget tuned to the ordinary
+        // size fails there as "never came into view", which reads like a row
+        // that is missing rather than one that is a long way down.
+        while !element.isHittable, swipes < 30 {
             if element.frame.minY < scroller.frame.minY {
                 scroller.swipeDown(velocity: .slow)
             } else {

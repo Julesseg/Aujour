@@ -11,7 +11,7 @@ import AujourCore
 /// indistinguishable from a day nobody wrote on (ADR 0001).
 struct ContentView: View {
     @State private var journal: Journal
-    @State private var showingTheJournalItself = false
+    @State private var showingSettings = false
     /// The screen on top of today's Entry, if one is — nil while today's is
     /// what is on screen.
     ///
@@ -116,11 +116,14 @@ struct ContentView: View {
                                     // One way in for the folder and every
                                     // setting over it, because they are one
                                     // answer: this is your journal, and this
-                                    // is what Aujour will do with it.
-                                    Button("Your journal", systemImage: "folder.badge.gearshape") {
-                                        showingTheJournalItself = true
+                                    // is what Aujour will do with it. Named
+                                    // for what the sheet is titled, since the
+                                    // journal is only the first half of it —
+                                    // how the app looks is behind here too.
+                                    Button("Settings", systemImage: "slider.horizontal.3") {
+                                        showingSettings = true
                                     }
-                                    .accessibilityIdentifier("openTheJournalSheet")
+                                    .accessibilityIdentifier("openSettings")
                                 }
                             }
                     } else {
@@ -146,8 +149,8 @@ struct ContentView: View {
             // folder closes the journal it was opened from and opens another,
             // and every setting on the sheet reopens it too — a sheet that
             // lived inside one state is a sheet that vanishes mid-decision.
-            .sheet(isPresented: $showingTheJournalItself) {
-                JournalSettingsSheet(journal: journal, appearance: appearance)
+            .sheet(isPresented: $showingSettings) {
+                SettingsSheet(journal: journal, appearance: appearance)
                     // The one sheet this matters most for: it is where the
                     // appearance is changed, so it is the one that would sit
                     // in yesterday's colours right under the control that had

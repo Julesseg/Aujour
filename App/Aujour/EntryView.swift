@@ -117,6 +117,12 @@ struct EntryView: View {
                     pictures: pictures,
                     photographs: photographs,
                     asks: { question = $0 },
+                    // Drawn quieter until somebody has written this day. A day
+                    // with no file is spawned from the Content Template
+                    // exactly as today is, so it arrives headings and all,
+                    // looking like a day somebody wrote — and the ink is the
+                    // one place a page of prose can say otherwise.
+                    isUnwritten: editor.isUnwritten,
                     identifier: "entryEditor",
                     label: "Entry for \(editor.day.spelledOut())"
                 )

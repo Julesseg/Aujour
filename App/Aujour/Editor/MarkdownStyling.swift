@@ -75,6 +75,46 @@ struct MarkdownStyling: Equatable {
         self.lineSpacing = lineSpacing
     }
 
+    /// The same styling for a day nobody has written yet: the words quieter,
+    /// and nothing else touched.
+    ///
+    /// A day with no file is spawned from the Content Template exactly as
+    /// today is, so it arrives headings and all and looks like a day somebody
+    /// wrote. This is the difference, said in the one place a page of prose
+    /// can say anything about itself — the ink it is in. It goes at the first
+    /// keystroke, which is when the words become the reader's own.
+    ///
+    /// The faint step, which the identity keeps for markers and for **a
+    /// field's placeholder** (``Palette/inkFaint``) — and that is what these
+    /// words are. A Content Template spawned for a day is not somebody's
+    /// prose; it is what stands in the Entry until they write it, and it is
+    /// gone the moment they do.
+    ///
+    /// Worth being plain about, because it sits against ADR 0006: the faint
+    /// ink is held to the marker floor and not the sentence one, so a page in
+    /// it is quieter than the app's rule for sentences allows. What makes that
+    /// the right side of the line here is that nothing in it is the reader's
+    /// own — their first keystroke takes the whole page to the full ink, and
+    /// no word anybody wrote is ever drawn below the sentence floor. Raise
+    /// this to ``Palette/inkMuted`` and the difference is barely a difference,
+    /// which is the fault this replaced.
+    ///
+    /// Which does mean the marks and the words are one step on an unwritten
+    /// day, where a written one draws marks quieter than the words around
+    /// them. There is nothing under the faint step to move them to, and the
+    /// distinction is back at the first keystroke — along with the reason to
+    /// care about it, which is that the words are worth telling apart from the
+    /// punctuation once they are yours.
+    ///
+    /// Only the words. A link is still a link and a task's box is still a
+    /// control, both drawn in the accent this device chose and both held to a
+    /// floor of their own.
+    var forADayNobodyHasWritten: MarkdownStyling {
+        var quieter = self
+        quieter.words = Palette.inkFaint
+        return quieter
+    }
+
     /// What every character is before anything markdown has to say about it,
     /// and what the editor types in.
     var baseAttributes: [NSAttributedString.Key: Any] {

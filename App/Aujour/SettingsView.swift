@@ -450,8 +450,8 @@ private struct RolloverHourSection: View {
                 .foregroundStyle(.secondary)
 
             Picker("When the day turns", selection: hour) {
-                ForEach(0..<24, id: \.self) { hour in
-                    Text(Self.onTheClock(hour)).tag(hour)
+                ForEach(RolloverHour.everyHourOfTheDay, id: \.hour) { rollover in
+                    Text(rollover.spelledOut()).tag(rollover.hour)
                 }
             }
             .pickerStyle(.menu)
@@ -473,15 +473,6 @@ private struct RolloverHourSection: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         }
-    }
-
-    /// An hour of the day as this user's clock writes it — 12- or 24-hour,
-    /// whichever their region is on.
-    private static func onTheClock(_ hour: Int) -> String {
-        let midnight = Calendar.current.startOfDay(for: Date())
-        let atThatHour =
-            Calendar.current.date(byAdding: .hour, value: hour, to: midnight) ?? midnight
-        return atThatHour.formatted(date: .omitted, time: .shortened)
     }
 }
 

@@ -81,15 +81,27 @@ struct PlaceholderAnswerSheet: View {
     /// are read: a Monday filled in on Friday is offered Monday's.
     let day: JournalDay?
 
+    /// The colour the app spends on itself, which the chip that was tapped is
+    /// drawn in and which the marks answering it are drawn in too.
+    ///
+    /// Handed in rather than taken off the environment, like the calendar's
+    /// own cells (`DatePillView`). A sheet is chrome and chrome follows the
+    /// system's text size, so the one value carrying this device's accent
+    /// around — which carries the *writing* preference with it — is not a
+    /// thing chrome should be holding (`AppearanceTests`).
+    let accent: Accent
+
     @Environment(\.dismiss) private var dismiss
 
     init(
         question: PlaceholderQuestion,
+        in accent: Accent = DeviceSettings.default.accent,
         from places: (any Places)? = nil,
         photographsFrom library: (any PhotoLibrary)? = nil,
         for day: JournalDay? = nil
     ) {
         self.question = question
+        self.accent = accent
         self.places = places
         self.library = library
         self.day = day
@@ -131,7 +143,7 @@ struct PlaceholderAnswerSheet: View {
         // fallback arm and no `default:`, so a placeholder registered later
         // does not compile until somebody has decided what answering it looks
         // like — which is the one thing no amount of reading the text can say.
-        case .mood: MoodAnsweredByRating(question: question)
+        case .mood: MoodAnsweredByRating(question: question, in: accent)
         case .location:
             PlaceholderAnsweredWithAPlace(
                 question: question, from: places, photographsFrom: library, for: day
@@ -167,8 +179,16 @@ struct PlaceholderAnswerSheet: View {
 private struct MoodAnsweredByRating: View {
     let question: PlaceholderQuestion
 
+    /// The colour the app spends on itself, handed in for the reason the
+    /// sheet's own is (``PlaceholderAnswerSheet/accent``).
+    let accent: Accent
+
+    init(question: PlaceholderQuestion, in accent: Accent) {
+        self.question = question
+        self.accent = accent
+    }
+
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.editorLook) private var look
 
     /// The mark under the finger, while there is a finger on the scale.
     ///
@@ -240,7 +260,7 @@ private struct MoodAnsweredByRating: View {
             }
             .padding(.horizontal, Spacing.comfortable)
             .padding(.vertical, Spacing.tight)
-            .background(look.accent.soft, in: Capsule())
+            .background(accent.soft, in: Capsule())
 
             // The mark under the finger, spelled the way the file spells one —
             // "4/5" and not "4", because the scale travels with the number
@@ -253,7 +273,7 @@ private struct MoodAnsweredByRating: View {
             // does not jump the moment a thumb lands on it.
             Text(pressing?.answer ?? MoodRating.all.first?.answer ?? "")
                 .lettering(.chipLabel)
-                .foregroundStyle(look.accent.color)
+                .foregroundStyle(accent.color)
                 .opacity(pressing == nil ? 0 : 1)
                 .accessibilityHidden(true)
         }
@@ -267,7 +287,7 @@ private struct MoodAnsweredByRating: View {
         let reached = rating.value <= (pressing?.value ?? 0)
         return ZStack {
             Circle()
-                .fill(look.accent.color)
+                .fill(accent.color)
                 .opacity(reached ? 1 : 0)
             Circle()
                 .strokeBorder(Palette.inkFaintColor, lineWidth: outline)
@@ -276,7 +296,7 @@ private struct MoodAnsweredByRating: View {
         .frame(width: mark, height: mark)
         .background {
             Circle()
-                .fill(look.accent.softer)
+                .fill(accent.softer)
                 .padding(-halo)
                 .opacity(pressing == rating ? 1 : 0)
         }

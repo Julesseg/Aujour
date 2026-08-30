@@ -26,8 +26,8 @@ struct ChipColours: Equatable {
     /// tint, washed the way the identity washes one.
     ///
     /// For a preview and for a test of something else. The app itself always
-    /// passes the accent this device chose (``EditorLook/styling(compatibleWith:)``),
-    /// so nothing a user sees is drawn in this.
+    /// passes the accent this device chose, so nothing a user sees is drawn in
+    /// this.
     ///
     /// Dynamic, like every colour in the app: resolved against the screen it
     /// lands on rather than against whichever appearance happened to be in

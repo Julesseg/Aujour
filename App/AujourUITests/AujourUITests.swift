@@ -2643,13 +2643,13 @@ final class AujourUITests: XCTestCase {
         XCTAssertEqual(field.value as? String, path)
     }
 
-    /// Puts the caret at the end of a text field, and waits for the sheet to
-    /// stop moving before deciding where the end is.
+    /// Puts the caret at the end of a text field, and lets the sheet stop
+    /// moving before deciding where the end is.
     ///
     /// Two taps and not one, which is not superstition. The first summons the
     /// keyboard, and a field far enough down a sheet is where the keyboard is
     /// about to be — so iOS scrolls the sheet out from under the finger as it
-    /// rises, and what the runner then types goes to a field that is no
+    /// rises, and what the runner types next goes to a field that is no
     /// longer where it was tapped ("Neither element nor any descendant has
     /// keyboard focus", which is a sentence about the runner rather than
     /// about the app). The second tap is taken against the frame the field
@@ -2661,10 +2661,14 @@ final class AujourUITests: XCTestCase {
     private func giveTheKeyboardTo(_ field: XCUIElement, in app: XCUIApplication) {
         let theEndOfIt = CGVector(dx: 0.95, dy: 0.5)
         field.coordinate(withNormalizedOffset: theEndOfIt).tap()
-        XCTAssertTrue(
-            app.keyboards.element.waitForExistence(timeout: 10),
-            "\(field) never brought the keyboard up — it is at \(field.frame)"
-        )
+        // Waited for and never required. A machine with a hardware keyboard
+        // attached shows no software one and focuses the field just the same,
+        // which is what the CI runners do and what a developer's Mac does
+        // not — so asserting on it here failed a green app on the one leg
+        // that could not have passed. What the wait is for is the other case:
+        // where a keyboard does rise, it takes the sheet up with it, and the
+        // second tap has to land after that rather than during it.
+        _ = app.keyboards.element.waitForExistence(timeout: 5)
         field.coordinate(withNormalizedOffset: theEndOfIt).tap()
     }
 

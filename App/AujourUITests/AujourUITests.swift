@@ -2623,23 +2623,49 @@ final class AujourUITests: XCTestCase {
     ///
     /// Cleared a character at a time from the end, because a text field's
     /// whole contents cannot be selected without a hardware keyboard the
-    /// simulator does not have. The tap is at the far right of the field so
-    /// that the cursor is behind the last character rather than wherever the
-    /// middle of the field happened to be.
+    /// simulator does not have.
     ///
     /// The keyboard is dismissed afterwards for a plain reason: it covers the
     /// button the test is about to press.
     private func typeEntryPath(_ path: String, into app: XCUIApplication) {
         let field = app.textFields["entryPathField"]
-        XCTAssertTrue(field.waitForExistence(timeout: 10), "the entry path field never appeared")
-        let existing = (field.value as? String) ?? ""
+        scrollTo(field, in: app)
+        giveTheKeyboardTo(field, in: app)
 
-        field.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        // Read after the field has the keyboard and not before: taking it
+        // scrolls the sheet, and everything here is measured against where
+        // the field ended up.
+        let existing = (field.value as? String) ?? ""
         field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: existing.count))
         field.typeText(path)
         field.typeText("\n")
 
         XCTAssertEqual(field.value as? String, path)
+    }
+
+    /// Puts the caret at the end of a text field, and waits for the sheet to
+    /// stop moving before deciding where the end is.
+    ///
+    /// Two taps and not one, which is not superstition. The first summons the
+    /// keyboard, and a field far enough down a sheet is where the keyboard is
+    /// about to be — so iOS scrolls the sheet out from under the finger as it
+    /// rises, and what the runner then types goes to a field that is no
+    /// longer where it was tapped ("Neither element nor any descendant has
+    /// keyboard focus", which is a sentence about the runner rather than
+    /// about the app). The second tap is taken against the frame the field
+    /// settled at; on a field that already has the caret it does nothing but
+    /// move it, which is what it is for.
+    ///
+    /// At the far right both times, so the caret lands behind the last
+    /// character rather than wherever the middle of the field happened to be.
+    private func giveTheKeyboardTo(_ field: XCUIElement, in app: XCUIApplication) {
+        let theEndOfIt = CGVector(dx: 0.95, dy: 0.5)
+        field.coordinate(withNormalizedOffset: theEndOfIt).tap()
+        XCTAssertTrue(
+            app.keyboards.element.waitForExistence(timeout: 10),
+            "\(field) never brought the keyboard up — it is at \(field.frame)"
+        )
+        field.coordinate(withNormalizedOffset: theEndOfIt).tap()
     }
 
     // MARK: - Theming

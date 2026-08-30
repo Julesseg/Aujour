@@ -3331,14 +3331,31 @@ final class AujourUITests: XCTestCase {
 
         let sheet = app.scrollViews.firstMatch
         let scroller = sheet.exists ? sheet : app
+
+        // Where a tap on this element would actually land, which is the
+        // question this helper exists to answer — and not the same question
+        // as `isHittable`. An element swiped a little past the top of a
+        // scroll view goes on reporting itself hittable while it sits under
+        // the navigation bar, and a tap on it lands on the bar: the element
+        // was found, and it was never touched. That surfaces several lines
+        // later as "neither element nor any descendant has keyboard focus",
+        // or as a switch that did not flip, and it depends on how far one
+        // swipe happens to carry on the screen the suite is running on.
+        func aTapWouldLand() -> Bool {
+            let middle = element.frame.midY
+            return element.isHittable
+                && middle >= scroller.frame.minY
+                && middle <= scroller.frame.maxY
+        }
+
         var swipes = 0
         // Enough of them to cross the longest page in the app at the largest
         // accessibility text size, which is the settings sheet with every
         // sentence on it three lines tall. A budget tuned to the ordinary
         // size fails there as "never came into view", which reads like a row
         // that is missing rather than one that is a long way down.
-        while !element.isHittable, swipes < 30 {
-            if element.frame.minY < scroller.frame.minY {
+        while !aTapWouldLand(), swipes < 30 {
+            if element.frame.midY < scroller.frame.minY {
                 scroller.swipeDown(velocity: .slow)
             } else {
                 scroller.swipeUp(velocity: .slow)
@@ -3346,7 +3363,7 @@ final class AujourUITests: XCTestCase {
             swipes += 1
         }
         XCTAssertTrue(
-            element.isHittable,
+            aTapWouldLand(),
             "\(element) never came into view — it is at \(element.frame), "
                 + "and the sheet it is in is at \(scroller.frame)"
         )

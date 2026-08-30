@@ -40,10 +40,17 @@ final class DrawnMarkdown: NSObject {
         case taskBox(isDone: Bool, tint: UIColor)
         /// `![…](…)`, drawn as the picture it points at.
         case picture(UIImage)
-        /// `{{mood}}`, drawn as the widget that asks it — a pill with the
-        /// placeholder's own name and symbol on it, which is what an
-        /// unanswered question looks like in the middle of a sentence.
-        case widget(InteractivePlaceholder, tint: UIColor)
+        /// `{{mood}}`, drawn as the widget that asks it — one chip over the
+        /// whole token, carrying the placeholder's own name and symbol, which
+        /// is what an unanswered question looks like in the middle of a
+        /// sentence.
+        ///
+        /// Over the whole token including a `:FORMAT` suffix, because the
+        /// format is part of the question and goes when the question is
+        /// answered. A token that words itself —
+        /// `{{mood:Woke up feeling {value}}}` — is the same one chip, and not
+        /// the format's words drawn as prose around a smaller one.
+        case widget(InteractivePlaceholder, chip: ChipColours)
     }
 
     let kind: Kind
@@ -82,9 +89,9 @@ final class DrawnMarkdown: NSObject {
         case .taskBox:
             let side = (font.capHeight * 1.5).rounded()
             return CGSize(width: side + font.pointSize * 0.4, height: font.lineHeight)
-        case .widget(let placeholder, let tint):
-            let pill = Pill(placeholder, in: font, tinted: tint)
-            return CGSize(width: min(pill.width, width), height: font.lineHeight)
+        case .widget(let placeholder, let colours):
+            let chip = Chip(placeholder, in: font, colours: colours)
+            return CGSize(width: min(chip.width, width), height: font.lineHeight)
         case .picture(let picture):
             let natural = picture.size
             guard natural.width > 0, natural.height > 0 else { return .zero }
@@ -114,14 +121,14 @@ final class DrawnMarkdown: NSObject {
                 height: side
             )
             symbol(isDone: isDone, tinted: tint, fitting: side)?.draw(in: box)
-        case .widget(let placeholder, let tint):
+        case .widget(let placeholder, let colours):
             // As wide as it asked for and as tall as the line, which is what
-            // the pill centres itself in.
-            let pill = CGRect(
+            // the chip centres itself in.
+            let space = CGRect(
                 origin: room.origin,
                 size: CGSize(width: size.width, height: room.height)
             )
-            Pill(placeholder, in: font, tinted: tint).draw(in: pill)
+            Chip(placeholder, in: font, colours: colours).draw(in: space)
         case .picture(let picture):
             let drawn = CGRect(origin: room.origin, size: size)
             let rounded = UIBezierPath(roundedRect: drawn, cornerRadius: 8)
@@ -132,73 +139,117 @@ final class DrawnMarkdown: NSObject {
         }
     }
 
-    /// The pill an unanswered placeholder is drawn as: its name and its
-    /// symbol, in the app's own colour, on the line where its token stands.
+    /// The face a chip's lettering is set in, for a line of the Entry set in
+    /// `line`.
     ///
-    /// A control rather than a mark, and drawn like one — the same colour a
-    /// task's box is, because they are the two things in an Entry that answer
-    /// a tap. Small enough to sit inside a line's own height, so that a
+    /// The identity's chip role's face and weight, and never the face the day
+    /// is written in. That is the load-bearing half: a chip is a control, and
+    /// one set in the reader's own serif or monospace would read as words they
+    /// typed rather than as a question waiting for them.
+    ///
+    /// Its *size* is the line's rather than the role's own, because a chip
+    /// stands inside a line and has to fit one. The Entry is the one thing on
+    /// the device the S/M/L/XL writing control moves, so a fixed 13 points
+    /// would be a chip to squint at in a day set to XL and a chip taller than
+    /// its line in a day set to S with the system's text size turned up. Taken
+    /// off the line it is the same proportion at every setting of both — and
+    /// the proportion is the identity's own, which draws a chip at 13 points
+    /// where the prose it sits among is 17.
+    static func chipLettering(in line: UIFont) -> UIFont {
+        Lettering.chipLabel.uiFont(ofSize: (line.pointSize * chipAgainstItsLine).rounded())
+    }
+
+    private static let chipAgainstItsLine = Lettering.chipLabel.size / Lettering.prose.size
+
+    /// The chip an unanswered placeholder is drawn as: its name and its
+    /// symbol, on a wash of the accent, on the line where its token stands.
+    ///
+    /// One chip over the whole token and nothing else — a `:FORMAT` suffix is
+    /// covered by the same chip, because the format is the question's wording
+    /// and not words standing beside it.
+    ///
+    /// A chip drawn as a *pill*, which is two of the identity's words and not
+    /// a muddle of them (`Metrics`). "Chip" is what this is — a small labelled
+    /// control, the word `CONTEXT.md` and the design decisions both use for it
+    /// — and a pill is the shape it takes, which is why it does not wear
+    /// ``Rounding/chip``: that role is the 6-point corner for a chip too small
+    /// to round further, and this one is a capsule at every size the type
+    /// scale can grow it to.
+    ///
+    /// Small enough to sit inside a line's own height either way, so that a
     /// paragraph with a question in it is still a paragraph.
     ///
     /// What it says is the placeholder's own (`PlaceholderWidgets`), which is
     /// all a new one has to bring to be drawn.
-    private struct Pill {
-        private static let padding: CGFloat = 6
-        private static let gap: CGFloat = 3
+    private struct Chip {
+        /// The identity's own steps: the gap either side of the words, and the
+        /// tighter one between a thing and its own label.
+        private static let padding = Spacing.close
+        private static let gap = Spacing.tight
 
         private let title: NSAttributedString
         private let symbol: UIImage?
-        private let tint: UIColor
+        private let colours: ChipColours
         private let height: CGFloat
 
-        init(_ placeholder: InteractivePlaceholder, in font: UIFont, tinted tint: UIColor) {
-            // Smaller than the words around it: the pill is a label on a
-            // control, and one set in the line's own size would read as a
-            // word somebody typed.
-            let lettering = font.withSize((font.pointSize * 0.85).rounded())
+        init(
+            _ placeholder: InteractivePlaceholder,
+            in font: UIFont,
+            colours: ChipColours
+        ) {
+            let lettering = DrawnMarkdown.chipLettering(in: font)
             self.title = NSAttributedString(
                 string: placeholder.title,
-                attributes: [.font: lettering, .foregroundColor: tint]
+                attributes: [
+                    .font: lettering,
+                    .foregroundColor: colours.ink,
+                    // The role's tracking at the size it actually came out —
+                    // a role that lost its tracking on the way to the screen
+                    // is a role drawn wrong.
+                    .kern: Lettering.chipLabel.tracking(atSize: lettering.pointSize),
+                ]
             )
             self.symbol = UIImage(
                 systemName: placeholder.symbol,
                 withConfiguration: UIImage.SymbolConfiguration(font: lettering)
-            )?.withTintColor(tint, renderingMode: .alwaysOriginal)
-            self.tint = tint
+            )?.withTintColor(colours.ink, renderingMode: .alwaysOriginal)
+            self.colours = colours
             self.height = font.lineHeight
         }
 
         var width: CGFloat {
-            let symbolWidth = symbol.map { $0.size.width + Pill.gap } ?? 0
-            return (Pill.padding * 2 + symbolWidth + title.size().width).rounded()
+            let symbolWidth = symbol.map { $0.size.width + Chip.gap } ?? 0
+            return (Chip.padding * 2 + symbolWidth + title.size().width).rounded()
         }
 
         /// Into the room the layout left, which is a whole line's height — so
-        /// the pill is centred in it, as a box is.
+        /// the chip is centred in it, as a box is.
         func draw(in room: CGRect) {
-            let pill = CGRect(
+            let chip = CGRect(
                 x: room.minX,
                 y: room.minY + ((room.height - height) / 2).rounded(),
                 width: room.width,
                 height: height
             )
-            tint.withAlphaComponent(0.12).setFill()
-            UIBezierPath(roundedRect: pill, cornerRadius: height / 2).fill()
+            colours.wash.setFill()
+            // A pill, in the sense `Metrics` gives the word: half its own
+            // height, which is `Capsule()` written for a path.
+            UIBezierPath(roundedRect: chip, cornerRadius: height / 2).fill()
 
-            var cursor = pill.minX + Pill.padding
+            var cursor = chip.minX + Chip.padding
             if let symbol {
                 symbol.draw(
                     in: CGRect(
                         x: cursor,
-                        y: pill.midY - symbol.size.height / 2,
+                        y: chip.midY - symbol.size.height / 2,
                         width: symbol.size.width,
                         height: symbol.size.height
                     )
                 )
-                cursor += symbol.size.width + Pill.gap
+                cursor += symbol.size.width + Chip.gap
             }
             let words = title.size()
-            title.draw(at: CGPoint(x: cursor, y: pill.midY - words.height / 2))
+            title.draw(at: CGPoint(x: cursor, y: chip.midY - words.height / 2))
         }
     }
 

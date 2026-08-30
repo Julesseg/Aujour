@@ -299,11 +299,19 @@ way. Never outside the Journal Root: a target that climbs past it names
 somebody else's file and resolves to nothing.
 
 ### Widget
-What an unanswered interactive Placeholder is drawn as: a pill carrying the
-placeholder's name, standing where its `{{name}}` token is written and tapped
-to answer it. Answering replaces the token with plain markdown — the words the
-widget handed over, and nothing else — after which there is no token, and so
-no widget.
+What an unanswered interactive Placeholder is drawn as: one chip carrying the
+placeholder's name and its symbol, standing over the whole of the `{{name}}`
+token where it is written and tapped to answer it. Answering replaces the
+token with plain markdown — the words the widget handed over, and nothing else
+— after which there is no token, and so no widget.
+
+One chip over the whole token, whatever the token says. A `{{name:FORMAT}}`
+that words its own question is the same single chip, because the format is
+part of the question and goes when the question is answered — never the
+format's words drawn as prose with a smaller widget among them. And one chip
+for every placeholder there is: what answering asks is each one's own and is
+asked in the sheet, so nothing is hit-tested inside a drawing and no
+placeholder is answered a way the others could not be.
 
 Nothing anywhere records which questions are outstanding, because the token is
 the record. An unanswered one is literal text: harmless in Obsidian, untouched
@@ -313,7 +321,7 @@ writes nothing at all, and a token the cursor is in is text like any other,
 which is how one is answered by typing over it.
 
 Adding a placeholder is registering it: the machinery is by name, and what is
-left is the pill's word and what answering it asks.
+left is the chip's word and symbol, and what answering it asks.
 
 ### Place
 Somewhere that can be named: what a `{{location}}` Widget offers, and — once

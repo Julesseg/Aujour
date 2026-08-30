@@ -72,6 +72,13 @@ struct PlaceholderAnsweredWithAPlace: View {
             }
             around
         }
+        // The sheet's own paper rather than the system's grouped grey, so that
+        // the two questions this sheet asks are asked on one ground
+        // (`PlaceholderAnswerSheet`). The rows keep a surface of their own —
+        // a list on bare paper is a list that has stopped grouping — and it is
+        // the identity's card, which is what a *thing on the page* is.
+        .scrollContentBackground(.hidden)
+        .listRowBackground(Palette.cardColor)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Add", action: answerIt)

@@ -496,6 +496,18 @@ final class Journal {
         parkedFiles.removeAll { $0.day == day }
     }
 
+    /// Where a Parked File lies, for the one thing the screen offers to do
+    /// with one: show it, in the app the folder belongs to.
+    ///
+    /// `nil` for a journal that is no longer open over the folder the file
+    /// was parked in — one the user has pointed somewhere else since. The
+    /// file is still where it was left, which is the whole point of a Parked
+    /// File; this journal has simply stopped being the one that can say
+    /// where.
+    func whereItLies(_ file: ParkedFile) -> URL? {
+        parking?.whereItLies(file)
+    }
+
     /// Where a day's Entry belongs — `nil` for a Path Template that cannot say,
     /// which is a sentence the editor is already showing (ADR 0002).
     private func entryPath(for day: JournalDay) -> String? {

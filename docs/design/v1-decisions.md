@@ -136,10 +136,12 @@ documented model wins, and what they omit is extrapolated from it.
   touches every file), result. A partial outcome (`MigrationOutcome.leftBehind`)
   is reported in the inline banner's shape and in accent, never an error colour.
 - **An unanswered placeholder is one chip over the whole token**, carrying its
-  name and symbol, tapped to open the answering sheet — as `DrawnMarkdown.Pill`
+  name and symbol, tapped to open the answering sheet — as `DrawnMarkdown.Chip`
   already does. A `:FORMAT` suffix does not change the chip. The design's five
   inline tappable mood dots become what the *sheet* shows: one interaction for
   every placeholder, and no per-placeholder hit-testing inside a drawn glyph.
+  That shipped in #88, where the chip also moved onto the identity's own wash
+  and lettering and the dots became the sheet's five marks.
 - **The iPad layout is width-dependent, not device-dependent.** Below ~820pt
   of *window* width (so Slide Over, half-width Split View and a narrowed Stage
   Manager window all count), the iPhone presentation: the date pill with its

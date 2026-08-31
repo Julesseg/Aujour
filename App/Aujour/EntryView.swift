@@ -14,6 +14,12 @@ import AujourCore
 struct EntryView: View {
     @Bindable var editor: EntryEditor
 
+    /// How the day is to be drawn — read here for the two things on this
+    /// screen that are not chrome: the prompt over a day nobody has written,
+    /// which is set in the reader's own writing, and the accent handed to the
+    /// sheet an unanswered placeholder puts up.
+    @Environment(\.editorLook) private var look
+
     /// The day's own photographs, offered under it — read out of the device's
     /// library for the Journal Day on screen.
     ///
@@ -144,6 +150,7 @@ struct EntryView: View {
                     // Monday's places and not the street outside.
                     PlaceholderAnswerSheet(
                         question: $0,
+                        in: look.accent,
                         from: places,
                         photographsFrom: library,
                         for: editor.day

@@ -130,21 +130,40 @@ struct Lettering: Equatable {
     ///   `nil` means whatever is current, which is what SwiftUI has in hand
     ///   while it is evaluating a body.
     func uiFont(compatibleWith traits: UITraitCollection?) -> UIFont {
-        let unscaled: UIFont =
-            switch face {
-            case .system(let weight): .systemFont(ofSize: size, weight: weight)
-            case .newsreader(let weight, let slant): Newsreader.face(weight, slant, size: size)
-            }
-        return UIFontMetrics(forTextStyle: style)
-            .scaledFont(for: unscaled, compatibleWith: traits)
+        UIFontMetrics(forTextStyle: style)
+            .scaledFont(for: uiFont(ofSize: size), compatibleWith: traits)
+    }
+
+    /// This role's face and weight, at a size somebody else decides — and so
+    /// without Dynamic Type, which has already had its say by then.
+    ///
+    /// The exception the rule above needs, and the only one: something drawn
+    /// *inside* an Entry is measured against the line it stands in, because
+    /// the Entry is the one thing on the device the S/M/L/XL writing control
+    /// moves and a role's own points are not that. What the role still decides
+    /// is the face, which is what a caller comes here for
+    /// (``DrawnMarkdown/chipLettering(in:)`` is the one).
+    func uiFont(ofSize size: CGFloat) -> UIFont {
+        switch face {
+        case .system(let weight): .systemFont(ofSize: size, weight: weight)
+        case .newsreader(let weight, let slant): Newsreader.face(weight, slant, size: size)
+        }
+    }
+
+    /// This role's tracking at that size — the companion to
+    /// ``uiFont(ofSize:)``, and there for the same reason
+    /// ``tracking(compatibleWith:)`` is: tracking is not part of a font, and a
+    /// role that arrived on screen without it is a role drawn wrong.
+    func tracking(atSize size: CGFloat) -> CGFloat {
+        guard tracking != 0 else { return 0 }
+        return tracking * size / self.size
     }
 
     /// How far apart the letters go once Dynamic Type has had the size — so
     /// that tracking set for a 12-point label does not stay a 12-point gap
     /// when the label is 30 points.
     func tracking(compatibleWith traits: UITraitCollection?) -> CGFloat {
-        guard tracking != 0 else { return 0 }
-        return tracking * uiFont(compatibleWith: traits).pointSize / size
+        tracking(atSize: uiFont(compatibleWith: traits).pointSize)
     }
 }
 

@@ -313,7 +313,7 @@ final class MarkdownTextStorage: NSTextStorage {
                 return DrawnMarkdown(.picture(picture), over: element.range)
             case .widget(let placeholder):
                 return DrawnMarkdown(
-                    .widget(placeholder, tint: styling.box), over: element.range
+                    .widget(placeholder, chip: styling.chip), over: element.range
                 )
             }
         }

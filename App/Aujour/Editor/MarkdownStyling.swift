@@ -1,6 +1,43 @@
 import AujourCore
 import UIKit
 
+/// The two colours a chip takes: the wash it sits on, and the words on it.
+///
+/// Two and not one, and that is the identity's own rule rather than an
+/// elaboration of it. A colour written on a wash of itself loses about a point
+/// of contrast, and every one of the nine accents lands between 3.6:1 and
+/// 4.4:1 that way — under the sentence floor, in the exact place the identity
+/// likes tinted pills most. So the accent carries a second shade for it:
+/// ``AujourCore/Accent/uiColor`` for the shape and
+/// ``AujourCore/Accent/inkColor`` for the words on it (ADR 0006), and
+/// `IdentityTests` is what holds the pair to the floor.
+///
+/// Travelling as one value rather than as two properties, because a chip is
+/// drawn in both or in neither — a wash that arrived without its ink would be
+/// a chip lettered in whatever the last caller happened to pass.
+struct ChipColours: Equatable {
+    /// The fill under the chip.
+    let wash: UIColor
+
+    /// The lettering and the symbol on it.
+    let ink: UIColor
+
+    /// What a chip is before anybody has chosen an accent: the system's own
+    /// tint, washed the way the identity washes one.
+    ///
+    /// For a preview and for a test of something else. The app itself always
+    /// passes the accent this device chose, so nothing a user sees is drawn in
+    /// this.
+    ///
+    /// Dynamic, like every colour in the app: resolved against the screen it
+    /// lands on rather than against whichever appearance happened to be in
+    /// force when the default was read.
+    static let theSystemsOwn = ChipColours(
+        wash: UIColor { _ in .tintColor.withAlphaComponent(0.15) },
+        ink: .tintColor
+    )
+}
+
 /// How an Entry's markdown is drawn: the fonts, the colours, and the indents
 /// that turn ``EntryMarkdown``'s shapes into something to read.
 ///
@@ -54,6 +91,10 @@ struct MarkdownStyling: Equatable {
     /// and it should look like it.
     var box: UIColor
 
+    /// An unanswered placeholder's chip — the other thing in an Entry that
+    /// answers a tap, and the one drawn as a fill rather than as an outline.
+    var chip: ChipColours
+
     /// The gap between lines, which the plain editor had too.
     var lineSpacing: CGFloat
 
@@ -64,6 +105,7 @@ struct MarkdownStyling: Equatable {
         quoted: UIColor = .secondaryLabel,
         link: UIColor = .tintColor,
         box: UIColor = .tintColor,
+        chip: ChipColours = .theSystemsOwn,
         lineSpacing: CGFloat = 2
     ) {
         self.body = body
@@ -72,6 +114,7 @@ struct MarkdownStyling: Equatable {
         self.quoted = quoted
         self.link = link
         self.box = box
+        self.chip = chip
         self.lineSpacing = lineSpacing
     }
 

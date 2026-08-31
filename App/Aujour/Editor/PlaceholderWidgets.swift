@@ -14,7 +14,7 @@ import SwiftUI
 /// registering a placeholder in Core stops the compiler here until it has been
 /// given a face. That is the whole of what adding one costs.
 extension InteractivePlaceholder {
-    /// What the widget says. A word, because it stands in the middle of a
+    /// What the chip says. A word, because it stands in the middle of a
     /// sentence somebody is writing.
     var title: String {
         switch self {
@@ -81,15 +81,27 @@ struct PlaceholderAnswerSheet: View {
     /// are read: a Monday filled in on Friday is offered Monday's.
     let day: JournalDay?
 
+    /// The colour the app spends on itself, which the chip that was tapped is
+    /// drawn in and which the marks answering it are drawn in too.
+    ///
+    /// Handed in rather than taken off the environment, like the calendar's
+    /// own cells (`DatePillView`). A sheet is chrome and chrome follows the
+    /// system's text size, so the one value carrying this device's accent
+    /// around — which carries the *writing* preference with it — is not a
+    /// thing chrome should be holding (`AppearanceTests`).
+    let accent: Accent
+
     @Environment(\.dismiss) private var dismiss
 
     init(
         question: PlaceholderQuestion,
+        in accent: Accent = DeviceSettings.default.accent,
         from places: (any Places)? = nil,
         photographsFrom library: (any PhotoLibrary)? = nil,
         for day: JournalDay? = nil
     ) {
         self.question = question
+        self.accent = accent
         self.places = places
         self.library = library
         self.day = day
@@ -112,6 +124,16 @@ struct PlaceholderAnswerSheet: View {
         // rating is, and a sheet that could only ever be half is one nobody
         // can read the bottom of.
         .presentationDetents([.medium, .large])
+        // The identity's own paper for a sheet, which is a hair off the page's
+        // so that a sheet over a screen reads as being in front of it. Both
+        // arms sit on it: the place widget's list hides the system's grouped
+        // ground and puts its rows on the identity's card, so that one sheet
+        // is one sheet whichever question it came up to ask.
+        //
+        // Nothing here tints anything. The way out is already the accent this
+        // device chose, because `AujourApp` tints the whole app with it and a
+        // sheet inherits the environment of the view that put it up.
+        .presentationBackground(Palette.sheetColor)
         .accessibilityIdentifier("placeholderAnswer")
     }
 
@@ -121,7 +143,7 @@ struct PlaceholderAnswerSheet: View {
         // fallback arm and no `default:`, so a placeholder registered later
         // does not compile until somebody has decided what answering it looks
         // like — which is the one thing no amount of reading the text can say.
-        case .mood: MoodAnsweredByRating(question: question)
+        case .mood: MoodAnsweredByRating(question: question, in: accent)
         case .location:
             PlaceholderAnsweredWithAPlace(
                 question: question, from: places, photographsFrom: library, for: day
@@ -143,43 +165,174 @@ struct PlaceholderAnswerSheet: View {
 /// rather than here because the sentence outlives the sheet: what a tap leaves
 /// behind is a line of the user's journal, read afterwards by everything that
 /// has never heard of this screen (ADR 0001).
+///
+/// ## Why the five marks are here and not in the Entry
+///
+/// The design files draw unanswered {{mood}} as five dots sitting in the
+/// sentence, each tappable, answered without a sheet ever coming up. That is
+/// the one place the aesthetic and the model disagree, and the model wins: it
+/// would be a second interaction for one placeholder out of the set, hit-tested
+/// inside a painted glyph, and {{location}} could never use it. So the Entry
+/// draws one chip over the whole token like every other placeholder, and the
+/// dots move here — which is where answering already happens, and where the
+/// design's styling is a genuine improvement on a row of numbered circles.
 private struct MoodAnsweredByRating: View {
     let question: PlaceholderQuestion
 
+    /// The colour the app spends on itself, handed in for the reason the
+    /// sheet's own is (``PlaceholderAnswerSheet/accent``).
+    let accent: Accent
+
+    init(question: PlaceholderQuestion, in accent: Accent) {
+        self.question = question
+        self.accent = accent
+    }
+
     @Environment(\.dismiss) private var dismiss
 
-    var body: some View {
-        VStack(spacing: 24) {
-            Text("How was the day?")
-                .font(.headline)
-                .foregroundStyle(.secondary)
+    /// The mark under the finger, while there is a finger on the scale.
+    ///
+    /// The whole of what makes five identical dots a scale rather than five
+    /// buttons: nothing on screen says which end is which until somebody's
+    /// thumb is on it, and then the marks fill up to it and the reading under
+    /// them says what it would write. It is the design's own middle state, and
+    /// it costs a press to see because a press is the only moment there is —
+    /// one tap answers and the sheet goes.
+    @State private var pressing: MoodRating?
 
-            HStack(spacing: 12) {
+    /// How big a mark is, before Dynamic Type has it.
+    ///
+    /// Bounded above, which almost nothing in this app is. A scale somebody
+    /// cannot see all of at once is not a scale, and at the largest
+    /// accessibility size this would be three times over — 93 points a mark,
+    /// 465 of them before a single gap, on a phone 320 wide. So the marks grow
+    /// with the reader's text size until they fill the touch target they
+    /// already have, and stop there; the reading under them is words, and goes
+    /// on growing.
+    @ScaledMetric(relativeTo: .body) private var markAtThisTextSize: CGFloat = 30
+
+    /// The mark, and its halo, inside the touch target it already has — so
+    /// the glow under the one being pressed never reaches the mark beside it.
+    private var mark: CGFloat { min(markAtThisTextSize, touchable - halo * 2) }
+
+    /// The smallest thing a finger is asked to land on.
+    private let touchable: CGFloat = 44
+
+    /// The outline of a mark nobody has reached — the design's `1.3px` border,
+    /// at the nearest thing a screen can actually draw.
+    ///
+    /// A number rather than a role because the identity has none for a stroke:
+    /// `Rounding` is corners and `Spacing` is gaps, and the one other hairline
+    /// in the app is a rule measured in device pixels rather than points.
+    private let outline: CGFloat = 1.5
+
+    /// How far the glow under the mark being pressed reaches past it — the
+    /// design's `0 0 0 3px`, on the identity's tightest step.
+    private let halo = Spacing.tight
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// What the marks fill with. Nothing at all for a reader who asked for
+    /// less movement — the fill is what says which mark the finger is on, so
+    /// it still happens, it just stops travelling to get there.
+    private var filling: Animation? {
+        reduceMotion ? nil : .snappy(duration: 0.12)
+    }
+
+    var body: some View {
+        VStack(spacing: Spacing.apart) {
+            Text("How was the day?")
+                .lettering(.pageVoice)
+                .foregroundStyle(Palette.inkMutedColor)
+
+            HStack(spacing: Spacing.tight) {
                 ForEach(MoodRating.all, id: \.value) { rating in
-                    Button { answer(rating) } label: {
-                        Image(systemName: "\(rating.value).circle.fill")
-                            .font(.system(size: 44))
-                            .symbolRenderingMode(.hierarchical)
-                    }
-                    .buttonStyle(.plain)
-                    // The marks are numbers on screen and numbers to
-                    // VoiceOver, because the sentence they write is one:
-                    // nothing here claims to know what a 4 felt like.
-                    .accessibilityLabel(
-                        "\(rating.value) out of \(MoodRating.scale.upperBound)"
-                    )
-                    .accessibilityIdentifier("moodRating\(rating.value)")
+                    Button { answer(rating) } label: { face(of: rating) }
+                        .buttonStyle(MarkUnderTheFinger(rating: rating, pressing: $pressing))
+                        // The marks are numbers to VoiceOver whatever they are
+                        // on screen, because the sentence they write is one:
+                        // nothing here claims to know what a 4 felt like.
+                        .accessibilityLabel(
+                            "\(rating.value) out of \(MoodRating.scale.upperBound)"
+                        )
+                        .accessibilityIdentifier("moodRating\(rating.value)")
                 }
             }
-            .foregroundStyle(.tint)
+            .padding(.horizontal, Spacing.comfortable)
+            .padding(.vertical, Spacing.tight)
+            .background(accent.soft, in: Capsule())
+
+            // The mark under the finger, spelled the way the file spells one —
+            // "4/5" and not "4", because the scale travels with the number
+            // (``AujourCore/MoodRating``). Not the whole line the Entry will
+            // end up holding: what words a rating is the token's format's, and
+            // a sheet that promised a sentence would be promising one the
+            // template may not have asked for.
+            //
+            // Always laid out and only sometimes visible, so that the scale
+            // does not jump the moment a thumb lands on it.
+            Text(pressing?.answer ?? MoodRating.all.first?.answer ?? "")
+                .lettering(.chipLabel)
+                .foregroundStyle(accent.color)
+                .opacity(pressing == nil ? 0 : 1)
+                .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
+        .padding(Spacing.apart)
+    }
+
+    /// One mark: an outline until the finger reaches it, the accent once it
+    /// has, and the design's halo under the one being pressed.
+    private func face(of rating: MoodRating) -> some View {
+        let reached = rating.value <= (pressing?.value ?? 0)
+        return ZStack {
+            Circle()
+                .fill(accent.color)
+                .opacity(reached ? 1 : 0)
+            Circle()
+                .strokeBorder(Palette.inkFaintColor, lineWidth: outline)
+                .opacity(reached ? 0 : 1)
+        }
+        .frame(width: mark, height: mark)
+        .background {
+            Circle()
+                .fill(accent.softer)
+                .padding(-halo)
+                .opacity(pressing == rating ? 1 : 0)
+        }
+        .animation(filling, value: pressing)
+        // A mark is smaller than a finger. What answers one is not.
+        .frame(minWidth: touchable, minHeight: touchable)
+        .contentShape(Rectangle())
     }
 
     private func answer(_ rating: MoodRating) {
         question.answered(rating.answer)
         dismiss()
+    }
+}
+
+/// Says which mark is under the finger, so the marks before it can fill.
+///
+/// A button style because a press is a button's own business and there is no
+/// other way to be told about one — a gesture over the row would have to work
+/// out which mark a point landed on, which is the layout's arithmetic done
+/// twice and got wrong once. Each mark reports itself, and only takes the
+/// report back if it is still the one holding it.
+private struct MarkUnderTheFinger: ButtonStyle {
+    let rating: MoodRating
+
+    @Binding var pressing: MoodRating?
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .onChange(of: configuration.isPressed) { _, isPressed in
+                if isPressed {
+                    pressing = rating
+                } else if pressing == rating {
+                    pressing = nil
+                }
+            }
     }
 }
 

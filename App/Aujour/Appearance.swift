@@ -288,7 +288,12 @@ struct EditorLook: Equatable {
         MarkdownStyling(
             body: font.uiFont(compatibleWith: traits),
             link: accent.uiColor,
-            box: accent.uiColor
+            box: accent.uiColor,
+            // The one place in the editor that draws the accent as a *ground*
+            // rather than as a mark, and so the one place the second shade is
+            // needed — see `ChipColours` for why a wash needs an ink of its
+            // own.
+            chip: ChipColours(wash: accent.softColor, ink: accent.inkColor)
         )
     }
 }

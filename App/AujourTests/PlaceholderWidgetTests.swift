@@ -88,6 +88,81 @@ struct PlaceholderWidgetTests {
         #expect(abs(drawn.lineHeight(atCharacter: 0) - written.lineHeight(atCharacter: 0)) < 1)
     }
 
+    // MARK: - What the chip is drawn in
+
+    /// The two colours the chip standing at `character` is drawn in.
+    private func chip(in storage: MarkdownTextStorage, at character: Int) -> ChipColours? {
+        guard
+            let drawn = storage.attribute(.drawnMarkdown, at: character, effectiveRange: nil)
+                as? DrawnMarkdown,
+            case .widget(_, let colours) = drawn.kind
+        else { return nil }
+        return colours
+    }
+
+    private func entry(holding source: String, look: EditorLook) -> MarkdownTextStorage {
+        let entry = MarkdownTextStorage(styling: look.styling(compatibleWith: nil))
+        entry.setSource(source)
+        return entry
+    }
+
+    // The chip is a wash of the accent with the accent's own words on it, and
+    // the two are deliberately different shades of it — see `ChipColours` for
+    // why, and ADR 0006 for the floor it comes from. `IdentityTests` holds
+    // that pair to the floor for every accent; this is the test that the chip
+    // really asks for that pair, and not for the colour a task's box is drawn
+    // in, which is what it used to letter itself with.
+    @Test("the chip is the accent's wash, lettered in the ink for words on one",
+        arguments: Accent.allCases)
+    func theChipsColours(accent: Accent) throws {
+        let look = EditorLook(font: DeviceSettings.default.editorFont, accent: accent)
+        let colours = try #require(chip(in: entry(holding: "{{mood}}", look: look), at: 0))
+
+        #expect(colours.wash == accent.softColor)
+        #expect(colours.ink == accent.inkColor)
+        // And not the shade a shape is drawn in, which is the one it would
+        // have been if the chip had gone on borrowing the task box's colour.
+        #expect(colours.ink != accent.uiColor)
+    }
+
+    // A chip is a control and not a word. Set in the face the day is written
+    // in it would read as words somebody typed — which is the whole thing a
+    // chip has to not look like, and is at its worst in the two faces that are
+    // furthest from the system's.
+    @Test("the chip is lettered in the identity's own face, not the day's",
+        arguments: EditorFont.Family.allCases)
+    func theChipsFace(family: EditorFont.Family) {
+        let line = EditorFont(family: family, size: .medium).uiFont(compatibleWith: nil)
+        let lettering = DrawnMarkdown.chipLettering(in: line)
+
+        let role = Lettering.chipLabel
+        #expect(lettering.familyName == role.uiFont(ofSize: role.size).familyName)
+        // And smaller than the words around it, at the identity's own
+        // proportion: a chip set at the line's size would be a word.
+        #expect(lettering.pointSize < line.pointSize)
+    }
+
+    // The chip stands inside a line of somebody's writing, and the writing is
+    // the one thing on the device the S/M/L/XL control moves. So the chip
+    // follows it: a paragraph with a question in it is a paragraph at every
+    // step, and never a line pushed open by a control that did not resize.
+    @Test("the chip stays inside its line at every size the writing is offered in",
+        arguments: EditorFont.Size.allCases)
+    func theChipFitsItsLine(size: EditorFont.Size) throws {
+        let look = EditorLook(font: EditorFont(family: .system, size: size), accent: .driftwood)
+        let styling = look.styling(compatibleWith: nil)
+        let withAChip = laidOut("{{mood}} — woke late", cursor: nil, styling: styling)
+        let withoutOne = laidOut("mood — woke late", cursor: nil, styling: styling)
+
+        #expect(
+            abs(withAChip.lineHeight(atCharacter: 0) - withoutOne.lineHeight(atCharacter: 0)) < 1,
+            "the chip made its line taller than a line of the same writing without one"
+        )
+        let chip = try #require(withAChip.drawing(at: 0))
+        let line = withAChip.storage.font(at: 0)
+        #expect(chip.size(in: line, fitting: 600).height == line.lineHeight)
+    }
+
     // MARK: - A finger on one
 
     @Test("a tap on the widget asks the placeholder's question")
@@ -282,8 +357,12 @@ struct PlaceholderWidgetTests {
         }
     }
 
-    private func laidOut(_ source: String, cursor: NSRange?) -> LaidOut {
-        let storage = MarkdownTextStorage(styling: styling)
+    private func laidOut(
+        _ source: String,
+        cursor: NSRange?,
+        styling: MarkdownStyling? = nil
+    ) -> LaidOut {
+        let storage = MarkdownTextStorage(styling: styling ?? self.styling)
         let layoutManager = MarkdownLayoutManager()
         let glyphs = MarkdownGlyphs()
         let container = NSTextContainer(

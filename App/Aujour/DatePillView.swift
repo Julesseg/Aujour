@@ -550,7 +550,6 @@ struct DatePillView: View {
 
     private var noticeContent: some View {
         notice
-            .lettering(.note)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.horizontal, Spacing.comfortable)
@@ -590,13 +589,29 @@ struct DatePillView: View {
             // Said rather than swallowed. A folder that would not answer gives
             // a month with no marks on it, which is exactly what a journal
             // nobody has written in looks like.
+            //
+            // In the system's own face and at the size of a note, which is
+            // what keeps it from reading as the sentence below it: a folder
+            // that would not answer is not an Empty State, and the identity
+            // arriving on this panel is not licence to start drawing the two
+            // the same way (`CONTEXT.md`, Empty State).
             Text("Aujour couldn't read your folder, so days you've written may not be marked.")
-                .foregroundStyle(Palette.inkFaintColor)
+                .lettering(.note)
+                .foregroundStyle(Palette.inkMutedColor)
                 .accessibilityIdentifier("indicatorsProblem")
                 .accessibilityLabel(StorageProblem(problem).message)
         } else if calendar.theJournalIsAtItsBeginning {
+            // The Empty State, in the identity's own aside — the same quiet
+            // prose voice the other two are said in, cut down to a line
+            // because this one is said on an inch of glass rather than on a
+            // page of its own.
+            //
+            // The muted step and not the faint one it used to be drawn in.
+            // This is a sentence, and the faint ink is held to the marker
+            // floor (ADR 0006, and ``Palette/inkFaint``).
             Text("Your journal starts here. Tap any day up to today and write it.")
-                .foregroundStyle(Palette.inkFaintColor)
+                .lettering(.aside)
+                .foregroundStyle(Palette.inkMutedColor)
                 .accessibilityIdentifier("aJournalNobodyHasWrittenIn")
         }
     }

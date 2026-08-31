@@ -295,7 +295,19 @@ private struct ABlankPage: View {
     var body: some View {
         Text("Write anything.")
             .font(Font(look.font.uiFont(compatibleWith: nil)))
-            .foregroundStyle(.tertiary)
+            // The faint ink, which is the same step a day spawned from a
+            // Content Template is drawn in (``MarkdownStyling/forADayNobodyHasWritten``).
+            // The two are the same thing seen from either side — what stands
+            // in the Entry until somebody writes it — and they are never on
+            // screen together, so drawing them in two different shades would
+            // be the app having two opinions about one state.
+            //
+            // Below the sentence floor on purpose, and licensed by the same
+            // reading: the faint step is what the identity keeps for a field's
+            // placeholder (ADR 0006, and ``Palette/inkFaint``), and this is
+            // one. Nothing anybody wrote is ever drawn in it — the first
+            // keystroke takes the page to the full ink and takes this away.
+            .foregroundStyle(Palette.inkFaintColor)
             // Where the editor puts its first character, asked of the editor:
             // the prompt stands exactly where the typing will start.
             .padding(.leading, MarkdownEditor.whereTheFirstCharacterGoes.x)

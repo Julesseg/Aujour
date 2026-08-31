@@ -774,6 +774,71 @@ final class AujourUITests: XCTestCase {
         )
     }
 
+    /// The first screen anybody ever sees, seen by the reader who has turned
+    /// the system's text size all the way up.
+    ///
+    /// The welcome is the one screen in Aujour nobody chose to be on, so it is
+    /// also the one where a reader who cannot read it has no way past — and
+    /// the identity put three pages of Newsreader on it. Two launches and not
+    /// one, because a size only means something against another size: a page
+    /// that ignored Dynamic Type entirely would pass every "is it on screen"
+    /// check ever written.
+    ///
+    /// It ends by leaving, at that size, through the offer's own "Not now" —
+    /// which is the other half of the claim. A welcome that held together and
+    /// could not be got out of would be a worse screen than one that did not.
+    func testTheWelcomeHoldsTogetherAtTheLargestTextSize() throws {
+        let atTheFactorySetting = launchApp(welcome: true)
+        let ordinary = atTheFactorySetting.staticTexts["welcomeWhatThisIs"]
+        XCTAssertTrue(ordinary.waitForExistence(timeout: 30), "the welcome never appeared")
+        let ordinaryHeight = ordinary.frame.height
+        atTheFactorySetting.terminate()
+
+        let app = launchApp(textSize: "UICTContentSizeCategoryAccessibilityXXXL", welcome: true)
+        let turnedUp = app.staticTexts["welcomeWhatThisIs"]
+        XCTAssertTrue(turnedUp.waitForExistence(timeout: 30), "the welcome never appeared")
+        XCTAssertGreaterThan(
+            turnedUp.frame.height, ordinaryHeight,
+            "the welcome's title did not grow with the system text size — it was "
+                + "\(ordinaryHeight) points tall and is now \(turnedUp.frame.height)"
+        )
+
+        // Every one of the three, because they are three different pages and
+        // only one of them is the one that was designed first: the second
+        // holds a folder named after this device and the third holds a picker.
+        let page = app.scrollViews["welcomePage"]
+        XCTAssertTrue(page.waitForExistence(timeout: 10), "the welcome has no page to scroll")
+        assertTheLayoutHolds(on: page)
+
+        app.buttons["continueTheWelcome"].tap()
+        XCTAssertTrue(app.staticTexts["welcomeWhereYourWordsGo"].waitForExistence(timeout: 30))
+        assertTheLayoutHolds(on: page)
+
+        app.buttons["continueTheWelcome"].tap()
+        XCTAssertTrue(app.staticTexts["welcomeTheDailyReminder"].waitForExistence(timeout: 10))
+        assertTheLayoutHolds(on: page)
+
+        // The ways on sit under the pages rather than in them, so the page's
+        // own check does not reach them — and they are the half likeliest to
+        // come apart, since a capsule with "Remind me at 9:00 PM" written
+        // across it is the widest thing on the screen at this size.
+        let screen = app.windows.firstMatch.frame
+        for identifier in ["takeTheReminderUp", "skipTheReminder", "goBackAPage"] {
+            let button = app.buttons[identifier]
+            XCTAssertTrue(button.exists, "\(identifier) was not on the last page")
+            XCTAssertTrue(
+                button.frame.minX >= screen.minX - 1 && button.frame.maxX <= screen.maxX + 1,
+                "\(identifier) is at \(button.frame), off a screen \(screen) wide"
+            )
+        }
+
+        app.buttons["skipTheReminder"].tap()
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "the welcome could not be left at the largest text size"
+        )
+    }
+
     /// A journal with nothing in it yet, on the three screens that would
     /// otherwise be blank.
     ///

@@ -45,22 +45,39 @@ struct WelcomeView: View {
                             Spacer(minLength: 0)
                             page
                                 .frame(maxWidth: .infinity)
-                                .padding(.horizontal, 28)
-                                .padding(.vertical, 24)
+                                .padding(.horizontal, Spacing.apart)
+                                .padding(.vertical, Spacing.apart)
                             Spacer(minLength: 0)
                         }
                         .frame(minHeight: room.size.height)
                     }
+                    // What a test walks when it is looking for a page that has
+                    // come apart: the pages are one scrolling view whichever of
+                    // the three is in it, and "the first scroll view in the
+                    // app" is not a promise anybody made while the day is open
+                    // behind this cover.
+                    .accessibilityIdentifier("welcomePage")
                 }
                 howFarThroughItThisIs
                 waysOn
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 12)
+                    .padding(.horizontal, Spacing.apart)
+                    .padding(.bottom, Spacing.comfortable)
             }
+            // The identity's own paper, which is what the whole cover is: this
+            // is not a sheet over a screen — there is nothing behind it to
+            // read as being behind it — so it takes the page's ground rather
+            // than the sheet's.
+            .background(Palette.backgroundColor)
             // A bare bar with one button in it: there is no title here, and a
             // large one's empty room would push three short pages down the
             // screen for nothing.
             .navigationBarTitleDisplayMode(.inline)
+            // The same paper again, so that a page long enough to scroll —
+            // which is every one of them once the reader has turned the text
+            // up — does not slide under a band of the system's own grey. The
+            // bar is invisible either way; what this decides is that it stays
+            // invisible when there is something under it.
+            .toolbarBackground(Palette.backgroundColor, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     // Only where there is still something ahead: on the last
@@ -78,6 +95,7 @@ struct WelcomeView: View {
         // accidental drag would leave somebody in an app that had just been
         // about to say where their files are.
         .interactiveDismissDisabled()
+        .presentationBackground(Palette.backgroundColor)
     }
 
     @ViewBuilder
@@ -129,6 +147,13 @@ struct WelcomeView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                // A control, and so in the identity's chrome face and the
+                // accent rather than in the prose voice and the muted ink the
+                // page around it is set in: what a finger acts on is not the
+                // app speaking, and a time that read as a sentence would be a
+                // time nobody knew they could change.
+                .lettering(.rowLabel)
+                .foregroundStyle(.tint)
                 .accessibilityIdentifier("welcomeReminderTime")
 
                 // Only after somebody has taken the offer up and the device
@@ -139,14 +164,12 @@ struct WelcomeView: View {
                     NudgesAreTurnedOffNotice(identifier: "welcomeReminderRefused")
                 }
 
-                Text(
+                Aside(
                     """
                     Skip it and Aujour stays quiet. You can set one — or take \
                     it away again — whenever you like, under Settings.
                     """
                 )
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
         }
     }
@@ -178,15 +201,13 @@ struct WelcomeView: View {
                 identifier: "welcomeWhereYourWordsGo"
             ) {
                 Text(root.location.promise(onDevice: device))
-                Text(
+                Aside(
                     """
                     If you keep an Obsidian vault, you can point Aujour at a \
                     folder inside it instead — under Settings, whenever you \
                     like.
                     """
                 )
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
 
         case .unavailable(let problem):
@@ -206,45 +227,54 @@ struct WelcomeView: View {
 
     /// Where in the three this is — a row of dots, and nothing that can be
     /// tapped: the pages are a short sentence in order, not a place to browse.
+    ///
+    /// The page this is drawn on in the accent, the ones it is not in the
+    /// faint ink rather than in the accent thinned out. A marker is held to
+    /// 3:1 (ADR 0006) and an accent at a quarter of itself clears nothing —
+    /// the faint step is exactly what the identity keeps for a marker, and it
+    /// is a step a reader can see.
     private var howFarThroughItThisIs: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: Spacing.close) {
             ForEach(Welcome.Page.allCases) { page in
                 Circle()
-                    .frame(width: 7, height: 7)
-                    .foregroundStyle(.tint)
-                    // Faded rather than absent for the pages this is not: how
-                    // many there are is half of what a row of dots says.
-                    .opacity(page == welcome.page ? 1 : 0.25)
+                    .frame(width: dotSize, height: dotSize)
+                    .foregroundStyle(
+                        page == welcome.page
+                            ? AnyShapeStyle(.tint) : AnyShapeStyle(Palette.inkFaintColor)
+                    )
             }
         }
         .accessibilityHidden(true)
-        .padding(.vertical, 16)
+        .padding(.vertical, Spacing.apart)
     }
+
+    /// A dot grows with the system text size like everything else. It carries
+    /// no words, so it does not have to — but a row of seven-point dots under
+    /// lettering that has trebled is a row nobody can see any more.
+    @ScaledMetric(relativeTo: .caption2) private var dotSize: CGFloat = 7
 
     @ViewBuilder
     private var waysOn: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: Spacing.close) {
             if welcome.isOnTheLastPage {
-                Button("Remind me at \(time.spelledOut())") {
+                TheWayOn(
+                    "Remind me at \(time.spelledOut())",
+                    identifier: "takeTheReminderUp"
+                ) {
                     end(remindingAt: time)
                 }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("takeTheReminderUp")
 
-                Button("Not now") { end(remindingAt: nil) }
-                    .accessibilityIdentifier("skipTheReminder")
+                TheWayBack("Not now", identifier: "skipTheReminder") {
+                    end(remindingAt: nil)
+                }
             } else {
-                Button("Continue") { welcome.next() }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("continueTheWelcome")
+                TheWayOn("Continue", identifier: "continueTheWelcome") { welcome.next() }
             }
 
             if welcome.page != .whatThisIs {
-                Button("Back") { welcome.back() }
-                    .accessibilityIdentifier("goBackAPage")
+                TheWayBack("Back", identifier: "goBackAPage") { welcome.back() }
             }
         }
-        .controlSize(.large)
         .frame(maxWidth: .infinity)
     }
 
@@ -267,23 +297,140 @@ private struct WelcomePage<Body: View>: View {
 
     @ViewBuilder let content: Body
 
+    /// The mark grows with the reader's text size, and stops. It is the one
+    /// thing on the page carrying no words, so a first run whose whole first
+    /// screenful had become an icon would have lost the sentence to keep a
+    /// decoration.
+    @ScaledMetric(relativeTo: .title) private var markSize: CGFloat = 54
+
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: Spacing.apart) {
             Image(systemName: symbol)
-                .font(.system(size: 54))
+                .font(.system(size: min(markSize, 96)))
                 .foregroundStyle(.tint)
+                // The line under it says what the page is. Read out, the mark
+                // would be the page named twice.
+                .accessibilityHidden(true)
 
             Text(title)
-                .font(.title2.weight(.semibold))
+                .lettering(.proseHeading)
+                .foregroundStyle(Palette.inkColor)
                 .multilineTextAlignment(.center)
                 .accessibilityIdentifier(identifier)
 
-            VStack(spacing: 14) {
+            VStack(spacing: Spacing.comfortable) {
                 content
             }
-            .font(.callout)
+            // The identity's speaking voice, which is what these three pages
+            // are: the app addressing the reader in full sentences rather than
+            // labelling anything. Anything on a page that is not that — a
+            // control, a problem notice, a sentence turned aside — says so by
+            // setting its own.
+            .lettering(.pageVoice)
+            .foregroundStyle(Palette.inkMutedColor)
             .multilineTextAlignment(.center)
         }
+    }
+}
+
+/// The sentence a page turns aside to say: what it does not commit anybody to,
+/// and where the rest of it lives.
+///
+/// The same voice as the page, quieter and italic, rather than a caption in
+/// the system's face — on a page set in Newsreader, a system-face aside is the
+/// one line that reads as having been written by somebody else.
+private struct Aside: View {
+    let words: String
+
+    init(_ words: String) { self.words = words }
+
+    var body: some View {
+        Text(words)
+            .lettering(.aside)
+            .foregroundStyle(Palette.inkMutedColor)
+    }
+}
+
+/// What a press looks like on a welcome button.
+///
+/// Both of them are drawn rather than handed over as a string, and a drawn
+/// label is one the platform's styles stop dimming — so the dim is put back.
+/// A button that did not answer the finger on it is the first thing anybody
+/// touches in Aujour appearing not to work.
+private struct PressedByAFinger: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.6 : 1)
+    }
+}
+
+/// The button that carries the welcome forward: the accent, filled, with the
+/// one thing the identity writes on a fill of the accent (``Palette/onAccent``,
+/// held to 4.5:1 against every one of the nine accents).
+///
+/// Drawn rather than `.borderedProminent`, which is the platform's own capsule
+/// in the platform's own lettering — the one control on the first screen of
+/// the app that would say it had been built out of somebody else's parts.
+private struct TheWayOn: View {
+    let words: String
+
+    /// What a test presses it by. On the button itself and not on a container
+    /// around it: an identifier on a wrapper is an identifier `app.buttons`
+    /// cannot find.
+    let identifier: String
+
+    let act: () -> Void
+
+    init(_ words: String, identifier: String, act: @escaping () -> Void) {
+        self.words = words
+        self.identifier = identifier
+        self.act = act
+    }
+
+    var body: some View {
+        Button(action: act) {
+            Text(words)
+                .lettering(.rowLabel)
+                .foregroundStyle(Palette.onAccentColor)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Spacing.comfortable)
+                .background(.tint, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(PressedByAFinger())
+        .elevated(.resting)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+/// The way that is not forward: skipping the offer, or stepping back a page.
+///
+/// Words and no capsule. There is exactly one thing to press on each page and
+/// two filled buttons would be two of them, which is the whole reason the
+/// welcome can be left without anybody thinking they have broken it.
+private struct TheWayBack: View {
+    let words: String
+    let identifier: String
+    let act: () -> Void
+
+    init(_ words: String, identifier: String, act: @escaping () -> Void) {
+        self.words = words
+        self.identifier = identifier
+        self.act = act
+    }
+
+    var body: some View {
+        Button(action: act) {
+            Text(words)
+                .lettering(.rowLabel)
+                .foregroundStyle(Palette.inkMutedColor)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Spacing.comfortable)
+                .contentShape(.rect)
+        }
+        .buttonStyle(PressedByAFinger())
+        .accessibilityIdentifier(identifier)
     }
 }
 

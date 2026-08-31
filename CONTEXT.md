@@ -553,9 +553,10 @@ control's corner — and never a value, which is what lets the look be re-cut
 without a hunt through the app for hex codes somebody typed in once.
 
 Four sets and a typeface. The **Palette** is the paper, the ink and its two
-muted steps, the rules and fields, and the three glass recipes; every token is
-a dynamic colour resolved against the screen it lands on, never a pair a
-screen picks between. The **type scale** is a set of named roles, all of which
+muted steps, the rules and fields, the three glass recipes, and the one alarm
+— what a sentence is written in when it says something has gone wrong and will
+stay wrong; every token is a dynamic colour resolved against the screen it
+lands on, never a pair a screen picks between. The **type scale** is a set of named roles, all of which
 answer Dynamic Type. **Rounding** and **Spacing** are four steps each, and
 **Elevation** is what lifts a surface off the one behind it. **Newsreader** is
 the prose voice — a bundled variable font, three weights in two slants.

@@ -137,6 +137,26 @@ enum Palette {
     /// hold glass-borne ink to.
     static let glassSolid = dynamic(light: 0xF6F2EC, dark: 0x2A251F)
 
+    // MARK: - When something is wrong
+
+    /// The one colour in the identity that is not paper, ink or the accent:
+    /// what a sentence is written in when it is telling the reader something
+    /// has gone wrong and will stay wrong until they do something about it.
+    ///
+    /// Not `.red`. The system's is `#FF3B30` on paper, which measures 3.18:1
+    /// against `background` — a sentence under the floor, on the two screens
+    /// where the sentence is the whole point (ADR 0006). This is the
+    /// identity's own: a brick red in the same earth family as the accents,
+    /// dark enough in light and light enough in dark to clear 4.5:1 on every
+    /// ground it can land on.
+    ///
+    /// Rare on purpose. Nothing routine is drawn in it — a partial migration
+    /// is reported in the accent, and a folder that could not be read is a
+    /// notice rather than an alarm. What this is for is the state the app
+    /// cannot get itself out of: notifications turned off under a reminder
+    /// somebody has just asked for.
+    static let alarm = dynamic(light: 0xA32A1A, dark: 0xF08578)
+
     // MARK: - The same colours, for the SwiftUI half of the app
 
     // Wrapped once each rather than on every read, for the reason the tokens
@@ -157,6 +177,8 @@ enum Palette {
     static let glassRingColor = Color(glassRing)
     static let glassHighlightColor = Color(glassHighlight)
     static let glassSolidColor = Color(glassSolid)
+    static let onAccentColor = Color(onAccent)
+    static let alarmColor = Color(alarm)
 
     /// Every token, named — so a test that has to hold *all* of them to
     /// something does not have to be edited each time one is added, which is
@@ -166,7 +188,7 @@ enum Palette {
         ("ink", ink), ("inkMuted", inkMuted), ("inkFaint", inkFaint),
         ("rule", rule), ("field", field), ("fieldStrong", fieldStrong),
         ("glass", glass), ("glassRing", glassRing), ("glassHighlight", glassHighlight),
-        ("glassSolid", glassSolid), ("onAccent", onAccent),
+        ("glassSolid", glassSolid), ("onAccent", onAccent), ("alarm", alarm),
     ]
 
     private static func dynamic(

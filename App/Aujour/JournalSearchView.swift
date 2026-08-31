@@ -38,7 +38,16 @@ struct JournalSearchView: View {
         .overlay {
             // Over the list rather than in place of it, so that what is on
             // screen while somebody types is the list they are narrowing.
-            if results.isEmpty { nothingToShow }
+            if results.isEmpty {
+                nothingToShow
+                    // On the identity's own paper, which is the ground the
+                    // contrast floor was measured against (ADR 0006) — and
+                    // only here, where there is nothing under it: what a
+                    // result row is drawn on is the sheet chrome's, and that
+                    // is #93's screen to re-cut rather than this one's.
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Palette.backgroundColor)
+            }
         }
         .safeAreaInset(edge: .bottom) {
             if let problem = search.problem {
@@ -116,37 +125,47 @@ struct JournalSearchView: View {
             // a question nobody could have meant to ask. Only ever said about
             // a folder that *has been read* and found empty — which is
             // `JournalSearch`'s to decide, not this screen's.
-            ContentUnavailableView {
-                Label("Nothing to search yet", systemImage: "magnifyingglass")
-                    .accessibilityIdentifier("nothingToSearchYet")
-            } description: {
-                Text(
-                    """
+            EmptyState(
+                symbol: "magnifyingglass",
+                line: "Nothing to search yet",
+                sentence: """
                     Write a day or two and this is how you find them again — \
                     by a word, a name, anything you wrote.
-                    """
-                )
-            }
+                    """,
+                identifier: "nothingToSearchYet"
+            )
         } else if query.isEmpty {
-            ContentUnavailableView {
-                Label("Search your journal", systemImage: "magnifyingglass")
-                    .accessibilityIdentifier("searchPrompt")
-            } description: {
-                Text("Find a day by something you wrote in it.")
-            }
+            // Not an Empty State, and drawn as one on purpose: the journal may
+            // be a decade deep and this is only the field waiting to be typed
+            // in. The four of them share one slot, and a screen that changed
+            // voice between one keystroke and the next would be two screens.
+            EmptyState(
+                symbol: "magnifyingglass",
+                line: "Search your journal",
+                sentence: "Find a day by something you wrote in it.",
+                identifier: "searchPrompt"
+            )
         } else if search.isReading && search.hasNothingIndexed {
             // Nothing indexed *and* still reading: a first search, before the
             // folder has answered. Saying "no results" here would be saying it
             // about a journal nobody has looked in yet.
+            //
+            // A spinner, and never one of the sentences above. A folder still
+            // being read looks exactly like a journal nobody has written in,
+            // and the identity is not licence to start drawing the two the
+            // same way (ADR 0001) — so this takes the identity's face and none
+            // of its empty-state shape.
             ProgressView("Reading your journal")
+                .lettering(.note)
+                .foregroundStyle(Palette.inkMutedColor)
                 .accessibilityIdentifier("readingTheJournal")
         } else {
-            ContentUnavailableView {
-                Label("No entries found", systemImage: "magnifyingglass")
-                    .accessibilityIdentifier("noSearchResults")
-            } description: {
-                Text("No day in your journal has “\(query)” in it.")
-            }
+            EmptyState(
+                symbol: "magnifyingglass",
+                line: "No entries found",
+                sentence: "No day in your journal has “\(query)” in it.",
+                identifier: "noSearchResults"
+            )
         }
     }
 

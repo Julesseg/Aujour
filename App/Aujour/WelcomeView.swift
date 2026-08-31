@@ -142,7 +142,7 @@ struct WelcomeView: View {
                 Text(
                     """
                     Skip it and Aujour stays quiet. You can set one — or take \
-                    it away again — whenever you like, under Your journal.
+                    it away again — whenever you like, under Settings.
                     """
                 )
                 .font(.caption)
@@ -181,8 +181,8 @@ struct WelcomeView: View {
                 Text(
                     """
                     If you keep an Obsidian vault, you can point Aujour at a \
-                    folder inside it instead — under Your journal, whenever \
-                    you like.
+                    folder inside it instead — under Settings, whenever you \
+                    like.
                     """
                 )
                 .font(.caption)

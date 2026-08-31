@@ -2,39 +2,40 @@ import SwiftUI
 import UniformTypeIdentifiers
 import AujourCore
 
-/// The journal, as something the user can see and change: the folder it lives
-/// in, and every setting that shapes what goes into it.
+/// Everything about the journal and the app that the user can change — and,
+/// in the way it is laid out, the one thing about those settings that nothing
+/// else could tell them: which of them reach their other devices.
 ///
-/// One page and not two. The folder, the entry path, the template a day starts
-/// from, when the day turns, where photos go and how they are written are six
-/// answers to one question — *what is my journal, and what will Aujour do with
-/// it?* — and a user who has just seen where their files are is one line away
-/// from what those files will be called.
+/// Two groups, because there are exactly two kinds. What is under "Your
+/// journal" shapes what goes into the folder — an iPhone and an iPad with
+/// different entry paths would write the same day to two files and break the
+/// one-Entry-per-day rule — so those travel, and arrive here while the sheet
+/// is up (ADR 0003). What is under "This device" shapes no file at all, so a
+/// dark iPhone and a light iPad are both right and neither has to be told
+/// about the other. One list of all of them would have been quietly promising
+/// that changing the theme reaches the iPad, or that changing when the day
+/// turns does not; a user has no other way of finding out.
+///
+/// The folder itself is above both and belongs to neither, because it is not
+/// a setting: it is the journal. Each device picks its own once and the
+/// bookmark is inherently local (ADR 0003), so it opens the sheet as a
+/// statement rather than sitting in the group that travels — and the two ways
+/// of pointing it somewhere else stay pinned to the bottom, where the length
+/// of a path cannot push them off.
+///
+/// One page and one step in. The one thing that would not fit — the
+/// appearance, the accent and the editor's typeface, which are three
+/// questions about one subject — is a row in "This device" leading to a page
+/// of its own. A user looking for "when does Aujour nag me" or for "why is
+/// this blue" never has to guess which sheet to open, because there is one.
 ///
 /// It takes the whole Journal rather than the folder it is currently over,
 /// because choosing a folder closes one journal and opens another: the sheet
 /// has to still be there, and still be saying something true, while that
-/// happens.
-///
-/// Every journal-shaping setting here travels: changed on this device they
-/// arrive on the iPad, changed there they arrive here while the sheet is up
-/// (ADR 0003). So nothing holds its own copy of a setting for longer than it
-/// is being typed, and the controls that are not text follow the journal
-/// directly.
-///
-/// Two things here are the device's own rather than the journal's, and they
-/// are placed by what they are *about* rather than by where they are kept. The
-/// daily reminder sits last under a line of its own: it is about the journal —
-/// it exists to ask whether today has been written — and only its time is a
-/// property of the device that buzzes (ADR 0003). How Aujour *looks* is about
-/// nothing but Aujour, so it is a row near the top leading to a page of its
-/// own, where the appearance, the accent and the editor's typeface are.
-///
-/// One door either way. A user looking for "when does Aujour nag me" or for
-/// "why is this blue" never has to guess which of two sheets to open, because
-/// there is one, and the second page is a step further in rather than
-/// somewhere else.
-struct JournalSettingsSheet: View {
+/// happens. Nothing holds its own copy of a setting for longer than it is
+/// being typed, for the same reason — the controls that are not text follow
+/// the journal directly.
+struct SettingsSheet: View {
     let journal: Journal
 
     /// How Aujour looks on this device, for the one row here that is not about
@@ -52,50 +53,29 @@ struct JournalSettingsSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
+            VStack(spacing: Spacing.comfortable) {
                 // Scrolled, so that the two buttons stay where they are and
                 // reachable however long the folder's path runs — a sheet that
                 // has pushed its own actions off the bottom is a folder the
                 // user cannot change.
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: Spacing.apart) {
                         whereTheJournalIs
                             .frame(maxWidth: .infinity)
                         if let problem = journal.folderProblem {
                             FolderProblemNotice(problem: problem, identifier: "folderProblem")
                         }
-                        // Every section below is on screen whatever state the
-                        // journal is in, and not only while it is open:
-                        // changing any of these reopens the journal, and a
-                        // section that came and went with that would vanish
-                        // under the finger that changed it. What a journal
-                        // that is not open cannot do is *carry out* a change,
-                        // which is each button's own business.
-                        //
-                        // In the order somebody asks them in: where the files
-                        // are, what they are called, what is in one when it
-                        // starts, which day it is, and then the photographs.
-                        Divider()
-                        howItLooks
-                        Divider()
-                        EntryPathSection(journal: journal)
-                        Divider()
-                        ContentTemplateSection(journal: journal)
-                        Divider()
-                        RolloverHourSection(journal: journal)
-                        Divider()
-                        AttachmentPathSection(journal: journal)
-                        Divider()
-                        EmbedSyntaxSection(journal: journal)
-                        Divider()
-                        DailyReminderSection(journal: journal)
+                        Hairline()
+                        journalSettings
+                        Hairline()
+                        deviceSettings
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 waysToPointItSomewhereElse
             }
-            .padding()
-            .navigationTitle("Your journal")
+            .padding(Spacing.apart)
+            .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -108,8 +88,70 @@ struct JournalSettingsSheet: View {
         .presentationDetents([.large])
     }
 
-    /// The way to the settings that belong to this device alone — a page of
-    /// its own, one step in from the door the user already opened.
+    /// The settings that shape the folder, and therefore have to be the same
+    /// on every device writing into it (ADR 0003).
+    ///
+    /// Every one of them is on screen whatever state the journal is in, and
+    /// not only while it is open: changing any of these reopens the journal,
+    /// and a section that came and went with that would vanish under the
+    /// finger that changed it. What a journal that is not open cannot do is
+    /// *carry out* a change, which is each button's own business.
+    ///
+    /// In the order somebody asks them in: what the files are called, what is
+    /// in one when it starts, which day it is, and then the photographs —
+    /// where they go, and how the day points at them. Two questions and two
+    /// controls: a photograph that has moved folders is written the same way
+    /// it was before, and one written wiki-style lands in the same folder.
+    private var journalSettings: some View {
+        SettingsGroup(
+            "Your journal",
+            saying: """
+                These shape what goes into your folder, so your devices have \
+                to agree on them. Change one here and your others follow — \
+                and where one of them can't, its own row says so.
+                """,
+            identifier: "journalSettings"
+        ) {
+            EntryPathSection(journal: journal)
+            ContentTemplateSection(journal: journal)
+            RolloverHourSection(journal: journal)
+            AttachmentPathSection(journal: journal)
+            EmbedSyntaxSection(journal: journal)
+        }
+    }
+
+    /// The settings that are this install's own and go nowhere (ADR 0003).
+    ///
+    /// The daily reminder is here rather than with the journal's own settings,
+    /// which is the one placement worth arguing. It is *about* the journal —
+    /// it exists to ask whether today has been written — but what these two
+    /// groups sort by is where a setting goes and not what it is about,
+    /// because "does this reach my iPad" is the only question the user cannot
+    /// answer by looking. A reminder is a property of the device that buzzes,
+    /// and an iPad added a year later is not quietly signed up for nine
+    /// o'clock.
+    private var deviceSettings: some View {
+        SettingsGroup(
+            "This device",
+            saying: """
+                Nothing here reaches your other devices, and nothing here \
+                changes a word in your folder: how Aujour looks and when it \
+                nudges are this \(device)'s own.
+                """,
+            identifier: "deviceSettings"
+        ) {
+            howItLooks
+            DailyReminderSection(journal: journal)
+        }
+    }
+
+    /// The way to the appearance, the accent and the editor's typeface: three
+    /// questions about one subject, and a page of its own one step in from the
+    /// door the user already opened.
+    ///
+    /// A row rather than a section, because it is the only thing on this sheet
+    /// that leads somewhere. What it says on the right is the accent in force,
+    /// which is what makes the row worth a glance without opening it.
     private var howItLooks: some View {
         NavigationLink {
             AppearanceSettingsView(appearance: appearance)
@@ -211,6 +253,62 @@ struct JournalSettingsSheet: View {
             return
         }
         picking = true
+    }
+}
+
+/// One of the sheet's two halves: what the group is called, the sentence
+/// saying where its settings go, and the controls themselves.
+///
+/// The sentence is the point of the whole component. A heading alone would
+/// only be tidying — "Your journal" and "This device" are two nouns, and
+/// nothing about either of them says that one set arrives on the iPad and the
+/// other does not. So a group cannot be built without saying which kind it
+/// is, and the saying is a `Note` under the header rather than a footnote at
+/// the bottom, where it would be read after the decision it is about.
+///
+/// The saying carries the identifier and the group itself carries none, and
+/// that is not tidiness. An identifier on a container is inherited by
+/// everything under it, and the one way to stop that — making the container
+/// an accessibility element in its own right — takes the Toggle in "This
+/// device" apart into a label and a separate unnamed switch, which is a worse
+/// screen to hear read out and one a finger lands on the wrong half of. So
+/// which group a setting is in is asked by where it sits rather than by what
+/// contains it, which is how the user reads it anyway.
+private struct SettingsGroup<Content: View>: View {
+    let title: String
+    let saying: String
+    let identifier: String
+    @ViewBuilder let content: Content
+
+    init(
+        _ title: String,
+        saying: String,
+        identifier: String,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.saying = saying
+        self.identifier = identifier
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.apart) {
+            VStack(alignment: .leading, spacing: Spacing.tight) {
+                // The scale's section role rather than its small capitals:
+                // this heading is the one thing on the sheet the ticket is
+                // for, and `sectionHeader` would have set it smaller and
+                // fainter than the row labels underneath it — a heading
+                // quieter than what it governs is a heading nobody reads.
+                Text(title)
+                    .lettering(.sheetTitle)
+                    .foregroundStyle(Palette.inkColor)
+                Note(saying)
+                    .accessibilityIdentifier("\(identifier)Saying")
+            }
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -471,8 +569,12 @@ private struct AttachmentPathSection: View {
     }
 }
 
-/// One gentle nudge a day, at a time the user chooses — the last section, and
-/// the only one on this sheet that stays on the device that set it (ADR 0003).
+/// One gentle nudge a day, at a time the user chooses.
+///
+/// Under "This device", with the appearance: the reminder is about the
+/// journal, but it is kept on the device that buzzes and touches no file in
+/// the folder (ADR 0003). The group it sits in is what says so, which is why
+/// the small print below does not have to.
 ///
 /// Off until a time is chosen, which is the whole of what the toggle means:
 /// there is no reminder to disable on a fresh install, because Aujour has
@@ -534,8 +636,7 @@ private struct DailyReminderSection: View {
                 """
                 One notification a day and nothing else — no badges, no \
                 streaks, and nothing at all on a day you've already written \
-                in. Unlike everything above, the time stays on this device: \
-                your iPad keeps its own, or none.
+                in.
                 """
             )
             .font(.caption)
@@ -573,5 +674,5 @@ private struct DailyReminderSection: View {
 }
 
 #Preview {
-    JournalSettingsSheet(journal: Journal.inAPreview(over: .system), appearance: .inMemory())
+    SettingsSheet(journal: Journal.inAPreview(over: .system), appearance: .inMemory())
 }

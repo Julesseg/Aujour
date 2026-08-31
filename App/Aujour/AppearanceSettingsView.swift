@@ -5,12 +5,12 @@ import UIKit
 /// How Aujour looks on this device, as something the user can change: the
 /// appearance, the accent, and the typeface their days are written in.
 ///
-/// A page of its own beside the journal's settings rather than a section in
-/// them, because it answers a different question. Everything on the journal's
-/// page shapes what is written into the folder and therefore has to agree
-/// across the user's devices; nothing here shapes a file at all, so nothing
-/// here travels (ADR 0003). A dark iPhone and a light iPad are both right, and
-/// a page that mixed the two kinds would be quietly promising otherwise.
+/// A page of its own rather than three more sections under "This device",
+/// because the appearance, the accent and the typeface are one question asked
+/// three ways and the group they are reached from is a list of separate ones.
+/// Nothing on it shapes a file, so nothing on it travels (ADR 0003) — a dark
+/// iPhone and a light iPad are both right — which is what puts the row into
+/// that group rather than the one above it.
 ///
 /// It changes the appearance by asking it, and shows what the appearance
 /// answers — there is no copy of a choice here for the screen to disagree
@@ -36,19 +36,21 @@ struct AppearanceSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Spacing.apart) {
                 appearanceSection
-                rule
+                Hairline()
                 accentSection
-                rule
+                Hairline()
                 editorFontSection
-                rule
-                Text(
+                Hairline()
+                // Said again a step in from the group that says it, because
+                // this page is a screen of its own: somebody who walked here
+                // to change one thing reads this and not the sentence they
+                // passed on the way.
+                Note(
                     """
                     These stay on this \(device). Your other devices keep their \
                     own — nothing here changes a word in your journal folder.
                     """
                 )
-                .lettering(.note)
-                .foregroundStyle(Palette.inkMutedColor)
                 .accessibilityIdentifier("appearanceIsDeviceLocal")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -58,20 +60,6 @@ struct AppearanceSettingsView: View {
         .navigationTitle("How it looks")
         .navigationBarTitleDisplayMode(.inline)
     }
-
-    /// The identity's own hairline rather than `Divider()`, which draws in the
-    /// system's separator grey and is the one thing on this page that would
-    /// still look like somebody else's app.
-    ///
-    /// One device pixel, so the line is as thin as the screen can draw rather
-    /// than as thin as a point — which on a 3× phone is three of them.
-    private var rule: some View {
-        Rectangle()
-            .fill(Palette.ruleColor)
-            .frame(height: 1 / displayScale)
-    }
-
-    @Environment(\.displayScale) private var displayScale
 
     // MARK: - Light, dark, or the system's
 
@@ -222,41 +210,6 @@ struct AppearanceSettingsView: View {
             .accessibilityValue(
                 "\(appearance.editorFont.family.name), \(appearance.editorFont.size.name)"
             )
-    }
-}
-
-/// The small capitals over a group of controls.
-///
-/// In the faintest ink, which is what that ink is for: a header is a label on
-/// a section and never a sentence, so it is held to the marker floor rather
-/// than the sentence one (ADR 0006, and `Palette.inkFaint`).
-private struct SectionHeader: View {
-    let title: String
-
-    init(_ title: String) { self.title = title }
-
-    var body: some View {
-        Text(title)
-            .lettering(.sectionHeader)
-            .foregroundStyle(Palette.inkFaintColor)
-            .textCase(.uppercase)
-    }
-}
-
-/// The sentence under a control that says what it does.
-///
-/// In the muted ink and not the faint one, however much the design file wants
-/// it quiet: this is prose the reader is meant to read, and a sentence clears
-/// 4.5:1 (ADR 0006).
-private struct Note: View {
-    let words: String
-
-    init(_ words: String) { self.words = words }
-
-    var body: some View {
-        Text(words)
-            .lettering(.note)
-            .foregroundStyle(Palette.inkMutedColor)
     }
 }
 

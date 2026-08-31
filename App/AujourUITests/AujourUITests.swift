@@ -2986,10 +2986,18 @@ final class AujourUITests: XCTestCase {
                 // collision. What is being looked for is a *partial* overlap:
                 // two things that were each laid out as though the other were
                 // not there.
-                let roomToSpare = one.frame.insetBy(dx: -1, dy: -1)
+                //
+                // Two points of slack and not one, because a container is not
+                // always the larger of the two: UIKit draws a segment a point
+                // taller than the control holding it, and a point of slack
+                // then misses containment by the width of a rounding error —
+                // which reads as a segmented control sitting on top of its own
+                // "Sans". Nothing that is really two things laid out over each
+                // other overlaps by only two points.
+                let roomToSpare = one.frame.insetBy(dx: -2, dy: -2)
                 guard
                     !roomToSpare.contains(other.frame),
-                    !other.frame.insetBy(dx: -1, dy: -1).contains(one.frame)
+                    !other.frame.insetBy(dx: -2, dy: -2).contains(one.frame)
                 else { continue }
                 // And a hair of tolerance on the rest: two adjacent rows whose
                 // frames share an edge are laid out correctly, and
@@ -3333,29 +3341,39 @@ final class AujourUITests: XCTestCase {
         let scroller = sheet.exists ? sheet : app
 
         // Where a tap on this element would actually land, which is the
-        // question this helper exists to answer — and not the same question
-        // as `isHittable`. An element swiped a little past the top of a
+        // question this helper is being asked — and not the same question as
+        // `isHittable`. An element swiped a little past either end of a
         // scroll view goes on reporting itself hittable while it sits under
-        // the navigation bar, and a tap on it lands on the bar: the element
-        // was found, and it was never touched. That surfaces several lines
-        // later as "neither element nor any descendant has keyboard focus",
-        // or as a switch that did not flip, and it depends on how far one
-        // swipe happens to carry on the screen the suite is running on.
+        // the navigation bar, or under the buttons pinned below it: the
+        // element was found, and it was never touched. That surfaces several
+        // lines later as "neither element nor any descendant has keyboard
+        // focus", or as a switch that did not flip and so offered no time.
+        //
+        // Whether it happens at all depends on how far one swipe carries,
+        // which is a property of the screen — so it can be true on the small
+        // phone CI runs the suite on and false on every simulator here.
+        //
+        // The margin is two points and not a share of the height, and that is
+        // the whole of the tuning. A swipe travels most of a screen, so a band
+        // any narrower than the screen is a band a single swipe steps over —
+        // and an element that is below the band, swiped, then above it, is an
+        // element the loop puts back where it was, forever.
         func aTapWouldLand() -> Bool {
-            let middle = element.frame.midY
-            return element.isHittable
-                && middle >= scroller.frame.minY
-                && middle <= scroller.frame.maxY
+            let visible = scroller.frame.insetBy(dx: 0, dy: 2)
+            return element.isHittable && visible.contains(
+                CGPoint(x: element.frame.midX, y: element.frame.midY)
+            )
         }
 
+        // Swiped and not dragged, however much a drag of a chosen distance
+        // would suit the loop above. A gesture is delivered wherever it
+        // starts, and a slow drag beginning on a text field or a segmented
+        // control is claimed by that control rather than by the scroll view —
+        // measurably: it scrolls twice, lands on one of them, and then the
+        // page does not move again however many times it is asked.
         var swipes = 0
-        // Enough of them to cross the longest page in the app at the largest
-        // accessibility text size, which is the settings sheet with every
-        // sentence on it three lines tall. A budget tuned to the ordinary
-        // size fails there as "never came into view", which reads like a row
-        // that is missing rather than one that is a long way down.
-        while !aTapWouldLand(), swipes < 30 {
-            if element.frame.midY < scroller.frame.minY {
+        while !aTapWouldLand(), swipes < 40 {
+            if element.frame.midY < scroller.frame.midY {
                 scroller.swipeDown(velocity: .slow)
             } else {
                 scroller.swipeUp(velocity: .slow)

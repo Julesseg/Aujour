@@ -1391,26 +1391,41 @@ final class AujourUITests: XCTestCase {
         // out of, so a week's worth of invisible buttons there would pick a
         // day nobody aimed at, and swallow the tap that opens the month.
         //
-        // A week ago is the same weekday one row up, so it is always on the
-        // grid and never on the strip.
-        let aWeekAgo = try XCTUnwrap(daysBeforeToday(7))
-        let aRowUp = app.buttons["day-\(entryName(for: aWeekAgo))"]
+        // A week away is the same weekday one row over — on the grid and
+        // never on the strip — so long as it is a week the month reaches.
+        // Which way to look is a question of the date: a week back falls off
+        // the top of the grid while the month is under a week old, and a week
+        // on is in the month for exactly as long as a week back is not. Told
+        // apart by the day of the month, which is the same in every locale;
+        // which weekday starts a row is not.
+        let dayOfMonth = Calendar.current.component(.day, from: Date())
+        let aWeekAway = try XCTUnwrap(daysBeforeToday(dayOfMonth > 7 ? 7 : -7))
+        let aRowOver = app.buttons["day-\(entryName(for: aWeekAway))"]
         openTheDatePill(app, to: "Week")
-        XCTAssertTrue(aRowUp.exists, "the week before was not on the grid")
-        if aRowUp.isHittable { aRowUp.tap() }
+        XCTAssertTrue(aRowOver.exists, "the week beside this one was not on the grid")
+        if aRowOver.isHittable { aRowOver.tap() }
         XCTAssertFalse(
             app.buttons["backToToday"].exists,
             "a day the strip had slid past was picked through the ceiling"
         )
 
-        // And with the whole month out it is a day like any other. Which is
-        // also what says the ceiling is not simply shut: a grid nothing could
-        // be picked from would pass every check above.
+        // And with the whole month out a day off the strip is a day like any
+        // other. Which is also what says the ceiling is not simply shut: a
+        // grid nothing could be picked from would pass every check above.
+        //
+        // Picked in the past, because a day that has not arrived is locked
+        // however far open the month is — and early in the month, when the
+        // row over is the week ahead, the grid's pickable past is yesterday,
+        // worn as one of the fill days the grid keeps around its edge.
+        let pickable =
+            dayOfMonth > 7
+            ? aRowOver
+            : app.buttons["day-\(entryName(for: try XCTUnwrap(dayBeforeToday())))"]
         openTheDatePill(app, to: "Month")
-        aRowUp.tap()
+        pickable.tap()
         XCTAssertTrue(
             app.buttons["backToToday"].waitForExistence(timeout: 5),
-            "the week before could not be picked with the whole month showing"
+            "a day could not be picked with the whole month showing"
         )
     }
 
@@ -2441,6 +2456,8 @@ final class AujourUITests: XCTestCase {
         let journals: [(String, XCUIElement)] = [
             ("where each day's entry goes", app.textFields["entryPathField"]),
             ("what a new day starts from", app.buttons["contentTemplateFile"]),
+            ("how the calendar is written out", app.buttons["dataPlaceholder-events"]),
+            ("how the reminders are written out", app.buttons["dataPlaceholder-reminders"]),
             ("when the day turns", app.buttons["rolloverHour"]),
             ("where photos go", app.textFields["attachmentPathField"]),
             ("how photos are written", app.segmentedControls["embedSyntax"]),
@@ -2497,6 +2514,96 @@ final class AujourUITests: XCTestCase {
             "the group that stays does not say which device it stays on — it says "
                 + "\"\(stays.label)\""
         )
+    }
+
+    // MARK: - How the day's own data is written out
+
+    /// The screen the redesign left undesigned longest: a row per data
+    /// placeholder, each opening the fields that decide what it puts in the
+    /// file.
+    ///
+    /// What each field *means* is Core's and proved there. What only a running
+    /// app can show is the round trip — a marker typed into a settings field
+    /// coming back out of the next day Aujour spawns, on a launch after the
+    /// one it was typed on.
+    func testTheCalendarsLinesAreWrittenTheWayTheSettingSays() throws {
+        let app = launchApp(
+            contentTemplate: "## Today\n{{events}}\n",
+            events: "09:30 Standup"
+        )
+        openSettings(app)
+
+        let events = app.buttons["dataPlaceholder-events"]
+        scrollTo(events, in: app)
+        events.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["wholeDayExample"].waitForExistence(timeout: 10),
+            "the page never showed what a day would read like"
+        )
+        // The one field this placeholder has no business offering, for the
+        // reason `DataPlaceholder.itemsCanBeDone` gives.
+        XCTAssertFalse(
+            app.textFields["donePrefixField"].exists,
+            "{{events}} was offered a done marker, and an event is never done"
+        )
+
+        replaceTheText(in: "linePrefixField", with: "* ", in: app)
+        // The worked example follows the field as it is typed, before anything
+        // has been changed — which is the whole reason the field has one.
+        let asItWouldRead = app.staticTexts["linePrefixExample"]
+        scrollTo(asItWouldRead, in: app)
+        XCTAssertTrue(
+            asItWouldRead.label.hasPrefix("* "),
+            "the example did not follow the field — it reads \(asItWouldRead.label)"
+        )
+
+        replaceTheText(in: "timeFormatField", with: "[at] HH:mm", in: app)
+
+        let change = app.buttons["changeHowItIsWritten"]
+        scrollTo(change, in: app)
+        change.tap()
+
+        // A launch later, because that is the claim: the setting travels
+        // through the synced seam, and the next day spawned is written by it.
+        relaunch(app)
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never came back")
+        let spawned = try XCTUnwrap(editor.value as? String)
+        XCTAssertEqual(spawned, "## Today\n* at 09:30 Standup\n")
+    }
+
+    func testTheRemindersHaveADoneMarkerAndSayWhenTheDayHeldNothing() throws {
+        // No reminders seeded, which is the day the empty text is for: a
+        // heading with nothing under it, unless the user asked to be told.
+        let app = launchApp(contentTemplate: "## To do\n{{reminders}}\n")
+        openSettings(app)
+
+        let reminders = app.buttons["dataPlaceholder-reminders"]
+        scrollTo(reminders, in: app)
+        reminders.tap()
+
+        // The field {{events}} does not get.
+        XCTAssertTrue(
+            app.textFields["donePrefixField"].waitForExistence(timeout: 10),
+            "{{reminders}} was not offered a done marker, and a reminder gets ticked"
+        )
+
+        replaceTheText(in: "whenEmptyField", with: "Nothing on the list.", in: app)
+        let onAnEmptyDay = app.staticTexts["whenEmptyExample"]
+        scrollTo(onAnEmptyDay, in: app)
+        XCTAssertEqual(onAnEmptyDay.label, "Nothing on the list.")
+
+        let change = app.buttons["changeHowItIsWritten"]
+        scrollTo(change, in: app)
+        change.tap()
+
+        relaunch(app)
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never came back")
+        XCTAssertEqual(editor.value as? String, "## To do\nNothing on the list.\n")
     }
 
     // MARK: - Driving the app
@@ -2693,6 +2800,16 @@ final class AujourUITests: XCTestCase {
     }
 
     /// Replaces what is in the entry path field, and puts the keyboard away.
+    private func typeEntryPath(_ path: String, into app: XCUIApplication) {
+        replaceTheText(in: "entryPathField", with: path, in: app)
+    }
+
+    /// Replaces what is in a settings field named by its identifier, and puts
+    /// the keyboard away — the data placeholder pages are four of them on one
+    /// screen.
+    ///
+    /// Scrolled to first, because these sit below the fold on a small phone,
+    /// and a field that is not on screen cannot be tapped into.
     ///
     /// Cleared a character at a time from the end, because a text field's
     /// whole contents cannot be selected without a hardware keyboard the
@@ -2700,8 +2817,12 @@ final class AujourUITests: XCTestCase {
     ///
     /// The keyboard is dismissed afterwards for a plain reason: it covers the
     /// button the test is about to press.
-    private func typeEntryPath(_ path: String, into app: XCUIApplication) {
-        let field = app.textFields["entryPathField"]
+    private func replaceTheText(
+        in identifier: String,
+        with text: String,
+        in app: XCUIApplication
+    ) {
+        let field = app.textFields[identifier]
         scrollTo(field, in: app)
         giveTheKeyboardTo(field, in: app)
 
@@ -2710,10 +2831,10 @@ final class AujourUITests: XCTestCase {
         // the field ended up.
         let existing = (field.value as? String) ?? ""
         field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: existing.count))
-        field.typeText(path)
+        field.typeText(text)
         field.typeText("\n")
 
-        XCTAssertEqual(field.value as? String, path)
+        XCTAssertEqual(field.value as? String, text)
     }
 
     /// Puts the caret at the end of a text field, and lets the sheet stop
@@ -3230,7 +3351,12 @@ final class AujourUITests: XCTestCase {
 
         let from = pill.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         from.press(
-            forDuration: 0.1,
+            // Moving from the first instant, because a scroll view delays
+            // content touches: a finger that rests before it travels is handed
+            // to whatever is under it, and a row that has taken the touch does
+            // not give it back for a pan. On iPad, where the rows run wider,
+            // that was every drag on the settings sheet doing nothing at all.
+            forDuration: 0,
             thenDragTo: from.withOffset(CGVector(dx: distance, dy: 0)),
             withVelocity: .slow,
             thenHoldForDuration: 0.4
@@ -3438,26 +3564,130 @@ final class AujourUITests: XCTestCase {
             )
         }
 
-        // Swiped and not dragged, however much a drag of a chosen distance
-        // would suit the loop above. A gesture is delivered wherever it
-        // starts, and a slow drag beginning on a text field or a segmented
-        // control is claimed by that control rather than by the scroll view —
-        // measurably: it scrolls twice, lands on one of them, and then the
-        // page does not move again however many times it is asked.
-        var swipes = 0
-        while !aTapWouldLand(), swipes < 40 {
-            if element.frame.midY < scroller.frame.midY {
-                scroller.swipeDown(velocity: .slow)
-            } else {
-                scroller.swipeUp(velocity: .slow)
+        // Flung while the element is more than a screen away, and dragged the
+        // rest of the way in.
+        //
+        // A swipe hands the page momentum and lets the page decide where that
+        // lands, which is fine while there is a content end to clamp against:
+        // the clamp is what used to land an element sitting a few points under
+        // the fold, and it is why this worked for as long as the settings
+        // sheet was short. Add a row past the fold and nothing clamps — the
+        // fling runs clean over the element, the loop brings it back, and
+        // forty swipes later it is still going, two and a half minutes in and
+        // nowhere. It happens on the small phone CI runs the suite on and on
+        // no simulator here, which is the worst way to find it.
+        //
+        // A drag that holds before it lifts imparts no velocity at all: the
+        // page stops where it was put (`scrollContent(of:by:)`). A step that
+        // cannot overshoot cannot oscillate, so the close-in work is done with
+        // those and the fling is left to cover ground.
+        var moves = 0
+        while !aTapWouldLand(), moves < 20 {
+            let delta = scroller.frame.midY - element.frame.midY
+            if abs(delta) > scroller.frame.height {
+                if delta > 0 { scroller.swipeDown(velocity: .slow) }
+                else { scroller.swipeUp(velocity: .slow) }
+            } else if !scrollContent(of: scroller, in: app, by: delta) {
+                // Nowhere on the page to begin a drag with room to run. One
+                // fling and try again: it is the coarse instrument, but a
+                // coarse move is better than the same refusal twenty times.
+                if delta > 0 { scroller.swipeDown(velocity: .slow) }
+                else { scroller.swipeUp(velocity: .slow) }
             }
-            swipes += 1
+            moves += 1
         }
         XCTAssertTrue(
             aTapWouldLand(),
             "\(element) never came into view — it is at \(element.frame), "
                 + "and the sheet it is in is at \(scroller.frame)"
         )
+    }
+
+    /// Moves a scroll view's content by a chosen number of points, exactly —
+    /// which the pill's own `drag(_:by:)` above is not for: that one pulls a
+    /// thing and lets go, and this one is trying very hard not to let go.
+    ///
+    /// Pressed, dragged and then *held* before the finger lifts. The hold is
+    /// the whole point: a gesture that lifts while still moving hands the page
+    /// its speed and the page carries on, which is a swipe by another name.
+    /// Held first, there is no speed to hand over, and the content stops where
+    /// the drag put it.
+    ///
+    /// Begun somewhere the page will actually take it — see
+    /// ``aClearPlaceToDragFrom(in:of:near:)``, which is most of the work — and
+    /// carried only as far as there is room between that point and the edge it
+    /// is heading for. A step too big to make in one is made in several: the
+    /// caller is a loop.
+    ///
+    /// - Returns: whether it moved anything, so the caller can stop asking.
+    @discardableResult
+    private func scrollContent(
+        of scroller: XCUIElement,
+        in app: XCUIApplication,
+        by delta: CGFloat
+    ) -> Bool {
+        let frame = scroller.frame
+        // Away from the edge it is heading for, because that is where the room
+        // to travel is.
+        guard
+            let from = aClearPlaceToDragFrom(in: scroller, of: app, near: delta < 0 ? 0.85 : 0.15)
+        else { return false }
+        let room =
+            delta < 0
+            ? from.screenPoint.y - frame.minY - 8
+            : frame.maxY - from.screenPoint.y - 8
+        guard room > 24 else { return false }
+
+        let step = delta < 0 ? -min(room, -delta) : min(room, delta)
+        from.press(
+            forDuration: 0,
+            thenDragTo: from.withOffset(CGVector(dx: 0, dy: step)),
+            withVelocity: .slow,
+            thenHoldForDuration: 0.3
+        )
+        return true
+    }
+
+    /// Somewhere in a scroll view a drag can begin without a control taking it
+    /// for itself.
+    ///
+    /// A gesture is delivered wherever it starts, and a text field claims a
+    /// press-drag for its cursor: the page does not move however many times it
+    /// is asked, and the keyboard that comes up is a second "Done" button on
+    /// the screen for the next line of the test to find two of. A button or a
+    /// row does *not* do this — a pan beginning over one is handed to the page,
+    /// which is why swiping has always worked and why only the swipes are being
+    /// replaced.
+    ///
+    /// So the ones that do are asked where they are, and the drag begins
+    /// somewhere they are not: from the end it was asked for, then inwards.
+    ///
+    /// Nowhere at all is a real answer, and the caller flings instead. It
+    /// happens on the settings sheet at the largest text size, where the
+    /// fields are big enough to leave no band between them — and flinging is
+    /// what carried that page before any of this, because the page is long
+    /// enough that nothing there sits a few points under the fold.
+    private func aClearPlaceToDragFrom(
+        in scroller: XCUIElement,
+        of app: XCUIApplication,
+        near preferred: CGFloat
+    ) -> XCUICoordinate? {
+        let claimed =
+            (app.textFields.allElementsBoundByIndex
+                + app.secureTextFields.allElementsBoundByIndex
+                + app.segmentedControls.allElementsBoundByIndex
+                + app.sliders.allElementsBoundByIndex)
+            .map { $0.frame }
+        let frame = scroller.frame
+
+        let bands = stride(from: 0.1, through: 0.9, by: 0.05)
+            .map { CGFloat($0) }
+            .sorted { abs($0 - preferred) < abs($1 - preferred) }
+        let clear = bands.first { band in
+            let point = CGPoint(x: frame.midX, y: frame.minY + frame.height * band)
+            return !claimed.contains { $0.insetBy(dx: -4, dy: -4).contains(point) }
+        }
+        return clear.map { scroller.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: $0)) }
     }
 
     /// Where today's photograph lands, said the way the Entry points at it —

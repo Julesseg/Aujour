@@ -98,10 +98,12 @@ struct SettingsSheet: View {
     /// *carry out* a change, which is each button's own business.
     ///
     /// In the order somebody asks them in: what the files are called, what is
-    /// in one when it starts, which day it is, and then the photographs —
-    /// where they go, and how the day points at them. Two questions and two
-    /// controls: a photograph that has moved folders is written the same way
-    /// it was before, and one written wiki-style lands in the same folder.
+    /// in one when it starts — the template it is spawned from, and how the
+    /// day's own data writes itself into it — which day it is, and then the
+    /// photographs: where they go, and how the day points at them. Two
+    /// questions and two controls there: a photograph that has moved folders
+    /// is written the same way it was before, and one written wiki-style
+    /// lands in the same folder.
     private var journalSettings: some View {
         SettingsGroup(
             "Your journal",
@@ -114,6 +116,7 @@ struct SettingsSheet: View {
         ) {
             EntryPathSection(journal: journal)
             ContentTemplateSection(journal: journal)
+            DataPlaceholderSection(journal: journal)
             RolloverHourSection(journal: journal)
             AttachmentPathSection(journal: journal)
             EmbedSyntaxSection(journal: journal)
@@ -513,29 +516,18 @@ private struct AttachmentPathSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Where photos go")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            TextField("Photo folder", text: $typed)
-                .textFieldStyle(.roundedBorder)
-                .font(.callout.monospaced())
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-                .submitLabel(.done)
-                .accessibilityIdentifier("attachmentPathField")
-
-            saying
-
-            Text(
-                """
-                Inside your journal folder. Date tokens like YYYY and MM are \
-                filled in; anything in [brackets] is a folder name. Photos \
-                already in the journal stay where they are.
-                """
+            FormatField(
+                title: "Where photos go",
+                prompt: "Photo folder",
+                text: $typed,
+                saying: saying,
+                guidance: """
+                    Inside your journal folder. Date tokens like YYYY and MM \
+                    are filled in; anything in [brackets] is a folder name. \
+                    Photos already in the journal stay where they are.
+                    """,
+                identifier: "attachmentPath"
             )
-            .font(.caption)
-            .foregroundStyle(.secondary)
 
             Button("Change") {
                 guard case .success(let template) = typedTemplate else { return }
@@ -549,22 +541,12 @@ private struct AttachmentPathSection: View {
     }
 
     /// The one line under the field: the folder today's photograph would go
-    /// into, or why the template cannot say.
-    @ViewBuilder
-    private var saying: some View {
-        if let rejection {
-            Text(rejection.description)
-                .font(.caption)
-                .foregroundStyle(.red)
-                .accessibilityIdentifier("attachmentPathProblem")
-        } else if case .success(let template) = typedTemplate {
-            // The template made concrete on the day the user is in, the way
-            // the entry path and the embed are: a folder described in tokens
-            // is a folder somebody has to imagine.
-            Text(template.render(journal.dayOnScreen))
-                .font(.caption.monospaced())
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("attachmentPathExample")
+    /// into — the template made concrete on the day the user is in, the way
+    /// the entry path and the embed are — or why the template cannot say.
+    private var saying: FormatField.Saying {
+        switch typedTemplate {
+        case .success(let template): .example(template.render(journal.dayOnScreen))
+        case .failure(let rejection): .problem(rejection.description)
         }
     }
 }

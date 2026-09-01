@@ -115,6 +115,87 @@ extension DayItemSource {
     public func prepare() async {}
 }
 
+// MARK: - Showing what a format would write
+
+extension DataPlaceholder {
+    /// Whether a day can already have seen one of these things through —
+    /// whether ``DataPlaceholderFormat/donePrefix`` has anything to say about
+    /// this placeholder at all.
+    ///
+    /// A reminder is a thing to do and gets ticked; an event is a thing that
+    /// happens, and a day does not finish a meeting. Which is why the marker
+    /// is not a question worth asking about every placeholder: a field that
+    /// could never change a single line of somebody's Entry is a field about
+    /// nothing.
+    public var itemsCanBeDone: Bool {
+        switch self {
+        case .events: false
+        case .reminders: true
+        }
+    }
+
+    /// A day made up, so that a format nobody can evaluate in their head can
+    /// be shown as the lines it would write.
+    ///
+    /// Invented rather than read off the user's own calendar, for two
+    /// reasons. A real day may hold nothing — which is exactly the day the
+    /// empty text is for, and a poor day to check the other three fields
+    /// against — and a preview that changed as the afternoon went on would be
+    /// one nobody could compare a typed character against. So it is the same
+    /// day every time, holding one of each thing a format has something to
+    /// say about: something at an hour, something the day held without one,
+    /// and, where the placeholder has a done state, something already seen
+    /// through.
+    ///
+    /// - Parameters:
+    ///   - day: the Journal Day to sit the example on — the one the user is
+    ///     writing, so that its hours read like the hours of their own today.
+    ///   - timeZone: the zone those hours are the hours of.
+    public func exampleDay(on day: JournalDay, in timeZone: TimeZone = .current) -> ExampleDay {
+        let midnight = day.startOfDay(in: timeZone)
+        func atHour(_ hour: Int) -> Date { midnight.addingTimeInterval(TimeInterval(hour) * 3600) }
+
+        switch self {
+        case .events:
+            return ExampleDay(
+                atAnHour: DayItem(title: "Coffee with Ana", time: atHour(9)),
+                withoutAnHour: DayItem(title: "Ana's birthday"),
+                alreadyDone: nil
+            )
+        case .reminders:
+            return ExampleDay(
+                atAnHour: DayItem(title: "Call the dentist", time: atHour(11)),
+                withoutAnHour: DayItem(title: "Water the plants"),
+                alreadyDone: DayItem(title: "Book the train", time: atHour(8), isDone: true)
+            )
+        }
+    }
+
+    /// The made-up day ``DataPlaceholder/exampleDay(on:in:)`` answers with:
+    /// one item for each thing a ``DataPlaceholderFormat`` decides, so that
+    /// every field of it can be shown as the line it writes.
+    public struct ExampleDay: Hashable, Sendable {
+        /// Something the day held at an hour — the line the line prefix and
+        /// the time format both show themselves in.
+        public let atAnHour: DayItem
+
+        /// Something the day held without one: an all-day event, a reminder
+        /// with a date and no time. What the time format leaves alone.
+        public let withoutAnHour: DayItem
+
+        /// Something the day already saw through, or `nil` for a placeholder
+        /// whose items never get done — where there is no done marker to set,
+        /// there is nothing to show one on.
+        public let alreadyDone: DayItem?
+
+        /// All of it, in the order the day happened — which is the order the
+        /// whole placeholder would be written in.
+        public var throughTheDay: [DayItem] {
+            ([atAnHour, withoutAnHour] + (alreadyDone.map { [$0] } ?? [])).throughTheDay()
+        }
+    }
+}
+
 // MARK: - How the items are laid into the Entry
 
 /// How one data placeholder's items are written into an Entry.

@@ -1634,17 +1634,27 @@ final class AujourUITests: XCTestCase {
     }
 
     func testTheMonthOnTheDatePillMarksTheDaysTheFolderHolds() throws {
-        let yesterday = try XCTUnwrap(dayBeforeToday())
-        let theDayBefore = try XCTUnwrap(daysBeforeToday(2))
+        // Two days of the month the grid opens onto, rather than two counted
+        // back from today. The grid reaches back only as far as the week the
+        // 1st falls in, so a day two back from today is on the month before's
+        // grid for the first two days of every month — which is a test that
+        // fails on the 1st and the 2nd and nowhere else.
+        //
+        // The 1st for the day that was written, because it is the one day of
+        // the month that is never in the future, so a folder holding it is a
+        // folder somebody could have written. The 2nd needs no such care: a
+        // day nobody has written is unwritten whether or not it has arrived.
+        let written = try XCTUnwrap(dayOfTheMonthOnScreen(1))
+        let unwritten = try XCTUnwrap(dayOfTheMonthOnScreen(2))
         let app = launchApp(
-            entries: "\(entryName(for: yesterday)) Walked to the market with Robin."
+            entries: "\(entryName(for: written)) Walked to the market with Robin."
         )
 
         openTheDatePill(app, to: "Month")
 
-        expect(app.buttons["day-\(entryName(for: yesterday))"], toHaveValue: "Written")
+        expect(app.buttons["day-\(entryName(for: written))"], toHaveValue: "Written")
         expect(
-            app.buttons["day-\(entryName(for: theDayBefore))"],
+            app.buttons["day-\(entryName(for: unwritten))"],
             toHaveValue: "Not written"
         )
     }
@@ -3526,6 +3536,18 @@ final class AujourUITests: XCTestCase {
 
     private func dayAfterToday() -> Date? {
         Calendar.current.date(byAdding: .day, value: 1, to: Date())
+    }
+
+    /// A numbered day of the month the date pill opens onto.
+    ///
+    /// Every day of the month is on its own grid however far into the month
+    /// today is — which a day counted back from today is not, since the grid
+    /// reaches back only as far as the week the 1st falls in.
+    private func dayOfTheMonthOnScreen(_ day: Int) -> Date? {
+        let calendar = Calendar.current
+        var parts = calendar.dateComponents([.year, .month], from: Date())
+        parts.day = day
+        return calendar.date(from: parts)
     }
 
     /// Brings something into view in a sheet that scrolls.

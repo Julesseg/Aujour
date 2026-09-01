@@ -1634,17 +1634,27 @@ final class AujourUITests: XCTestCase {
     }
 
     func testTheMonthOnTheDatePillMarksTheDaysTheFolderHolds() throws {
-        let yesterday = try XCTUnwrap(dayBeforeToday())
-        let theDayBefore = try XCTUnwrap(daysBeforeToday(2))
+        // Two days of the month the grid opens onto, rather than two counted
+        // back from today. The grid reaches back only as far as the week the
+        // 1st falls in, so a day two back from today is on the month before's
+        // grid for the first two days of every month — which is a test that
+        // fails on the 1st and the 2nd and nowhere else.
+        //
+        // The 1st for the day that was written, because it is the one day of
+        // the month that is never in the future, so a folder holding it is a
+        // folder somebody could have written. The 2nd needs no such care: a
+        // day nobody has written is unwritten whether or not it has arrived.
+        let written = try XCTUnwrap(dayOfTheMonthOnScreen(1))
+        let unwritten = try XCTUnwrap(dayOfTheMonthOnScreen(2))
         let app = launchApp(
-            entries: "\(entryName(for: yesterday)) Walked to the market with Robin."
+            entries: "\(entryName(for: written)) Walked to the market with Robin."
         )
 
         openTheDatePill(app, to: "Month")
 
-        expect(app.buttons["day-\(entryName(for: yesterday))"], toHaveValue: "Written")
+        expect(app.buttons["day-\(entryName(for: written))"], toHaveValue: "Written")
         expect(
-            app.buttons["day-\(entryName(for: theDayBefore))"],
+            app.buttons["day-\(entryName(for: unwritten))"],
             toHaveValue: "Not written"
         )
     }
@@ -1924,8 +1934,15 @@ final class AujourUITests: XCTestCase {
 
         // One character in and straight back out: the day says exactly what it
         // said, and it is no longer a day nobody has written.
-        editor.typeText("x")
-        editor.typeText(XCUIKeyboardKey.delete.rawValue)
+        //
+        // In one `typeText` and not two, because the pair is racing the
+        // autosave: a second of quiet after a keystroke is a file, and two
+        // separate calls are two rounds of event synthesis that a slow
+        // runner holds more than a second apart — at which point the 'x' is
+        // written, the delete writes the spawned words over it, and a day
+        // this test is about to swear has no file has one. Sent together,
+        // the keystrokes land milliseconds apart and the quiet never comes.
+        editor.typeText("x" + XCUIKeyboardKey.delete.rawValue)
         expect(editor, toHaveValue: spawned)
         let written = try brightness(of: editor)
 
@@ -2185,6 +2202,12 @@ final class AujourUITests: XCTestCase {
         // And it says the one thing about renaming daily notes that nobody
         // would guess (ADR 0002).
         XCTAssertTrue(app.staticTexts["migrationLinkWarning"].exists)
+
+        // Both ways out are offered, and each says what it does. Leaving the
+        // files where they are is a choice ADR 0002 gives the user, not a
+        // way of backing out of one the screen had already made for them.
+        XCTAssertEqual(app.buttons["moveEntries"].label, "Move Them")
+        XCTAssertEqual(app.buttons["skipMigration"].label, "Leave Them Where They Are")
 
         app.buttons["moveEntries"].tap()
         let summary = app.staticTexts["migrationSummary"]
@@ -3236,8 +3259,15 @@ final class AujourUITests: XCTestCase {
         }
         settings.tap()
 
+        // Waited on as long as the journal itself is. The count is not a
+        // label the sheet draws and then fills in — it arrives with the
+        // journal, which has to find its folder and read it before there is a
+        // number to say, and after a relaunch that is a cold start. Five
+        // seconds is a machine with the folder already warm; on a slow runner
+        // it is the sheet being asked before the journal has answered, which
+        // reads as "no entry count was shown" and is not what went wrong.
         let entryCount = app.staticTexts["journalEntryCount"]
-        guard entryCount.waitForExistence(timeout: 5) else { return "no entry count was shown" }
+        guard entryCount.waitForExistence(timeout: 30) else { return "no entry count was shown" }
         return entryCount.label
     }
 
@@ -3522,12 +3552,24 @@ final class AujourUITests: XCTestCase {
         Calendar.current.date(byAdding: .day, value: 1, to: Date())
     }
 
+    /// A numbered day of the month the date pill opens onto.
+    ///
+    /// Every day of the month is on its own grid however far into the month
+    /// today is — which a day counted back from today is not, since the grid
+    /// reaches back only as far as the week the 1st falls in.
+    private func dayOfTheMonthOnScreen(_ day: Int) -> Date? {
+        let calendar = Calendar.current
+        var parts = calendar.dateComponents([.year, .month], from: Date())
+        parts.day = day
+        return calendar.date(from: parts)
+    }
+
     /// Brings something into view in a sheet that scrolls.
     ///
     /// Steered rather than swiped at: the journal sheet is long, and on a
     /// small screen one full-speed swipe can carry the thing being looked for
     /// straight past the visible strip — after which a loop that only ever
-    /// swipes one way is chasing it in the wrong direction. So each swipe asks
+    /// swipes one way is chasing it in the wrong direction. So each move asks
     /// where it has got to, and goes the way that closes the gap.
     ///
     /// Swiped on the scroll view and not on the screen, because an iPad
@@ -3564,33 +3606,47 @@ final class AujourUITests: XCTestCase {
             )
         }
 
-        // Flung while the element is more than a screen away, and dragged the
-        // rest of the way in.
+        // Flung while the element is far away — until the first overshoot,
+        // and never again after it.
         //
-        // A swipe hands the page momentum and lets the page decide where that
-        // lands, which is fine while there is a content end to clamp against:
-        // the clamp is what used to land an element sitting a few points under
-        // the fold, and it is why this worked for as long as the settings
-        // sheet was short. Add a row past the fold and nothing clamps — the
-        // fling runs clean over the element, the loop brings it back, and
-        // forty swipes later it is still going, two and a half minutes in and
-        // nowhere. It happens on the small phone CI runs the suite on and on
-        // no simulator here, which is the worst way to find it.
+        // Both halves are earned. A swipe hands the page momentum and lets
+        // the page decide where that lands, and how far a slow swipe carries
+        // is a property of the simulator's frame timing: on the small phone
+        // CI runs the suite on it carries more than the whole sheet, so an
+        // element more than a sheet-height below, flung at, comes out more
+        // than a sheet-height *above* — and a loop that flings whenever the
+        // element is far spends its whole budget of moves batting it back
+        // and forth over the visible strip and never once through it. That
+        // is the oscillation: the moment a fling can outrun its own distance
+        // threshold, "far enough to fling at" and "far enough to overshoot
+        // from" are the same distance.
         //
-        // A drag that holds before it lifts imparts no velocity at all: the
-        // page stops where it was put (`scrollContent(of:by:)`). A step that
-        // cannot overshoot cannot oscillate, so the close-in work is done with
-        // those and the fling is left to cover ground.
+        // But dragging the whole way is not the answer either. A drag is
+        // clamped to the room inside the sheet, and at the largest text size
+        // the sheet is three hundred points tall with the element nine
+        // thousand points down — each drag lands exactly where it was sent,
+        // and the loop still runs out of moves a sheet's-length of content
+        // short. So the fling covers the ground, and the sign of the gap is
+        // watched: the first time it flips, the fling has shown what it does
+        // on this machine and is retired, and the held drags of
+        // `scrollContent(of:by:)` — no momentum, no overshoot — close the
+        // one bounce that remains. Thirty moves, not twenty, because the
+        // bounce can happen at the end of the longest sheet, and the drags
+        // that clean it up are moves the flings did not have to spend.
         var moves = 0
-        while !aTapWouldLand(), moves < 20 {
+        var wasBelow: Bool?
+        var flingIsTrusted = true
+        while !aTapWouldLand(), moves < 30 {
             let delta = scroller.frame.midY - element.frame.midY
-            if abs(delta) > scroller.frame.height {
+            if let below = wasBelow, below != (delta < 0) { flingIsTrusted = false }
+            wasBelow = delta < 0
+            if flingIsTrusted, abs(delta) > scroller.frame.height {
                 if delta > 0 { scroller.swipeDown(velocity: .slow) }
                 else { scroller.swipeUp(velocity: .slow) }
             } else if !scrollContent(of: scroller, in: app, by: delta) {
                 // Nowhere on the page to begin a drag with room to run. One
                 // fling and try again: it is the coarse instrument, but a
-                // coarse move is better than the same refusal twenty times.
+                // coarse move is better than the same refusal thirty times.
                 if delta > 0 { scroller.swipeDown(velocity: .slow) }
                 else { scroller.swipeUp(velocity: .slow) }
             }

@@ -114,7 +114,7 @@ struct SettingsSheet: View {
                 """,
             identifier: "journalSettings"
         ) {
-            EntryPathSection(journal: journal)
+            EntryPathSection(journal: journal, accent: appearance.accent)
             ContentTemplateSection(journal: journal)
             DataPlaceholderSection(journal: journal)
             RolloverHourSection(journal: journal)

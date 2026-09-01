@@ -176,6 +176,84 @@ struct JournalMigrationTests {
         #expect(outcome.leftBehind.isEmpty)
         #expect(outcome.wentThrough)
     }
+
+    // MARK: - Saying how far through it is
+
+    // A migration touches every file in somebody's journal, and a journal is
+    // as big as a journal gets. What it owes the screen above it is a number
+    // out of a number: a spinner over an operation that can run for a minute
+    // says only that the app has not crashed.
+
+    @Test("it counts the days off as they settle, from none of them to all of them")
+    func progressRunsFromNoneToAll() async throws {
+        let store = InMemoryJournalStore([
+            "2026/03/2026-03-01.md": "Walked to the market.\n",
+            "2026/03/2026-03-02.md": "The day beside it.\n",
+            "2026/02/2026-02-28.md": "February's last day.\n",
+        ])
+        let migration = JournalMigration(over: store)
+        let plan = try await migration.plan(changingFrom: old, to: new)
+
+        var reported: [MigrationProgress] = []
+        _ = await migration.carryOut(plan) { reported.append($0) }
+
+        // Said before a single file moves, so the screen has a number to
+        // draw rather than an empty bar, and once per day after that.
+        #expect(reported.map(\.settled) == [0, 1, 2, 3])
+        #expect(reported.allSatisfy { $0.total == 3 })
+        #expect(reported.first?.fraction == 0)
+        #expect(reported.last?.fraction == 1)
+    }
+
+    /// Days and not moves. A day whose new path is held by another day on its
+    /// way out is moved twice — aside, and then on — and a bar that counted
+    /// those separately would run past the number of entries the offer said
+    /// it was about.
+    @Test("a day moved twice on the way is counted once")
+    func aDayThatStepsAsideIsOneDay() async throws {
+        let store = InMemoryJournalStore([
+            "2026/d03-04.md": "The fourth of March.\n",
+            "2026/d04-03.md": "The third of April.\n",
+        ])
+        let migration = JournalMigration(over: store)
+        let plan = try await migration.plan(changingFrom: monthFirst, to: dayFirst)
+        #expect(plan.moves.count == 3)
+
+        var reported: [MigrationProgress] = []
+        _ = await migration.carryOut(plan) { reported.append($0) }
+
+        #expect(reported.map(\.settled) == [0, 1, 2])
+        #expect(reported.allSatisfy { $0.total == 2 })
+    }
+
+    /// A day the folder would not move is a day that is done with — the
+    /// screen is waiting on a bar that fills, and one that stopped short of
+    /// the end on a partial outcome would leave it waiting forever.
+    @Test("a day left behind is counted off like any other")
+    func aDayLeftBehindStillCounts() async throws {
+        let store = ObstructiveJournalStore([
+            "2026/03/2026-03-01.md": "The day iCloud has not brought down.\n",
+            "2026/03/2026-03-02.md": "The day beside it.\n",
+        ])
+        store.refuseMovingFrom = "2026/03/2026-03-01.md"
+        let migration = JournalMigration(over: store)
+        let plan = try await migration.plan(changingFrom: old, to: new)
+
+        var reported: [MigrationProgress] = []
+        let outcome = await migration.carryOut(plan) { reported.append($0) }
+
+        #expect(!outcome.wentThrough)
+        #expect(reported.map(\.settled) == [0, 1, 2])
+        #expect(reported.last?.fraction == 1)
+    }
+
+    /// The one plan with nothing to count. Answered as finished rather than
+    /// as a division by zero, because an empty plan is a migration that has
+    /// nothing left to do.
+    @Test("a plan about no days is already through")
+    func anEmptyPlanIsWholeAtOnce() {
+        #expect(MigrationProgress(settled: 0, total: 0).fraction == 1)
+    }
 }
 
 /// A Journal Store that refuses to move one particular file, as a folder does

@@ -74,6 +74,39 @@ struct PathTemplateChangeTests {
         }
     }
 
+    /// Determinate, over a real folder. What the number *is* — days and not
+    /// moves, counted off as each one settles — is Core's, and tested there.
+    /// What this holds is that it arrives: a screen that asked for it and was
+    /// handed nothing would draw an empty bar over a folder that was moving.
+    @Test("the moving says how far through it is, from none of the entries to all of them")
+    func theMigrationReportsItsProgress() async throws {
+        try await withTemporaryFolder { folders in
+            let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
+            try iCloud.seed("Walked to the market.\n", at: "2026/03/2026-03-01.md")
+            try iCloud.seed("Rain all day.\n", at: "2026/02/2026-02-28.md")
+            try iCloud.seed("February's other day.\n", at: "2026/02/2026-02-27.md")
+            let journal = Journal(
+                locator: .test(iCloudDocuments: iCloud, folders: folders),
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
+            )
+            await journal.open()
+
+            let plan = try await journal.planChangingThePathTemplate(to: flat)
+            var reported: [MigrationProgress] = []
+            await journal.changeThePathTemplate(to: flat, movingEntriesBy: plan) {
+                reported.append($0)
+            }
+
+            // That it arrives, in order, and ends full. What the numbers in
+            // it *are* is Core's, and asserted there.
+            #expect(reported.first?.settled == 0)
+            #expect(reported.map(\.settled) == reported.map(\.settled).sorted())
+            #expect(reported.allSatisfy { $0.total == plan.entryCount })
+            #expect(reported.last?.fraction == 1)
+        }
+    }
+
     @Test("a day whose new path is taken keeps both files, and the one there stays the entry")
     func acollisionKeepsBothAndParksTheIncomingFile() async throws {
         try await withTemporaryFolder { folders in

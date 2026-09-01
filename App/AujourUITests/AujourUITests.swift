@@ -3263,7 +3263,12 @@ final class AujourUITests: XCTestCase {
 
         let from = pill.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         from.press(
-            forDuration: 0.1,
+            // Moving from the first instant, because a scroll view delays
+            // content touches: a finger that rests before it travels is handed
+            // to whatever is under it, and a row that has taken the touch does
+            // not give it back for a pan. On iPad, where the rows run wider,
+            // that was every drag on the settings sheet doing nothing at all.
+            forDuration: 0,
             thenDragTo: from.withOffset(CGVector(dx: distance, dy: 0)),
             withVelocity: .slow,
             thenHoldForDuration: 0.4
@@ -3485,17 +3490,21 @@ final class AujourUITests: XCTestCase {
         // no simulator here, which is the worst way to find it.
         //
         // A drag that holds before it lifts imparts no velocity at all: the
-        // page stops where it was put. A step that cannot overshoot cannot
-        // oscillate, so the close-in work is done with those and the fling is
-        // left to cover ground.
+        // page stops where it was put (`scrollContent(of:by:)`). A step that
+        // cannot overshoot cannot oscillate, so the close-in work is done with
+        // those and the fling is left to cover ground.
         var moves = 0
         while !aTapWouldLand(), moves < 20 {
             let delta = scroller.frame.midY - element.frame.midY
             if abs(delta) > scroller.frame.height {
                 if delta > 0 { scroller.swipeDown(velocity: .slow) }
                 else { scroller.swipeUp(velocity: .slow) }
-            } else {
-                scrollContent(of: scroller, by: delta)
+            } else if !scrollContent(of: scroller, in: app, by: delta) {
+                // Nowhere on the page to begin a drag with room to run. One
+                // fling and try again: it is the coarse instrument, but a
+                // coarse move is better than the same refusal twenty times.
+                if delta > 0 { scroller.swipeDown(velocity: .slow) }
+                else { scroller.swipeUp(velocity: .slow) }
             }
             moves += 1
         }
@@ -3512,32 +3521,85 @@ final class AujourUITests: XCTestCase {
     ///
     /// Pressed, dragged and then *held* before the finger lifts. The hold is
     /// the whole point: a gesture that lifts while still moving hands the page
-    /// its speed and the page carries on, which is a swipe by another name. Held
-    /// first, there is no speed to hand over, and the content stops where the
-    /// drag put it.
+    /// its speed and the page carries on, which is a swipe by another name.
+    /// Held first, there is no speed to hand over, and the content stops where
+    /// the drag put it.
     ///
-    /// Begun at the scroller's left edge, which is inside it and outside the
-    /// controls on it — a text field on these sheets is inset a good ten points
-    /// — because a gesture is delivered wherever it starts, and a press-drag
-    /// beginning on a text field is claimed for its cursor rather than for the
-    /// page.
-    ///
-    /// The step is capped at what the drag has room for, and the drag starts at
-    /// whichever end of the view it is heading away from, so the whole of it
-    /// stays inside. A step too big to make in one is made in several: the
+    /// Begun somewhere the page will actually take it — see
+    /// ``aClearPlaceToDragFrom(in:of:near:)``, which is most of the work — and
+    /// carried only as far as there is room between that point and the edge it
+    /// is heading for. A step too big to make in one is made in several: the
     /// caller is a loop.
-    private func scrollContent(of scroller: XCUIElement, by delta: CGFloat) {
-        let room = scroller.frame.height * 0.7
-        let step = max(-room, min(room, delta))
-        let from = scroller.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.02, dy: step < 0 ? 0.85 : 0.15)
-        )
+    ///
+    /// - Returns: whether it moved anything, so the caller can stop asking.
+    @discardableResult
+    private func scrollContent(
+        of scroller: XCUIElement,
+        in app: XCUIApplication,
+        by delta: CGFloat
+    ) -> Bool {
+        let frame = scroller.frame
+        // Away from the edge it is heading for, because that is where the room
+        // to travel is.
+        guard
+            let from = aClearPlaceToDragFrom(in: scroller, of: app, near: delta < 0 ? 0.85 : 0.15)
+        else { return false }
+        let room =
+            delta < 0
+            ? from.screenPoint.y - frame.minY - 8
+            : frame.maxY - from.screenPoint.y - 8
+        guard room > 24 else { return false }
+
+        let step = delta < 0 ? -min(room, -delta) : min(room, delta)
         from.press(
-            forDuration: 0.1,
+            forDuration: 0,
             thenDragTo: from.withOffset(CGVector(dx: 0, dy: step)),
             withVelocity: .slow,
             thenHoldForDuration: 0.3
         )
+        return true
+    }
+
+    /// Somewhere in a scroll view a drag can begin without a control taking it
+    /// for itself.
+    ///
+    /// A gesture is delivered wherever it starts, and a text field claims a
+    /// press-drag for its cursor: the page does not move however many times it
+    /// is asked, and the keyboard that comes up is a second "Done" button on
+    /// the screen for the next line of the test to find two of. A button or a
+    /// row does *not* do this — a pan beginning over one is handed to the page,
+    /// which is why swiping has always worked and why only the swipes are being
+    /// replaced.
+    ///
+    /// So the ones that do are asked where they are, and the drag begins
+    /// somewhere they are not: from the end it was asked for, then inwards.
+    ///
+    /// Nowhere at all is a real answer, and the caller flings instead. It
+    /// happens on the settings sheet at the largest text size, where the
+    /// fields are big enough to leave no band between them — and flinging is
+    /// what carried that page before any of this, because the page is long
+    /// enough that nothing there sits a few points under the fold.
+    private func aClearPlaceToDragFrom(
+        in scroller: XCUIElement,
+        of app: XCUIApplication,
+        near preferred: CGFloat
+    ) -> XCUICoordinate? {
+        let claimed =
+            (app.textFields.allElementsBoundByIndex
+                + app.secureTextFields.allElementsBoundByIndex
+                + app.segmentedControls.allElementsBoundByIndex
+                + app.sliders.allElementsBoundByIndex)
+            .map { $0.frame }
+        let frame = scroller.frame
+
+        let bands = stride(from: 0.1, through: 0.9, by: 0.05)
+            .map { CGFloat($0) }
+            .sorted { abs($0 - preferred) < abs($1 - preferred) }
+        let clear = bands.first { band in
+            let point = CGPoint(x: frame.midX, y: frame.minY + frame.height * band)
+            return !claimed.contains { $0.insetBy(dx: -4, dy: -4).contains(point) }
+        }
+        return clear.map { scroller.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: $0)) }
     }
 
     /// Where today's photograph lands, said the way the Entry points at it —

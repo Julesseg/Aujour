@@ -1326,26 +1326,41 @@ final class AujourUITests: XCTestCase {
         // out of, so a week's worth of invisible buttons there would pick a
         // day nobody aimed at, and swallow the tap that opens the month.
         //
-        // A week ago is the same weekday one row up, so it is always on the
-        // grid and never on the strip.
-        let aWeekAgo = try XCTUnwrap(daysBeforeToday(7))
-        let aRowUp = app.buttons["day-\(entryName(for: aWeekAgo))"]
+        // A week away is the same weekday one row over — on the grid and
+        // never on the strip — so long as it is a week the month reaches.
+        // Which way to look is a question of the date: a week back falls off
+        // the top of the grid while the month is under a week old, and a week
+        // on is in the month for exactly as long as a week back is not. Told
+        // apart by the day of the month, which is the same in every locale;
+        // which weekday starts a row is not.
+        let dayOfMonth = Calendar.current.component(.day, from: Date())
+        let aWeekAway = try XCTUnwrap(daysBeforeToday(dayOfMonth > 7 ? 7 : -7))
+        let aRowOver = app.buttons["day-\(entryName(for: aWeekAway))"]
         openTheDatePill(app, to: "Week")
-        XCTAssertTrue(aRowUp.exists, "the week before was not on the grid")
-        if aRowUp.isHittable { aRowUp.tap() }
+        XCTAssertTrue(aRowOver.exists, "the week beside this one was not on the grid")
+        if aRowOver.isHittable { aRowOver.tap() }
         XCTAssertFalse(
             app.buttons["backToToday"].exists,
             "a day the strip had slid past was picked through the ceiling"
         )
 
-        // And with the whole month out it is a day like any other. Which is
-        // also what says the ceiling is not simply shut: a grid nothing could
-        // be picked from would pass every check above.
+        // And with the whole month out a day off the strip is a day like any
+        // other. Which is also what says the ceiling is not simply shut: a
+        // grid nothing could be picked from would pass every check above.
+        //
+        // Picked in the past, because a day that has not arrived is locked
+        // however far open the month is — and early in the month, when the
+        // row over is the week ahead, the grid's pickable past is yesterday,
+        // worn as one of the fill days the grid keeps around its edge.
+        let pickable =
+            dayOfMonth > 7
+            ? aRowOver
+            : app.buttons["day-\(entryName(for: try XCTUnwrap(dayBeforeToday())))"]
         openTheDatePill(app, to: "Month")
-        aRowUp.tap()
+        pickable.tap()
         XCTAssertTrue(
             app.buttons["backToToday"].waitForExistence(timeout: 5),
-            "the week before could not be picked with the whole month showing"
+            "a day could not be picked with the whole month showing"
         )
     }
 

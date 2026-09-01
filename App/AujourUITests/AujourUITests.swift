@@ -3599,34 +3599,47 @@ final class AujourUITests: XCTestCase {
             )
         }
 
-        // Dragged the whole way in, never flung at.
+        // Flung while the element is far away — until the first overshoot,
+        // and never again after it.
         //
-        // A swipe hands the page momentum and lets the page decide where that
-        // lands. How far a slow swipe carries is a property of the simulator's
-        // frame timing, and on the small phone CI runs the suite on it carries
-        // more than the whole sheet — so an element more than a sheet-height
-        // below, flung at, comes out more than a sheet-height *above*, and the
-        // fling meant to close that gap throws it straight back. The loop then
-        // spends its twenty moves batting the element over the visible strip
-        // and never once through it, two minutes at a time, on no simulator
-        // here. The distance test that chose between flinging and dragging was
-        // the oscillator: the moment a fling can outrun its own threshold,
-        // "far enough to fling at" and "far enough to overshoot from" are the
-        // same distance.
+        // Both halves are earned. A swipe hands the page momentum and lets
+        // the page decide where that lands, and how far a slow swipe carries
+        // is a property of the simulator's frame timing: on the small phone
+        // CI runs the suite on it carries more than the whole sheet, so an
+        // element more than a sheet-height below, flung at, comes out more
+        // than a sheet-height *above* — and a loop that flings whenever the
+        // element is far spends its whole budget of moves batting it back
+        // and forth over the visible strip and never once through it. That
+        // is the oscillation: the moment a fling can outrun its own distance
+        // threshold, "far enough to fling at" and "far enough to overshoot
+        // from" are the same distance.
         //
-        // A drag that holds before it lifts imparts no velocity at all: the
-        // page stops where it was put (`scrollContent(of:by:)`), and a step
-        // that is clamped to the room it has cannot overshoot, so however far
-        // away the element starts, every move brings it monotonically nearer.
-        // Covering ground this way costs a move or two more than a fling did;
-        // twenty of them still out-travel any sheet in the app.
+        // But dragging the whole way is not the answer either. A drag is
+        // clamped to the room inside the sheet, and at the largest text size
+        // the sheet is three hundred points tall with the element nine
+        // thousand points down — each drag lands exactly where it was sent,
+        // and the loop still runs out of moves a sheet's-length of content
+        // short. So the fling covers the ground, and the sign of the gap is
+        // watched: the first time it flips, the fling has shown what it does
+        // on this machine and is retired, and the held drags of
+        // `scrollContent(of:by:)` — no momentum, no overshoot — close the
+        // one bounce that remains. Thirty moves, not twenty, because the
+        // bounce can happen at the end of the longest sheet, and the drags
+        // that clean it up are moves the flings did not have to spend.
         var moves = 0
-        while !aTapWouldLand(), moves < 20 {
+        var wasBelow: Bool?
+        var flingIsTrusted = true
+        while !aTapWouldLand(), moves < 30 {
             let delta = scroller.frame.midY - element.frame.midY
-            if !scrollContent(of: scroller, in: app, by: delta) {
+            if let below = wasBelow, below != (delta < 0) { flingIsTrusted = false }
+            wasBelow = delta < 0
+            if flingIsTrusted, abs(delta) > scroller.frame.height {
+                if delta > 0 { scroller.swipeDown(velocity: .slow) }
+                else { scroller.swipeUp(velocity: .slow) }
+            } else if !scrollContent(of: scroller, in: app, by: delta) {
                 // Nowhere on the page to begin a drag with room to run. One
                 // fling and try again: it is the coarse instrument, but a
-                // coarse move is better than the same refusal twenty times.
+                // coarse move is better than the same refusal thirty times.
                 if delta > 0 { scroller.swipeDown(velocity: .slow) }
                 else { scroller.swipeUp(velocity: .slow) }
             }

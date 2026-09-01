@@ -102,7 +102,14 @@ struct Lettering: Equatable {
     /// size on the device the S/M/L/XL control moves.
     static let prose = Lettering(.newsreader(.regular, .roman), size: 17, growsWith: .body)
 
-    /// A heading inside a day.
+    /// A heading inside a day — and the line a page of the app's own prose
+    /// opens with, which is the same thing from the other side: a welcome
+    /// page's title over the paragraphs under it.
+    ///
+    /// Not a fourth size cut for the welcome. `Metrics` says why: a scale
+    /// whose members are a point apart is a scale every screen has to guess
+    /// its way into, and a heading over prose is one job however the page
+    /// came to have prose on it.
     static let proseHeading = Lettering(.newsreader(.medium, .roman), size: 24, growsWith: .title2)
 
     /// Whether this role is set in the identity's prose face — what tells the

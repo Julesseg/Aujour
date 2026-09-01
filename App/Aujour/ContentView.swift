@@ -679,8 +679,11 @@ struct NudgesAreTurnedOffNotice: View {
             Turn them on in Settings › Notifications › Aujour.
             """
         )
-        .font(.caption)
-        .foregroundStyle(.red)
+        .lettering(.note)
+        // The identity's own alarm rather than the system's red, which reads
+        // at 3.18:1 on the paper this lands on — a sentence under the floor,
+        // on the one screen where the sentence is the whole point (ADR 0006).
+        .foregroundStyle(Palette.alarmColor)
         .accessibilityIdentifier(identifier)
     }
 }
@@ -696,13 +699,20 @@ struct FolderProblemNotice: View {
     let identifier: String
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: Spacing.tight) {
+            // Two steps of ink rather than two weights of one. A folder that
+            // could not be read is not an Empty State and must not start
+            // looking like one (`CONTEXT.md`), so neither line is in the
+            // identity's prose voice — what tells them apart is the ink and
+            // the size, which is how the rest of the app says "this line, then
+            // the one explaining it".
             Text(problem.message)
-                .font(.callout.weight(.semibold))
+                .lettering(.rowLabel)
+                .foregroundStyle(Palette.inkColor)
                 .accessibilityIdentifier(identifier)
             Text(problem.suggestion)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .lettering(.note)
+                .foregroundStyle(Palette.inkMutedColor)
         }
         .multilineTextAlignment(.center)
     }

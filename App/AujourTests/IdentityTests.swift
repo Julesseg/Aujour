@@ -124,6 +124,34 @@ struct PaletteTests {
         }
     }
 
+    /// The one colour in the palette that is neither paper, ink nor accent.
+    /// It carries a sentence — the whole of what an alarm is here is a
+    /// sentence saying what has gone wrong — so it is held to the sentence
+    /// floor on every ground, which is what the system's own red does not
+    /// clear on paper.
+    @Test("the alarm clears 4.5:1 wherever a sentence in it lands", arguments: appearances)
+    func theAlarmClearsTheSentenceFloor(appearance: (name: String, style: UIUserInterfaceStyle)) {
+        for ground in grounds {
+            let measured = Landed(Palette.alarm, in: appearance.style, over: ground.colour)
+                .contrast(against: Landed(ground.colour, in: appearance.style))
+            #expect(
+                measured >= 4.5,
+                "alarm on \(ground.name) in \(appearance.name) is \(measured), under 4.5:1"
+            )
+        }
+    }
+
+    /// And that it is the identity's own and not the system's, which is the
+    /// value it replaced and the reason the token exists: `.systemRed` reads
+    /// at 3.18:1 on the paper Aujour draws on.
+    @Test("the alarm is not the system's red")
+    func theAlarmIsTheIdentitysOwn() {
+        #expect(Palette.alarm.hex(in: .light) != UIColor.systemRed.hex(in: .light))
+        let systemRed = Landed(.systemRed, in: .light, over: Palette.background)
+            .contrast(against: Landed(Palette.background, in: .light))
+        #expect(systemRed < 4.5, "the system's red clears the floor — this token is unnecessary")
+    }
+
     /// The step has to be visible, or the palette is claiming a distinction it
     /// does not draw.
     @Test("the three inks are three different colours", arguments: appearances)

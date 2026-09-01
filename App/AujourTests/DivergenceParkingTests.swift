@@ -191,6 +191,94 @@ struct DivergenceParkingTests {
             #expect(try await store.listFiles() == [entry, "2026/03/2026-03-01_1.md"])
         }
     }
+
+    /// The one thing Aujour does with a Parked File other than say it is
+    /// there: point at it, so the user can be taken to it in the app the
+    /// folder belongs to (`CONTEXT.md`, Parked File).
+    @Test("a Parked File can be pointed at, where it was left")
+    func aParkedFileCanBePointedAtWhereItLies() async throws {
+        try await withTemporaryFolder { root in
+            try root.seed("Written on this iPhone.\n", at: entry, writtenAt: lunch)
+            let store = FileJournalStore(root: root)
+            let iPad = AVersionHeldByTheSystem("Written on the iPad.\n", writtenAt: dinner)
+            let parking = DivergenceParking(
+                store: store,
+                versions: TheVersionsHeldFor(entry, in: root, are: [iPad])
+            )
+
+            let parked = try #require(try await parking.park(entry, of: march1).first)
+            let onDisk = try #require(parking.whereItLies(parked))
+
+            #expect(
+                onDisk.standardizedFileURL
+                    == root.appending(path: parked.path).standardizedFileURL
+            )
+            #expect(FileManager.default.fileExists(atPath: onDisk.path))
+        }
+    }
+}
+
+// MARK: - The day's own screen
+
+@MainActor
+@Suite("A day written twice, said where that day is being written")
+struct DivergenceToldToTheUserTests {
+    /// The two halves of what the screen is owed: the day that was written
+    /// twice has something to say, and every other day has nothing. A notice
+    /// about March 1st over the Entry for the 14th would be about a file that
+    /// is nowhere near it.
+    @Test("only the day that was written twice has anything to say about it")
+    func aParkedFileBelongsToItsOwnDayAndNoOther() async throws {
+        try await withTemporaryFolder { folders in
+            let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
+            let today = JournalDay.current(at: .now, in: .current, rolloverHour: .midnight)
+            let entryPath = PathTemplate.default.render(today)
+            try iCloud.seed("Written on this iPhone.\n", at: entryPath, writtenAt: lunch)
+            let journal = Journal(
+                locator: .test(iCloudDocuments: iCloud, folders: folders),
+                settings: .inMemory(),
+                templateElsewhere: .unpicked,
+                versions: TheVersionsHeldFor(
+                    entryPath,
+                    in: iCloud,
+                    are: [AVersionHeldByTheSystem("Written on the iPad.\n", writtenAt: dinner)]
+                )
+            )
+
+            await journal.open()
+
+            let parked = try #require(journal.parkedFiles(from: today).first)
+            #expect(parked.name == "\(today.description)_1.md")
+            #expect(journal.parkedFiles(from: today.adding(days: -1)).isEmpty)
+
+            // Both versions are still there, one at the day's own path and one
+            // beside it — the promise the whole folder rests on (ADR 0001).
+            let onDisk = try #require(journal.whereItLies(parked))
+            #expect(try String(contentsOf: onDisk, encoding: .utf8) == "Written on this iPhone.\n")
+            #expect(
+                try String(contentsOf: iCloud.appending(path: entryPath), encoding: .utf8)
+                    == "Written on the iPad.\n"
+            )
+        }
+    }
+
+    @Test("a day nobody else wrote says nothing at all")
+    func aDayWithNoOtherVersionSaysNothing() async throws {
+        try await withTemporaryFolder { folders in
+            let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
+            let today = JournalDay.current(at: .now, in: .current, rolloverHour: .midnight)
+            try iCloud.seed("Walked to the market.\n", at: PathTemplate.default.render(today))
+            let journal = Journal(
+                locator: .test(iCloudDocuments: iCloud, folders: folders),
+                settings: .inMemory(),
+                templateElsewhere: .unpicked
+            )
+
+            await journal.open()
+
+            #expect(journal.parkedFiles(from: today).isEmpty)
+        }
+    }
 }
 
 // MARK: - The versions iCloud would have been holding

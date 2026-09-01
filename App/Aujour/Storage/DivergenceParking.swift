@@ -121,6 +121,23 @@ struct DivergenceParking {
         return parkedFiles
     }
 
+    /// Where a Parked File actually is on this device, so that it can be
+    /// shown to the user where it lies.
+    ///
+    /// The other half of the whole of what Aujour does with a Parked File:
+    /// say it is there, and point at it. Reading the two versions against
+    /// each other is the user's work in their own editor, because an opinion
+    /// about their contents is exactly the opinion this app does not have
+    /// (`CONTEXT.md`, Parked File).
+    ///
+    /// Here rather than on `ParkedFile` itself, for the reason the path is
+    /// relative in the first place: where a folder is on a device is the
+    /// store's answer, and a value that carried a URL around would be a
+    /// second one going stale beside it.
+    func whereItLies(_ file: ParkedFile) -> URL? {
+        try? url(for: file.path)
+    }
+
     /// Writes one version to a name of its own, taking the next free one if
     /// something has appeared at the chosen name since the folder was listed.
     ///

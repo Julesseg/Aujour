@@ -257,7 +257,7 @@ struct ContentView: View {
                 photographsFrom: journal.photoLibrary,
                 placesFrom: journal.places
             )
-            .parkedFilesNotice(from: journal, for: onScreen.day)
+            .parkedFilesNotice(from: journal, for: onScreen.day, in: appearance.accent)
         } else if let calendar = journal.calendar, let opensAt = calendar.writingOpensAt {
             ADayThatHasNotArrived(writingOpensAt: opensAt)
         } else {
@@ -412,7 +412,7 @@ struct ContentView: View {
                 switch wayIn {
                 case .search:
                     if let search = journal.search {
-                        JournalSearchView(search: search, journal: journal)
+                        JournalSearchView(search: search, journal: journal, accent: appearance.accent)
                     }
                 }
             }
@@ -499,13 +499,26 @@ extension View {
     /// Above the words rather than over them: a version of this day the user
     /// has not seen is news, and the day itself is still theirs to write in
     /// while the notice is up.
-    func parkedFilesNotice(from journal: Journal, for day: JournalDay) -> some View {
+    func parkedFilesNotice(
+        from journal: Journal,
+        for day: JournalDay,
+        in accent: Accent
+    ) -> some View {
         safeAreaInset(edge: .top) {
             let parked = journal.parkedFiles(from: day)
             if !parked.isEmpty {
-                ParkedFilesNotice(files: parked) {
-                    journal.acknowledgeParkedFiles(from: day)
-                }
+                ParkedFilesNotice(
+                    files: parked,
+                    accent: accent,
+                    show: { file in
+                        // Nothing to open where the journal can no longer say
+                        // where the file is. It is still where it was left,
+                        // which is the whole point of a Parked File.
+                        guard let onDisk = journal.whereItLies(file) else { return }
+                        TheFilesApp.show(onDisk)
+                    },
+                    acknowledge: { journal.acknowledgeParkedFiles(from: day) }
+                )
             }
         }
     }
@@ -518,51 +531,134 @@ extension View {
 /// meet it at all: without it, the only sign that a version of today was set
 /// aside would be a file they have no reason to go looking for.
 ///
-/// Dismissible, and nothing else. Aujour does not offer to merge the two, or
-/// to delete either: they are the user's words in the user's folder, and this
-/// is the one moment the app is not the right thing to be doing it in
-/// (ADR 0002).
+/// **Never an error colour.** Nothing went wrong: both versions are somebody's
+/// words and both are still there. So the banner is the accent's, like the
+/// rest of what the app says about itself, and the reader's own accent at
+/// that.
+///
+/// Its one action is to show the Parked File where it lies. Aujour does not
+/// offer to compare the two versions, or to merge them, or to delete either:
+/// that is an opinion about the contents of somebody's files, and having none
+/// is the whole of ADR 0001. Merging is their work in their own editor
+/// (`CONTEXT.md`, Parked File).
 struct ParkedFilesNotice: View {
     let files: [ParkedFile]
+
+    /// The one colour the app spends on itself, and so the one this is
+    /// tinted with — the reader's own choice, not a colour this banner picked
+    /// to mean something.
+    let accent: Accent
+
+    /// Shows one of them where it lies, outside the app.
+    let show: (ParkedFile) -> Void
+
     let acknowledge: () -> Void
 
+    /// The mark the banner opens with, and how far down the line it sits.
+    /// Both grow with the sentence beside them: a seven-point dot against a
+    /// line of accessibility-sized text would be a speck.
+    @ScaledMetric(relativeTo: .subheadline) private var markSize: CGFloat = 7
+    @ScaledMetric(relativeTo: .subheadline) private var markDrop: CGFloat = 6
+
+    init(
+        files: [ParkedFile],
+        accent: Accent,
+        show: @escaping (ParkedFile) -> Void,
+        acknowledge: @escaping () -> Void
+    ) {
+        self.files = files
+        self.accent = accent
+        self.show = show
+        self.acknowledge = acknowledge
+    }
+
+    // MARK: - What it says
+
+    /// What the other versions are called — the name and not the path,
+    /// because the name is what the user will see the file called when they
+    /// go looking for it.
     private var names: String {
         files.map(\.name).formatted(.list(type: .and))
     }
 
-    private var headline: String {
+    /// The news, which is a file name: without it the only sign that a
+    /// version of this day was set aside is a file nobody has a reason to
+    /// look for.
+    var sentence: String {
         files.count == 1
-            ? "Another version of this day was kept"
-            : "\(files.count) other versions of this day were kept"
+            ? "Another version of this day was kept as \(names)"
+            : "Other versions of this day were kept, as \(names)"
     }
 
-    private var detail: String {
-        files.count == 1
-            ? "Two devices wrote it, so Aujour kept both rather than merging them. The other one is beside your entry as \(names) — open it in Files or Obsidian to bring across anything you want."
-            : "This day was written on more than one device, so Aujour kept every version rather than merging them. They are beside your entry as \(names) — open them in Files or Obsidian to bring across anything you want."
-    }
+    /// And the whole of what it means. Two devices wrote one day and both
+    /// versions are in the folder; there is nothing here for anybody to put
+    /// right.
+    var reassurance: String { "Nothing was lost." }
+
+    /// Where the user is sent, said as what happens rather than as what the
+    /// app would be doing: the design file's "Compare" named a screen Aujour
+    /// does not have and will not have.
+    static let action = "Show in Files"
+
+    // MARK: - What it is drawn in
+
+    // Every colour here is one of the identity's own, which is what "never an
+    // error colour" comes to in practice — there is no error colour in the
+    // palette to reach for. A shape takes the accent and a word takes its ink
+    // shade, which is the one rule the palette rests on (`Accent.inkColor`).
+
+    var mark: UIColor { accent.uiColor }
+    var actionInk: UIColor { accent.inkColor }
+    var sentenceInk: UIColor { Palette.ink }
+    var reassuranceInk: UIColor { Palette.inkMuted }
+    var dismissInk: UIColor { Palette.inkFaint }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "doc.on.doc")
-                .foregroundStyle(.tint)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(headline)
-                    .font(.footnote.weight(.semibold))
+        HStack(alignment: .top, spacing: Spacing.comfortable) {
+            Circle()
+                .fill(Color(mark))
+                .frame(width: markSize, height: markSize)
+                .padding(.top, markDrop)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Spacing.tight) {
+                Text(sentence)
+                    .lettering(.rowValue)
+                    .foregroundStyle(Color(sentenceInk))
                     .accessibilityIdentifier("parkedFileNotice")
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("parkedFileNames")
+                Text(reassurance)
+                    .lettering(.note)
+                    .foregroundStyle(Color(reassuranceInk))
+                if let oneOfThem = files.first {
+                    // One of them and not each: they were all set aside
+                    // beside the same Entry, so the folder this opens is the
+                    // folder the rest of them are in.
+                    Button(Self.action) { show(oneOfThem) }
+                        .lettering(.chipLabel)
+                        .foregroundStyle(Color(actionInk))
+                        .buttonStyle(.plain)
+                        .padding(.top, Spacing.tight)
+                        .accessibilityIdentifier("showParkedFileInFiles")
+                }
             }
             Spacer(minLength: 0)
             Button("Dismiss", systemImage: "xmark", action: acknowledge)
                 .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
+                .foregroundStyle(Color(dismissInk))
                 .accessibilityIdentifier("dismissParkedFileNotice")
         }
-        .padding(12)
-        .background(.thinMaterial)
+        .padding(Spacing.comfortable)
+        // The system's own glass, rather than the palette's fill, ring and
+        // pair of shadows — the same call the date pill makes, and for the
+        // same reason. This is a pane over a page somebody is writing on and
+        // scrolling under it: it has to refract what goes past, light its own
+        // edge against it, and go opaque for a reader who has asked for less
+        // transparency, none of which a colour can do. `Palette.glass` is the
+        // account of it kept for the grounds the contrast floor is measured
+        // against (ADR 0006).
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Rounding.card))
+        .padding(.horizontal, Spacing.comfortable)
+        .padding(.bottom, Spacing.close)
     }
 }
 

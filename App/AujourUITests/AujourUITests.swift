@@ -2059,10 +2059,18 @@ final class AujourUITests: XCTestCase {
         )
         let parkedName = "\(todaysEntryName())_1.md"
         XCTAssertTrue(
-            app.staticTexts["parkedFileNames"].label.contains(parkedName),
-            "the notice did not name \(parkedName): "
-                + app.staticTexts["parkedFileNames"].label
+            notice.label.contains(parkedName),
+            "the notice did not name \(parkedName): " + notice.label
         )
+
+        // And the one thing the app offers to do about it: show that file
+        // where it lies. Not tapped — it leaves for the Files app, and what
+        // is being proven here is that the way out is on screen and reachable
+        // at all.
+        let showIt = app.buttons["showParkedFileInFiles"]
+        XCTAssertTrue(showIt.exists, "the notice offered no way to the file it named")
+        XCTAssertEqual(showIt.label, "Show in Files")
+        XCTAssertTrue(showIt.isHittable)
 
         // The Parked File is beside the journal and not in it: one day
         // written, one entry, whatever else is in the folder (ADR 0002).

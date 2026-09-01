@@ -18,6 +18,12 @@ struct JournalSearchView: View {
     /// that a result does not carry: the editor over that day's file.
     let journal: Journal
 
+    /// The one colour the app spends on itself, handed down rather than read
+    /// out of the environment for the reason the date pill's is: the screen
+    /// above already has it, and a day opened from here can have as much to
+    /// say for itself as today's does.
+    let accent: Accent
+
     @State private var query = ""
 
     /// The day being written in, pushed on top of the results — nil while the
@@ -61,7 +67,7 @@ struct JournalSearchView: View {
                 photographsFrom: journal.photoLibrary,
                 placesFrom: journal.places
             )
-            .parkedFilesNotice(from: journal, for: opened.day)
+            .parkedFilesNotice(from: journal, for: opened.day, in: accent)
             // With its year: a day reached from a search can be years back,
             // and every February has a 14th.
             .navigationTitle(opened.day.spelledOut(withYear: true))
@@ -242,7 +248,8 @@ private struct SearchProblemNotice: View {
                     )
                 )
             ),
-            journal: Journal.inAPreview(over: .preview(.onThisDevice))
+            journal: Journal.inAPreview(over: .preview(.onThisDevice)),
+            accent: DeviceSettings.default.accent
         )
     }
 }
@@ -251,7 +258,8 @@ private struct SearchProblemNotice: View {
     NavigationStack {
         JournalSearchView(
             search: JournalSearch(store: InMemoryJournalStore()),
-            journal: Journal.inAPreview(over: .preview(.onThisDevice))
+            journal: Journal.inAPreview(over: .preview(.onThisDevice)),
+            accent: DeviceSettings.default.accent
         )
     }
 }

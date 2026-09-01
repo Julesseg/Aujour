@@ -2,9 +2,10 @@ name: Unblock dispatch
 
 # Find `ready-for-agent` issues that are ready to work — either never blocked,
 # or with a "## Blocked by" list that is now fully closed — and dispatch an
-# agent-implement run for each, up to an in-flight cap. Issues deferred by the
-# cap are picked up automatically on the next run, because every run re-scans
-# every open `ready-for-agent` issue.
+# agent-implement run for each, up to an in-flight cap of one (the Mac that
+# runs the sessions can only carry one). Issues deferred by the cap are picked
+# up automatically on the next run, because every run re-scans every open
+# `ready-for-agent` issue.
 #
 # This workflow never labels an issue: the `agent-dispatched` label is applied
 # by the session itself, so it always means a session really started. Until
@@ -37,7 +38,11 @@ jobs:
       - uses: actions/github-script@v7
         with:
           script: |
-            const MAX_IN_FLIGHT = 3;
+            // One at a time: every session runs on baldur, a single old Mac
+            // that cannot carry two at once. This cap keeps the queue honest;
+            // agent-implement.yml enforces the same limit on the host itself,
+            // where it also covers runs this dispatcher did not fire.
+            const MAX_IN_FLIGHT = 1;
             const DISPATCH_LABEL = 'agent-dispatched';
             const READY_LABEL = 'ready-for-agent';
             const WORKFLOW_FILE = 'agent-implement.yml';

@@ -18,13 +18,15 @@ Two workflows split detection from execution:
    issue number and comments on the issue.
 2. **`agent-implement.yml`** (self-hosted Mac runner) re-checks the issue, then
    fetches the Mac clone's remotes and runs `paseo run --detach --new-branch
-   claude/issue-<N> --base origin/main … "/label-and-implement-with-pr issue #<N>"`.
+   claude/issue-<N> --base origin/main --label agent-implement=<N> …
+   "/label-and-implement-with-pr issue #<N>"` — unless another labeled session
+   is still running on the Mac, in which case it spawns nothing (see below).
    The `/label-and-implement-with-pr` skill carries the workflow instructions —
    claim the issue with the `agent-dispatched` label, run `/implement` to build
    it per AGENTS.md, then merge the base branch in, push, and open a PR that
    closes the issue. `--detach` means the session runs under the Paseo daemon
-   and outlives the (short) runner job; the worktree flags keep parallel
-   sessions from clobbering one checkout.
+   and outlives the (short) runner job; the worktree flags keep the session
+   off the clone's own checkout.
 
    That skill ships in this repo, at `.claude/skills/`, alongside a mirror of
    the maintainer's personal skill set. The personal copies under
@@ -57,6 +59,46 @@ in the queue holds nothing, so the issue goes back in the pool and is dispatched
 again on the next run. (Because the runs list is the guard, the dispatcher waits
 for each run it fires to become visible before moving on.)
 
+### One session at a time on baldur
+
+Sessions run on **baldur**, the self-hosted Mac — old enough that a second
+concurrent session leaves both crawling. So the in-flight cap is **1**, and the
+spawn job checks the machine itself before starting anything: `paseo ls
+--global` on the runner, narrowed to sessions this workflow labeled
+`agent-implement=<issue>`, and if any of them is `initializing` or `running`
+the job spawns nothing and leaves a notice.
+
+Two layers, because they cover different holes. The dispatcher's cap decides
+what to fire and knows nothing about the Mac — it cannot see a session started
+by a manual `agent-implement` run, or one still winding down inside the
+30-minute handoff grace. The host check is the load-bearing one, and it fails
+closed: **force does not override it**, unlike the issue checks below, because
+it stands for what the hardware can take rather than for bookkeeping that might
+be out of date. To spawn while a session is live, stop that session in Paseo
+first and re-run.
+
+The check is machine-wide, not repo-wide: `--global` sees every session on the
+daemon, so another repo running this same workflow on baldur holds the slot
+too, which is what a limit on the hardware should do.
+
+Two things deliberately do not count. `idle` sessions: an idle session has
+finished its turn and costs the machine nothing while it waits to be archived.
+And sessions this workflow did not start — the label is what identifies them,
+so one you open on baldur by hand is invisible to the check, and opening one
+next to a dispatched session puts two on the Mac anyway.
+
+Because the check reads the label, it only works on a Paseo CLI that has both
+`ls --global` and `run --label`. An older one would leave every session
+unlabeled and count zero busy sessions forever, so the spawn job checks for
+both flags and fails red rather than letting the limit quietly stop existing.
+
+An issue skipped for a busy host is not lost, but it is not instant either: its
+spawn run succeeded, so it holds the issue for the 30-minute grace period and
+then returns to the pool for the next dispatcher run. If the session holding
+the Mac finishes inside that window, the dispatcher run its closing PR triggers
+still sees the hold and defers again — a manual re-scan is the quick way to
+pick the issue back up.
+
 ### The spawn-time re-check
 
 A spawn job can sit queued for hours, so what was true when the dispatcher
@@ -71,7 +113,8 @@ anything, `agent-implement.yml` fetches the issue again and does nothing if:
 Both leave a notice on the run rather than failing it: nothing went wrong, the
 work simply no longer needs doing. A manual run can override either check by
 ticking **force**, which is how you re-dispatch an issue whose session died
-holding the label.
+holding the label. Force does not reach the host check above — a busy baldur
+stops the spawn either way.
 
 ### Scope rules
 
@@ -81,12 +124,13 @@ holding the label.
 - **Umbrella issues are always skipped**: epics (`[Epic]` title prefix) and
   specs (`Spec:` title prefix). A human slices these into per-milestone child
   issues; a single agent session should never attempt one.
-- At most **3** issues are in flight at once — counting both issues that carry
-  the `agent-dispatched` label and issues whose spawn run is still live. Ready
-  issues beyond the cap are deferred; because every dispatcher run re-scans
-  every open `ready-for-agent` issue, they're picked up automatically on the
-  next run. While the Mac is offline the cap applies to the queue, so at most
-  3 sessions pile up waiting for it.
+- At most **1** issue is in flight at once — counting both issues that carry
+  the `agent-dispatched` label and issues whose spawn run is still live —
+  because one session is all baldur can carry. Ready issues beyond the cap are
+  deferred; because every dispatcher run re-scans every open `ready-for-agent`
+  issue, they're picked up automatically on the next run, usually the one fired
+  by the running session's PR closing its own issue. While the Mac is offline
+  the cap applies to the queue, so a single session waits for it.
 - If a session gives up, it removes the issue's `agent-dispatched` label and
   comments — which frees a slot and makes the issue eligible again.
 
@@ -217,4 +261,5 @@ bypasses the scope rules entirely — the escape hatch for an umbrella issue or
 one you haven't labeled `ready-for-agent`. It still counts against the in-flight
 cap: the run holds the issue while it is live, and the session it spawns labels
 the issue like any other. The spawn-time re-check still applies — a closed or
-already-claimed issue needs **force** ticked.
+already-claimed issue needs **force** ticked — and so does the one-session
+limit, which **force** does not lift.

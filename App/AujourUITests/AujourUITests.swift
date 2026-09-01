@@ -3252,8 +3252,15 @@ final class AujourUITests: XCTestCase {
         }
         settings.tap()
 
+        // Waited on as long as the journal itself is. The count is not a
+        // label the sheet draws and then fills in — it arrives with the
+        // journal, which has to find its folder and read it before there is a
+        // number to say, and after a relaunch that is a cold start. Five
+        // seconds is a machine with the folder already warm; on a slow runner
+        // it is the sheet being asked before the journal has answered, which
+        // reads as "no entry count was shown" and is not what went wrong.
         let entryCount = app.staticTexts["journalEntryCount"]
-        guard entryCount.waitForExistence(timeout: 5) else { return "no entry count was shown" }
+        guard entryCount.waitForExistence(timeout: 30) else { return "no entry count was shown" }
         return entryCount.label
     }
 
@@ -3555,7 +3562,7 @@ final class AujourUITests: XCTestCase {
     /// Steered rather than swiped at: the journal sheet is long, and on a
     /// small screen one full-speed swipe can carry the thing being looked for
     /// straight past the visible strip — after which a loop that only ever
-    /// swipes one way is chasing it in the wrong direction. So each swipe asks
+    /// swipes one way is chasing it in the wrong direction. So each move asks
     /// where it has got to, and goes the way that closes the gap.
     ///
     /// Swiped on the scroll view and not on the screen, because an iPad
@@ -3592,30 +3599,31 @@ final class AujourUITests: XCTestCase {
             )
         }
 
-        // Flung while the element is more than a screen away, and dragged the
-        // rest of the way in.
+        // Dragged the whole way in, never flung at.
         //
         // A swipe hands the page momentum and lets the page decide where that
-        // lands, which is fine while there is a content end to clamp against:
-        // the clamp is what used to land an element sitting a few points under
-        // the fold, and it is why this worked for as long as the settings
-        // sheet was short. Add a row past the fold and nothing clamps — the
-        // fling runs clean over the element, the loop brings it back, and
-        // forty swipes later it is still going, two and a half minutes in and
-        // nowhere. It happens on the small phone CI runs the suite on and on
-        // no simulator here, which is the worst way to find it.
+        // lands. How far a slow swipe carries is a property of the simulator's
+        // frame timing, and on the small phone CI runs the suite on it carries
+        // more than the whole sheet — so an element more than a sheet-height
+        // below, flung at, comes out more than a sheet-height *above*, and the
+        // fling meant to close that gap throws it straight back. The loop then
+        // spends its twenty moves batting the element over the visible strip
+        // and never once through it, two minutes at a time, on no simulator
+        // here. The distance test that chose between flinging and dragging was
+        // the oscillator: the moment a fling can outrun its own threshold,
+        // "far enough to fling at" and "far enough to overshoot from" are the
+        // same distance.
         //
         // A drag that holds before it lifts imparts no velocity at all: the
-        // page stops where it was put (`scrollContent(of:by:)`). A step that
-        // cannot overshoot cannot oscillate, so the close-in work is done with
-        // those and the fling is left to cover ground.
+        // page stops where it was put (`scrollContent(of:by:)`), and a step
+        // that is clamped to the room it has cannot overshoot, so however far
+        // away the element starts, every move brings it monotonically nearer.
+        // Covering ground this way costs a move or two more than a fling did;
+        // twenty of them still out-travel any sheet in the app.
         var moves = 0
         while !aTapWouldLand(), moves < 20 {
             let delta = scroller.frame.midY - element.frame.midY
-            if abs(delta) > scroller.frame.height {
-                if delta > 0 { scroller.swipeDown(velocity: .slow) }
-                else { scroller.swipeUp(velocity: .slow) }
-            } else if !scrollContent(of: scroller, in: app, by: delta) {
+            if !scrollContent(of: scroller, in: app, by: delta) {
                 // Nowhere on the page to begin a drag with room to run. One
                 // fling and try again: it is the coarse instrument, but a
                 // coarse move is better than the same refusal twenty times.

@@ -701,14 +701,21 @@ final class Journal {
     /// Adopting is a write to the settings and nothing more — see
     /// ``adopt(_:)`` — so a caller that gets an outcome back is looking at a
     /// journal that has already reopened onto the new shape.
+    ///
+    /// - Parameter progress: told how far through the moving is, as each day
+    ///   settles. Called here on the main actor, in order, and never after
+    ///   this returns — so the screen watching it can set what it draws
+    ///   directly. Nothing is reported for a skipped migration: no file moves,
+    ///   and there is no length of time to say anything about.
     @discardableResult
     func changeThePathTemplate(
         to template: PathTemplate,
-        movingEntriesBy plan: MigrationPlan?
+        movingEntriesBy plan: MigrationPlan?,
+        reporting progress: (MigrationProgress) -> Void = { _ in }
     ) async -> MigrationOutcome? {
         var outcome: MigrationOutcome?
         if let plan, !plan.isEmpty, let store {
-            outcome = await JournalMigration(over: store).carryOut(plan)
+            outcome = await JournalMigration(over: store).carryOut(plan, reporting: progress)
         }
 
         await adopt { $0.pathTemplate = template.format }

@@ -58,11 +58,35 @@ public struct JournalMigration: Sendable {
     /// rest of them. The moves for one day are a sequence — aside, and then
     /// on — and the second of them over a file that never left is a refusal
     /// about a file that is not the one the user needs telling about.
-    public func carryOut(_ plan: MigrationPlan) async -> MigrationOutcome {
+    ///
+    /// - Parameters:
+    ///   - plan: what to do, in the order it says to do it in.
+    ///   - progress: told how far through this is, before the first move and
+    ///     again as each day settles. A migration touches every file in
+    ///     somebody's journal and a journal is as big as a journal gets, so
+    ///     what the screen above it needs is a number out of a number — a
+    ///     spinner over an operation that can run for a minute says only that
+    ///     the app has not crashed.
+    ///
+    ///     Called on the caller's own isolation, in order, and never after
+    ///     this has returned: the screen holding the number can therefore be
+    ///     one the main actor owns, and set it the way it sets anything else.
+    public func carryOut(
+        _ plan: MigrationPlan,
+        isolation: isolated (any Actor)? = #isolation,
+        reporting progress: (MigrationProgress) -> Void = { _ in }
+    ) async -> MigrationOutcome {
         var moved: [JournalDay] = []
         var parked: [MigrationOutcome.ParkedFile] = []
         var leftBehind: [MigrationOutcome.LeftBehind] = []
         var givenUpOn: Set<JournalDay> = []
+
+        // Days and not moves: a day whose new path is held by another day on
+        // its way out is moved twice, and a bar counting those separately
+        // would run past the number of entries the offer was made about.
+        let total = plan.entryCount
+        var settled = 0
+        progress(MigrationProgress(settled: settled, total: total))
 
         for move in plan.moves {
             guard !givenUpOn.contains(move.day) else { continue }
@@ -78,7 +102,7 @@ public struct JournalMigration: Sendable {
                 case .asideWhileThePathClears:
                     // Not there yet: the move that brings it the rest of the
                     // way is what this day is counted by.
-                    break
+                    continue
                 }
             } catch {
                 givenUpOn.insert(move.day)
@@ -86,6 +110,12 @@ public struct JournalMigration: Sendable {
                     MigrationOutcome.LeftBehind(day: move.day, path: move.from, problem: error)
                 )
             }
+            // Counted either way. A day the folder refused is a day nothing
+            // further will be tried for, and a bar that stopped short of the
+            // end on a partial outcome would leave the screen waiting on a
+            // migration that had finished.
+            settled += 1
+            progress(MigrationProgress(settled: settled, total: total))
         }
 
         return MigrationOutcome(moved: moved, parked: parked, leftBehind: leftBehind)
@@ -160,4 +190,38 @@ public struct MigrationOutcome: Sendable {
 
     /// Whether every day the plan was about ended up where the plan said.
     public var wentThrough: Bool { leftBehind.isEmpty }
+}
+
+/// How far through a migration is: the days it has finished with, out of the
+/// days the plan was about.
+///
+/// A pair of counts and not a fraction, because the counts are what the
+/// screen says out loud — "12 of 40 entries" is a sentence somebody can watch
+/// and check against the offer they accepted, and a bar drawn from a number
+/// nobody is shown is a bar nobody can tell is stuck. The fraction is derived,
+/// for the bar itself.
+public struct MigrationProgress: Hashable, Sendable {
+    /// The days that are where they are going to end up — moved, parked
+    /// beside the file already there, or left behind by a folder that would
+    /// not move them. All three are settled: nothing further is tried for any
+    /// of them.
+    public let settled: Int
+
+    /// The days the plan is about, fixed before the first file moves. A total
+    /// that grew while the bar was filling would be a bar that went backwards.
+    public let total: Int
+
+    public init(settled: Int, total: Int) {
+        self.settled = settled
+        self.total = total
+    }
+
+    /// How full the bar is, from 0 to 1.
+    ///
+    /// A plan about no days is whole rather than undefined: there is nothing
+    /// left to do, which is what being through means.
+    public var fraction: Double {
+        guard total > 0 else { return 1 }
+        return Double(settled) / Double(total)
+    }
 }

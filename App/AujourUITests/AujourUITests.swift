@@ -2186,6 +2186,12 @@ final class AujourUITests: XCTestCase {
         // would guess (ADR 0002).
         XCTAssertTrue(app.staticTexts["migrationLinkWarning"].exists)
 
+        // Both ways out are offered, and each says what it does. Leaving the
+        // files where they are is a choice ADR 0002 gives the user, not a
+        // way of backing out of one the screen had already made for them.
+        XCTAssertEqual(app.buttons["moveEntries"].label, "Move Them")
+        XCTAssertEqual(app.buttons["skipMigration"].label, "Leave Them Where They Are")
+
         app.buttons["moveEntries"].tap()
         let summary = app.staticTexts["migrationSummary"]
         XCTAssertTrue(summary.waitForExistence(timeout: 30), "the migration never finished")

@@ -240,7 +240,14 @@ struct MigrationScreenTests {
         // other colour from outside the palette, fails here — which the
         // assertions above, each naming the token they expect, cannot catch
         // on their own.
+        // The palette minus its one alarm, which is the whole of the claim:
+        // `Palette.alarm` is held for "the state the app cannot get itself
+        // out of", and its own doc names this flow as what it is *not* for —
+        // "a partial migration is reported in the accent". A membership test
+        // that let it through would pass on the one colour this screen must
+        // never reach for.
         let theIdentitys: Set<UIColor> = Set(Palette.everyToken.map(\.colour))
+            .subtracting([Palette.alarm])
             .union([accent.uiColor, accent.inkColor, accent.softColor, accent.softerColor])
         let drawnWith = [
             asked.mark, asked.questionInk, asked.detailInk,

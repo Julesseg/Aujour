@@ -1934,8 +1934,15 @@ final class AujourUITests: XCTestCase {
 
         // One character in and straight back out: the day says exactly what it
         // said, and it is no longer a day nobody has written.
-        editor.typeText("x")
-        editor.typeText(XCUIKeyboardKey.delete.rawValue)
+        //
+        // In one `typeText` and not two, because the pair is racing the
+        // autosave: a second of quiet after a keystroke is a file, and two
+        // separate calls are two rounds of event synthesis that a slow
+        // runner holds more than a second apart — at which point the 'x' is
+        // written, the delete writes the spawned words over it, and a day
+        // this test is about to swear has no file has one. Sent together,
+        // the keystrokes land milliseconds apart and the quiet never comes.
+        editor.typeText("x" + XCUIKeyboardKey.delete.rawValue)
         expect(editor, toHaveValue: spawned)
         let written = try brightness(of: editor)
 

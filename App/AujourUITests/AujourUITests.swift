@@ -3471,25 +3471,72 @@ final class AujourUITests: XCTestCase {
             )
         }
 
-        // Swiped and not dragged, however much a drag of a chosen distance
-        // would suit the loop above. A gesture is delivered wherever it
-        // starts, and a slow drag beginning on a text field or a segmented
-        // control is claimed by that control rather than by the scroll view —
-        // measurably: it scrolls twice, lands on one of them, and then the
-        // page does not move again however many times it is asked.
-        var swipes = 0
-        while !aTapWouldLand(), swipes < 40 {
-            if element.frame.midY < scroller.frame.midY {
-                scroller.swipeDown(velocity: .slow)
+        // Flung while the element is more than a screen away, and dragged the
+        // rest of the way in.
+        //
+        // A swipe hands the page momentum and lets the page decide where that
+        // lands, which is fine while there is a content end to clamp against:
+        // the clamp is what used to land an element sitting a few points under
+        // the fold, and it is why this worked for as long as the settings
+        // sheet was short. Add a row past the fold and nothing clamps — the
+        // fling runs clean over the element, the loop brings it back, and
+        // forty swipes later it is still going, two and a half minutes in and
+        // nowhere. It happens on the small phone CI runs the suite on and on
+        // no simulator here, which is the worst way to find it.
+        //
+        // A drag that holds before it lifts imparts no velocity at all: the
+        // page stops where it was put. A step that cannot overshoot cannot
+        // oscillate, so the close-in work is done with those and the fling is
+        // left to cover ground.
+        var moves = 0
+        while !aTapWouldLand(), moves < 20 {
+            let delta = scroller.frame.midY - element.frame.midY
+            if abs(delta) > scroller.frame.height {
+                if delta > 0 { scroller.swipeDown(velocity: .slow) }
+                else { scroller.swipeUp(velocity: .slow) }
             } else {
-                scroller.swipeUp(velocity: .slow)
+                scrollContent(of: scroller, by: delta)
             }
-            swipes += 1
+            moves += 1
         }
         XCTAssertTrue(
             aTapWouldLand(),
             "\(element) never came into view — it is at \(element.frame), "
                 + "and the sheet it is in is at \(scroller.frame)"
+        )
+    }
+
+    /// Moves a scroll view's content by a chosen number of points, exactly —
+    /// which the pill's own `drag(_:by:)` above is not for: that one pulls a
+    /// thing and lets go, and this one is trying very hard not to let go.
+    ///
+    /// Pressed, dragged and then *held* before the finger lifts. The hold is
+    /// the whole point: a gesture that lifts while still moving hands the page
+    /// its speed and the page carries on, which is a swipe by another name. Held
+    /// first, there is no speed to hand over, and the content stops where the
+    /// drag put it.
+    ///
+    /// Begun at the scroller's left edge, which is inside it and outside the
+    /// controls on it — a text field on these sheets is inset a good ten points
+    /// — because a gesture is delivered wherever it starts, and a press-drag
+    /// beginning on a text field is claimed for its cursor rather than for the
+    /// page.
+    ///
+    /// The step is capped at what the drag has room for, and the drag starts at
+    /// whichever end of the view it is heading away from, so the whole of it
+    /// stays inside. A step too big to make in one is made in several: the
+    /// caller is a loop.
+    private func scrollContent(of scroller: XCUIElement, by delta: CGFloat) {
+        let room = scroller.frame.height * 0.7
+        let step = max(-room, min(room, delta))
+        let from = scroller.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.02, dy: step < 0 ? 0.85 : 0.15)
+        )
+        from.press(
+            forDuration: 0.1,
+            thenDragTo: from.withOffset(CGVector(dx: 0, dy: step)),
+            withVelocity: .slow,
+            thenHoldForDuration: 0.3
         )
     }
 

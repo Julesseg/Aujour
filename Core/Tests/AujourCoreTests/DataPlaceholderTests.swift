@@ -522,3 +522,83 @@ private final class Arrivals: @unchecked Sendable {
         }
     }
 }
+
+@Suite("A made-up day, for showing what a format would write")
+struct DataPlaceholderExampleTests {
+    @Test("only a placeholder whose items get done has a done marker worth setting")
+    func onlySomeKindsHaveADoneState() {
+        // A reminder is a thing to do; an event is a thing that happens, and
+        // a day does not finish a meeting.
+        #expect(DataPlaceholder.reminders.itemsCanBeDone)
+        #expect(DataPlaceholder.events.itemsCanBeDone == false)
+
+        // Which is the same answer the example gives: there is nothing done
+        // in an example day of events, so a screen offering the field would
+        // have nothing to show underneath it.
+        #expect(DataPlaceholder.events.exampleDay(on: march1, in: paris).alreadyDone == nil)
+        #expect(DataPlaceholder.reminders.exampleDay(on: march1, in: paris).alreadyDone != nil)
+    }
+
+    @Test("the example holds something at an hour and something without one")
+    func theExampleShowsEveryFieldOfTheFormat() {
+        for placeholder in DataPlaceholder.allCases {
+            let example = placeholder.exampleDay(on: march1, in: paris)
+
+            #expect(example.atAnHour.time != nil)
+            #expect(example.withoutAnHour.time == nil)
+            #expect(example.atAnHour.isDone == false)
+            if let alreadyDone = example.alreadyDone { #expect(alreadyDone.isDone) }
+            // Named, all of them: a nameless line is one nobody could read a
+            // marker off.
+            #expect(!example.atAnHour.title.isEmpty)
+            #expect(!example.withoutAnHour.title.isEmpty)
+        }
+    }
+
+    @Test("the example sits on the day the user is on, in their own zone")
+    func theExampleSitsOnTheDayGiven() throws {
+        let example = DataPlaceholder.events.exampleDay(on: march1, in: paris)
+        let hour = try #require(example.atAnHour.time)
+
+        #expect(march1.span(in: paris).contains(hour))
+        // And a different zone puts it at the same hour of that zone's day,
+        // rather than at the same instant read somewhere else.
+        #expect(
+            DataPlaceholder.events.exampleDay(on: march1, in: utc).atAnHour.time
+                != example.atAnHour.time
+        )
+    }
+
+    @Test("the whole example is the day in the order it happened")
+    func theWholeExampleRunsThroughTheDay() {
+        let example = DataPlaceholder.reminders.exampleDay(on: march1, in: paris)
+
+        #expect(example.throughTheDay.count == 3)
+        #expect(example.throughTheDay.last == example.withoutAnHour)
+        #expect(example.throughTheDay.contains(example.atAnHour))
+        let times = example.throughTheDay.compactMap(\.time)
+        #expect(times == times.sorted())
+
+        // An event's example is the same day one item shorter, because there
+        // is no done line in it.
+        #expect(DataPlaceholder.events.exampleDay(on: march1, in: paris).throughTheDay.count == 2)
+    }
+
+    @Test("a format writes the example the way it would write a real day")
+    func theExampleIsWrittenByTheFormatItself() {
+        let example = DataPlaceholder.reminders.exampleDay(on: march1, in: paris)
+        let format = DataPlaceholderFormat(
+            linePrefix: "* ",
+            donePrefix: "* [x] ",
+            timeFormat: MomentFormat("HH:mm"),
+            whenEmpty: "Nothing today."
+        )
+
+        let written = format.render(example.throughTheDay, timeZone: paris, locale: english)
+        #expect(written.contains("* [x] "))
+        #expect(written.hasPrefix("* "))
+        // And the empty text is what the same format writes for a day that
+        // held nothing at all — the fourth field, shown the same way.
+        #expect(format.render([], timeZone: paris, locale: english) == "Nothing today.")
+    }
+}

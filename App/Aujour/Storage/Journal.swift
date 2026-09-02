@@ -716,14 +716,21 @@ final class Journal {
     /// Adopting is a write to the settings and nothing more — see
     /// ``adopt(_:)`` — so a caller that gets an outcome back is looking at a
     /// journal that has already reopened onto the new shape.
+    ///
+    /// - Parameter progress: told how far through the moving is, as each day
+    ///   settles. Called here on the main actor, in order, and never after
+    ///   this returns — so the screen watching it can set what it draws
+    ///   directly. Nothing is reported for a skipped migration: no file moves,
+    ///   and there is no length of time to say anything about.
     @discardableResult
     func changeThePathTemplate(
         to template: PathTemplate,
-        movingEntriesBy plan: MigrationPlan?
+        movingEntriesBy plan: MigrationPlan?,
+        reporting progress: (MigrationProgress) -> Void = { _ in }
     ) async -> MigrationOutcome? {
         var outcome: MigrationOutcome?
         if let plan, !plan.isEmpty, let store {
-            outcome = await JournalMigration(over: store).carryOut(plan)
+            outcome = await JournalMigration(over: store).carryOut(plan, reporting: progress)
         }
 
         await adopt { $0.pathTemplate = template.format }
@@ -908,6 +915,32 @@ final class Journal {
     /// (ADR 0002 is about Entries; an Attachment has no such identity).
     func changeTheAttachmentPathTemplate(to template: AttachmentPathTemplate) async {
         await change { $0.attachmentPathTemplate = template.format }
+    }
+
+    // MARK: - How the day's own data is written
+
+    /// How one data placeholder writes itself into a spawned Entry: what its
+    /// lines start with, what a line the day saw through starts with, the
+    /// shape its times take, and what it says on a day that held nothing.
+    func howItIsWritten(_ placeholder: DataPlaceholder) -> DataPlaceholderFormat {
+        settings.dataPlaceholders[placeholder]
+    }
+
+    /// Changes how a data placeholder writes itself from here on.
+    ///
+    /// Nothing already in the folder is rewritten, and there is nothing to
+    /// offer to: a placeholder is resolved once, at spawn, into plain markdown
+    /// (ADR 0001) — so the lines in the days already written are the user's
+    /// own text now, and this decides only what the next day spawned says.
+    ///
+    /// All four fields at once, because that is what the screen changing them
+    /// has: they are one answer to one question, and writing them one at a
+    /// time would reopen the journal four times over a single edit.
+    func changeHowItIsWritten(
+        _ placeholder: DataPlaceholder,
+        to format: DataPlaceholderFormat
+    ) async {
+        await change { $0.dataPlaceholders[placeholder] = format }
     }
 
     /// Writes today's words where they belong now, then adopts a

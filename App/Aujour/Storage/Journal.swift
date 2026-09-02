@@ -178,6 +178,12 @@ final class Journal {
     /// through this one too.
     let deviceSettings: DeviceSettingsStore
 
+    /// The queries this device has searched with, kept across journals rather
+    /// than per folder: what somebody looked for is a fact about them and not
+    /// about a vault, and a journal moved into Obsidian is the same person
+    /// looking for the same handful of things (ADR 0003).
+    private let recentSearches: RecentSearchesStore
+
     /// One gentle nudge a day, at a time the user chose — and none on a day
     /// whose Entry is already in the folder.
     ///
@@ -242,6 +248,9 @@ final class Journal {
     ///     the editor's font and the daily reminder's time. One per install,
     ///     and handed in rather than made here so that everything reading them
     ///     reads the same one.
+    ///   - recentSearches: where the queries somebody searched with are kept.
+    ///     This device's own `UserDefaults`, unless a test says otherwise —
+    ///     one test's searches must not be the next test's list.
     ///   - nudges: where the daily reminder is booked — the device's
     ///     notification centre, unless a test says otherwise, since a
     ///     permission alert from another process is not something a UI test
@@ -255,6 +264,7 @@ final class Journal {
         photoLibrary: any PhotoLibrary = PhotoKitLibrary(),
         places: any Places = CoreLocationPlaces(),
         deviceSettings: DeviceSettingsStore? = nil,
+        recentSearches: RecentSearchesStore? = nil,
         nudges: any Nudges = DeviceNudges()
     ) {
         // Made here rather than as a default argument: the store it is over
@@ -272,6 +282,10 @@ final class Journal {
         self.photoLibrary = photoLibrary
         self.places = places
         self.deviceSettings = deviceSettings
+        // For the same reason as the device settings: `UserDefaults` is read
+        // on the main actor, so it cannot be a default argument.
+        self.recentSearches =
+            recentSearches ?? RecentSearchesStore(storedOn: LocalSettingsStorage())
         // Held in a local first: the welcome offers this reminder rather than
         // one of its own, so a time taken up on its last page is the time the
         // settings sheet is showing a moment later.
@@ -331,7 +345,8 @@ final class Journal {
             search = JournalSearch(
                 store: opened.store,
                 settings: settings,
-                cache: SearchIndexFile(forJournalAt: opened.root.url)
+                cache: SearchIndexFile(forJournalAt: opened.root.url),
+                recent: recentSearches
             )
             folder = opened.folder
             parking = DivergenceParking(store: opened.store, versions: versions)

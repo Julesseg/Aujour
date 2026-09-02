@@ -126,8 +126,14 @@ The other way back into a day: by something written in it rather than by when
 it was. A query is words, all of which must be somewhere in the day and each
 of which matches from the start of a word — so a search narrows as it is typed
 rather than widening — and what comes back is the days that hold them, most
-recent first, each with the line the match sits on. Opening one opens that
-day's Entry, which is the file and not a new one.
+recent first, each with the line the match sits on and the query's own words
+marked in it. Opening one opens that day's Entry, which is the file and not a
+new one.
+
+The marks are measured against the line being shown and not against the day it
+was cut out of, since a long line is shown around the match rather than from
+its start. They fall on the word as it was written, not as it was searched for:
+`cafe` marks `Café`, and `mark` marks the whole of `market`.
 
 The recent end of them, and not all of them: finding the line a match sits on
 costs a pass over that day, and a query matching a decade — `the`, or a single
@@ -137,6 +143,24 @@ A word is a run of letters or digits, folded so that neither capitals nor
 accents are what a search is about; everything between those runs — markdown's
 marks, punctuation, whitespace — is a boundary and nothing else, which is what
 makes `**market**` and `market` the same word to look for.
+
+### Recent Searches
+The queries already searched with, offered back by a search box nobody has
+typed in yet — a journal is looked in for the same handful of things, and one
+of them should be a tap rather than a word retyped.
+
+A query is remembered when it leads somewhere, which is when a result is
+opened from it, and never as it is typed: a search narrows keystroke by
+keystroke, so remembering every query anybody made would remember `m`, `ma` and
+`mar` on the way to `market`. Two queries are the same query when they are the
+same words folded the same way, and what is kept is the spelling just typed. A
+handful of them, most recent first.
+
+A Device Setting in ADR 0003's sense and kept with them: what somebody looked
+for is a fact about this device and not about the Journal, nothing here shapes
+a file in the folder, and a search made on the iPad is not one this phone made.
+Not a Search Index either — that is a reading of the folder and rebuilding it
+costs only time, while a query nobody wrote down is a query gone.
 
 ### Search Index
 The journal's words, kept where a query can reach them without opening the
@@ -502,6 +526,13 @@ Named after its Journal Day, like an Attachment — `2026-03-14.pdf`,
 Offered on the Entry's own screen and so for any day, today's and a day
 reached from the Calendar alike.
 
+Which form somebody wants is a question about what the file will look like at
+the other end, so it is asked on a sheet that shows them: the two forms, and
+the day drawn as the one being looked at — the document's own first page for a
+PDF, the Entry's own characters for plain text. The file itself is written
+before the system's share sheet comes up, so what is handed to Mail or to Files
+or to a printer is a finished document rather than a promise to make one.
+
 Never a document of its own. The text form is the Entry byte for byte
 (ADR 0001), and the PDF is Live Preview with no cursor anywhere: the same
 reading, the same styling and the same Drawn Elements the editor uses, laid
@@ -560,6 +591,12 @@ lands on, never a pair a screen picks between. The **type scale** is a set of na
 answer Dynamic Type. **Rounding** and **Spacing** are four steps each, and
 **Elevation** is what lifts a surface off the one behind it. **Newsreader** is
 the prose voice — a bundled variable font, three weights in two slants.
+
+Sheets are one shape and not one per screen. Every sheet in the app comes up
+in the same chrome — the identity's own sheet paper, the sheet corner, the
+system's grabber and its scrim — and rises out of the control that summoned it.
+What a sheet is *about* is its own; how tall it is follows from what is on it;
+what it looks like on the way in is not a screen's decision.
 
 Two things about it are not a screen's to reopen. Every ink and every accent
 clears the contrast floor (ADR 0006), which is asserted rather than intended:

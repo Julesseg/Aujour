@@ -21,7 +21,10 @@ import Foundation
 /// unit-tested where that arithmetic is, rather than against a rendered page.
 public struct EntryExport: Equatable, Sendable {
     /// The two things a day can be sent as.
-    public enum Form: Hashable, Sendable {
+    ///
+    /// `CaseIterable` so that the screen offering them offers all of them: a
+    /// third form must not be able to arrive with no way to pick it.
+    public enum Form: Hashable, Sendable, CaseIterable {
         /// The Entry drawn as what it means: headings large, emphasis
         /// slanted, marks left out — a page to read rather than markdown to
         /// edit.

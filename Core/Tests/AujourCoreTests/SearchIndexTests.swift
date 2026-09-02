@@ -153,6 +153,79 @@ struct SearchIndexTests {
         #expect(index.results(for: "lait").first?.excerpt == "Café **au lait** at 8am.")
     }
 
+    // MARK: - The words the query matched
+
+    @Test("a result says which of the excerpt's words the query matched")
+    func aResultMarksTheWordItWasFoundBy() throws {
+        let index = SearchIndex([firstOfMarch: "Walked to the market with Robin."])
+
+        #expect(try marked(in: index.results(for: "market")) == ["market"])
+    }
+
+    @Test("a half-typed query marks the whole word it found")
+    func aPrefixMarksTheWordItStarts() throws {
+        let index = SearchIndex([firstOfMarch: "Walked to the market."])
+
+        #expect(try marked(in: index.results(for: "mark")) == ["market"])
+    }
+
+    @Test("every word of the query is marked, wherever on the line it landed")
+    func eachWordOfAQueryIsMarked() throws {
+        let index = SearchIndex([firstOfMarch: "Robin walked to the market."])
+
+        #expect(try marked(in: index.results(for: "market robin")) == ["Robin", "market"])
+    }
+
+    @Test("a word written twice on the line is marked both times")
+    func aWordIsMarkedEveryTimeItAppears() throws {
+        let index = SearchIndex([firstOfMarch: "To the market, and back from the market."])
+
+        #expect(try marked(in: index.results(for: "market")) == ["market", "market"])
+    }
+
+    @Test("a word is marked as it was written, not as it was searched for")
+    func markingKeepsTheDaysOwnSpelling() throws {
+        let index = SearchIndex([firstOfMarch: "Coffee at the Café de Flore."])
+
+        #expect(try marked(in: index.results(for: "CAFE")) == ["Café"])
+    }
+
+    @Test("what was not searched for is left alone, and the line still reads")
+    func theRunsAreTheWholeExcerptInOrder() throws {
+        let index = SearchIndex([firstOfMarch: "Walked to the market."])
+
+        let result = try #require(index.results(for: "market").first)
+        #expect(result.runs.map(\.text) == ["Walked to the ", "market", "."])
+        #expect(result.runs.map(\.isMarked) == [false, true, false])
+    }
+
+    @Test("a mark lands on the excerpt, not on the line it was cut out of")
+    func marksAreInTheExcerptsOwnCharacters() throws {
+        let padding = String(repeating: "a walk in the rain, ", count: 30)
+        let index = SearchIndex([firstOfMarch: padding + "and then the market."])
+
+        let result = try #require(index.results(for: "market").first)
+        // The excerpt is cut at the front and carries an ellipsis, so a range
+        // measured against the whole day would name the wrong characters.
+        #expect(result.excerpt.hasPrefix("…"))
+        #expect(result.runs.filter(\.isMarked).map(\.text) == ["market"])
+        #expect(result.runs.map(\.text).joined() == result.excerpt)
+    }
+
+    @Test("an excerpt with nothing marked in it is one run of its own words")
+    func anUnmarkedExcerptIsOneRun() {
+        let result = SearchResult(day: firstOfMarch, excerpt: "Walked to the market.")
+
+        #expect(result.runs.map(\.text) == ["Walked to the market."])
+        #expect(result.runs.allSatisfy { !$0.isMarked })
+    }
+
+    /// The words a query marked in the first result, in the order they are
+    /// written — what a row draws in the accent.
+    private func marked(in results: [SearchResult]) throws -> [String] {
+        try #require(results.first).runs.filter(\.isMarked).map(\.text)
+    }
+
     // MARK: - Keeping up with the folder
 
     @Test("indexing a day again is what that day says now")

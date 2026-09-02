@@ -62,6 +62,16 @@ struct EntryView: View {
     /// of these between them would be a share sheet over the wrong day.
     @State private var shared = SharedEntry()
 
+    /// The day whose sheet asking how to send it is up, and `nil` the rest of
+    /// the time. Held here rather than on the toolbar button, like every other
+    /// sheet in the app: one declared inside a toolbar item is one that lives
+    /// and dies with a control on a bar.
+    @State private var sending: ADayToSend?
+
+    /// Where the sharing sheet rises from — the button on the bar that
+    /// summoned it.
+    @Namespace private var sheets
+
     /// Where the `{{location}}` widget reads the place from, for whichever
     /// sheet this Entry puts up.
     ///
@@ -203,16 +213,6 @@ struct EntryView: View {
                         acknowledge: photographs.acknowledge
                     )
                 }
-                // A share that quietly did nothing is the one outcome
-                // somebody would sit and repeat — so it is said here, with
-                // the rest of what could not be written.
-                if let problem = shared.problem {
-                    WritingProblemNotice(
-                        problem: problem,
-                        identifier: "shareProblemNotice",
-                        acknowledge: shared.acknowledge
-                    )
-                }
                 // Under the notices and nearest the keyboard, which is where
                 // the thumbs already are — and above nothing at all on the
                 // days it has nothing to offer.
@@ -236,8 +236,13 @@ struct EntryView: View {
         // Declared here rather than beside the button that opens it, like
         // every other sheet in the app: one inside a toolbar item is one that
         // lives and dies with a control on a bar.
-        .sheet(item: $shared.file) { file in
-            ShareSheet(file: file)
+        //
+        // The system's own sheet, over the file this one has written, is put
+        // up from inside it — a sheet cannot present anything while another is
+        // covering it.
+        .sheet(item: $sending) { day in
+            ShareEntrySheet(export: day.export, pictures: pictures, shared: shared)
+                .sheetChrome(risingFrom: Sheets.share, in: sheets)
         }
         // On the Entry's own screen rather than on the two screens that lead
         // to one, which is what makes it true of any day: today is reached
@@ -250,7 +255,7 @@ struct EntryView: View {
                 // second of them is a fact about the words, and reading the
                 // words in *this* body would invalidate the whole screen on
                 // every keystroke.
-                ShareEntryMenu(editor: editor, pictures: pictures, shared: shared)
+                ShareEntryButton(editor: editor, sending: $sending, risingFrom: sheets)
             }
         }
     }

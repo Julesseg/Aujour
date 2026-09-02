@@ -257,6 +257,14 @@ enum UITestingJournal {
             // same reason: a reminder one test turns on must not be the one
             // the next test opens with.
             deviceSettings: deviceSettings,
+            // In the same suite as the settings, and for the same reason: a
+            // query one test searched with must not be waiting in the next
+            // test's empty search box.
+            recentSearches: RecentSearchesStore(
+                storedOn: LocalSettingsStorage(
+                    onThisDevice: UserDefaults(suiteName: "aujour.uitest.\(folder)") ?? .standard
+                )
+            ),
             nudges: ADeviceThatIsNeverRung()
         )
     }

@@ -12,14 +12,13 @@ import AujourCore
 struct ContentView: View {
     @State private var journal: Journal
     @State private var showingSettings = false
-    /// The screen on top of today's Entry, if one is — nil while today's is
-    /// what is on screen.
-    ///
-    /// One piece of state for both, rather than a flag each: two
-    /// `navigationDestination(isPresented:)` modifiers on one view are two
-    /// destinations the stack picks between, and which one a tap opens stops
-    /// being a thing this screen decides.
-    @State private var wayIn: WayIntoTheJournal?
+
+    /// Whether the search sheet is up — the other way back into a day, when
+    /// its date is not what anybody remembers about it.
+    @State private var searching = false
+
+    /// Where a sheet rises from: the button on the bar that summoned it.
+    @Namespace private var sheets
 
     /// The day the app is on, when it is not today's — its editor, made once
     /// and kept for as long as that day is on screen.
@@ -70,12 +69,6 @@ struct ContentView: View {
     /// a sheet told dark and then told nothing goes on being dark while the
     /// window behind it turns light.
     @Environment(\.colorScheme) private var drawnIn
-
-    /// The two ways back into a day that is not today's: by when it was, and
-    /// by what was written in it.
-    private enum WayIntoTheJournal: Hashable {
-        case search
-    }
 
     /// How this device wants Aujour to look, held for the one screen that
     /// changes it. The app is already drawn in it — the appearance, the tint
@@ -352,8 +345,9 @@ struct ContentView: View {
                             // pill's, and by what was written in it is
                             // this.
                             Button("Search", systemImage: "magnifyingglass") {
-                                wayIn = .search
+                                searching = true
                             }
+                            .matchedTransitionSource(id: Sheets.search, in: sheets)
                             .accessibilityIdentifier("openSearch")
                         }
                         ToolbarItem(placement: .topBarTrailing) {
@@ -367,6 +361,7 @@ struct ContentView: View {
                             Button("Settings", systemImage: "slider.horizontal.3") {
                                 showingSettings = true
                             }
+                            .matchedTransitionSource(id: Sheets.settings, in: sheets)
                             .accessibilityIdentifier("openSettings")
                         }
                     }
@@ -400,20 +395,25 @@ struct ContentView: View {
                     // one edit out of date the moment today's Entry is
                     // created.
                     .task { await journal.recount() }
+                    .sheetChrome(risingFrom: Sheets.settings, in: sheets)
             }
-            // Declared outside the states rather than beside the button that
-            // opens it: a destination registered only while one branch of a
-            // switch is on screen is one the stack can find itself without.
+            // Outside the states for the settings sheet's reason: a journal
+            // reopened under a search that is up is a new search over a new
+            // folder, and a sheet declared inside one state is a sheet that
+            // vanishes mid-query.
             //
-            // Today's Entry is what the app is for, so this is a step away
-            // from it and back — and coming back is what re-reads the folder
-            // for a day just filled in.
-            .navigationDestination(item: $wayIn) { wayIn in
-                switch wayIn {
-                case .search:
-                    if let search = journal.search {
-                        JournalSearchView(search: search, journal: journal, accent: appearance.accent)
-                    }
+            // Today's Entry is what the app is for, so this is held in front
+            // of it rather than put in place of it — and leaving is what
+            // re-reads the folder for a day just filled in.
+            .sheet(isPresented: $searching) {
+                if let search = journal.search {
+                    JournalSearchSheet(
+                        search: search,
+                        journal: journal,
+                        accent: appearance.accent
+                    )
+                    .preferredColorScheme(drawnIn)
+                    .sheetChrome(risingFrom: Sheets.search, in: sheets)
                 }
             }
         }

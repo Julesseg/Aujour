@@ -166,6 +166,55 @@ struct EntryPaperTests {
         #expect(try #require(document.page(at: 0)?.string).contains(theDay))
     }
 
+    // MARK: - The page before it leaves
+
+    // The preview on the share sheet is the document itself and not a second
+    // drawing of the day. What only a rendered page can show is that it came
+    // out at the size of the paper and with ink on it — a blank preview and a
+    // preview that failed look the same from the outside.
+    @Test("the first page is drawn at the size of the paper it is a page of")
+    func theFirstPageIsThePapersSize() throws {
+        let page = try #require(
+            EntryPaper(page: .a4)
+                .firstPage(of: EntryExport(march14, markdown: "Walked to the market."))
+        )
+
+        // Within a point, because a PDF's own box is whole points and A4 is
+        // 595.2 by 841.8. What is being claimed is the shape of the sheet, not
+        // a rounding.
+        #expect(abs(page.size.width - EntryPaper.Page.a4.size.width) < 1)
+        #expect(abs(page.size.height - EntryPaper.Page.a4.size.height) < 1)
+    }
+
+    @Test("the day is drawn onto it, and not left as a blank sheet")
+    func theFirstPageHasInkOnIt() throws {
+        let words = try #require(
+            EntryPaper(page: .a4)
+                .firstPage(of: EntryExport(march14, markdown: "Walked to the market."))
+        )
+        let blank = try #require(
+            EntryPaper(page: .a4).firstPage(of: EntryExport(march14, markdown: " "))
+        )
+
+        // A day with words on it and a day with none are drawn from the same
+        // paper, so anything that differs between them is the words.
+        #expect(words.pngData() != blank.pngData())
+    }
+
+    @Test("a day that runs to several pages previews as one of them, not all of them")
+    func thePreviewIsOnePage() throws {
+        let day = String(repeating: "Walked to the market and back again. ", count: 400)
+        let export = EntryExport(march14, markdown: day)
+
+        let previewed = try #require(EntryPaper(page: .a4).firstPage(of: export))
+        let document = try #require(PDFDocument(data: EntryPaper(page: .a4).pdf(of: export)))
+
+        // Long enough that there is a second page to have been strung onto
+        // the end of the first.
+        #expect(document.pageCount > 1)
+        #expect(abs(previewed.size.height - EntryPaper.Page.a4.size.height) < 1)
+    }
+
     // MARK: - Ink
 
     // The editor's colours are the system's, and the system's resolve against

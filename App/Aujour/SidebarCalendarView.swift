@@ -4,19 +4,22 @@ import SwiftUI
 /// The month, down the side of a window wide enough to hold it and a page of
 /// words at once (``JournalLayout``).
 ///
-/// The same calendar the date pill grows into, with the gesture taken out. On
-/// a narrow window the month is somewhere a finger has to pull it out of and
-/// put it back, because the room it needs is the room the day's words are
-/// using; here there is room for both at once, so it is simply there — no
-/// progress, no clipping, nothing to open and nothing to shut. What that buys
-/// is the thing the pill cannot give: the day being written stays visible on
-/// the grid while it is being written in.
+/// The date pill with the gesture taken out, and nothing else: the same pane
+/// of glass, the same day named across the top, the same month grid under it,
+/// at the same width the pill opens to. On a narrow window that pane is
+/// somewhere a finger has to pull the month out of and put it back, because
+/// the room it needs is the room the day's words are using; here there is room
+/// for both at once, so it is simply out — no progress, no chevron, nothing to
+/// open and nothing to shut.
+///
+/// Which is why it is not a second design. A reader who turns their iPad on
+/// its side should recognise what arrives rather than learn it: what changed
+/// is that the calendar stopped being somewhere to go and started being
+/// somewhere to look, and every other thing about it is the same thing.
 ///
 /// It holds no more rules than the pill does. Which days are marked, which is
 /// today, which can be picked at all and which day the app is on are
-/// ``JournalCalendar``'s, and the cells are the same ``DayCell`` the pill
-/// draws — a journal whose Tuesdays were marked one way on a phone and another
-/// on an iPad would be two apps.
+/// ``JournalCalendar``'s.
 struct SidebarCalendarView: View {
     let calendar: JournalCalendar
 
@@ -35,85 +38,55 @@ struct SidebarCalendarView: View {
     /// The marks are a scan of the folder and nothing else (ADR 0001), so a
     /// day being written this second is a day with no file yet. The pill
     /// settles the page under it at the moment it is opened; this is never
-    /// opened, so it settles the page beside it whenever the day changes —
-    /// which is the moment a day just written stops being the one on screen
-    /// and starts being a day the grid has to mark.
+    /// opened, so it settles the page beside it on the way in.
     let settleTheDayOnScreen: () async -> Void
-
-    /// How wide the column is.
-    ///
-    /// Wide enough that a day is a day-sized thing to aim a finger at — seven
-    /// columns of this leave a cell of about forty points — and no wider:
-    /// every point past that is taken off the page of words next door, which
-    /// is what the whole layout is for. The narrowest window that gets a
-    /// sidebar at all is ``JournalLayout/sidebarNeeds``, so this is also a
-    /// promise about what is left over: five hundred points, which is a
-    /// readable page in every face the editor offers.
-    static let width: CGFloat = 320
 
     /// How tall a row is, and so how wide a column is.
     ///
-    /// Bounded rather than followed, the same way the pill's is and for the
-    /// same arithmetic: a month is seven columns across whatever the reader's
-    /// text size, so a column is a seventh of the room and no more. What still
-    /// grows is everything the reader actually reads — the month's name, the
-    /// weekday initials — and inside a cell the number is scaled down to fit
-    /// rather than allowed to spill into the day beside it.
+    /// The pill's own number, because this is the pill: a day is the same size
+    /// to aim a finger at whichever calendar it is on.
     @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 44
 
-    /// How tall the row of weekday initials is — the pill's own number, so
-    /// that one calendar's column headings are not a different size from the
-    /// other's.
+    /// How tall the row of weekday initials is, and how tall the month's own
+    /// row is — the pill's numbers again, for the same reason.
     @ScaledMetric(relativeTo: .caption2) private var weekdayHeight: CGFloat = 22
+    @ScaledMetric(relativeTo: .caption) private var monthRowHeight: CGFloat = 34
 
-    /// How far in from the sidebar's edges the grid sits: the panel's own
-    /// inset, and then the one the rows are laid out in.
-    private static let inset = Spacing.close * 2
+    /// How wide the pane is: seven columns as wide as a row is tall, plus the
+    /// inset the grid sits in.
+    ///
+    /// The width the pill opens to, arrived at the same way and for the same
+    /// reason — past a square column every extra point goes into the gaps
+    /// between the days and none of it into the days, and a month with a
+    /// hand's width between its Tuesdays reads as seven numbers rather than as
+    /// a week.
+    private var paneWidth: CGFloat { rowHeight * 7 + Spacing.close * 2 }
 
-    /// How wide a column is: the room, less the inset at either end, over
-    /// seven.
-    private var side: CGFloat {
-        let column = (Self.width - Self.inset * 2) / 7
-        return min(rowHeight, column)
+    /// The corner the glass has, which is a pill's: a capsule 44 points tall
+    /// is a 22-point corner, and the identity keeps it as the pane grows
+    /// rather than squaring off into a card (`Metrics`).
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: rowHeight / 2, style: .continuous)
     }
 
     var body: some View {
         // Scrolls only where it has to, which at the reader's own text size is
-        // never: six weeks of a bounded row plus a heading fits on any window
-        // wide enough to have a sidebar at all. What it is here for is the far
-        // end of Dynamic Type, where the month's name and the sentence under
-        // the grid grow past the room — a calendar with its last week off the
-        // bottom of the screen is a calendar somebody cannot reach December in.
+        // never: a header, a month's name, six weeks of a bounded row and
+        // sometimes a sentence, which fits on any window wide enough to have a
+        // sidebar at all. What it is here for is the far end of Dynamic Type —
+        // a calendar with its last week off the bottom of the screen is a
+        // calendar somebody cannot reach December in.
         ScrollView {
-            VStack(spacing: 0) {
-                monthRow
-                WeekdayNames(month: calendar.month, height: weekdayHeight)
-                    .padding(.top, Spacing.close)
-                grid
-                // Under the grid and not beside the month's name. The row
-                // above is already three things wide and a fourth would
-                // squeeze the name it is there to carry — and a chip that
-                // appeared *above* the grid would push every day of the month
-                // down a line the moment somebody left today, which is a
-                // calendar that moves under the finger picking from it.
-                BackToToday(calendar: calendar, accent: accent) { pick(calendar.today) }
-                    .padding(.top, Spacing.comfortable)
-                TheGridsOwnSentence(calendar: calendar)
-            }
-            .padding(.horizontal, Spacing.close)
-            .padding(.top, Spacing.close)
+            pane
+                .padding(.horizontal, Spacing.apart)
+                .padding(.top, Spacing.close)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .frame(width: Self.width)
-        // The identity's own paper, against the page beside it. A calendar
-        // that is always there is a panel and not a card: it is not floating
-        // over anything and it casts nothing, so what separates it from the
-        // day's words is a tone and a rule rather than a lift.
-        .background(Palette.backgroundColor)
+        .frame(width: paneWidth + Spacing.apart * 2)
         // The month being written, whenever the journal moves to another one:
-        // a day picked out of the grid, a swipe through the days, an app left
-        // open across the rollover. The pill does this when it is opened,
-        // which is a moment this calendar does not have.
+        // a day picked out of the grid, an app left open across the rollover.
+        // The pill does this when it is opened, which is a moment this
+        // calendar does not have.
         .onChange(of: calendar.dayBeingWritten, initial: true) { _, _ in
             calendar.showTheMonthBeingWritten()
         }
@@ -129,7 +102,60 @@ struct SidebarCalendarView: View {
         }
     }
 
-    /// The month, with a step either side of it and the way back to today.
+    /// The pane itself: the day, the month, and the grid under them.
+    ///
+    /// The system's own glass, exactly as the pill is drawn in it. What the
+    /// palette has is an *account* of glass, kept for the grounds a contrast
+    /// floor is measured against; a pane floating beside a page of somebody's
+    /// writing should be the real thing — it refracts what is behind it,
+    /// lights its own edge against it, and answers Reduce Transparency without
+    /// being asked.
+    private var pane: some View {
+        VStack(spacing: 0) {
+            header
+            monthRow
+            WeekdayNames(month: calendar.month, height: weekdayHeight)
+            grid
+            TheGridsOwnSentence(calendar: calendar)
+        }
+        .frame(width: paneWidth)
+        .clipShape(shape)
+        .glassEffect(.regular, in: shape)
+    }
+
+    /// The day being written, across the top — and the way back to today
+    /// beside it on every day but today's.
+    ///
+    /// The pill's header without its chevron, which is the whole of what
+    /// "does not collapse" comes to on screen. A chevron says how far open a
+    /// thing is and offers to change it, and there is nothing here to change.
+    private var header: some View {
+        HStack(spacing: Spacing.close) {
+            BackToToday(calendar: calendar, accent: accent) { pick(calendar.today) }
+            Text(dayBeingWritten)
+                .lettering(.dayOnScreen)
+                .foregroundStyle(Palette.inkColor)
+                // One line, shrunk a little before it truncates, exactly as
+                // the pill sets it: the header is one row tall at every text
+                // size, and a date that wrapped to two would push the month
+                // down the pane.
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .accessibilityIdentifier("sidebarDay")
+        }
+        .padding(.horizontal, Spacing.comfortable)
+        .frame(height: rowHeight)
+    }
+
+    /// The day named on the pane — with its year only when that is news, since
+    /// the journal can be left on a day years back and every February has a
+    /// 14th.
+    private var dayBeingWritten: String {
+        let day = calendar.dayBeingWritten
+        return day.spelledOut(withYear: day.year != calendar.today.year)
+    }
+
+    /// The month, with a step either side of it.
     ///
     /// The chevrons and not a gesture: there is no pulling this open, so
     /// nothing has claimed the finger, and a pair of buttons is what a
@@ -147,7 +173,6 @@ struct SidebarCalendarView: View {
 
             Text(calendar.month.name)
                 .lettering(.sectionHeader)
-                .foregroundStyle(Palette.inkColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .accessibilityIdentifier("sidebarMonth")
@@ -164,7 +189,8 @@ struct SidebarCalendarView: View {
         .labelStyle(.iconOnly)
         .buttonStyle(.plain)
         .foregroundStyle(Palette.inkFaintColor)
-        .frame(height: rowHeight)
+        .padding(.horizontal, Spacing.comfortable)
+        .frame(height: monthRowHeight)
     }
 
     private var grid: some View {
@@ -175,10 +201,10 @@ struct SidebarCalendarView: View {
                     // day, so that a scan arriving changes what a cell says
                     // and never which cell it is.
                     ForEach(Array(week.enumerated()), id: \.offset) { _, day in
-                        DayCell(day: day, accent: accent, side: side) { pick(day.day) }
+                        DayCell(day: day, accent: accent, side: rowHeight) { pick(day.day) }
                     }
                 }
-                .frame(height: side)
+                .frame(height: rowHeight)
             }
         }
         .padding(.horizontal, Spacing.close)
@@ -203,7 +229,6 @@ struct SidebarCalendarView: View {
             pick: { calendar.pick($0) },
             settleTheDayOnScreen: {}
         )
-        Divider()
         Text(String(repeating: "Words on the page. ", count: 60))
             .lettering(.prose)
             .padding(Spacing.apart)

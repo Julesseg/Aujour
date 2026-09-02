@@ -318,6 +318,11 @@ struct ContentView: View {
     /// beside the page: the page next to it is a day's writing with an editor
     /// in it, and a resize that changed how many children the row had would be
     /// a resize that rebuilt the thing being typed into.
+    ///
+    /// No rule between it and the page, and no ground under it. It is the same
+    /// pane of glass the pill is, floating over the same paper — a line drawn
+    /// beside it would be the app saying these are two panels when what they
+    /// are is a calendar over a page.
     @ViewBuilder private var theSidebar: some View {
         if layout == .sidebar, let calendar = journal.calendar {
             SidebarCalendarView(
@@ -330,38 +335,31 @@ struct ContentView: View {
                 // there yet.
                 settleTheDayOnScreen: { await entryOnScreen?.editor.save() }
             )
-            Divider()
         }
     }
 
-    /// The day on screen as the bar's title, where the bar is what names it —
-    /// and nothing at all where the pill does.
-    ///
-    /// With its year only when that is news, exactly as the pill says it: the
-    /// journal can be left on a day years back, and every February has a 14th.
-    private var theDayIsNamedInTheBar: String {
-        guard layout == .sidebar, let calendar = journal.calendar else { return "" }
-        let day = calendar.dayBeingWritten
-        return day.spelledOut(withYear: day.year != calendar.today.year)
-    }
-
-    /// What a window resized across the threshold does.
+    /// What a window being resized does.
     ///
     /// The selected day is not mentioned here, and that is the point: which
     /// day the journal is on is the calendar's, the calendar outlives a
     /// resize, and a screen that put the day back would be a second opinion
-    /// about it. What does have to be said is the pill — it is this screen's
-    /// state, it survives the crossing that takes it off screen, and a month
-    /// left open would come back over a sidebar already showing that month,
-    /// which is the calendar drawn twice.
+    /// about it. What does have to be said is the pill.
     ///
-    /// Unanimated, and said out loud rather than left to luck. Going wide the
-    /// pill has already been taken off screen by the time this runs, and going
-    /// narrow it is coming back from a state it was shut in — but the pill
-    /// hangs a settling spring on its own progress, and a shut that reached it
-    /// as an animatable change would be a month folding itself away in the
-    /// middle of a layout that is already moving.
-    private func theWindowCrossedTheThreshold() {
+    /// It shuts, and on *any* resize rather than only on one that crosses the
+    /// threshold. The crossing is the case that has to be answered — a month
+    /// left open would come back over a sidebar already showing that month,
+    /// which is the calendar drawn twice — but a pill is a pane sized to the
+    /// room it is in, and a window dragged narrower under an open one is a
+    /// month grid relaying itself out under the finger that opened it. A pill
+    /// that is put away when the room changes is a pill the reader opens again
+    /// on a calendar that fits, which is cheap: it is one tap, and the day it
+    /// names is still on the glass.
+    ///
+    /// Unanimated, and said out loud rather than left to luck. The pill hangs
+    /// a settling spring on its own progress, and a shut that reached it as an
+    /// animatable change would be a month folding itself away in the middle of
+    /// a layout that is already moving.
+    private func theWindowWasResized() {
         withTransaction(Transaction(animation: nil)) { pill.close() }
     }
 
@@ -449,15 +447,13 @@ struct ContentView: View {
                             settling: { await entryOnScreen?.editor.save() }
                         )
                     }
-                    // Which day is on screen, on the one presentation where
-                    // nothing else says it. The pill names the day it is over,
-                    // so on a narrow window a title would be the same sentence
-                    // twice in two typefaces — the redesign's own worst
-                    // screen. Beside a sidebar there is no pill, and a filled
-                    // cell in a grid is a day pointed at rather than a day
-                    // named: an Entry is its date, and the page you are
-                    // writing on should say which one.
-                    .navigationTitle(theDayIsNamedInTheBar)
+                    // The calendar names the day, on either window: the pill
+                    // does it on a narrow one and the pane beside the page
+                    // does it on a wide one, in the same words and the same
+                    // lettering. So the bar carries the ways out and nothing
+                    // else — a title saying the same thing twice, once in each
+                    // of two typefaces, is the redesign's own worst screen.
+                    .navigationTitle("")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
@@ -558,7 +554,10 @@ struct ContentView: View {
         } action: {
             windowWidth = $0
         }
-        .onChange(of: layout) { _, _ in theWindowCrossedTheThreshold() }
+        // Watched here rather than at the pill, which is one presentation's
+        // and goes away in the other: the width outlives both, so a crossing
+        // is a resize like any other and needs no case of its own.
+        .onChange(of: windowWidth) { _, _ in theWindowWasResized() }
         // And put where a day can read it, which is the one thing downstream
         // of the window that is not this screen's own: how wide a day's words
         // are set. Every Entry in the app is under this, including one pushed

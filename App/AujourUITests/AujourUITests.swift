@@ -1698,6 +1698,68 @@ final class AujourUITests: XCTestCase {
         )
     }
 
+
+
+    /// A pill is a pane sized to the room it is in, and the room it is in is
+    /// not always a phone's: everything below the sidebar threshold gets one,
+    /// which runs from Slide Over to an iPad mini stood up. A month grid
+    /// stretched across the wide end of that is a week of Tuesdays with a
+    /// hand's width between them, so the open pill stops growing well before
+    /// the window does.
+    ///
+    /// Asserted as the thing the cap is *for* rather than as the number it is:
+    /// a day may be half again as wide as it is tall and no wider. That holds
+    /// on every window, so it needs no device to be true on — and on a narrow
+    /// one it is true for the other reason, which is that there was never room
+    /// to spread.
+    func testTheOpenPillDoesNotSpreadItsDaysAcrossAWideWindow() throws {
+        let app = launchApp(layout: .page)
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
+
+        openTheMonth(app, showing: Date())
+        assertTheDaysAreNotSpreadOut(in: app)
+
+        // And on its side, which is the widest window any one device has and
+        // so the one the cap is really for. Pinned to the page presentation,
+        // because a window this wide would otherwise have a sidebar and no
+        // pill at all.
+        rotate(app, to: .landscapeLeft)
+        openTheMonth(app, showing: Date())
+        assertTheDaysAreNotSpreadOut(in: app)
+
+        // The grid stops well short of the glass it is on. Half is a generous
+        // line — a square month is 324 points at the factory text size, which
+        // is well under half of any window wide enough to be worth capping —
+        // drawn where it cannot be met by a month that merely has margins.
+        let span = theSpanOfTheMonth(in: app)
+        XCTAssertLessThan(
+            span,
+            app.frame.width * 0.5,
+            "the month spanned \(span) of a \(app.frame.width)-point window, which is a grid "
+                + "stretched to the glass rather than a calendar"
+        )
+    }
+
+    /// A window that changes size puts the pill away.
+    ///
+    /// On *any* resize and not only on one that crosses the threshold: the
+    /// pill is sized to the room it is in, and a window dragged narrower under
+    /// an open one is a month relaying itself out under the finger that opened
+    /// it. Pinned to the page presentation so that this is the resize being
+    /// asked about and not the crossing — which is a resize too, and is
+    /// covered where the presentations are.
+    func testTheDatePillIsPutAwayWhenTheWindowIsResized() throws {
+        let app = launchApp(layout: .page)
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
+
+        openTheDatePill(app, to: "Month")
+        rotate(app, to: .landscapeLeft)
+
+        expect(app.buttons["datePill"], toHaveValue: "Closed")
+    }
+
+
+
     // MARK: - The layout the window is wide enough for
 
     /// Aujour ships one app for iPhone and iPad, and the difference between
@@ -1760,17 +1822,15 @@ final class AujourUITests: XCTestCase {
             "the sidebar did not open the day it was tapped on, it opened: \(written)"
         )
 
-        // And the bar names the day the journal is on, because the pill that
-        // would have named it is not here: a filled cell in a grid is a day
-        // pointed at rather than a day named.
+        // And the pane names the day, the way the pill names it on a narrow
+        // window: a filled cell in a grid is a day pointed at rather than a
+        // day named, and an Entry is its date.
+        let named = app.staticTexts["sidebarDay"]
         XCTAssertTrue(
-            app.navigationBars.staticTexts.element(boundBy: 0).waitForExistence(timeout: 10),
+            named.waitForExistence(timeout: 10),
             "nothing on screen said which day was being written"
         )
-        XCTAssertFalse(
-            app.navigationBars.staticTexts.element(boundBy: 0).label.isEmpty,
-            "the bar over the sidebar layout named no day at all"
-        )
+        XCTAssertFalse(named.label.isEmpty, "the calendar named no day at all")
 
         // The way back to today is the same way back it is on a phone, said
         // in the same word — and it is offered only once the journal is off
@@ -3569,6 +3629,43 @@ final class AujourUITests: XCTestCase {
         var parts = Calendar.current.dateComponents([.year, .month], from: day)
         parts.day = 15
         return Calendar.current.date(from: parts)!
+    }
+
+
+    /// Every day on the open month, as the rectangles they came out at.
+    private func theDaysOfTheMonth(in app: XCUIApplication) -> [CGRect] {
+        let cells = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'day-'"))
+        XCTAssertGreaterThan(cells.count, 0, "the month had no days on it")
+        return cells.allElementsBoundByIndex.map { $0.frame }
+    }
+
+    /// How much of the window the month takes, edge of the first day to edge
+    /// of the last.
+    private func theSpanOfTheMonth(in app: XCUIApplication) -> CGFloat {
+        let days = theDaysOfTheMonth(in: app)
+        return days.map { $0.maxX }.max()! - days.map { $0.minX }.min()!
+    }
+
+    /// That no day of the month is wider than it is tall.
+    ///
+    /// Which is the whole of the cap, said as the thing it is for: a day is a
+    /// square either because the pill was capped to make it one or because the
+    /// window was too narrow for it ever to be anything else. Half a point of
+    /// slack, because these are two sums of the same scaled numbers and a cell
+    /// exactly on the line has met it.
+    private func assertTheDaysAreNotSpreadOut(
+        in app: XCUIApplication,
+        line: UInt = #line
+    ) {
+        for day in theDaysOfTheMonth(in: app) {
+            XCTAssertLessThanOrEqual(
+                day.width,
+                day.height + 0.5,
+                "a day came out \(day.width) wide and \(day.height) tall, which is a number "
+                    + "adrift in a column rather than a day on a grid",
+                line: line
+            )
+        }
     }
 
     // MARK: - Which presentation the app is in

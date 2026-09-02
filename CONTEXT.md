@@ -551,11 +551,19 @@ text size, which is a decision the user already made for everything they read.
 ### Layout
 Which of Aujour's two presentations a window is being read in, decided by how
 wide the *window* is and by nothing else. Above roughly 820 points the
-**sidebar** presentation: the Calendar lives permanently down one side and the
+**sidebar** presentation: the Calendar floats permanently down one side and the
 Entry beside it is set at a comfortable measure — about 65 characters of
 whichever face the reader writes in — rather than stretched across the glass.
 Below it the **page** presentation: the Entry across the whole window with the
 date pill over it, the pill being the answer to having no room for a calendar.
+
+The two calendars are one calendar. The sidebar is the date pill with the
+gesture taken out — the same pane of glass at the same width, the day named
+across the top in the same lettering, the same grid under it — and the only
+thing it lacks is the chevron, because there is nothing to open and nothing to
+shut. A reader who turns their iPad on its side should recognise what arrives
+rather than learn it: what changed is that the Calendar stopped being somewhere
+to go and started being somewhere to look.
 
 The window and never the device, which is why both presentations ship on both
 families. An iPad in Slide Over, in a half-width Split View or in a Stage
@@ -565,11 +573,24 @@ class is not enough to ask the question with: an iPad mini in portrait reports
 a regular width at 744 points, which is too narrow to hold a calendar and a
 readable measure at once.
 
-Crossing the line keeps the day being written — that is the Calendar's, and
-the Calendar outlives a resize — and leaves the date pill shut, because a
-month left open would come back over a sidebar already showing it. The
-crossing does not animate the pill; the layout changing under it is motion
-enough.
+A resize keeps the day being written — that is the Calendar's, and the
+Calendar outlives one — and leaves the date pill shut. Any resize, not only a
+crossing: a crossing has to shut it because a month left open would come back
+over a sidebar already showing it, and every other resize shuts it because the
+pill is a pane sized to the room it is in. Shutting it is never animated; the
+layout changing under it is motion enough.
+
+The pill's own width has both ends bounded. Open, it takes the room it has,
+until the room is more room than a month wants: a day is as wide as it is tall
+and no wider. Past a square column the rows have stopped growing, so every
+extra point goes into the gaps between the days and none of it into the days —
+a grid spread across a wide window is not big days but far-apart ones, read as
+seven numbers rather than as a week. Which matters because every window that
+gets a pill is narrower than the threshold, and that still runs from Slide Over
+to an iPad mini stood up. Where the room is narrower than a square month it is
+simply the room, and where the reader's text size makes the day's own name
+wider than any grid wants to be, the name wins: a pill that got smaller as it
+opened would be a calendar coming out of nowhere.
 
 ### Identity
 The one place that answers what colour, what size, what corner and what

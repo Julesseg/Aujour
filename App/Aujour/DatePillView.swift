@@ -478,7 +478,7 @@ struct DatePillView: View {
 
     /// How wide a page is, which is the room the open pill has: a page is what
     /// fills the glass, so that letting go on one leaves it filling the glass.
-    private var pageWidth: CGFloat { max(roomToOpenInto, 1) }
+    private var pageWidth: CGFloat { max(widthWhenOpen, 1) }
 
     /// The grid a page is drawn from — the month either side when the month is
     /// out, and the week either side when it is a strip.
@@ -520,7 +520,7 @@ struct DatePillView: View {
     @ViewBuilder private var noticeProbe: some View {
         if somethingToSay, roomToOpenInto > 0 {
             TheGridsOwnSentence(calendar: calendar)
-                .frame(width: roomToOpenInto)
+                .frame(width: widthWhenOpen)
                 .fixedSize(horizontal: false, vertical: true)
                 .hidden()
                 .accessibilityHidden(true)
@@ -665,6 +665,31 @@ struct DatePillView: View {
 
     // MARK: - The geometry, read off how far open it is
 
+    /// How wide the pill is when it is all the way open: the room it has,
+    /// until the room is more room than a month wants.
+    ///
+    /// A month wants seven columns as wide as its rows are tall, and not a
+    /// point more. Rows stop growing at a row's height (see ``rowHeight``), so
+    /// past that every point of extra width goes into the gaps between the
+    /// days and none of it into the days — a tint is the same square at 44
+    /// points of column as at 90, with three times the air around it. That is
+    /// what a stretched calendar *is*: not big days, but far-apart ones, read
+    /// as seven numbers rather than as a week.
+    ///
+    /// Which matters because every window that gets a pill at all is narrower
+    /// than ``JournalLayout/sidebarNeeds`` — and that still runs from Slide
+    /// Over to an iPad mini stood up, whose room is more than twice what the
+    /// grid can use.
+    ///
+    /// Never narrower than the shut pill, which is the one case the square has
+    /// to give way for: at the largest text sizes the day's own name is wider
+    /// than any grid wants to be, and a pill that got *smaller* as it opened
+    /// would be a calendar coming out of nowhere.
+    private var widthWhenOpen: CGFloat {
+        let square = pillHeight * 7 + Spacing.close * 2
+        return min(roomToOpenInto, max(square, closedWidth))
+    }
+
     /// How tall a row of the grid is — and how wide a column is, which is the
     /// same number until they disagree.
     ///
@@ -680,7 +705,7 @@ struct DatePillView: View {
     /// cell the number is scaled down to fit rather than allowed to spill into
     /// the day beside it.
     private var rowHeight: CGFloat {
-        let column = max(0, roomToOpenInto - Spacing.close * 2) / 7
+        let column = max(0, widthWhenOpen - Spacing.close * 2) / 7
         return column > 0 ? min(pillHeight, column) : pillHeight
     }
 
@@ -712,8 +737,9 @@ struct DatePillView: View {
         // there is nothing to grow into — so the pill is simply the room it
         // has, at every state.
         guard roomToOpenInto > 0 else { return closedWidth }
-        guard closedWidth > 0, closedWidth < roomToOpenInto else { return roomToOpenInto }
-        return closedWidth + (roomToOpenInto - closedWidth) * pill.openness
+        let open = widthWhenOpen
+        guard closedWidth > 0, closedWidth < open else { return open }
+        return closedWidth + (open - closedWidth) * pill.openness
     }
 
     private var shape: RoundedRectangle {

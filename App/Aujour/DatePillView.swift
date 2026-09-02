@@ -240,8 +240,11 @@ struct DatePillView: View {
 
     private var headerContent: some View {
         HStack(spacing: Spacing.close) {
-            if !calendar.isOnToday {
-                todayChip
+            // And the month it was tapped in goes away with it: the day is
+            // chosen, so the grid it was chosen from has nothing left to say.
+            BackToToday(calendar: calendar, accent: accent) {
+                pick(calendar.today)
+                pill.close()
             }
             theDayAndTheChevron
         }
@@ -312,32 +315,6 @@ struct DatePillView: View {
         }
     }
 
-    /// The way back to today, offered only when the app is not on it.
-    ///
-    /// With an arrow on it, because a chip reading "Today" beside a date that
-    /// is *not* today reads as a label on the date — a badge saying this is
-    /// the current day — rather than as the way back to it. The arrow is what
-    /// says the chip goes somewhere, and it points the way it travels: no day
-    /// past today can be picked, so the journey back is always forwards.
-    private var todayChip: some View {
-        Button {
-            pick(calendar.today)
-            pill.close()
-        } label: {
-            Label("Today", systemImage: "arrow.uturn.forward")
-                .labelStyle(.titleAndIcon)
-                .imageScale(.small)
-        }
-        .lettering(.chipLabel)
-        .foregroundStyle(accent.ink)
-        .padding(.horizontal, Spacing.comfortable)
-        .padding(.vertical, Spacing.tight)
-        .background(accent.soft, in: Capsule())
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("backToToday")
-        .accessibilityLabel("Today")
-    }
-
     /// The day named on the pill — with its year only when that is news, since
     /// the pill can be left on a day years back and every February has a 14th.
     private var dayBeingWritten: String {
@@ -356,7 +333,7 @@ struct DatePillView: View {
     private var panel: some View {
         VStack(spacing: 0) {
             monthRow
-            weekdayNames
+            WeekdayNames(month: calendar.month, height: weekdayHeight)
             grid
             whatTheGridCannotSayForItself
         }
@@ -517,28 +494,12 @@ struct DatePillView: View {
 
     // MARK: - What a grid of numbers cannot say for itself
 
-    /// The sentence under the month, on the two occasions there is one.
-    ///
-    /// A grid with no marks on it is four different things (ADR 0001): a
-    /// folder nothing has looked in yet, a folder that would not answer, a
-    /// month a journal does not reach into, and a journal nobody has written
-    /// in. `JournalCalendar` tells them apart; only two of them are worth
-    /// saying anything about.
-    ///
-    /// A month a journal does not reach into is not one of them. It is an
-    /// ordinary gap — August was quiet — and the grid has already said so by
-    /// having no marks on it; a line underneath explaining the same thing in
-    /// words is the app narrating what the reader is looking at. Nor is a
-    /// folder nobody has read yet, which knows nothing and so says nothing.
-    ///
-    /// A line and not a page. On the screen this came off it could be a
-    /// `ContentUnavailableView` with room around it, and on a pane of glass an
-    /// inch tall it cannot — but the beginning of a journal is worth a
-    /// sentence wherever it is said, because the grid *is* the way in and
-    /// somebody who has just installed the app has no reason to know that.
+    /// The sentence under the month, on the two occasions there is one —
+    /// which is ``TheGridsOwnSentence``, and what is added here is when the
+    /// pill shows it.
     @ViewBuilder private var whatTheGridCannotSayForItself: some View {
         if somethingToSay {
-            noticeContent
+            TheGridsOwnSentence(calendar: calendar)
                 // With the month row, because it belongs to the month the same
                 // way: no grid, nothing to say about one. And out of the
                 // reading order until then, because opacity is drawing and
@@ -546,14 +507,6 @@ struct DatePillView: View {
                 .opacity(monthIsOut)
                 .accessibilityHidden(pill.detent != .month)
         }
-    }
-
-    private var noticeContent: some View {
-        notice
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.horizontal, Spacing.comfortable)
-            .padding(.vertical, Spacing.close)
     }
 
     /// The sentence at its natural height, laid out where nothing squeezes it
@@ -566,7 +519,7 @@ struct DatePillView: View {
     /// told how much room to leave.
     @ViewBuilder private var noticeProbe: some View {
         if somethingToSay, roomToOpenInto > 0 {
-            noticeContent
+            TheGridsOwnSentence(calendar: calendar)
                 .frame(width: roomToOpenInto)
                 .fixedSize(horizontal: false, vertical: true)
                 .hidden()
@@ -581,39 +534,7 @@ struct DatePillView: View {
     /// Whether there is a sentence to put under the grid at all — and so
     /// whether the panel has to open far enough to hold one.
     private var somethingToSay: Bool {
-        calendar.problem != nil || calendar.theJournalIsAtItsBeginning
-    }
-
-    @ViewBuilder private var notice: some View {
-        if let problem = calendar.problem {
-            // Said rather than swallowed. A folder that would not answer gives
-            // a month with no marks on it, which is exactly what a journal
-            // nobody has written in looks like.
-            //
-            // In the system's own face and at the size of a note, which is
-            // what keeps it from reading as the sentence below it: a folder
-            // that would not answer is not an Empty State, and the identity
-            // arriving on this panel is not licence to start drawing the two
-            // the same way (`CONTEXT.md`, Empty State).
-            Text("Aujour couldn't read your folder, so days you've written may not be marked.")
-                .lettering(.note)
-                .foregroundStyle(Palette.inkMutedColor)
-                .accessibilityIdentifier("indicatorsProblem")
-                .accessibilityLabel(StorageProblem(problem).message)
-        } else if calendar.theJournalIsAtItsBeginning {
-            // The Empty State, in the identity's own aside — the same quiet
-            // prose voice the other two are said in, cut down to a line
-            // because this one is said on an inch of glass rather than on a
-            // page of its own.
-            //
-            // The muted step and not the faint one it used to be drawn in.
-            // This is a sentence, and the faint ink is held to the marker
-            // floor (ADR 0006, and ``Palette/inkFaint``).
-            Text("Your journal starts here. Tap any day up to today and write it.")
-                .lettering(.aside)
-                .foregroundStyle(Palette.inkMutedColor)
-                .accessibilityIdentifier("aJournalNobodyHasWrittenIn")
-        }
+        TheGridsOwnSentence.isThereOne(for: calendar)
     }
 
     private var monthRow: some View {
@@ -655,22 +576,6 @@ struct DatePillView: View {
         // hit testing: this row is above the ceiling in the week strip, drawn
         // nowhere and still sitting squarely on the pill it came out of.
         .allowsHitTesting(pill.detent == .month)
-    }
-
-    private var weekdayNames: some View {
-        HStack(spacing: 0) {
-            // By offset, because a week has two days with the same initial in
-            // most languages and `id: \.self` would collapse them.
-            ForEach(Array(calendar.month.weekdayNames.enumerated()), id: \.offset) { _, name in
-                Text(name)
-                    .lettering(.marker)
-                    .foregroundStyle(Palette.inkFaintColor)
-                    .frame(maxWidth: .infinity)
-                    .accessibilityHidden(true)
-            }
-        }
-        .padding(.horizontal, Spacing.close)
-        .frame(height: weekdayHeight)
     }
 
     /// The pages, side by side, with the one being read in the middle.
@@ -852,9 +757,18 @@ extension View {
     /// the screen it is on is one `switch` deep, and because a calendar the
     /// journal has not opened yet is a day with no pill rather than a pill with
     /// no days.
+    /// - Parameters:
+    ///   - calendar: the days to draw, or `nil` for no pill at all — which is
+    ///     both a journal that has not opened yet and a window wide enough
+    ///     that the calendar lives in a sidebar instead (``JournalLayout``).
+    ///   - pill: how far open it is. Held by the screen rather than by the
+    ///     pill for the two things only the screen can do with it: shut a
+    ///     month somebody opened by mistake by tapping the page behind it, and
+    ///     shut one that a window resize has just put a sidebar underneath.
     func datePill(
         over calendar: JournalCalendar?,
         accent: Accent,
+        openedTo pill: Binding<DatePill>,
         pick: @escaping (JournalDay) -> Void,
         turning turn: @escaping (Int) -> Void,
         settling settleTheDayOnScreen: @escaping () async -> Void
@@ -876,7 +790,8 @@ extension View {
                     accent: accent,
                     pick: pick,
                     turn: turn,
-                    settleTheDayOnScreen: settleTheDayOnScreen
+                    settleTheDayOnScreen: settleTheDayOnScreen,
+                    pill: pill
                 )
             }
         }
@@ -895,7 +810,7 @@ private struct DatePillOverThePage: View {
     let turn: (Int) -> Void
     let settleTheDayOnScreen: () async -> Void
 
-    @State private var pill = DatePill()
+    @Binding var pill: DatePill
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -946,130 +861,6 @@ private struct RoomForTheShutPill: View {
     }
 }
 
-/// One day in the grid, in whichever of its six states it is in.
-///
-/// Which state that is comes from ``DayCellLook``, which is a value and not a
-/// pile of conditionals in a body: six states that have to stay six *different*
-/// states is a thing to be able to measure.
-private struct DayCell: View {
-    let day: JournalCalendar.Day
-    let accent: Accent
-
-    /// How tall a row is, which is also how wide a column is.
-    let side: CGFloat
-
-    let pick: () -> Void
-
-    private var look: DayCellLook { DayCellLook(day, accent: accent) }
-
-    var body: some View {
-        Button(action: pick) {
-            ZStack {
-                RoundedRectangle(cornerRadius: Rounding.control, style: .continuous)
-                    .fill(Color(look.fill))
-                    // Square, and measured off whichever of the cell's two
-                    // sides is shorter rather than off the row height — a
-                    // fixed square in a column a seventh of the screen wide is
-                    // a tint that spills onto the day beside it.
-                    .aspectRatio(1, contentMode: .fit)
-                    .padding(Spacing.tight)
-                VStack(spacing: 2) {
-                    Text(day.day.day.formatted(.number.grouping(.never)))
-                        .lettering(.rowValue)
-                        .foregroundStyle(Color(look.numeral))
-                        // Scaled down rather than let out sideways: seven
-                        // columns is seven columns, and a number that grew past
-                        // its own cell would land on the day next to it.
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                    // Always laid out and shown only when the day has a file: a
-                    // dot that took up no room when it was absent would move
-                    // every other number in the row.
-                    Circle()
-                        .fill(look.dot.map(Color.init) ?? .clear)
-                        .frame(width: 4, height: 4)
-                        .opacity(0.7)
-                }
-            }
-            .opacity(look.dimmed ? 0.4 : 1)
-            .frame(maxWidth: .infinity, minHeight: side)
-            .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        // Visible and not writable: the day is on the calendar, and there is
-        // no Entry to write before it has arrived.
-        .disabled(!day.isOpenable)
-        .accessibilityIdentifier("day-\(day.day)")
-        .accessibilityLabel(day.day.spelledOut(withYear: true))
-        .accessibilityValue(day.isJournaled ? "Written" : "Not written")
-        .accessibilityAddTraits(day.isBeingWritten ? [.isSelected] : [])
-    }
-}
-
-/// How a day in the grid is drawn: the tint under it, the colour of its
-/// number, the mark that says it was written on, and whether the whole cell is
-/// turned down because the day belongs to the month next door.
-///
-/// A value rather than four computed properties on a view, because the thing
-/// worth holding this to is that the six states are six states — that no two of
-/// them come out looking the same on any accent, in either appearance — and
-/// that is a measurement, not a screenshot.
-struct DayCellLook: Equatable {
-    /// The tint under the number.
-    let fill: UIColor
-
-    /// What the number is written in.
-    let numeral: UIColor
-
-    /// The mark that says this day has an Entry, or `nil` where there is none
-    /// to make — including on the day being written, whose fill already says
-    /// more than a dot could.
-    let dot: UIColor?
-
-    /// Whether the cell is turned down as a whole: a day from the month either
-    /// side of the one on screen, on the grid to keep the weeks whole.
-    let dimmed: Bool
-
-    init(_ day: JournalCalendar.Day, accent: Accent) {
-        // In order, because the states overlap and the order is the answer:
-        // the day being written is filled whether or not it is also today, and
-        // today is tinted whether or not it was written on.
-        fill =
-            if day.isBeingWritten {
-                accent.uiColor
-            } else if day.relation == .current {
-                accent.softColor
-            } else if day.isJournaled {
-                Palette.field
-            } else {
-                .clear
-            }
-
-        numeral =
-            if day.isBeingWritten {
-                // The paper, on a solid accent. Every accent is held to 4.5:1
-                // against the page it is drawn on, and contrast does not care
-                // which way round it is asked (ADR 0006).
-                Palette.background
-            } else if !day.isOpenable {
-                Palette.inkFaint
-            } else if day.relation == .current {
-                // A word on a wash of its own accent, which is the one case
-                // the accent alone cannot carry.
-                accent.inkColor
-            } else {
-                Palette.ink
-            }
-
-        // The accent as it is, looked up rather than thinned into a colour of
-        // its own: how strong the mark is drawn is the cell's business, and a
-        // dynamic colour built afresh on every body is one SwiftUI cannot tell
-        // has not changed (`Palette`).
-        dot = day.isJournaled && !day.isBeingWritten ? accent.uiColor : nil
-        dimmed = !day.isInTheMonthOnScreen
-    }
-}
-
 // Previews journal into memory, so the month on screen is the one the preview
 // is named after rather than whatever this Mac's journal folder holds.
 @MainActor private func previewCalendar() -> JournalCalendar {
@@ -1103,6 +894,8 @@ struct DayCellLook: Equatable {
 }
 
 #Preview("Over a page of words") {
+    @Previewable @State var pill = DatePill()
+
     let calendar = previewCalendar()
     ScrollView {
         Text(String(repeating: "Words on the page, behind the glass. ", count: 60))
@@ -1112,6 +905,7 @@ struct DayCellLook: Equatable {
     .datePill(
         over: calendar,
         accent: .driftwood,
+        openedTo: $pill,
         pick: { calendar.pick($0) },
         turning: { $0 > 0 ? calendar.showNextDay() : calendar.showPreviousDay() },
         settling: {}

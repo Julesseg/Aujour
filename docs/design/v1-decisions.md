@@ -151,9 +151,17 @@ documented model wins, and what they omit is extrapolated from it.
   of *window* width (so Slide Over, half-width Split View and a narrowed Stage
   Manager window all count), the iPhone presentation: the date pill with its
   drag-to-week-to-month gesture, which therefore ships on iPad too. At or above,
-  `NavigationSplitView` with the month grid in the sidebar and the Entry at a
-  ~65-character measure. Crossing the threshold keeps the selected day and
-  resets the pill to closed, unanimated.
+  the month grid in a sidebar and the Entry at a ~65-character measure.
+  Crossing the threshold keeps the selected day and resets the pill to closed,
+  unanimated. That shipped in #92, with one departure from the wording above:
+  the split is a plain row and not a `NavigationSplitView`. A split view
+  collapses on the horizontal *size class*, which is exactly the question this
+  decision refuses to ask — it would have shown a sidebar on an iPad mini in
+  portrait at 744 points, and refused one on a phone laid on its side at 874.
+  The threshold is also measured against the whole window rather than what is
+  left after the safe area: the notch and home indicator eat 124 points of an
+  iPhone in landscape, and a line drawn after that subtraction puts identical
+  windows on opposite sides of it depending on the handset.
 - **Onboarding is three sheets**: what this is (a folder of markdown files you
   own), where it lives (iCloud primary, "choose a folder…" for the vault case),
   when to nudge (skippable time picker). Photo permission is not among them —

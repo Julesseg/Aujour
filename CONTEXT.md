@@ -109,7 +109,9 @@ locked. The day either side of the one on screen is also reached by swiping
 sideways on the date pill, which is the same journey without the grid: a
 sideways finger steps whatever unit the pill is showing, so a shut pill steps
 a day. Being a walk rather than a choice, it reaches a day that has not
-arrived and finds it locked there too.
+arrived and finds it locked there too. That walk is the pill's, and so the
+page presentation's alone (see Layout): a window with the month permanently
+beside it has the grid to step through instead.
 
 ### Backfill
 Writing a past Journal Day after the fact: opening a day whose Entry does not
@@ -545,6 +547,29 @@ The editor's size is four steps — S, M, L, XL — and not a number to dial in:
 it is a writing preference, how big somebody wants their own words, and it
 governs the Entry alone. Everything else in the app follows the system's own
 text size, which is a decision the user already made for everything they read.
+
+### Layout
+Which of Aujour's two presentations a window is being read in, decided by how
+wide the *window* is and by nothing else. Above roughly 820 points the
+**sidebar** presentation: the Calendar lives permanently down one side and the
+Entry beside it is set at a comfortable measure — about 65 characters of
+whichever face the reader writes in — rather than stretched across the glass.
+Below it the **page** presentation: the Entry across the whole window with the
+date pill over it, the pill being the answer to having no room for a calendar.
+
+The window and never the device, which is why both presentations ship on both
+families. An iPad in Slide Over, in a half-width Split View or in a Stage
+Manager window dragged narrow has no more room than a phone and is read as one;
+a phone laid on its side can have more room than an iPad mini stood up. A size
+class is not enough to ask the question with: an iPad mini in portrait reports
+a regular width at 744 points, which is too narrow to hold a calendar and a
+readable measure at once.
+
+Crossing the line keeps the day being written — that is the Calendar's, and
+the Calendar outlives a resize — and leaves the date pill shut, because a
+month left open would come back over a sidebar already showing it. The
+crossing does not animate the pill; the layout changing under it is motion
+enough.
 
 ### Identity
 The one place that answers what colour, what size, what corner and what

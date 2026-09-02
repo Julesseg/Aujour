@@ -53,6 +53,29 @@ struct ContentView: View {
     /// and that is a step forwards like any other.
     @State private var goingForwards = true
 
+    /// How far open the date pill is.
+    ///
+    /// Here rather than inside the pill for the two things only this screen
+    /// can do with it. One is old: the rest of the page is a way out of an
+    /// open month, and a state nothing outside the glass could reach would be
+    /// a pill only the pill could shut. The other is why it is *here* and not
+    /// one view further down — a window resized past the threshold takes the
+    /// pill away and puts a sidebar in its place, and the pill has to come
+    /// back shut when the window narrows again (``JournalLayout``).
+    @State private var pill = DatePill()
+
+    /// How wide this window is, which is the only thing that decides which of
+    /// the two presentations the journal is read in.
+    ///
+    /// The window and not the screen, and measured rather than inferred from a
+    /// size class: an iPad in Slide Over has no more room than a phone, and an
+    /// iPad mini stood up reports a regular width at 744 points, which is too
+    /// narrow to hold a calendar and a readable page at once.
+    ///
+    /// Nought until the first layout, which is the page presentation — an app
+    /// with no room yet is not one to put a sidebar in.
+    @State private var windowWidth: CGFloat = 0
+
     @Environment(\.scenePhase) private var scenePhase
 
     /// Whether this reader has asked for less movement, which the day sliding
@@ -274,6 +297,74 @@ struct ContentView: View {
         journal.calendar?.dayBeingWritten ?? journal.today?.day
     }
 
+    // MARK: - Which presentation the window is wide enough for
+
+    /// Which of the two presentations the journal is being read in.
+    ///
+    /// A pinned answer where a UI test has pinned one, and the window's own
+    /// otherwise. The suite drives the app from another process and cannot
+    /// resize a window: on an iPhone and on an iPad mini a rotation crosses
+    /// the threshold, but on a large iPad every orientation is wide, so a test
+    /// about the *page* presentation has no window it can ask for. Pinning is
+    /// how it asks — the presentation is stated, and everything downstream of
+    /// it is the app's own code.
+    private var layout: JournalLayout {
+        UITestingJournal.pinnedLayout ?? JournalLayout(windowWidth: windowWidth)
+    }
+
+    /// The sidebar, on the windows there is room for one in.
+    ///
+    /// A slot that is sometimes empty rather than a view that comes and goes
+    /// beside the page: the page next to it is a day's writing with an editor
+    /// in it, and a resize that changed how many children the row had would be
+    /// a resize that rebuilt the thing being typed into.
+    @ViewBuilder private var theSidebar: some View {
+        if layout == .sidebar, let calendar = journal.calendar {
+            SidebarCalendarView(
+                calendar: calendar,
+                accent: appearance.accent,
+                pick: pick,
+                // Written down before the folder is read, for the same reason
+                // the pill does it: the marks are a scan of the folder, and a
+                // day being filled in this second is a day whose file is not
+                // there yet.
+                settleTheDayOnScreen: { await entryOnScreen?.editor.save() }
+            )
+            Divider()
+        }
+    }
+
+    /// The day on screen as the bar's title, where the bar is what names it —
+    /// and nothing at all where the pill does.
+    ///
+    /// With its year only when that is news, exactly as the pill says it: the
+    /// journal can be left on a day years back, and every February has a 14th.
+    private var theDayIsNamedInTheBar: String {
+        guard layout == .sidebar, let calendar = journal.calendar else { return "" }
+        let day = calendar.dayBeingWritten
+        return day.spelledOut(withYear: day.year != calendar.today.year)
+    }
+
+    /// What a window resized across the threshold does.
+    ///
+    /// The selected day is not mentioned here, and that is the point: which
+    /// day the journal is on is the calendar's, the calendar outlives a
+    /// resize, and a screen that put the day back would be a second opinion
+    /// about it. What does have to be said is the pill — it is this screen's
+    /// state, it survives the crossing that takes it off screen, and a month
+    /// left open would come back over a sidebar already showing that month,
+    /// which is the calendar drawn twice.
+    ///
+    /// Unanimated, and said out loud rather than left to luck. Going wide the
+    /// pill has already been taken off screen by the time this runs, and going
+    /// narrow it is coming back from a state it was shut in — but the pill
+    /// hangs a settling spring on its own progress, and a shut that reached it
+    /// as an animatable change would be a month folding itself away in the
+    /// middle of a layout that is already moving.
+    private func theWindowCrossedTheThreshold() {
+        withTransaction(Transaction(animation: nil)) { pill.close() }
+    }
+
     /// How the day leaving and the day arriving pass each other: out the way
     /// the reader sent it, and in from the other side.
     ///
@@ -309,41 +400,64 @@ struct ContentView: View {
                         .navigationTitle("Aujour")
 
                 case .open:
-                    // A container of its own, and not the day itself: for the
-                    // length of a slide there are two days on screen, and they
-                    // need something to be laid over each other in and clipped
-                    // to. Identified by the day, because that is what makes
-                    // this a change of page rather than a change of contents —
-                    // the same view told to say something else would have
-                    // nothing to slide out.
-                    ZStack {
-                        theDayOnScreen
-                            .id(dayOnScreen)
-                            .transition(theDaySlides)
+                    // The month down one side on a window with room for it,
+                    // and nothing at all on a window without — and the day's
+                    // words beside it either way.
+                    HStack(spacing: 0) {
+                        theSidebar
+
+                        // A container of its own, and not the day itself: for
+                        // the length of a slide there are two days on screen,
+                        // and they need something to be laid over each other
+                        // in and clipped to. Identified by the day, because
+                        // that is what makes this a change of page rather than
+                        // a change of contents — the same view told to say
+                        // something else would have nothing to slide out.
+                        ZStack {
+                            theDayOnScreen
+                                .id(dayOnScreen)
+                                .transition(theDaySlides)
+                        }
+                        // The page is the page whatever is on it. Left to size
+                        // itself, a container holding one day's writing would
+                        // take the shape of whatever the day happened to be —
+                        // and a day that is briefly a single line of prose
+                        // would gather the whole screen in around it, pill and
+                        // all.
+                        //
+                        // The whole room beside the calendar and not the
+                        // measure: what is set at a measure is the day's
+                        // words, and the page they are set on is the page. A
+                        // day turned here slides across all of it.
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                        .datePill(
+                            // No pill where the month is already on screen: a
+                            // window wide enough for a sidebar has answered
+                            // the question the pill exists to ask, and a
+                            // second calendar over the first is the calendar
+                            // drawn twice.
+                            over: layout == .page ? journal.calendar : nil,
+                            accent: appearance.accent,
+                            openedTo: $pill,
+                            pick: pick,
+                            turning: turn,
+                            // Written down before the month is read: the marks
+                            // are a scan of the folder, and a day being filled
+                            // in this second is a day whose file is not there
+                            // yet.
+                            settling: { await entryOnScreen?.editor.save() }
+                        )
                     }
-                    // The page is the page whatever is on it. Left to size
-                    // itself, a container holding one day's writing would take
-                    // the shape of whatever the day happened to be — and a day
-                    // that is briefly a single line of prose would gather the
-                    // whole screen in around it, pill and all.
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-                    .datePill(
-                        over: journal.calendar,
-                        accent: appearance.accent,
-                        pick: pick,
-                        turning: turn,
-                        // Written down before the month is read: the marks
-                        // are a scan of the folder, and a day being filled
-                        // in this second is a day whose file is not there
-                        // yet.
-                        settling: { await entryOnScreen?.editor.save() }
-                    )
-                    // The pill names the day now, so the bar carries the
-                    // ways out of it and nothing else — a title saying the
-                    // same thing twice, once in each of two typefaces, is
-                    // the redesign's own worst screen.
-                    .navigationTitle("")
+                    // Which day is on screen, on the one presentation where
+                    // nothing else says it. The pill names the day it is over,
+                    // so on a narrow window a title would be the same sentence
+                    // twice in two typefaces — the redesign's own worst
+                    // screen. Beside a sidebar there is no pill, and a filled
+                    // cell in a grid is a day pointed at rather than a day
+                    // named: an Entry is its date, and the page you are
+                    // writing on should say which one.
+                    .navigationTitle(theDayIsNamedInTheBar)
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
@@ -426,6 +540,31 @@ struct ContentView: View {
         .fullScreenCover(isPresented: theWelcomeIsDue) {
             WelcomeView(journal: journal)
         }
+        // How wide the window is, read off the one view in the app that fills
+        // it. The window and not the screen: Slide Over, a half-width Split
+        // View and a Stage Manager window dragged narrow all hand the app less
+        // room than the glass it is on, and all three should be read the way a
+        // phone is.
+        //
+        // The safe area is added back rather than taken off, and that is the
+        // difference between a window and a *cutout*. A phone on its side is
+        // the case: the notch and the home indicator eat 124 points of an
+        // 874-point window, and a threshold read off what was left would put
+        // the same window either side of the line depending on which handset
+        // the notch belonged to. What the threshold is about is how much room
+        // the reader has, and a strip of screen beside a camera is room.
+        .onGeometryChange(for: CGFloat.self) {
+            $0.size.width + $0.safeAreaInsets.leading + $0.safeAreaInsets.trailing
+        } action: {
+            windowWidth = $0
+        }
+        .onChange(of: layout) { _, _ in theWindowCrossedTheThreshold() }
+        // And put where a day can read it, which is the one thing downstream
+        // of the window that is not this screen's own: how wide a day's words
+        // are set. Every Entry in the app is under this, including one pushed
+        // by a search — a day reached by what was written in it is set the
+        // same way as the day reached by when it was.
+        .environment(\.journalLayout, layout)
         .task { await journal.open() }
         // A journal that has been reopened — a folder changed, a Path Template
         // changed — is a new calendar over new files, and a day held from the
@@ -486,6 +625,26 @@ struct ContentView: View {
     }
 }
 
+
+extension EnvironmentValues {
+    /// Which presentation the journal is being read in, put where the views
+    /// under it can reach it.
+    ///
+    /// Read off the window by ``ContentView`` and answered here, because the
+    /// screen is the only thing that knows how much room there is and the
+    /// views that care about it are several pushes down.
+    ///
+    /// The default is the page, which is what a preview and a test of
+    /// something else want: the presentation that caps nothing.
+    var journalLayout: JournalLayout {
+        get { self[JournalLayoutKey.self] }
+        set { self[JournalLayoutKey.self] = newValue }
+    }
+}
+
+private struct JournalLayoutKey: EnvironmentKey {
+    static let defaultValue = JournalLayout.page
+}
 
 extension View {
     /// Says, above a day's Entry, that another version of that day was kept

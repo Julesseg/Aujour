@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import AujourCore
 
 /// One day's Entry, written in markdown that is styled where it is typed.
@@ -77,6 +78,20 @@ struct EntryView: View {
 
     @Environment(\.scenePhase) private var scenePhase
 
+    /// The reader's own text size, for the one number on this screen worked
+    /// out from a font rather than drawn in one: how wide the day is set.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// Which presentation the day is being read in, which decides whether its
+    /// words are set at a measure or run to the width they are given.
+    ///
+    /// Through the environment rather than handed down, like the face they are
+    /// written in and for the same reason: between the window that knows how
+    /// wide it is and this view are the screen that pushed it and the search
+    /// results that pushed it, neither of which has anything to say about
+    /// measures and both of which would have to carry one.
+    @Environment(\.journalLayout) private var layout
+
     /// - Parameter library: where this day's suggested photographs are read
     ///   from, and where a `{{location}}` widget reads the day's own places
     ///   from — the device's, unless a test or a preview says otherwise.
@@ -94,6 +109,22 @@ struct EntryView: View {
         self.places = places
         self.library = library
         _suggestions = State(wrappedValue: PhotoSuggestions(from: library))
+    }
+
+    /// How wide the day is set: 65 characters of the face it is written in
+    /// beside a sidebar, and the whole of the room on a window that is
+    /// narrower than a measure anyway.
+    ///
+    /// How many characters is a Layout decision and lives in Core; how many
+    /// points that is lives here, because it is a question about a font and
+    /// there is no answering it without a screen to ask on.
+    private var measure: CGFloat {
+        guard layout == .sidebar else { return .infinity }
+        return look.measure(
+            compatibleWith: UITraitCollection(
+                preferredContentSizeCategory: dynamicTypeSize.contentSize
+            )
+        )
     }
 
     /// The Entry these are all about, as something that can be compared.
@@ -185,6 +216,12 @@ struct EntryView: View {
                 }
             }
         }
+        // The measure, and then the room it is set in — which is what centres
+        // it. Two frames and not one: a page that was simply given less width
+        // would sit against the calendar beside it rather than in the middle
+        // of what is left.
+        .frame(maxWidth: measure, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Along the bottom rather than over the text: something that could not
         // be written must be impossible to miss, and equally impossible to be
         // stopped by — the words are still on screen and still being typed.

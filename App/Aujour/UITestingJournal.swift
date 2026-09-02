@@ -122,6 +122,42 @@ enum UITestingJournal {
     /// What the ``welcomeKey`` says when a test wants the first run.
     static let welcomeIsDue = "due"
 
+    /// Which presentation this launch is pinned to — `page` or `sidebar`, and
+    /// absent for a launch that lets the window decide.
+    ///
+    /// Which is every launch that is not a UI test, and most of the ones that
+    /// are. The suite drives the app from another process and has no way to
+    /// resize its window: rotation is the only resize it can perform, and
+    /// rotation does not cross the threshold on every device — a large iPad is
+    /// wide in both orientations and an iPhone SE is narrow in both. So a test
+    /// about one presentation says which one it means, and a test about the
+    /// *crossing* pins nothing and rotates, on whichever devices that is a
+    /// crossing on.
+    ///
+    /// It pins the answer and not the question: what a pinned launch skips is
+    /// the one line that turns a width into a ``JournalLayout``, and every
+    /// other thing either presentation does is the app's own code.
+    static let layoutKey = "AUJOUR_UITEST_LAYOUT"
+
+    /// The presentation this launch was pinned to, or `nil` — which is every
+    /// launch that is not a UI test, and so nearly all of them.
+    ///
+    /// Read once, here, like the folder: the app has no other back door into
+    /// which layout it is in.
+    static let pinnedLayout: JournalLayout? = layout(pinnedBy: ProcessInfo.processInfo.environment)
+
+    /// - Parameter environment: the launch environment to read, so that this
+    ///   can be asked a question without launching anything.
+    static func layout(pinnedBy environment: [String: String]) -> JournalLayout? {
+        switch environment[layoutKey] {
+        case "page": .page
+        case "sidebar": .sidebar
+        // Anything else is a launch that has not asked, including the typo
+        // that would otherwise pin every test to whichever case fell through.
+        default: nil
+        }
+    }
+
     /// The markdown a template file holds, for "Choose a template file…" to
     /// pick in place of the Files picker — written *outside* the journal
     /// folder, which is the case the picker exists for (ADR 0005).

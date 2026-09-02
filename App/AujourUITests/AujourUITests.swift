@@ -1698,6 +1698,238 @@ final class AujourUITests: XCTestCase {
         )
     }
 
+    // MARK: - The layout the window is wide enough for
+
+    /// Aujour ships one app for iPhone and iPad, and the difference between
+    /// them is not a difference between devices: above roughly 820 points of
+    /// *window* the month lives in a sidebar and the day is set at a measure,
+    /// and below it the date pill is the calendar — on an iPad in Slide Over
+    /// exactly as on a phone.
+    ///
+    /// Which side of the line a given width falls on is `JournalLayout`, and
+    /// it is decided against every window a real device hands the app there
+    /// rather than here. What only a running app can show is the rest: that a
+    /// sidebar is a way into a day, that the day beside it is set at a measure
+    /// rather than stretched across the glass, and that a window resized past
+    /// the line changes presentation without losing the day being written.
+    ///
+    /// Both presentations are asked for on both families. The suite cannot
+    /// resize a window — an iPad's own widths are whichever iPad the runner
+    /// had — so a test that is about one presentation says which one it means,
+    /// and the one test that is about the crossing itself rotates the device,
+    /// which is the one resize a UI test can perform.
+    func testTheSidebarIsTheCalendarOnAWindowWithRoomForOne() throws {
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let app = launchApp(
+            layout: .sidebar,
+            entries: "\(entryName(for: yesterday)) Walked to the harbour and back.\n"
+        )
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        // The month is simply there, and the pill that a narrow window pulls
+        // it out of is not: a pill over a sidebar already showing that month
+        // is the calendar drawn twice.
+        XCTAssertTrue(
+            app.buttons["sidebarNextMonth"].waitForExistence(timeout: 15),
+            "a window wide enough for a sidebar had no calendar in it"
+        )
+        XCTAssertFalse(
+            app.buttons["datePill"].exists,
+            "the date pill was still over a page with a sidebar calendar beside it"
+        )
+
+        // The day's words are beside the calendar rather than under it.
+        XCTAssertGreaterThan(
+            editor.frame.minX,
+            0,
+            "the day's words began at the window's edge, so nothing was beside them"
+        )
+
+        // And it is a way *into* a day, which is the whole of what the pill's
+        // grid is for on a narrow window.
+        showInTheSidebar(app, yesterday)
+        let cell = app.buttons["day-\(entryName(for: yesterday))"]
+        expect(cell, toHaveValue: "Written")
+        cell.tap()
+
+        let written = try XCTUnwrap(theWordsOnScreen(app, timeout: 15))
+        XCTAssertTrue(
+            written.contains("Walked to the harbour and back."),
+            "the sidebar did not open the day it was tapped on, it opened: \(written)"
+        )
+
+        // And the bar names the day the journal is on, because the pill that
+        // would have named it is not here: a filled cell in a grid is a day
+        // pointed at rather than a day named.
+        XCTAssertTrue(
+            app.navigationBars.staticTexts.element(boundBy: 0).waitForExistence(timeout: 10),
+            "nothing on screen said which day was being written"
+        )
+        XCTAssertFalse(
+            app.navigationBars.staticTexts.element(boundBy: 0).label.isEmpty,
+            "the bar over the sidebar layout named no day at all"
+        )
+
+        // The way back to today is the same way back it is on a phone, said
+        // in the same word — and it is offered only once the journal is off
+        // today, which is what makes it a way back rather than a badge.
+        let today = app.buttons["backToToday"]
+        XCTAssertTrue(today.waitForExistence(timeout: 10), "there was no way back to today")
+        today.tap()
+        XCTAssertTrue(
+            today.waitForNonExistence(timeout: 10),
+            "the way back to today was still offered from today"
+        )
+    }
+
+    /// The other half of the sidebar layout: the day beside the calendar is
+    /// *set* rather than stretched.
+    ///
+    /// How wide 65 characters of the reader's own face come out is measured
+    /// headlessly, where a font can be asked; what only a running app can show
+    /// is that the number reaches the page. Which needs a window with
+    /// appreciably more room than a measure in it, and that is an iPad: at the
+    /// default face 65 characters is around 550 points, so a thousand-point
+    /// window whose day came out under 700 is one the cap reached, and one
+    /// whose day filled the room would be over 800.
+    func testTheDayBesideTheSidebarIsSetAtAMeasureRatherThanStretched() throws {
+        let app = launchApp(layout: .sidebar)
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
+
+        // On its side, because that is the widest window any one device has —
+        // and on a phone it is still not wide enough, which is what the skip
+        // below says out loud rather than passing quietly.
+        rotate(app, to: .landscapeLeft)
+        try XCTSkipUnless(
+            app.frame.width >= 1000,
+            "this device's widest window is \(app.frame.width) points, which is a calendar and "
+                + "a measure with nothing left over to cap"
+        )
+
+        XCTAssertLessThan(
+            editor.frame.width,
+            700,
+            "the day's words were set \(editor.frame.width) points wide in a "
+                + "\(app.frame.width)-point window, which is a stretched page and not a measure"
+        )
+    }
+
+
+    /// The sidebar at the far end of Dynamic Type, where the month's name, the
+    /// weekday initials and the sentence under the grid have all grown and the
+    /// column has not.
+    ///
+    /// Seven columns is seven columns whatever the text size, so what a cell
+    /// must never do is spill onto the day beside it or off the side of the
+    /// calendar — and what the calendar must never do is take room off the
+    /// page of words it is beside.
+    func testTheSidebarHoldsTogetherAtTheLargestTextSize() throws {
+        let app = launchApp(layout: .sidebar, textSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        XCTAssertTrue(
+            app.buttons["sidebarNextMonth"].waitForExistence(timeout: 15),
+            "the sidebar calendar never appeared"
+        )
+
+        let cells = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'day-'"))
+        XCTAssertGreaterThan(cells.count, 0, "the month had no days on it")
+
+        for cell in cells.allElementsBoundByIndex {
+            let frame = cell.frame
+            XCTAssertGreaterThanOrEqual(
+                frame.minX,
+                app.frame.minX - 0.5,
+                "a day of the month hangs off the left of the screen: \(cell.label) at \(frame)"
+            )
+            XCTAssertLessThanOrEqual(
+                frame.maxX,
+                editor.frame.minX + 0.5,
+                "a day of the month is over the page beside it: \(cell.label) at \(frame)"
+            )
+        }
+    }
+
+    /// The rule the whole feature is: which presentation the app is in follows
+    /// the window it is in, and a window that changes width changes
+    /// presentation under the same day.
+    ///
+    /// Unpinned, so the app measures a real window. Rotation is the resize —
+    /// the only one a UI test can perform — and it is a real one: an iPhone
+    /// and an iPad mini both cross the line turning on their side, while a
+    /// large iPad is wide in both orientations and so proves the other half,
+    /// that the rule is read off the width rather than off the device.
+    func testTheWindowDecidesWhichPresentationTheJournalIsReadIn() throws {
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let app = launchApp(
+            layout: nil,
+            entries: "\(entryName(for: yesterday)) Stood in the hall with my coat on.\n"
+        )
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
+
+        let started = presentationOf(app)
+        XCTAssertEqual(
+            started,
+            presentationExpected(of: app),
+            "a \(app.frame.width)-point window was read in the \(started) presentation"
+        )
+
+        // The day being written, before anything is resized — reached the way
+        // whichever presentation is on screen reaches it.
+        showTheMonth(app, containing: yesterday)
+        app.buttons["day-\(entryName(for: yesterday))"].tap()
+        let opened = try XCTUnwrap(theWordsOnScreen(app, timeout: 15))
+        XCTAssertTrue(
+            opened.contains("Stood in the hall with my coat on."),
+            "the day picked out of the calendar never opened, the screen holds: \(opened)"
+        )
+        // And, where there is a pill, left open on the month — so that what
+        // comes back after the crossing is a pill that was shut by it.
+        if started == .page {
+            openTheDatePill(app, to: "Month")
+        }
+
+        // The resize. Out and back, so that a device which crosses the line
+        // ends on the narrow side of it, where the pill can be asked what
+        // state it is in.
+        rotate(app, to: .landscapeLeft)
+        let sideways = presentationOf(app)
+        XCTAssertEqual(
+            sideways,
+            presentationExpected(of: app),
+            "a \(app.frame.width)-point window was read in the \(sideways) presentation"
+        )
+
+        rotate(app, to: .portrait)
+        XCTAssertEqual(presentationOf(app), presentationExpected(of: app))
+
+        // The day survived both crossings — it is the calendar's and the
+        // calendar outlives a resize.
+        let survived = try XCTUnwrap(theWordsOnScreen(app, timeout: 15))
+        XCTAssertTrue(
+            survived.contains("Stood in the hall with my coat on."),
+            "the day being written was lost across the resize, the screen holds: \(survived)"
+        )
+
+        // And the pill came back shut. Only worth asking on a device that
+        // actually crossed the line — on a large iPad both orientations are
+        // wide, and there was no pill to shut.
+        try XCTSkipUnless(
+            started == .page && sideways == .sidebar,
+            "this device is \(started) in portrait and \(sideways) in landscape, so a "
+                + "rotation does not cross the threshold"
+        )
+        expect(app.buttons["datePill"], toHaveValue: "Closed")
+    }
+
     // MARK: - Walking the journal a day at a time
 
     // The way through the journal that does not open the grid: a finger drawn
@@ -2673,7 +2905,19 @@ final class AujourUITests: XCTestCase {
     ///     simulator's own calendar is empty and unaskable, so this is the
     ///     only way a data placeholder has anything to render.
     ///   - reminders: the same, for the day's reminders.
+    ///   - layout: which of the two presentations to pin this launch to —
+    ///     ``Presentation/page``, which is what every test that is not about
+    ///     the layout wants, or ``Presentation/sidebar``. `nil` lets the window
+    ///     decide, which is what the app does for everybody who is not a test
+    ///     and what the tests about the layout itself ask for.
+    ///
+    ///     Pinned by default because the suite cannot resize a window: an
+    ///     iPad's own idea of how wide it is depends on which iPad the runner
+    ///     happened to have, and a test about the date pill would pass on a
+    ///     mini and fail on a Pro for a reason that has nothing to do with
+    ///     what it is testing.
     private func launchApp(
+        layout: Presentation? = .page,
         textSize: String? = nil,
         contentTemplate: String? = nil,
         welcome: Bool = false,
@@ -2694,6 +2938,11 @@ final class AujourUITests: XCTestCase {
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["AUJOUR_UITEST_JOURNAL_FOLDER"] = journalFolder
+        // Which presentation this launch is in. Set for nearly every test,
+        // and left to the window for the ones about the layout itself.
+        if let layout {
+            app.launchEnvironment["AUJOUR_UITEST_LAYOUT"] = layout.rawValue
+        }
         // Where the reader has left the system's text size. A launch argument
         // and not an environment variable, because this is UIKit's own switch
         // rather than one of Aujour's — the app never reads it, it just comes
@@ -3320,6 +3569,124 @@ final class AujourUITests: XCTestCase {
         var parts = Calendar.current.dateComponents([.year, .month], from: day)
         parts.day = 15
         return Calendar.current.date(from: parts)!
+    }
+
+    // MARK: - Which presentation the app is in
+
+    /// One of Aujour's two layouts, as this suite talks about them.
+    ///
+    /// A type of its own rather than the two strings it is spelled with,
+    /// because the strings are load-bearing in two directions at once — they
+    /// are what a launch is pinned with and what a screen is read back as —
+    /// and a typo in either is a test that quietly asks the wrong question.
+    /// Declared here rather than imported: this suite drives the app from
+    /// another target and imports nothing from it, the same way it spells out
+    /// every launch key.
+    private enum Presentation: String {
+        case page
+        case sidebar
+
+        /// What no presentation at all looks like, which is a screen that has
+        /// neither a date pill nor a calendar on it. Never expected, and worth
+        /// being able to name when a test fails.
+        case neither
+    }
+
+    /// Which of the two is on screen, read off the one control that only that
+    /// presentation has.
+    private func presentationOf(_ app: XCUIApplication) -> Presentation {
+        // A short wait and not the usual long one: this is only ever asked of
+        // an app that is already up and has already been laid out, and the
+        // answer where there is no sidebar is a wait spent finding that out.
+        if app.buttons["sidebarNextMonth"].waitForExistence(timeout: 5) { return .sidebar }
+        if app.buttons["datePill"].exists { return .page }
+        return .neither
+    }
+
+    /// Which one this window should be in, worked out from its width the same
+    /// way the app works it out — the *window's* width, which is what
+    /// `XCUIApplication.frame` is.
+    ///
+    /// The number is spelled out rather than shared, like every other constant
+    /// in this suite: the UI target imports nothing from the app it drives, so
+    /// a threshold that moved in `JournalLayout` and not here is a suite that
+    /// says so.
+    private func presentationExpected(of app: XCUIApplication) -> Presentation {
+        app.frame.width >= 820 ? .sidebar : .page
+    }
+
+    /// Turns the device, and waits for the app to have been laid out again.
+    ///
+    /// The wait is not politeness: a rotation is delivered over more than one
+    /// frame, and a question asked in the middle of one is asked of a window
+    /// that is neither width.
+    private func rotate(_ app: XCUIApplication, to orientation: UIDeviceOrientation) {
+        let before = app.frame.width
+        XCUIDevice.shared.orientation = orientation
+
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline, app.frame.width == before {
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        // And a moment past the resize itself, for whatever the presentation
+        // change puts on screen to have arrived.
+        Thread.sleep(forTimeInterval: 1)
+    }
+
+    /// Puts a day's month on screen, whichever presentation the app is in.
+    ///
+    /// The two calendars are reached differently — one has to be pulled open
+    /// and the other is simply there — and every test above this one is about
+    /// something else.
+    private func showTheMonth(_ app: XCUIApplication, containing day: Date) {
+        if presentationOf(app) == .sidebar {
+            showInTheSidebar(app, day)
+        } else {
+            openTheMonth(app, showing: day)
+        }
+    }
+
+    /// Brings a day onto the sidebar's grid, stepping a month if it is not
+    /// already there.
+    ///
+    /// A step is needed only at the turn of a month, and at most one: the grid
+    /// is six whole weeks, so it carries the tail of the month before and the
+    /// head of the month after.
+    private func showInTheSidebar(_ app: XCUIApplication, _ day: Date) {
+        XCTAssertTrue(
+            app.buttons["sidebarNextMonth"].waitForExistence(timeout: 30),
+            "the sidebar calendar never appeared"
+        )
+        let cell = app.buttons["day-\(entryName(for: day))"]
+        guard !cell.waitForExistence(timeout: 10) else { return }
+
+        app.buttons["sidebarPreviousMonth"].tap()
+        Thread.sleep(forTimeInterval: 0.4)
+        guard !cell.exists else { return }
+
+        app.buttons["sidebarNextMonth"].tap()
+        Thread.sleep(forTimeInterval: 0.4)
+        app.buttons["sidebarNextMonth"].tap()
+        XCTAssertTrue(
+            cell.waitForExistence(timeout: 5),
+            "\(entryName(for: day)) was not on the sidebar's grid, a month either side of it"
+        )
+    }
+
+    /// What the day on screen says — the editor's own text, once there is an
+    /// editor to read it off.
+    private func theWordsOnScreen(_ app: XCUIApplication, timeout: TimeInterval) -> String? {
+        let editor = app.textViews["entryEditor"]
+        guard editor.waitForExistence(timeout: timeout) else { return nil }
+
+        // The day is opened and then read, and reading a file is not instant:
+        // an editor asked the moment it appears answers with the empty page it
+        // came up as.
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline, (editor.value as? String).map(\.isEmpty) != false {
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return editor.value as? String
     }
 
     /// Puts the calendar away, which is done by going back to the day's own

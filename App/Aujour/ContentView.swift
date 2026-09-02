@@ -17,8 +17,17 @@ struct ContentView: View {
     /// its date is not what anybody remembers about it.
     @State private var searching = false
 
-    /// Where a sheet rises from: the button on the bar that summoned it.
+    /// Where a sheet rises from: the one button on the bar that summons them.
     @Namespace private var sheets
+
+    /// The day whose sheet asking how to send it is up, and `nil` the rest of
+    /// the time.
+    ///
+    /// Here rather than on the Entry, now that the offer is a row in this
+    /// screen's menu: what the user asked for is the bar's, and how a day
+    /// actually gets sent — the photographs it embeds, the file, the system's
+    /// sheet over it — stays ``EntryView``'s.
+    @State private var sending: ADayToSend?
 
     /// The day the app is on, when it is not today's — its editor, made once
     /// and kept for as long as that day is on screen.
@@ -248,7 +257,9 @@ struct ContentView: View {
             EntryView(
                 editor: onScreen.editor,
                 photographsFrom: journal.photoLibrary,
-                placesFrom: journal.places
+                placesFrom: journal.places,
+                sending: $sending,
+                risingFrom: sheets
             )
             .parkedFilesNotice(from: journal, for: onScreen.day, in: appearance.accent)
         } else if let calendar = journal.calendar, let opensAt = calendar.writingOpensAt {
@@ -260,6 +271,50 @@ struct ContentView: View {
             ProgressView("Opening today's entry")
                 .accessibilityIdentifier("openingEntry")
         }
+    }
+
+    /// Everything the app can do that is not writing in the day on screen,
+    /// behind one button.
+    ///
+    /// One control and not three, because two of the three are the same kind
+    /// of thing — a way out of today's page — and the bar is the one place in
+    /// this app where the day being written is not what is on screen. The pill
+    /// names the day and the page holds the words; what is left over is this,
+    /// and a row of icons across the top would be three things competing with
+    /// the one thing anybody opened the app to do.
+    ///
+    /// The three of them come up as sheets out of this button, which is why
+    /// there is one name for the journey rather than three (``Sheets``).
+    ///
+    /// Sending is a row here and not a control of the Entry's own, but it is
+    /// still the Entry that reads the words: whether there is anything to send
+    /// changes on every keystroke, and a read of that in *this* body would
+    /// invalidate the whole screen — editor, pill and all — every time
+    /// somebody typed a letter. ``ShareEntryButton`` is where that read
+    /// belongs, and it draws itself as a row here exactly as it drew itself as
+    /// a button on the bar.
+    private var theRestOfTheApp: some View {
+        Menu {
+            // In the order somebody reaches for them: back into the journal,
+            // this day out of it, and then the app itself.
+            Button("Search", systemImage: "magnifyingglass") {
+                searching = true
+            }
+            .accessibilityIdentifier("openSearch")
+
+            if let onScreen = entryOnScreen {
+                ShareEntryButton(editor: onScreen.editor, sending: $sending)
+            }
+
+            Button("Settings", systemImage: "slider.horizontal.3") {
+                showingSettings = true
+            }
+            .accessibilityIdentifier("openSettings")
+        } label: {
+            Label("More", systemImage: "ellipsis")
+        }
+        .summonsASheet(Sheets.theBar, in: sheets)
+        .accessibilityIdentifier("moreActions")
     }
 
     /// Which day the journal is on, as something that can be watched.
@@ -339,30 +394,8 @@ struct ContentView: View {
                     .navigationTitle("")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            // The other way back into a day, and now the
-                            // only one in the bar: by when it was is the
-                            // pill's, and by what was written in it is
-                            // this.
-                            Button("Search", systemImage: "magnifyingglass") {
-                                searching = true
-                            }
-                            .summonsASheet(Sheets.search, in: sheets)
-                            .accessibilityIdentifier("openSearch")
-                        }
                         ToolbarItem(placement: .topBarTrailing) {
-                            // One way in for the folder and every setting
-                            // over it, because they are one answer: this
-                            // is your journal, and this is what Aujour
-                            // will do with it. Named for what the sheet is
-                            // titled, since the journal is only the first
-                            // half of it — how the app looks is behind
-                            // here too.
-                            Button("Settings", systemImage: "slider.horizontal.3") {
-                                showingSettings = true
-                            }
-                            .summonsASheet(Sheets.settings, in: sheets)
-                            .accessibilityIdentifier("openSettings")
+                            theRestOfTheApp
                         }
                     }
 
@@ -395,7 +428,7 @@ struct ContentView: View {
                     // one edit out of date the moment today's Entry is
                     // created.
                     .task { await journal.recount() }
-                    .sheetChrome(risingFrom: Sheets.settings, in: sheets)
+                    .sheetChrome(risingFrom: Sheets.theBar, in: sheets)
             }
             // Outside the states for the settings sheet's reason: a journal
             // reopened under a search that is up is a new search over a new
@@ -413,7 +446,7 @@ struct ContentView: View {
                         accent: appearance.accent
                     )
                     .preferredColorScheme(drawnIn)
-                    .sheetChrome(risingFrom: Sheets.search, in: sheets)
+                    .sheetChrome(risingFrom: Sheets.theBar, in: sheets)
                 }
             }
         }

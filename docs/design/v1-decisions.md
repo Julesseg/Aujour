@@ -159,5 +159,18 @@ documented model wins, and what they omit is extrapolated from it.
   when to nudge (skippable time picker). Photo permission is not among them —
   asking is a separate act, done before a day is opened.
 
+- **The bar is one menu, not three icons.** The design draws search and
+  settings as separate glyphs across the top, with sharing a third once the
+  Entry screen has one. Shipped, that is three controls competing along the
+  top edge with the one thing anybody opened the app to do, on the screen the
+  identity spent its whole budget making a page of writing. So they are one
+  `ellipsis` at the trailing end — search, send this day, settings — and the
+  leading end is empty. The pill still names the day, which is the only thing
+  up there that is about the day. The cost is real and is the reason it is
+  written down: search is the second most-used thing in the app and is now one
+  tap further away. Sending stays on whichever screen the day was opened from,
+  so a day reached through search offers it as a button rather than a menu of
+  one.
+
 Still undesigned and not extrapolated here: the iPad sidebar's own empty and
 loading states, and `{{workout}}`-class placeholders that are roadmap anyway.

@@ -38,6 +38,17 @@ struct JournalSearchSheet: View {
     /// list is what is on screen.
     @State private var opened: OpenedDay?
 
+    /// The day found here that is on its way out of the app, while the sheet
+    /// asking how is up.
+    ///
+    /// This screen's rather than the Entry's, for the reason today's page owns
+    /// its own: the offer is a control on a bar, and the bar belongs to
+    /// whichever screen the day was opened from.
+    @State private var sending: ADayToSend?
+
+    /// Where that sheet rises from — the button beside the day's name.
+    @Namespace private var sheets
+
     /// Whether the query is being typed. Held so that the box is ready the
     /// moment the sheet is up: a search sheet that has to be tapped before it
     /// can be typed into is one tap somebody makes every single time.
@@ -83,13 +94,25 @@ struct JournalSearchSheet: View {
                 EntryView(
                     editor: opened.editor,
                     photographsFrom: journal.photoLibrary,
-                    placesFrom: journal.places
+                    placesFrom: journal.places,
+                    sending: $sending,
+                    risingFrom: sheets
                 )
                 .parkedFilesNotice(from: journal, for: opened.day, in: accent)
                 // With its year: a day reached from a search can be years back,
                 // and every February has a 14th.
                 .navigationTitle(opened.day.spelledOut(withYear: true))
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        // A button and not a menu, because there is one thing
+                        // to offer here: searching is what this sheet already
+                        // is, and the settings are not reachable from inside
+                        // one. A menu of a single row is a row with a lid on.
+                        ShareEntryButton(editor: opened.editor, sending: $sending)
+                            .summonsASheet(Sheets.theBar, in: sheets)
+                    }
+                }
             }
         }
         // Full height rather than half, for the settings sheet's reason and

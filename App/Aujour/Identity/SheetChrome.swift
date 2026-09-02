@@ -17,10 +17,11 @@ import SwiftUI
 /// identifier does not match its button's does not fail — it quietly comes up
 /// from the bottom of the screen instead, which is the kind of wrong nobody
 /// notices for a release.
+///
+/// One name, because there is one control. Everything the bar can put up comes
+/// out of the same button, and only ever one of them at a time.
 enum Sheets {
-    static let search = "search"
-    static let settings = "settings"
-    static let share = "share"
+    static let theBar = "theBar"
 }
 
 extension View {
@@ -59,11 +60,16 @@ extension View {
     /// identifier and namespace. Where it is not — the control has scrolled
     /// away, or the sheet was put up by something else — the sheet comes up
     /// the ordinary way, which is why nothing here has to check.
-    func sheetChrome(risingFrom id: some Hashable & Sendable, in namespace: Namespace.ID)
+    @ViewBuilder
+    func sheetChrome(risingFrom id: some Hashable & Sendable, in namespace: Namespace.ID?)
         -> some View
     {
-        navigationTransition(.zoom(sourceID: id, in: namespace))
-            .sheetChrome()
+        if let namespace {
+            navigationTransition(.zoom(sourceID: id, in: namespace))
+                .sheetChrome()
+        } else {
+            sheetChrome()
+        }
     }
 
     /// Marks this control as the place a sheet comes out of — the other half

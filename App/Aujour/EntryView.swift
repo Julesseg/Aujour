@@ -63,14 +63,15 @@ struct EntryView: View {
     @State private var shared = SharedEntry()
 
     /// The day whose sheet asking how to send it is up, and `nil` the rest of
-    /// the time. Held here rather than on the toolbar button, like every other
-    /// sheet in the app: one declared inside a toolbar item is one that lives
-    /// and dies with a control on a bar.
-    @State private var sending: ADayToSend?
-
-    /// Where the sharing sheet rises from — the button on the bar that
-    /// summoned it.
-    @Namespace private var sheets
+    /// the time.
+    ///
+    /// Owned by the screen that put the offer on its bar rather than by this
+    /// one, because that is where the offer is: on today's page it is a row in
+    /// the menu, and in the search sheet it is a button beside the day's name.
+    /// What stays here is everything the sending itself needs — the
+    /// photographs this day embeds, the file, and the sheet over it — which is
+    /// the Entry's and nobody else's.
+    @Binding var sending: ADayToSend?
 
     /// What this screen is actually drawing in, light or dark — never "no
     /// preference", because a sheet has to be told the resolved answer and not
@@ -90,6 +91,11 @@ struct EntryView: View {
     /// positions this day's photographs carry are where it says the day was.
     private let library: (any PhotoLibrary)?
 
+    /// Where the sending sheet rises from — the control that offered it, which
+    /// belongs to the screen above. `nil` for a preview, which has no bar and
+    /// no namespace to name one in.
+    private let risingFrom: Namespace.ID?
+
     @Environment(\.scenePhase) private var scenePhase
 
     /// - Parameter library: where this day's suggested photographs are read
@@ -100,14 +106,24 @@ struct EntryView: View {
     ///   - places: where a `{{location}}` widget reads the place from — the
     ///     device's, unless a test or a preview says otherwise. `nil` is a
     ///     widget with nothing on offer, which is a place typed instead.
+    ///   - sending: where this screen says a day is on its way out. Set by
+    ///     whichever control offered it, which is the bar's and not this
+    ///     screen's; what happens next is here.
+    ///   - risingFrom: the namespace that control marked itself in, so the
+    ///     sheet comes out of it. `nil` is a sheet that comes up the ordinary
+    ///     way, which is what a preview wants.
     init(
         editor: EntryEditor,
         photographsFrom library: (any PhotoLibrary)? = nil,
-        placesFrom places: (any Places)? = nil
+        placesFrom places: (any Places)? = nil,
+        sending: Binding<ADayToSend?> = .constant(nil),
+        risingFrom: Namespace.ID? = nil
     ) {
         self.editor = editor
         self.places = places
         self.library = library
+        _sending = sending
+        self.risingFrom = risingFrom
         _suggestions = State(wrappedValue: PhotoSuggestions(from: library))
     }
 
@@ -251,21 +267,7 @@ struct EntryView: View {
                 // is its own presentation, so the scheme the window is drawn
                 // in reaches it when it goes up and not afterwards.
                 .preferredColorScheme(drawnIn)
-                .sheetChrome(risingFrom: Sheets.share, in: sheets)
-        }
-        // On the Entry's own screen rather than on the two screens that lead
-        // to one, which is what makes it true of any day: today is reached
-        // one way and a day in March another, and this is the screen both of
-        // them are.
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                // Whether there is a day to send, and whether it has anything
-                // in it, are both read inside the menu rather than here — the
-                // second of them is a fact about the words, and reading the
-                // words in *this* body would invalidate the whole screen on
-                // every keystroke.
-                ShareEntryButton(editor: editor, sending: $sending, risingFrom: sheets)
-            }
+                .sheetChrome(risingFrom: Sheets.theBar, in: risingFrom)
         }
     }
 }

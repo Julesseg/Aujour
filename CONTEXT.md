@@ -123,7 +123,8 @@ the day being written about, carrying the clock time it is being written at.
 
 ### Search
 The other way back into a day: by something written in it rather than by when
-it was. A query is words, all of which must be somewhere in the day and each
+it was. Reached from the bar's one menu, with the settings and the way a day
+leaves — everything the app can do that is not writing in the day on screen. A query is words, all of which must be somewhere in the day and each
 of which matches from the start of a word — so a search narrows as it is typed
 rather than widening — and what comes back is the days that hold them, most
 recent first, each with the line the match sits on and the query's own words

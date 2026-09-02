@@ -33,10 +33,6 @@ struct ShareEntryButton: View {
     /// that lives and dies with a control on a bar.
     @Binding var sending: ADayToSend?
 
-    /// Where the sheet rises from, so that it comes out of this button rather
-    /// than up from the bottom of the screen.
-    let risingFrom: Namespace.ID
-
     var body: some View {
         // Only over a day there is something to send. A day still opening has
         // no words yet, and an offer to share an empty page is an offer of
@@ -46,7 +42,6 @@ struct ShareEntryButton: View {
             Button("Share", systemImage: "square.and.arrow.up") {
                 sending = ADayToSend(export: editor.words)
             }
-            .summonsASheet(Sheets.share, in: risingFrom)
             .accessibilityIdentifier("shareEntry")
         }
     }

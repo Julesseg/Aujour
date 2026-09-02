@@ -41,12 +41,16 @@ final class AujourUITests: XCTestCase {
 
         // Asking iCloud for the app's container is slow the first time on a
         // device, so this is a wait rather than an assertion about a frame.
-        let settings = app.buttons["openSettings"]
+        let more = app.buttons["moreActions"]
         XCTAssertTrue(
-            settings.waitForExistence(timeout: 30),
+            more.waitForExistence(timeout: 30),
             "the app did not settle on a journal folder — it is showing: "
                 + app.staticTexts.allElementsBoundByIndex.map { $0.label }.joined(separator: " / ")
         )
+        more.tap()
+
+        let settings = app.buttons["openSettings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 10), "the menu did not offer the settings")
         settings.tap()
 
         let location = app.staticTexts["journalRootLocation"]
@@ -1980,9 +1984,9 @@ final class AujourUITests: XCTestCase {
             "today's entry never appeared"
         )
 
-        let share = app.buttons["shareEntry"]
-        XCTAssertTrue(share.waitForExistence(timeout: 10), "today's entry offered no way to share it")
-        share.tap()
+        // Behind the bar's menu, with the other two things the app can do to
+        // a journal that are not writing in it.
+        fromTheMenu("shareEntry", in: app)
 
         XCTAssertTrue(
             app.buttons["PDF"].waitForExistence(timeout: 5),
@@ -2050,12 +2054,7 @@ final class AujourUITests: XCTestCase {
         let editor = app.textViews["entryEditor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 10), "yesterday's entry never opened")
 
-        let share = app.buttons["shareEntry"]
-        XCTAssertTrue(
-            share.waitForExistence(timeout: 10),
-            "a day reached from the calendar offered no way to share it"
-        )
-        share.tap()
+        fromTheMenu("shareEntry", in: app)
         XCTAssertTrue(
             app.buttons["PDF"].waitForExistence(timeout: 5),
             "the share sheet did not offer a PDF for a day from history"
@@ -2827,15 +2826,25 @@ final class AujourUITests: XCTestCase {
         return app
     }
 
+    /// Taps one of the things behind the bar's menu — searching, sending the
+    /// day, or the settings — which is where all three of them live.
+    private func fromTheMenu(_ identifier: String, in app: XCUIApplication) {
+        let more = app.buttons["moreActions"]
+        XCTAssertTrue(more.waitForExistence(timeout: 30), "the bar's menu never appeared")
+        more.tap()
+
+        let item = app.buttons[identifier]
+        XCTAssertTrue(
+            item.waitForExistence(timeout: 10),
+            "the bar's menu did not offer \(identifier)"
+        )
+        item.tap()
+    }
+
     /// Opens the one sheet: where the journal is kept, every setting that
     /// shapes what goes into it, and the ones that stay on this device.
     private func openSettings(_ app: XCUIApplication) {
-        let settings = app.buttons["openSettings"]
-        XCTAssertTrue(
-            settings.waitForExistence(timeout: 30),
-            "the settings button never appeared"
-        )
-        settings.tap()
+        fromTheMenu("openSettings", in: app)
         XCTAssertTrue(
             app.staticTexts["journalRootLocation"].waitForExistence(timeout: 10),
             "the settings sheet never appeared"
@@ -2995,9 +3004,7 @@ final class AujourUITests: XCTestCase {
 
         // The journal sheet says which accent is in force before it is opened,
         // which is the shortest proof that the choice outlived the process.
-        let settings = app.buttons["openSettings"]
-        XCTAssertTrue(settings.waitForExistence(timeout: 30), "the app never came back")
-        settings.tap()
+        fromTheMenu("openSettings", in: app)
 
         let howItLooks = app.buttons["openHowItLooks"]
         scrollTo(howItLooks, in: app)
@@ -3299,9 +3306,7 @@ final class AujourUITests: XCTestCase {
     /// The way in: the journal sheet, and the one row on it that is not about
     /// the journal.
     private func openHowItLooks(in app: XCUIApplication) {
-        let settings = app.buttons["openSettings"]
-        XCTAssertTrue(settings.waitForExistence(timeout: 30), "the settings button never appeared")
-        settings.tap()
+        fromTheMenu("openSettings", in: app)
 
         let howItLooks = app.buttons["openHowItLooks"]
         scrollTo(howItLooks, in: app)
@@ -3319,9 +3324,15 @@ final class AujourUITests: XCTestCase {
     }
 
     private func entryCountFromTheSettingsSheet(_ app: XCUIApplication) -> String {
+        let more = app.buttons["moreActions"]
+        guard more.waitForExistence(timeout: 30) else {
+            return "the bar's menu never appeared"
+        }
+        more.tap()
+
         let settings = app.buttons["openSettings"]
-        guard settings.waitForExistence(timeout: 30) else {
-            return "the settings button never appeared"
+        guard settings.waitForExistence(timeout: 10) else {
+            return "the bar's menu never offered the settings"
         }
         settings.tap()
 
@@ -3514,9 +3525,7 @@ final class AujourUITests: XCTestCase {
 
     /// Opens the search sheet, and waits for it to be there.
     private func openSearch(_ app: XCUIApplication) {
-        let search = app.buttons["openSearch"]
-        XCTAssertTrue(search.waitForExistence(timeout: 30), "the search button never appeared")
-        search.tap()
+        fromTheMenu("openSearch", in: app)
         XCTAssertTrue(
             searchField(in: app).waitForExistence(timeout: 10),
             "the search sheet never came up"

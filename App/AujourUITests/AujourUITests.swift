@@ -1985,11 +1985,11 @@ final class AujourUITests: XCTestCase {
         share.tap()
 
         XCTAssertTrue(
-            app.buttons["shareAsPDF"].waitForExistence(timeout: 5),
+            app.buttons["PDF"].waitForExistence(timeout: 5),
             "the share sheet did not offer a PDF"
         )
         XCTAssertTrue(
-            app.buttons["shareAsPlainText"].exists,
+            app.buttons["Plain Text"].exists,
             "the share sheet did not offer plain text"
         )
 
@@ -2005,7 +2005,7 @@ final class AujourUITests: XCTestCase {
             "the share sheet showed no preview of the day"
         )
 
-        app.buttons["shareAsPlainText"].tap()
+        app.buttons["Plain Text"].tap()
         app.buttons["shareEntryNow"].tap()
 
         // The system's own screen, over the file Aujour wrote. That it came
@@ -2057,11 +2057,11 @@ final class AujourUITests: XCTestCase {
         )
         share.tap()
         XCTAssertTrue(
-            app.buttons["shareAsPDF"].waitForExistence(timeout: 5),
+            app.buttons["PDF"].waitForExistence(timeout: 5),
             "the share sheet did not offer a PDF for a day from history"
         )
 
-        app.buttons["shareAsPDF"].tap()
+        app.buttons["PDF"].tap()
         app.buttons["shareEntryNow"].tap()
 
         XCTAssertTrue(

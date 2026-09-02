@@ -43,14 +43,14 @@ struct SharedEntryTests {
         #expect(EntryExport.Form.asOffered == [.pdf, .plainText])
     }
 
+    // The segments are the platform's own, so what a user reads on one — and
+    // what a UI test finds it by — is this name and nothing else.
     @Test("each form is named, and named something of its own")
-    func eachFormHasItsOwnNameAndIdentifier() {
+    func eachFormHasItsOwnName() {
         let names = EntryExport.Form.allCases.map(\.name)
-        let identifiers = EntryExport.Form.allCases.map(\.identifier)
 
         #expect(names.allSatisfy { !$0.isEmpty })
         #expect(Set(names).count == names.count)
-        #expect(Set(identifiers).count == identifiers.count)
     }
 
     // MARK: - The text form

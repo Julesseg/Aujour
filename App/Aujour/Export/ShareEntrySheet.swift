@@ -46,12 +46,18 @@ struct ShareEntrySheet: View {
                 .foregroundStyle(Palette.inkColor)
                 .accessibilityIdentifier("shareEntryTitle")
 
-            SegmentedChoice(
-                options: EntryExport.Form.asOffered,
-                chosen: $form,
-                name: \.name,
-                identifier: \.identifier
-            )
+            // The platform's own segmented control, like the ones on the
+            // appearance page: that screen is where the token layer was proved
+            // and it left these deliberately untokenised, so a second
+            // segmented idiom here would be this sheet deciding something the
+            // app had already decided.
+            Picker("How to send it", selection: $form) {
+                ForEach(EntryExport.Form.asOffered, id: \.self) { form in
+                    Text(form.name).tag(form)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("shareEntryForm")
 
             ThePageItWouldLeaveAs(export: export, form: form, pictures: pictures)
                 .frame(maxWidth: .infinity)
@@ -115,14 +121,20 @@ struct ShareEntrySheet: View {
             Button {
                 Task { await shared.share(export, as: form, drawnWith: pictures) }
             } label: {
+                // The one thing to press on this sheet, drawn the way the
+                // welcome draws the one thing to press on a page of its own:
+                // the accent filled, the word on it in the ink the identity
+                // keeps for words on the accent (ADR 0006).
                 Text("Share")
                     .lettering(.rowLabel)
                     .foregroundStyle(Palette.onAccentColor)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, Spacing.comfortable)
-                    .background(.tint, in: RoundedRectangle(cornerRadius: Rounding.control))
+                    .background(.tint, in: Capsule())
+                    .contentShape(Capsule())
             }
             .buttonStyle(.plain)
+            .elevated(.resting)
             .accessibilityIdentifier("shareEntryNow")
         }
     }
@@ -141,14 +153,6 @@ extension EntryExport.Form {
         switch self {
         case .pdf: "PDF"
         case .plainText: "Plain Text"
-        }
-    }
-
-    /// What a test asks for it by.
-    var identifier: String {
-        switch self {
-        case .pdf: "shareAsPDF"
-        case .plainText: "shareAsPlainText"
         }
     }
 
@@ -173,10 +177,15 @@ extension EntryExport.Form {
 private struct ThePageItWouldLeaveAs: View {
     let export: EntryExport
     let form: EntryExport.Form
-    let pictures: EmbeddedPictures?
+    let pictures: EmbeddedPictures
 
-    /// The page, once it has been drawn. `nil` while it is being drawn, and
-    /// for a day that would not draw at all.
+    /// The page, once it has been drawn — `nil` while the photographs it
+    /// embeds are being found, and for a day that would not draw at all.
+    ///
+    /// The drawing itself is not something anybody waits through: `EntryPaper`
+    /// is TextKit over a graphics context, so it is main-actor work exactly as
+    /// the share it is previewing is. What the spinner covers is the folder
+    /// read before it.
     @State private var page: UIImage?
 
     /// How tall the page is held, growing with the reader's text size like
@@ -190,10 +199,19 @@ private struct ThePageItWouldLeaveAs: View {
             .background(Palette.cardColor, in: RoundedRectangle(cornerRadius: Rounding.chip))
             .clipShape(RoundedRectangle(cornerRadius: Rounding.chip))
             .elevated(.floating)
-            // Drawn when the sheet arrives and never again: the words are
-            // taken once and the page they make is the same page every time.
-            .task {
-                guard page == nil else { return }
+            // Drawn once, when a page is what is being looked at: the words
+            // were taken when the sheet came up, so the page they make is the
+            // same page every time — and the plain text form needs no drawing
+            // at all.
+            //
+            // The photographs the day embeds are waited for first, exactly as
+            // the share itself waits for them. Without that the preview would
+            // show `![the market](…)` where the file carries the photograph,
+            // which is the one way a preview can lie about the document it is
+            // previewing.
+            .task(id: form) {
+                guard form == .pdf, page == nil else { return }
+                await pictures.findEverything(embeddedIn: export.markdown)
                 page = EntryPaper(pictures: pictures).firstPage(of: export)
             }
             .accessibilityIdentifier("sharePreview")
@@ -225,20 +243,21 @@ private struct ThePageItWouldLeaveAs: View {
 
 /// A day that could not be got ready to send, said on the sheet that asked for
 /// it.
+///
+/// In the alarm ink and not the ordinary one: nothing about the journal has
+/// gone wrong — the Entry is where it was — but the thing the user asked for
+/// did not happen, and a share that quietly did nothing is the one outcome
+/// somebody would sit and repeat.
 private struct SharingProblemNotice: View {
     let problem: StorageProblem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.tight) {
-            Text(problem.message)
-                .lettering(.rowLabel)
-                .foregroundStyle(Palette.alarmColor)
-            Text(problem.suggestion)
-                .lettering(.note)
-                .foregroundStyle(Palette.inkMutedColor)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityIdentifier("shareProblemNotice")
+        ProblemNotice(
+            saying: problem.message,
+            suggestion: problem.suggestion,
+            identifier: "shareProblemNotice",
+            ink: Palette.alarmColor
+        )
     }
 }
 

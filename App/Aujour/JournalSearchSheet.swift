@@ -109,10 +109,16 @@ struct JournalSearchSheet: View {
             // a word just written findable, without reading the whole journal
             // every time somebody leaves a day.
             guard arrived == nil, let left else { return }
-            Task {
-                await left.editor.save()
-                await search.reindex(left.day)
-            }
+            settle(left)
+        }
+        .onDisappear {
+            // The other way out of a day opened here, and one a pushed screen
+            // did not have: the whole sheet dragged away with the day still on
+            // top of it. Nothing sets `opened` back to nil on that path, so
+            // without this the words would be left to the autosave alone and
+            // the day would not be read again at all.
+            guard let opened else { return }
+            settle(opened)
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -224,6 +230,19 @@ struct JournalSearchSheet: View {
         // The box stays where it is while the list moves under it, and the
         // keyboard goes when somebody starts reading rather than typing.
         .scrollDismissesKeyboard(.immediately)
+    }
+
+    /// Puts a day that has been written in back where the next search can
+    /// find it: the words saved, and that one day read again.
+    ///
+    /// Detached from the view on purpose — one of the two ways this is reached
+    /// is the sheet going away, and work that stopped when the screen did
+    /// would be a day saved only when somebody left it the tidy way.
+    private func settle(_ day: OpenedDay) {
+        Task {
+            await day.editor.save()
+            await search.reindex(day.day)
+        }
     }
 
     private func open(_ day: JournalDay) {
@@ -382,29 +401,24 @@ private struct RecentQueries: View {
 /// Under them rather than in place of them: what was read last time is still
 /// on screen and still worth searching, and this is what says it may be behind
 /// (ADR 0001).
+///
+/// On a card, because it is the one thing on this sheet that is not a result
+/// and sits over a list that scrolls under it.
 private struct SearchProblemNotice: View {
     let problem: StorageProblem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.tight) {
-            // Two steps of ink rather than a warning triangle in the system's
-            // orange: a folder that has not answered yet is not an error, and
-            // the identity has one alarm colour which this is not the moment
-            // for.
-            Text(
-                "Aujour couldn't read your journal folder, so a day you've written recently may not be found."
-            )
-            .lettering(.rowLabel)
-            .foregroundStyle(Palette.inkColor)
-            Text(problem.suggestion)
-                .lettering(.note)
-                .foregroundStyle(Palette.inkMutedColor)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        ProblemNotice(
+            saying: """
+                Aujour couldn't read your journal folder, so a day you've \
+                written recently may not be found.
+                """,
+            suggestion: problem.suggestion,
+            identifier: "searchProblem"
+        )
         .padding(Spacing.comfortable)
         .background(Palette.cardColor, in: RoundedRectangle(cornerRadius: Rounding.card))
         .elevated(.floating)
-        .accessibilityIdentifier("searchProblem")
     }
 }
 

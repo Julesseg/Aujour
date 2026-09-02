@@ -113,6 +113,26 @@ final class EmbeddedPictures {
         }
     }
 
+    /// The same wait, asked of a day rather than of a list of targets: finds
+    /// every photograph this markdown embeds.
+    ///
+    /// Which stretches of an Entry are pictures and what each one names is
+    /// read the same way the editor reads them, which is the only way there
+    /// is: Core says so, from the text alone. Here rather than at each caller
+    /// because both of them — the page that is drawn to be sent and the page
+    /// drawn to be looked at first — have to find the same photographs, or the
+    /// preview is of a different document.
+    func findEverything(embeddedIn markdown: String) async {
+        await findEverything(
+            DrawnElements(EntryMarkdown(markdown), in: markdown, cursor: nil)
+                .elements
+                .compactMap { element in
+                    guard case .picture(let target) = element.kind else { return nil }
+                    return target
+                }
+        )
+    }
+
     private func pictureOnHand(for target: String) -> UIImage? {
         if let picture = found[target] { return picture }
         guard !looked.contains(target), !looking.contains(target) else { return nil }

@@ -46,7 +46,7 @@ struct ShareEntryButton: View {
             Button("Share", systemImage: "square.and.arrow.up") {
                 sending = ADayToSend(export: editor.words)
             }
-            .matchedTransitionSource(id: Sheets.share, in: risingFrom)
+            .summonsASheet(Sheets.share, in: risingFrom)
             .accessibilityIdentifier("shareEntry")
         }
     }

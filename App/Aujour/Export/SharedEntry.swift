@@ -95,24 +95,10 @@ final class SharedEntry {
             // which is what a text form means (ADR 0001).
             try Data(export.markdown.utf8).write(to: file, options: .atomic)
         case .pdf:
-            await pictures?.findEverything(embeddedTargets(of: export.markdown))
+            await pictures?.findEverything(embeddedIn: export.markdown)
             try EntryPaper(pictures: pictures).pdf(of: export).write(to: file, options: .atomic)
         }
         return file
-    }
-
-    /// The targets this day's embeds point at.
-    ///
-    /// Read the same way the editor reads them, which is the only way there
-    /// is: Core says which stretches of an Entry are pictures and what each
-    /// one names, from the text alone.
-    private func embeddedTargets(of markdown: String) -> [String] {
-        DrawnElements(EntryMarkdown(markdown), in: markdown, cursor: nil)
-            .elements
-            .compactMap { element in
-                guard case .picture(let target) = element.kind else { return nil }
-                return target
-            }
     }
 
     /// Where the file is written: a folder of Aujour's own inside the

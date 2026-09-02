@@ -72,6 +72,11 @@ struct EntryView: View {
     /// summoned it.
     @Namespace private var sheets
 
+    /// What this screen is actually drawing in, light or dark — never "no
+    /// preference", because a sheet has to be told the resolved answer and not
+    /// the question (`ContentView` says why at length).
+    @Environment(\.colorScheme) private var drawnIn
+
     /// Where the `{{location}}` widget reads the place from, for whichever
     /// sheet this Entry puts up.
     ///
@@ -242,6 +247,10 @@ struct EntryView: View {
         // covering it.
         .sheet(item: $sending) { day in
             ShareEntrySheet(export: day.export, pictures: pictures, shared: shared)
+                // Told the appearance rather than left to inherit it: a sheet
+                // is its own presentation, so the scheme the window is drawn
+                // in reaches it when it goes up and not afterwards.
+                .preferredColorScheme(drawnIn)
                 .sheetChrome(risingFrom: Sheets.share, in: sheets)
         }
         // On the Entry's own screen rather than on the two screens that lead

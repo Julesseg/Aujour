@@ -592,11 +592,12 @@ answer Dynamic Type. **Rounding** and **Spacing** are four steps each, and
 **Elevation** is what lifts a surface off the one behind it. **Newsreader** is
 the prose voice — a bundled variable font, three weights in two slants.
 
-Sheets are one shape and not one per screen. Every sheet in the app comes up
-in the same chrome — the identity's own sheet paper, the sheet corner, the
-system's grabber and its scrim — and rises out of the control that summoned it.
-What a sheet is *about* is its own; how tall it is follows from what is on it;
-what it looks like on the way in is not a screen's decision.
+Sheets are one shape and not one per screen. There is one chrome — the
+identity's own sheet paper, the sheet corner, the system's grabber and its
+scrim — and a sheet takes it rather than dressing itself, rising out of the
+control that summoned it. What a sheet is *about* is its own; how tall it is
+follows from what is on it; what it looks like on the way in is not a screen's
+decision.
 
 Two things about it are not a screen's to reopen. Every ink and every accent
 clears the contrast floor (ADR 0006), which is asserted rather than intended:

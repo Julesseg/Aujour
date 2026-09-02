@@ -347,7 +347,7 @@ struct ContentView: View {
                             Button("Search", systemImage: "magnifyingglass") {
                                 searching = true
                             }
-                            .matchedTransitionSource(id: Sheets.search, in: sheets)
+                            .summonsASheet(Sheets.search, in: sheets)
                             .accessibilityIdentifier("openSearch")
                         }
                         ToolbarItem(placement: .topBarTrailing) {
@@ -361,7 +361,7 @@ struct ContentView: View {
                             Button("Settings", systemImage: "slider.horizontal.3") {
                                 showingSettings = true
                             }
-                            .matchedTransitionSource(id: Sheets.settings, in: sheets)
+                            .summonsASheet(Sheets.settings, in: sheets)
                             .accessibilityIdentifier("openSettings")
                         }
                     }

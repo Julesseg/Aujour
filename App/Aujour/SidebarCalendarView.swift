@@ -41,6 +41,16 @@ struct SidebarCalendarView: View {
     /// opened, so it settles the page beside it on the way in.
     let settleTheDayOnScreen: () async -> Void
 
+    /// The most of the window this may take.
+    ///
+    /// Handed down, because the room is the screen's to apportion and not this
+    /// view's to assume: what the pane *wants* is seven square columns, and at
+    /// the far end of Dynamic Type that is eight hundred points — more than
+    /// some of the windows a sidebar is drawn in, and more than half of nearly
+    /// all of them. A calendar that took the page's room to keep its days
+    /// square would have the wrong thing square.
+    let atMost: CGFloat
+
     /// How tall a row is, and so how wide a column is.
     ///
     /// The pill's own number, because this is the pill: a day is the same size
@@ -53,14 +63,32 @@ struct SidebarCalendarView: View {
     @ScaledMetric(relativeTo: .caption) private var monthRowHeight: CGFloat = 34
 
     /// How wide the pane is: seven columns as wide as a row is tall, plus the
-    /// inset the grid sits in.
+    /// inset the grid sits in — or as much of that as there is room for.
     ///
-    /// The width the pill opens to, arrived at the same way and for the same
-    /// reason — past a square column every extra point goes into the gaps
-    /// between the days and none of it into the days, and a month with a
-    /// hand's width between its Tuesdays reads as seven numbers rather than as
-    /// a week.
-    private var paneWidth: CGFloat { rowHeight * 7 + Spacing.close * 2 }
+    /// The width the pill opens to, arrived at the same way and bounded the
+    /// same way. Wanted, because past a square column every extra point goes
+    /// into the gaps between the days and none of it into the days, and a
+    /// month with a hand's width between its Tuesdays reads as seven numbers
+    /// rather than as a week. Bounded, because a row's height follows Dynamic
+    /// Type all the way up and seven of them is eight hundred points at the
+    /// far end of it.
+    private var paneWidth: CGFloat {
+        min(rowHeight * 7 + Spacing.close * 2, atMost - Spacing.apart * 2)
+    }
+
+    /// How wide a column is, and so how tall a row is where the pane could not
+    /// be as wide as it wanted.
+    ///
+    /// The pill's own arithmetic, and the one place in the app where Dynamic
+    /// Type is bounded rather than followed: a month is seven columns across
+    /// whatever the reader's text size, so a column is a seventh of the pane
+    /// and no more. What still grows is everything they actually read — the
+    /// day's name, the month over the grid, the weekday initials — and inside
+    /// a cell the number is scaled down to fit rather than allowed to spill
+    /// into the day beside it.
+    private var side: CGFloat {
+        min(rowHeight, max(0, paneWidth - Spacing.close * 2) / 7)
+    }
 
     /// The corner the glass has, which is a pill's: a capsule 44 points tall
     /// is a 22-point corner, and the identity keeps it as the pane grows
@@ -201,10 +229,10 @@ struct SidebarCalendarView: View {
                     // day, so that a scan arriving changes what a cell says
                     // and never which cell it is.
                     ForEach(Array(week.enumerated()), id: \.offset) { _, day in
-                        DayCell(day: day, accent: accent, side: rowHeight) { pick(day.day) }
+                DayCell(day: day, accent: accent, side: side) { pick(day.day) }
                     }
                 }
-                .frame(height: rowHeight)
+                .frame(height: side)
             }
         }
         .padding(.horizontal, Spacing.close)
@@ -227,7 +255,8 @@ struct SidebarCalendarView: View {
             calendar: calendar,
             accent: .driftwood,
             pick: { calendar.pick($0) },
-            settleTheDayOnScreen: {}
+            settleTheDayOnScreen: {},
+            atMost: 500
         )
         Text(String(repeating: "Words on the page. ", count: 60))
             .lettering(.prose)

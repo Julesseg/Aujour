@@ -333,7 +333,13 @@ struct ContentView: View {
                 // the pill does it: the marks are a scan of the folder, and a
                 // day being filled in this second is a day whose file is not
                 // there yet.
-                settleTheDayOnScreen: { await entryOnScreen?.editor.save() }
+                settleTheDayOnScreen: { await entryOnScreen?.editor.save() },
+                // Half the window and no more. What the calendar wants is
+                // seven square columns, which at the far end of Dynamic Type
+                // is wider than some of the windows it is drawn in — and a
+                // calendar that took the page's room to keep its own days
+                // square would have the wrong thing square.
+                atMost: windowWidth / 2
             )
         }
     }

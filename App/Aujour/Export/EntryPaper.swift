@@ -143,6 +143,44 @@ struct EntryPaper {
         }
     }
 
+    /// The first page, drawn — the page somebody is about to send, so that
+    /// they can see what it looks like before it leaves.
+    ///
+    /// The document itself and not a second drawing of the day: what is
+    /// previewed is the file, down to the running head, the margins and where
+    /// the lines break. Getting it costs drawing the whole PDF, which is what
+    /// it costs to be able to say that — and it is the same drawing the share
+    /// itself does a moment later.
+    ///
+    /// `nil` for a day that would not draw at all, which is a preview the
+    /// screen simply does not show.
+    func firstPage(of export: EntryExport) -> UIImage? {
+        guard let bytes = CGDataProvider(data: pdf(of: export) as CFData),
+            let document = CGPDFDocument(bytes),
+            let first = document.page(at: 1)
+        else { return nil }
+
+        let sheet = first.getBoxRect(.mediaBox)
+        let format = UIGraphicsImageRendererFormat()
+        // A point per point rather than the screen's scale: the page is nearly
+        // six hundred points wide and lands on screen at about two hundred, so
+        // every extra pixel is one thrown away on the way down.
+        format.scale = 1
+        format.opaque = true
+
+        return UIGraphicsImageRenderer(size: sheet.size, format: format).image { drawing in
+            // Paper, and the app's own near-white is not it: a PDF is drawn on
+            // whatever the reader opens it over, which is white.
+            UIColor.white.setFill()
+            drawing.fill(CGRect(origin: .zero, size: sheet.size))
+            // PDF pages are drawn from the bottom left and images from the top
+            // left, which is the whole of this flip.
+            drawing.cgContext.translateBy(x: 0, y: sheet.height)
+            drawing.cgContext.scaleBy(x: 1, y: -1)
+            drawing.cgContext.drawPDFPage(first)
+        }
+    }
+
     /// Hands the layout a page-sized container at a time until the day has
     /// somewhere to be.
     ///

@@ -63,6 +63,22 @@ struct EntryView: View {
     /// of these between them would be a share sheet over the wrong day.
     @State private var shared = SharedEntry()
 
+    /// The day whose sheet asking how to send it is up, and `nil` the rest of
+    /// the time.
+    ///
+    /// Owned by the screen that put the offer on its bar rather than by this
+    /// one, because that is where the offer is: on today's page it is a row in
+    /// the menu, and in the search sheet it is a button beside the day's name.
+    /// What stays here is everything the sending itself needs — the
+    /// photographs this day embeds, the file, and the sheet over it — which is
+    /// the Entry's and nobody else's.
+    @Binding var sending: ADayToSend?
+
+    /// What this screen is actually drawing in, light or dark — never "no
+    /// preference", because a sheet has to be told the resolved answer and not
+    /// the question (`ContentView` says why at length).
+    @Environment(\.colorScheme) private var drawnIn
+
     /// Where the `{{location}}` widget reads the place from, for whichever
     /// sheet this Entry puts up.
     ///
@@ -75,6 +91,11 @@ struct EntryView: View {
     /// panel because the `{{location}}` widget reads the same one: the
     /// positions this day's photographs carry are where it says the day was.
     private let library: (any PhotoLibrary)?
+
+    /// Where the sending sheet rises from — the control that offered it, which
+    /// belongs to the screen above. `nil` for a preview, which has no bar and
+    /// no namespace to name one in.
+    private let risingFrom: Namespace.ID?
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -100,14 +121,24 @@ struct EntryView: View {
     ///   - places: where a `{{location}}` widget reads the place from — the
     ///     device's, unless a test or a preview says otherwise. `nil` is a
     ///     widget with nothing on offer, which is a place typed instead.
+    ///   - sending: where this screen says a day is on its way out. Set by
+    ///     whichever control offered it, which is the bar's and not this
+    ///     screen's; what happens next is here.
+    ///   - risingFrom: the namespace that control marked itself in, so the
+    ///     sheet comes out of it. `nil` is a sheet that comes up the ordinary
+    ///     way, which is what a preview wants.
     init(
         editor: EntryEditor,
         photographsFrom library: (any PhotoLibrary)? = nil,
-        placesFrom places: (any Places)? = nil
+        placesFrom places: (any Places)? = nil,
+        sending: Binding<ADayToSend?> = .constant(nil),
+        risingFrom: Namespace.ID? = nil
     ) {
         self.editor = editor
         self.places = places
         self.library = library
+        _sending = sending
+        self.risingFrom = risingFrom
         _suggestions = State(wrappedValue: PhotoSuggestions(from: library))
     }
 
@@ -240,16 +271,6 @@ struct EntryView: View {
                         acknowledge: photographs.acknowledge
                     )
                 }
-                // A share that quietly did nothing is the one outcome
-                // somebody would sit and repeat — so it is said here, with
-                // the rest of what could not be written.
-                if let problem = shared.problem {
-                    WritingProblemNotice(
-                        problem: problem,
-                        identifier: "shareProblemNotice",
-                        acknowledge: shared.acknowledge
-                    )
-                }
                 // Under the notices and nearest the keyboard, which is where
                 // the thumbs already are — and above nothing at all on the
                 // days it has nothing to offer.
@@ -273,22 +294,17 @@ struct EntryView: View {
         // Declared here rather than beside the button that opens it, like
         // every other sheet in the app: one inside a toolbar item is one that
         // lives and dies with a control on a bar.
-        .sheet(item: $shared.file) { file in
-            ShareSheet(file: file)
-        }
-        // On the Entry's own screen rather than on the two screens that lead
-        // to one, which is what makes it true of any day: today is reached
-        // one way and a day in March another, and this is the screen both of
-        // them are.
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                // Whether there is a day to send, and whether it has anything
-                // in it, are both read inside the menu rather than here — the
-                // second of them is a fact about the words, and reading the
-                // words in *this* body would invalidate the whole screen on
-                // every keystroke.
-                ShareEntryMenu(editor: editor, pictures: pictures, shared: shared)
-            }
+        //
+        // The system's own sheet, over the file this one has written, is put
+        // up from inside it — a sheet cannot present anything while another is
+        // covering it.
+        .sheet(item: $sending) { day in
+            ShareEntrySheet(export: day.export, pictures: pictures, shared: shared)
+                // Told the appearance rather than left to inherit it: a sheet
+                // is its own presentation, so the scheme the window is drawn
+                // in reaches it when it goes up and not afterwards.
+                .preferredColorScheme(drawnIn)
+                .sheetChrome(risingFrom: Sheets.theBar, in: risingFrom)
         }
     }
 }

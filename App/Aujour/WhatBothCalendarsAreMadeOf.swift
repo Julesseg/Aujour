@@ -266,16 +266,37 @@ struct BackToToday: View {
     /// is the month it was tapped in.
     let goBack: () -> Void
 
+    /// Whether the chip says its name as well as showing it.
+    ///
+    /// The one thing about it that is *not* the same on both calendars, and a
+    /// difference in room rather than in meaning. Inside the pill this chip
+    /// shares a row with the day's own name and the bar's menu, and the word
+    /// costs 89 points of it — more than half the chip, and the single biggest
+    /// thing standing between the day and being spelled out on a small phone.
+    /// A sidebar has a column to itself and keeps the word.
+    ///
+    /// It is "Today" to anything that reads the screen out either way: a chip
+    /// that lost its name along with its word would be a control nobody could
+    /// ask for.
+    var sayingItsName = true
+
     var body: some View {
         if !calendar.isOnToday {
             Button(action: goBack) {
-                Label("Today", systemImage: "arrow.uturn.forward")
-                    .labelStyle(.titleAndIcon)
-                    .imageScale(.small)
+                Group {
+                    if sayingItsName {
+                        Label("Today", systemImage: "arrow.uturn.forward")
+                            .labelStyle(.titleAndIcon)
+                    } else {
+                        Label("Today", systemImage: "calendar")
+                            .labelStyle(.iconOnly)
+                    }
+                }
+                .imageScale(.small)
             }
             .lettering(.chipLabel)
             .foregroundStyle(accent.ink)
-            .padding(.horizontal, Spacing.comfortable)
+            .padding(.horizontal, sayingItsName ? Spacing.comfortable : Spacing.close)
             .padding(.vertical, Spacing.tight)
             .background(accent.soft, in: Capsule())
             .buttonStyle(.plain)

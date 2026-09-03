@@ -27,6 +27,32 @@ struct SharedEntryTests {
         return try #require(sharing.file)
     }
 
+    // MARK: - What the sheet offers
+
+    // The share sheet lays the forms out in an order of its own rather than
+    // the one the enum declares them in, which is the kind of list a third
+    // form gets left out of. This is what would fail if it were.
+    @Test("every form a day can leave as is one the sheet offers")
+    func everyFormIsOffered() {
+        #expect(Set(EntryExport.Form.asOffered) == Set(EntryExport.Form.allCases))
+        #expect(EntryExport.Form.asOffered.count == EntryExport.Form.allCases.count)
+    }
+
+    @Test("the day to read is offered first, and the day to keep working on second")
+    func theFormsAreOfferedInTheOrderSomebodyAsksThemIn() {
+        #expect(EntryExport.Form.asOffered == [.pdf, .plainText])
+    }
+
+    // The segments are the platform's own, so what a user reads on one — and
+    // what a UI test finds it by — is this name and nothing else.
+    @Test("each form is named, and named something of its own")
+    func eachFormHasItsOwnName() {
+        let names = EntryExport.Form.allCases.map(\.name)
+
+        #expect(names.allSatisfy { !$0.isEmpty })
+        #expect(Set(names).count == names.count)
+    }
+
     // MARK: - The text form
 
     // The acceptance criterion, and ADR 0001 on its way out of the app: what

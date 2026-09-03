@@ -87,9 +87,17 @@ public final class JournalSearch {
     /// it had not.
     private var hasBeenRead = false
 
+    /// The queries somebody has already searched with, most recent first —
+    /// what an empty search box offers back.
+    ///
+    /// Observed, because remembering one is a change the screen showing them
+    /// has to redraw for.
+    public private(set) var recentQueries: [String] = []
+
     @ObservationIgnored private let store: any JournalStore
     @ObservationIgnored private let settings: JournalSettings
     @ObservationIgnored private let cache: (any SearchIndexCache)?
+    @ObservationIgnored private let recent: RecentSearchesStore?
 
     /// The reading of the folder that is going on right now, if one is — what
     /// the next one queues behind.
@@ -107,14 +115,35 @@ public final class JournalSearch {
     ///   - cache: where the index is kept between launches. Nowhere by
     ///     default, which is a search that reads the folder every time it is
     ///     opened — slower, and no less correct.
+    ///   - recent: where the queries somebody searched with are kept, on this
+    ///     device (ADR 0003). Nowhere by default, which is an empty search box
+    ///     that offers nothing back.
     public init(
         store: any JournalStore,
         settings: JournalSettings = .default,
-        cache: (any SearchIndexCache)? = nil
+        cache: (any SearchIndexCache)? = nil,
+        recent: RecentSearchesStore? = nil
     ) {
         self.store = store
         self.settings = settings
         self.cache = cache
+        self.recent = recent
+        self.recentQueries = recent?.queries ?? []
+    }
+
+    /// Takes in a query somebody searched with, so an empty box can offer it
+    /// back.
+    ///
+    /// Called when a query leads somewhere — a result opened — rather than as
+    /// it is typed. A search narrows keystroke by keystroke, so remembering
+    /// every query anybody made would remember `m`, `ma`, `mar` and `mark` on
+    /// the way to `market`, and a list of half-typed words is not a list
+    /// worth tapping. A day opened is the one moment a query is known to have
+    /// been the query somebody meant.
+    public func remember(_ query: String) {
+        guard let recent else { return }
+        recent.remember(query)
+        recentQueries = recent.queries
     }
 
     /// The days matching a query, most recent first — answered from what has

@@ -282,6 +282,32 @@ struct EditorLook: Equatable {
         accent: DeviceSettings.default.accent
     )
 
+    /// How wide a day's words are set where the window is wide enough that
+    /// there is a choice — ``JournalLayout/measure`` characters of *this*
+    /// face, in points.
+    ///
+    /// Measured off the face rather than typed in as a number, because a
+    /// measure is a count of characters and a count of characters is a
+    /// different number of points in every face and at every step: the same
+    /// sixty-five take a third more room set monospaced than set sans, and
+    /// more again for a reader who has turned the system's text up. A page
+    /// capped at one width for all of them would be set long in half of them.
+    ///
+    /// The alphabet and not one letter: an `m` and an `i` are the two ends of
+    /// a proportional face, and a measure worked out from either would be
+    /// wrong by the difference. Twenty-six letters divided by twenty-six is
+    /// near enough what prose averages, which is what this is for.
+    ///
+    /// - Parameter traits: whose Dynamic Type setting to measure at — the
+    ///   screen the day is drawn on, the same one the face itself is scaled
+    ///   against.
+    func measure(compatibleWith traits: UITraitCollection?) -> CGFloat {
+        let alphabet = "abcdefghijklmnopqrstuvwxyz"
+        let face = font.uiFont(compatibleWith: traits)
+        let width = (alphabet as NSString).size(withAttributes: [.font: face]).width
+        return width / CGFloat(alphabet.count) * JournalLayout.measure
+    }
+
     /// Everything the editor needs to draw markdown in, for the screen it is
     /// being drawn on.
     func styling(compatibleWith traits: UITraitCollection?) -> MarkdownStyling {

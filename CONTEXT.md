@@ -109,7 +109,9 @@ locked. The day either side of the one on screen is also reached by swiping
 sideways on the date pill, which is the same journey without the grid: a
 sideways finger steps whatever unit the pill is showing, so a shut pill steps
 a day. Being a walk rather than a choice, it reaches a day that has not
-arrived and finds it locked there too.
+arrived and finds it locked there too. That walk is the pill's, and so the
+page presentation's alone (see Layout): a window with the month permanently
+beside it has the grid to step through instead.
 
 ### Backfill
 Writing a past Journal Day after the fact: opening a day whose Entry does not
@@ -577,6 +579,59 @@ The editor's size is four steps — S, M, L, XL — and not a number to dial in:
 it is a writing preference, how big somebody wants their own words, and it
 governs the Entry alone. Everything else in the app follows the system's own
 text size, which is a decision the user already made for everything they read.
+
+### Layout
+Which of Aujour's two presentations a window is being read in, decided by the
+shape of the *window* and by nothing else. A window at least 820 points wide
+and 600 tall gets the **sidebar** presentation: the Calendar floats permanently
+down one side and the Entry beside it is set at a comfortable measure — about
+65 characters of whichever face the reader writes in — rather than stretched
+across the glass. Everything else gets the **page** presentation: the Entry
+across the whole window with the date pill over it, the pill being the answer
+to having no room for a calendar.
+
+Both measurements, because a sidebar needs both. A calendar that is always on
+screen has to fit on screen — six weeks, the weekday initials over them, the
+month's name over those and the day being written over all of it — and that is
+the case a width alone gets wrong: an iPhone on its side is wide enough for a
+sidebar and four hundred points short of the height to put a month in one. It
+keeps the pill, which was designed for exactly that room. A Stage Manager
+window dragged short is the same answer for the same reason, so this is still a
+fact about the window and not about the device.
+
+The two calendars are one calendar. The sidebar is the date pill with the
+gesture taken out — the same pane of glass at the same width, the day named
+across the top in the same lettering, the same grid under it — and the only
+thing it lacks is the chevron, because there is nothing to open and nothing to
+shut. A reader who turns their iPad on its side should recognise what arrives
+rather than learn it: what changed is that the Calendar stopped being somewhere
+to go and started being somewhere to look.
+
+The window and never the device, which is why both presentations ship on both
+families. An iPad in Slide Over, in a half-width Split View or in a Stage
+Manager window dragged narrow has no more room than a phone and is read as one.
+A size class is not enough to ask the question with: an iPad mini in portrait
+reports a regular width at 744 points, which is too narrow to hold a calendar
+and a readable measure at once.
+
+A resize keeps the day being written — that is the Calendar's, and the
+Calendar outlives one — and leaves the date pill shut. Any resize, not only a
+crossing: a crossing has to shut it because a month left open would come back
+over a sidebar already showing it, and every other resize shuts it because the
+pill is a pane sized to the room it is in. Shutting it is never animated; the
+layout changing under it is motion enough.
+
+The pill's own width has both ends bounded. Open, it takes the room it has,
+until the room is more room than a month wants: a day is as wide as it is tall
+and no wider. Past a square column the rows have stopped growing, so every
+extra point goes into the gaps between the days and none of it into the days —
+a grid spread across a wide window is not big days but far-apart ones, read as
+seven numbers rather than as a week. Which matters because every window that
+gets a pill is narrower than the threshold, and that still runs from Slide Over
+to an iPad mini stood up. Where the room is narrower than a square month it is
+simply the room, and where the reader's text size makes the day's own name
+wider than any grid wants to be, the name wins: a pill that got smaller as it
+opened would be a calendar coming out of nowhere.
 
 ### Identity
 The one place that answers what colour, what size, what corner and what

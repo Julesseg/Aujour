@@ -24,12 +24,16 @@ final class WritingTheDayTests: AujourUITestCase {
 
         // Asking iCloud for the app's container is slow the first time on a
         // device, so this is a wait rather than an assertion about a frame.
-        let settings = app.buttons["openSettings"]
+        let more = app.buttons["moreActions"]
         XCTAssertTrue(
-            settings.waitForExistence(timeout: 30),
+            more.waitForExistence(timeout: 30),
             "the app did not settle on a journal folder — it is showing: "
                 + app.staticTexts.allElementsBoundByIndex.map { $0.label }.joined(separator: " / ")
         )
+        more.tap()
+
+        let settings = app.buttons["openSettings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 10), "the menu did not offer the settings")
         settings.tap()
 
         let location = app.staticTexts["journalRootLocation"]

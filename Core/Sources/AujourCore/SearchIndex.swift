@@ -11,11 +11,54 @@ public struct SearchResult: Hashable, Sendable, Identifiable {
     /// excerpt that had been tidied would be a day they could not recognise.
     public let excerpt: String
 
+    /// Where in ``excerpt`` the query's own words are — measured against the
+    /// excerpt and never against the day it was cut out of, because a cut line
+    /// carries an ellipsis and every index after it would be off by one.
+    public let marked: [Range<String.Index>]
+
     public var id: JournalDay { day }
 
-    public init(day: JournalDay, excerpt: String) {
+    public init(day: JournalDay, excerpt: String, marked: [Range<String.Index>] = []) {
         self.day = day
         self.excerpt = excerpt
+        self.marked = marked
+    }
+
+    /// One stretch of an excerpt, and whether it is one of the words the query
+    /// was answered on.
+    public struct Run: Hashable, Sendable {
+        public let text: String
+
+        /// Whether this is a word the query matched — the run a row draws in
+        /// the accent rather than in ink.
+        public let isMarked: Bool
+    }
+
+    /// The excerpt cut into runs, in the order it reads: the words the query
+    /// matched, and everything between them.
+    ///
+    /// Here rather than in the row that draws it, because it is arithmetic on
+    /// string indices and a screen that got it wrong would mark the wrong
+    /// characters — the one mistake in this whole feature that looks like the
+    /// search itself having found the wrong thing. What is left for the screen
+    /// is which of two colours a run is drawn in.
+    ///
+    /// Always the whole excerpt, so joining the runs back up gives the line
+    /// exactly as it was written.
+    public var runs: [Run] {
+        var runs: [Run] = []
+        var at = excerpt.startIndex
+        for mark in marked where mark.lowerBound >= at {
+            if at < mark.lowerBound {
+                runs.append(Run(text: String(excerpt[at..<mark.lowerBound]), isMarked: false))
+            }
+            runs.append(Run(text: String(excerpt[mark]), isMarked: true))
+            at = mark.upperBound
+        }
+        if at < excerpt.endIndex {
+            runs.append(Run(text: String(excerpt[at...]), isMarked: false))
+        }
+        return runs
     }
 }
 
@@ -130,7 +173,16 @@ public struct SearchIndex: Equatable, Sendable {
             guard let text = entries[day],
                 let firstMatch = Self.firstMatch(in: text, of: wanted)
             else { return nil }
-            return SearchResult(day: day, excerpt: Self.excerpt(from: text, around: firstMatch))
+            let excerpt = Self.excerpt(from: text, around: firstMatch)
+            return SearchResult(
+                day: day,
+                excerpt: excerpt,
+                // Found again in the excerpt rather than carried over from the
+                // day: the excerpt is a cut of that line with an ellipsis on
+                // the front of it, and a range measured against the whole text
+                // would name characters this row is not showing.
+                marked: SearchWords.marks(in: excerpt, of: wanted)
+            )
         }
     }
 
@@ -272,6 +324,19 @@ enum SearchWords {
         /// around, and why folding happens per word rather than over the whole
         /// text, which would move every index in it.
         let range: Range<String.Index>
+    }
+
+    /// Where in a text the words of a query are — every run of it that one of
+    /// them starts, in the order they are written.
+    ///
+    /// The same match a query is answered by, asked of a line rather than of a
+    /// journal: a word is marked when one of the query's words is a prefix of
+    /// it, folded the same way, so the mark falls on `Café` for `CAFE` and on
+    /// the whole of `market` for `mark`.
+    static func marks(in text: String, of wanted: [String]) -> [Range<String.Index>] {
+        words(in: text)
+            .filter { word in wanted.contains { word.word.hasPrefix($0) } }
+            .map(\.range)
     }
 
     static func words(in text: String) -> [Word] {

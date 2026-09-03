@@ -18,17 +18,33 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
             "today's entry never appeared"
         )
 
-        let share = app.buttons["shareEntry"]
-        XCTAssertTrue(share.waitForExistence(timeout: 10), "today's entry offered no way to share it")
-        share.tap()
+        // Behind the bar's menu, with the other two things the app can do to
+        // a journal that are not writing in it.
+        fromTheMenu("shareEntry", in: app)
 
         XCTAssertTrue(
-            app.buttons["shareAsPDF"].waitForExistence(timeout: 5),
-            "the share menu did not offer a PDF"
+            app.buttons["PDF"].waitForExistence(timeout: 5),
+            "the share sheet did not offer a PDF"
         )
-        XCTAssertTrue(app.buttons["shareAsPlainText"].exists, "the share menu did not offer plain text")
+        XCTAssertTrue(
+            app.buttons["Plain Text"].exists,
+            "the share sheet did not offer plain text"
+        )
 
-        app.buttons["shareAsPlainText"].tap()
+        // The day as a page, before it leaves: the sheet's whole reason for
+        // being a sheet rather than a menu of two words. Asked for by
+        // identifier whatever kind of element it lands as, since what is on
+        // screen is a picture of a page and its accessibility is a label.
+        let preview = app.descendants(matching: .any)
+            .matching(identifier: "sharePreview")
+            .firstMatch
+        XCTAssertTrue(
+            preview.waitForExistence(timeout: 20),
+            "the share sheet showed no preview of the day"
+        )
+
+        app.buttons["Plain Text"].tap()
+        app.buttons["shareEntryNow"].tap()
 
         // The system's own screen, over the file Aujour wrote. That it came
         // up at all is the claim here; *what* is in the file — the day's own
@@ -72,18 +88,14 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         let editor = app.textViews["entryEditor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 10), "yesterday's entry never opened")
 
-        let share = app.buttons["shareEntry"]
+        fromTheMenu("shareEntry", in: app)
         XCTAssertTrue(
-            share.waitForExistence(timeout: 10),
-            "a day reached from the calendar offered no way to share it"
-        )
-        share.tap()
-        XCTAssertTrue(
-            app.buttons["shareAsPDF"].waitForExistence(timeout: 5),
-            "the share menu did not offer a PDF for a day from history"
+            app.buttons["PDF"].waitForExistence(timeout: 5),
+            "the share sheet did not offer a PDF for a day from history"
         )
 
-        app.buttons["shareAsPDF"].tap()
+        app.buttons["PDF"].tap()
+        app.buttons["shareEntryNow"].tap()
 
         XCTAssertTrue(
             app.otherElements["ActivityListView"].waitForExistence(timeout: 30),
@@ -362,12 +374,61 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         result.tap()
 
         // Opening a result opens that day's Entry — the file, not a new one.
-        let editor = app.textViews["entryEditor"]
-        XCTAssertTrue(editor.waitForExistence(timeout: 10), "the day found never opened")
-        let opened = try XCTUnwrap(editor.value as? String)
+        //
+        // Asked of every editor on screen rather than of one: search is a
+        // sheet, so today's Entry is still in the tree underneath it and the
+        // day just opened is the one on top of it.
         XCTAssertTrue(
-            opened.contains("Walked to the market with Robin."),
-            "expected the day that was searched for, got: \(opened)"
+            app.textViews["entryEditor"].firstMatch.waitForExistence(timeout: 10),
+            "the day found never opened"
+        )
+        let onScreen = app.textViews.matching(identifier: "entryEditor")
+            .allElementsBoundByIndex
+            .compactMap { $0.value as? String }
+        XCTAssertTrue(
+            onScreen.contains { $0.contains("Walked to the market with Robin.") },
+            "expected the day that was searched for, got: \(onScreen)"
+        )
+    }
+
+    // The other half of what an empty search box is for: the queries already
+    // made. Remembered when one leads somewhere rather than as it is typed,
+    // and kept on the device rather than in the folder (ADR 0003) — so the
+    // claim is that it is still there in the next launch.
+    func testAQueryThatFoundADayIsOfferedBackTheNextTime() throws {
+        let lastWeek = try XCTUnwrap(daysBeforeToday(7))
+        let written = "\(entryName(for: lastWeek)) Walked to the market with Robin."
+        let app = launchApp(entries: written)
+
+        openSearch(app)
+        search(for: "market", in: app)
+
+        let result = app.buttons["searchResult-\(entryName(for: lastWeek))"]
+        XCTAssertTrue(result.waitForExistence(timeout: 10), "the day was not found")
+        result.tap()
+        // The one on top: search is a sheet, so today's Entry is still in the
+        // tree underneath it.
+        XCTAssertTrue(
+            app.textViews["entryEditor"].firstMatch.waitForExistence(timeout: 10),
+            "the day found never opened"
+        )
+
+        app.terminate()
+        let relaunched = launchApp(entries: written)
+        openSearch(relaunched)
+
+        let recent = relaunched.buttons["recentSearch-market"]
+        XCTAssertTrue(
+            recent.waitForExistence(timeout: 15),
+            "an empty search box offered nothing back"
+        )
+
+        // And one of them is that search again, without typing it.
+        recent.tap()
+        XCTAssertTrue(
+            relaunched.buttons["searchResult-\(entryName(for: lastWeek))"]
+                .waitForExistence(timeout: 10),
+            "tapping a recent query did not search for it"
         )
     }
 

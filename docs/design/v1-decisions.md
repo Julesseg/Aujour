@@ -176,5 +176,40 @@ documented model wins, and what they omit is extrapolated from it.
   when to nudge (skippable time picker). Photo permission is not among them —
   asking is a separate act, done before a day is opened.
 
+- **The bar is one menu, not three icons.** The design draws search and
+  settings as separate glyphs across the top, with sharing a third once the
+  Entry screen has one. Shipped, that is three controls competing along the
+  top edge with the one thing anybody opened the app to do, on the screen the
+  identity spent its whole budget making a page of writing. So they are one
+  `ellipsis` at the trailing end — search, send this day, settings — and the
+  leading end is empty. The pill still names the day, which is the only thing
+  up there that is about the day. The cost is real and is the reason it is
+  written down: search is the second most-used thing in the app and is now one
+  tap further away. Sending stays on whichever screen the day was opened from,
+  so a day reached through search offers it as a button rather than a menu of
+  one.
+
+- **The pill takes the bar, and gives up a word at a time.** Following the
+  menu decision above, the date pill moves up onto the bar's own row and the
+  screen loses its navigation bar altogether — it was drawing an empty title
+  over a pill that already names the day. That buys a bar's worth of height
+  back for the writing, which is what the screen is for.
+  It does not fit as-is. The pill carries a "Today" chip on any day that is not
+  today, spells the year out on a day from another year, and follows Dynamic
+  Type; measured, the ellipsis takes 92pt of an iPhone SE's 320 before the pill
+  gets anything, and a day from a previous year wants 347pt of the 228 left.
+  So two things change with it: the chip gives up its word for a glyph, worth
+  52pt, and the day is said at the longest of four lengths that fits
+  (`JournalDay.Length`) — the weekday's full name goes first, then the month's,
+  then the weekday altogether. Today at the factory text size is still spelled
+  out in full on the smallest phone; what steps down is a backfilled day, or a
+  reader who has turned the text up. Nothing truncates.
+  Prototyped on the `prototype/the-header` branch, which holds the five layouts
+  that were measured and the contact sheets they were judged on.
+  On a window with room for a sidebar none of this applies: the month is
+  already on screen, so there is no pill, and the menu stays on the navigation
+  bar that window still has. The chip keeps its word there too — the trade was
+  made for a shared row, and a sidebar has a column to itself.
+
 Still undesigned and not extrapolated here: the iPad sidebar's own empty and
 loading states, and `{{workout}}`-class placeholders that are roadmap anyway.

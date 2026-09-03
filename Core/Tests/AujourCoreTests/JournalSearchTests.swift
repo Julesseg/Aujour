@@ -405,4 +405,36 @@ struct JournalSearchTests {
 
         #expect(search.results(for: "market").map(\.day) == [firstOfMarch])
     }
+
+    // MARK: - The queries an empty search box offers back
+
+    @Test("a query that led somewhere is offered back next time")
+    func aQueryThatFoundADayIsRemembered() async {
+        let onThisDevice = InMemoryLocalKeyValueStore()
+        let search = JournalSearch(
+            store: InMemoryJournalStore(vault),
+            recent: RecentSearchesStore(storedOn: onThisDevice)
+        )
+
+        search.remember("market")
+
+        #expect(search.recentQueries == ["market"])
+        // And in the next launch, over a search made fresh.
+        let afterwards = JournalSearch(
+            store: InMemoryJournalStore(vault),
+            recent: RecentSearchesStore(storedOn: onThisDevice)
+        )
+        #expect(afterwards.recentQueries == ["market"])
+    }
+
+    @Test("a search with nowhere to keep its queries offers none, and still searches")
+    func noRecentStoreIsNotAProblem() async {
+        let search = JournalSearch(store: InMemoryJournalStore(vault))
+
+        search.remember("market")
+        await search.open()
+
+        #expect(search.recentQueries.isEmpty)
+        #expect(search.results(for: "market").map(\.day) == [firstOfMarch])
+    }
 }

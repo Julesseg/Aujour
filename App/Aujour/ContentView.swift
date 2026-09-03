@@ -12,14 +12,22 @@ import AujourCore
 struct ContentView: View {
     @State private var journal: Journal
     @State private var showingSettings = false
-    /// The screen on top of today's Entry, if one is — nil while today's is
-    /// what is on screen.
+
+    /// Whether the search sheet is up — the other way back into a day, when
+    /// its date is not what anybody remembers about it.
+    @State private var searching = false
+
+    /// Where a sheet rises from: the one button on the bar that summons them.
+    @Namespace private var sheets
+
+    /// The day whose sheet asking how to send it is up, and `nil` the rest of
+    /// the time.
     ///
-    /// One piece of state for both, rather than a flag each: two
-    /// `navigationDestination(isPresented:)` modifiers on one view are two
-    /// destinations the stack picks between, and which one a tap opens stops
-    /// being a thing this screen decides.
-    @State private var wayIn: WayIntoTheJournal?
+    /// Here rather than on the Entry, now that the offer is a row in this
+    /// screen's menu: what the user asked for is the bar's, and how a day
+    /// actually gets sent — the photographs it embeds, the file, the system's
+    /// sheet over it — stays ``EntryView``'s.
+    @State private var sending: ADayToSend?
 
     /// The day the app is on, when it is not today's — its editor, made once
     /// and kept for as long as that day is on screen.
@@ -97,12 +105,6 @@ struct ContentView: View {
     /// a sheet told dark and then told nothing goes on being dark while the
     /// window behind it turns light.
     @Environment(\.colorScheme) private var drawnIn
-
-    /// The two ways back into a day that is not today's: by when it was, and
-    /// by what was written in it.
-    private enum WayIntoTheJournal: Hashable {
-        case search
-    }
 
     /// How this device wants Aujour to look, held for the one screen that
     /// changes it. The app is already drawn in it — the appearance, the tint
@@ -282,7 +284,9 @@ struct ContentView: View {
             EntryView(
                 editor: onScreen.editor,
                 photographsFrom: journal.photoLibrary,
-                placesFrom: journal.places
+                placesFrom: journal.places,
+                sending: $sending,
+                risingFrom: sheets
             )
             .parkedFilesNotice(from: journal, for: onScreen.day, in: appearance.accent)
         } else if let calendar = journal.calendar, let opensAt = calendar.writingOpensAt {
@@ -295,6 +299,70 @@ struct ContentView: View {
                 .accessibilityIdentifier("openingEntry")
         }
     }
+
+    /// Everything the app can do that is not writing in the day on screen,
+    /// behind one button.
+    ///
+    /// One control and not three, because two of the three are the same kind
+    /// of thing — a way out of today's page — and the bar is the one place in
+    /// this app where the day being written is not what is on screen. The pill
+    /// names the day and the page holds the words; what is left over is this,
+    /// and a row of icons across the top would be three things competing with
+    /// the one thing anybody opened the app to do.
+    ///
+    /// The three of them come up as sheets out of this button, which is why
+    /// there is one name for the journey rather than three (``Sheets``).
+    ///
+    /// Sending is a row here and not a control of the Entry's own, but it is
+    /// still the Entry that reads the words: whether there is anything to send
+    /// changes on every keystroke, and a read of that in *this* body would
+    /// invalidate the whole screen — editor, pill and all — every time
+    /// somebody typed a letter. ``ShareEntryButton`` is where that read
+    /// belongs, and it draws itself as a row here exactly as it drew itself as
+    /// a button on the bar.
+    private func theRestOfTheApp(inItsOwnGlass: Bool) -> some View {
+        Menu {
+            // In the order somebody reaches for them: back into the journal,
+            // this day out of it, and then the app itself.
+            Button("Search", systemImage: "magnifyingglass") {
+                searching = true
+            }
+            .accessibilityIdentifier("openSearch")
+
+            if let onScreen = entryOnScreen {
+                ShareEntryButton(editor: onScreen.editor, sending: $sending)
+            }
+
+            Button("Settings", systemImage: "slider.horizontal.3") {
+                showingSettings = true
+            }
+            .accessibilityIdentifier("openSettings")
+        } label: {
+            if inItsOwnGlass {
+                // Beside the pill on a narrow window, where there is no
+                // toolbar to draw it: so it is the pill's height, in the
+                // pill's glass, and carries the glyph alone — a word there
+                // would be the only label on a row that has no labels on it.
+                Label("More", systemImage: "ellipsis")
+                    .labelStyle(.iconOnly)
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: pillHeight, height: pillHeight)
+                    .glassEffect(.regular, in: Circle())
+            } else {
+                // And on a wide one it is a toolbar item like any other, in
+                // the bar's own glass rather than a second pane inside it.
+                Label("More", systemImage: "ellipsis")
+            }
+        }
+        .buttonStyle(.plain)
+        .summonsASheet(Sheets.theBar, in: sheets)
+        .accessibilityIdentifier("moreActions")
+    }
+
+    /// The same row height the pill is, so the two sit on one line at every
+    /// text size — a button in fixed points beside a pill that grows is a
+    /// button that drifts off the line the moment anybody turns the text up.
+    @ScaledMetric(relativeTo: .body) private var pillHeight: CGFloat = 44
 
     /// Which day the journal is on, as something that can be watched.
     private var theDayTheJournalIsOn: JournalDay? {
@@ -312,6 +380,15 @@ struct ContentView: View {
     /// about the *page* presentation has no window it can ask for. Pinning is
     /// how it asks — the presentation is stated, and everything downstream of
     /// it is the app's own code.
+    /// Whether the pill is this window's calendar — which on a window with
+    /// room for a sidebar it is not, since the month is already on screen.
+    ///
+    /// One name for one condition, because it answers three questions that are
+    /// the same question: whether to draw a pill, whether the menu sits beside
+    /// it, and whether there is a navigation bar left for the menu to sit on
+    /// instead.
+    private var thePillIsTheCalendar: Bool { layout == .page }
+
     private var layout: JournalLayout {
         UITestingJournal.pinnedLayout
             ?? JournalLayout(windowWidth: window.width, windowHeight: window.height)
@@ -446,7 +523,7 @@ struct ContentView: View {
                             // the question the pill exists to ask, and a
                             // second calendar over the first is the calendar
                             // drawn twice.
-                            over: layout == .page ? journal.calendar : nil,
+                            over: thePillIsTheCalendar ? journal.calendar : nil,
                             accent: appearance.accent,
                             openedTo: $pill,
                             pick: pick,
@@ -455,40 +532,30 @@ struct ContentView: View {
                             // are a scan of the folder, and a day being filled
                             // in this second is a day whose file is not there
                             // yet.
-                            settling: { await entryOnScreen?.editor.save() }
+                            settling: { await entryOnScreen?.editor.save() },
+                            beside: { theRestOfTheApp(inItsOwnGlass: true) }
                         )
                     }
                     // The calendar names the day, on either window: the pill
                     // does it on a narrow one and the pane beside the page
                     // does it on a wide one, in the same words and the same
-                    // lettering. So the bar carries the ways out and nothing
-                    // else — a title saying the same thing twice, once in each
-                    // of two typefaces, is the redesign's own worst screen.
+                    // lettering. So there is no title to draw — and on a
+                    // narrow window there is no bar either, because the pill
+                    // has taken the row it was using and the menu has come
+                    // with it. What that buys is a bar's worth of height back
+                    // for the writing, which is what the screen is for.
+                    //
+                    // A wide window keeps its bar, because it has no pill for
+                    // the menu to sit beside: the month is already on screen
+                    // and the row the pill would have had is the sidebar's.
+                    .toolbar(thePillIsTheCalendar ? .hidden : .visible, for: .navigationBar)
                     .navigationTitle("")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            // The other way back into a day, and now the
-                            // only one in the bar: by when it was is the
-                            // pill's, and by what was written in it is
-                            // this.
-                            Button("Search", systemImage: "magnifyingglass") {
-                                wayIn = .search
+                        if !thePillIsTheCalendar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                theRestOfTheApp(inItsOwnGlass: false)
                             }
-                            .accessibilityIdentifier("openSearch")
-                        }
-                        ToolbarItem(placement: .topBarTrailing) {
-                            // One way in for the folder and every setting
-                            // over it, because they are one answer: this
-                            // is your journal, and this is what Aujour
-                            // will do with it. Named for what the sheet is
-                            // titled, since the journal is only the first
-                            // half of it — how the app looks is behind
-                            // here too.
-                            Button("Settings", systemImage: "slider.horizontal.3") {
-                                showingSettings = true
-                            }
-                            .accessibilityIdentifier("openSettings")
                         }
                     }
 
@@ -521,20 +588,25 @@ struct ContentView: View {
                     // one edit out of date the moment today's Entry is
                     // created.
                     .task { await journal.recount() }
+                    .sheetChrome(risingFrom: Sheets.theBar, in: sheets)
             }
-            // Declared outside the states rather than beside the button that
-            // opens it: a destination registered only while one branch of a
-            // switch is on screen is one the stack can find itself without.
+            // Outside the states for the settings sheet's reason: a journal
+            // reopened under a search that is up is a new search over a new
+            // folder, and a sheet declared inside one state is a sheet that
+            // vanishes mid-query.
             //
-            // Today's Entry is what the app is for, so this is a step away
-            // from it and back — and coming back is what re-reads the folder
-            // for a day just filled in.
-            .navigationDestination(item: $wayIn) { wayIn in
-                switch wayIn {
-                case .search:
-                    if let search = journal.search {
-                        JournalSearchView(search: search, journal: journal, accent: appearance.accent)
-                    }
+            // Today's Entry is what the app is for, so this is held in front
+            // of it rather than put in place of it — and leaving is what
+            // re-reads the folder for a day just filled in.
+            .sheet(isPresented: $searching) {
+                if let search = journal.search {
+                    JournalSearchSheet(
+                        search: search,
+                        journal: journal,
+                        accent: appearance.accent
+                    )
+                    .preferredColorScheme(drawnIn)
+                    .sheetChrome(risingFrom: Sheets.theBar, in: sheets)
                 }
             }
         }

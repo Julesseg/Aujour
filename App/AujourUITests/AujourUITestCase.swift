@@ -178,15 +178,25 @@ class AujourUITestCase: XCTestCase {
         return app
     }
 
+    /// Taps one of the things behind the bar's menu — searching, sending the
+    /// day, or the settings — which is where all three of them live.
+    func fromTheMenu(_ identifier: String, in app: XCUIApplication) {
+        let more = app.buttons["moreActions"]
+        XCTAssertTrue(more.waitForExistence(timeout: 30), "the bar's menu never appeared")
+        more.tap()
+
+        let item = app.buttons[identifier]
+        XCTAssertTrue(
+            item.waitForExistence(timeout: 10),
+            "the bar's menu did not offer \(identifier)"
+        )
+        item.tap()
+    }
+
     /// Opens the one sheet: where the journal is kept, every setting that
     /// shapes what goes into it, and the ones that stay on this device.
     func openSettings(_ app: XCUIApplication) {
-        let settings = app.buttons["openSettings"]
-        XCTAssertTrue(
-            settings.waitForExistence(timeout: 30),
-            "the settings button never appeared"
-        )
-        settings.tap()
+        fromTheMenu("openSettings", in: app)
         XCTAssertTrue(
             app.staticTexts["journalRootLocation"].waitForExistence(timeout: 10),
             "the settings sheet never appeared"
@@ -425,9 +435,7 @@ class AujourUITestCase: XCTestCase {
     /// The way in: the journal sheet, and the one row on it that is not about
     /// the journal.
     func openHowItLooks(in app: XCUIApplication) {
-        let settings = app.buttons["openSettings"]
-        XCTAssertTrue(settings.waitForExistence(timeout: 30), "the settings button never appeared")
-        settings.tap()
+        fromTheMenu("openSettings", in: app)
 
         let howItLooks = app.buttons["openHowItLooks"]
         scrollTo(howItLooks, in: app)
@@ -445,9 +453,15 @@ class AujourUITestCase: XCTestCase {
     }
 
     func entryCountFromTheSettingsSheet(_ app: XCUIApplication) -> String {
+        let more = app.buttons["moreActions"]
+        guard more.waitForExistence(timeout: 30) else {
+            return "the bar's menu never appeared"
+        }
+        more.tap()
+
         let settings = app.buttons["openSettings"]
-        guard settings.waitForExistence(timeout: 30) else {
-            return "the settings button never appeared"
+        guard settings.waitForExistence(timeout: 10) else {
+            return "the bar's menu never offered the settings"
         }
         settings.tap()
 
@@ -810,33 +824,36 @@ class AujourUITestCase: XCTestCase {
         Thread.sleep(forTimeInterval: 0.5)
     }
 
-    /// Opens the search screen, and waits for it to be there.
+    /// Opens the search sheet, and waits for it to be there.
     func openSearch(_ app: XCUIApplication) {
-        let search = app.buttons["openSearch"]
-        XCTAssertTrue(search.waitForExistence(timeout: 30), "the search button never appeared")
-        search.tap()
+        fromTheMenu("openSearch", in: app)
         XCTAssertTrue(
-            app.searchFields.firstMatch.waitForExistence(timeout: 10),
-            "the search screen never appeared"
+            searchField(in: app).waitForExistence(timeout: 10),
+            "the search sheet never came up"
         )
+    }
+
+    /// The box a query is typed into — the identity's own field rather than
+    /// the system's search bar, so it is a text field and not a search one.
+    func searchField(in app: XCUIApplication) -> XCUIElement {
+        app.textFields["searchQuery"]
     }
 
     /// Types a query into the search field, as somebody looking for a day
     /// would.
     func search(for query: String, in app: XCUIApplication) {
-        let field = app.searchFields.firstMatch
+        let field = searchField(in: app)
         field.tap()
         // Cleared first, so that a second search in one test is that search
         // and not the two queries run together.
-        if let typed = field.value as? String, !typed.isEmpty, typed != field.placeholderValue {
-            field.buttons.firstMatch.tap()
-        }
+        let clear = app.buttons["clearSearchQuery"]
+        if clear.exists { clear.tap() }
         field.typeText(query)
     }
 
-    /// Back up one screen — the way out of a day, and out of search.
-    func goBack(_ app: XCUIApplication) {
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+    /// Puts the search sheet away.
+    func closeSearch(_ app: XCUIApplication) {
+        app.buttons["closeSearch"].tap()
     }
 
     /// Waits for an element to say something. The folder is read after the

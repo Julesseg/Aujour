@@ -230,7 +230,7 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
             app.staticTexts["nothingToSearchYet"].waitForExistence(timeout: 15),
             "a search over a journal with nothing in it said nothing about that"
         )
-        goBack(app)
+        closeSearch(app)
 
         // One day written, and every one of those sentences stops being true.
         XCTAssertTrue(editor.waitForExistence(timeout: 30))

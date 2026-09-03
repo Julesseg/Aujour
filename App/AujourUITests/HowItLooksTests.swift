@@ -43,9 +43,7 @@ final class HowItLooksTests: AujourUITestCase {
 
         // The journal sheet says which accent is in force before it is opened,
         // which is the shortest proof that the choice outlived the process.
-        let settings = app.buttons["openSettings"]
-        XCTAssertTrue(settings.waitForExistence(timeout: 30), "the app never came back")
-        settings.tap()
+        fromTheMenu("openSettings", in: app)
 
         let howItLooks = app.buttons["openHowItLooks"]
         scrollTo(howItLooks, in: app)

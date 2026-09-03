@@ -298,6 +298,11 @@ struct JournalDayInstantTests {
     }
 }
 
+/// A locale pinned, because what these claim is which *parts* of a day are
+/// said at each length — and the order they come in is the locale's business,
+/// not this suite's.
+private let english = Locale(identifier: "en_US_POSIX")
+
 @Suite("Saying a Journal Day out loud")
 struct JournalDaySpellingTests {
     @Test("a Journal Day names its weekday, day and month — and not its year")
@@ -321,6 +326,87 @@ struct JournalDaySpellingTests {
         #expect(spelled.contains("Sunday"))
         #expect(spelled.contains("March"))
         #expect(spelled.contains("2026"))
+    }
+
+    // MARK: - The same day, at every length it can be said at
+
+    // The pill names the day in a row it shares with a button, so what it can
+    // say depends on the room it is given. These are the rungs it steps down.
+
+    @Test("every length still says which day of which month it is")
+    func theDayAndTheMonthSurviveEveryLength() {
+        let day = JournalDay(year: 2026, month: 3, day: 1)
+
+        for length in JournalDay.Length.allCases {
+            let named = day.named(at: length, in: paris, locale: english)
+            #expect(named.contains("1"), "\(length) lost the day: \(named)")
+            // March or Mar, depending on how far down the ladder it is — but
+            // never neither. A date with no month is not a date.
+            #expect(
+                named.localizedCaseInsensitiveContains("mar"),
+                "\(length) lost the month: \(named)"
+            )
+        }
+    }
+
+    @Test("the rungs are in order, longest first")
+    func eachLengthIsNoLongerThanTheOneBefore() {
+        // The one thing the whole ladder rests on. A rung that came out longer
+        // than the one above it is a pill that would step *down* into needing
+        // more room, which is a fallback that does not fall.
+        let day = JournalDay(year: 2026, month: 3, day: 1)
+
+        for withYear in [false, true] {
+            let rungs = JournalDay.Length.allCases.map {
+                day.named(at: $0, withYear: withYear, in: paris, locale: english)
+            }
+            for (longer, shorter) in zip(rungs, rungs.dropFirst()) {
+                #expect(
+                    shorter.count <= longer.count,
+                    "\u{201C}\(shorter)\u{201D} is longer than \u{201C}\(longer)\u{201D}"
+                )
+            }
+        }
+    }
+
+    @Test("the longest rung is the day spelled out, which is what it always was")
+    func theLongestRungIsTheSpelledOutDay() {
+        let day = JournalDay(year: 2026, month: 3, day: 1)
+
+        for withYear in [false, true] {
+            #expect(
+                day.named(at: .spelledOut, withYear: withYear, in: paris, locale: english)
+                    == day.spelledOut(withYear: withYear, in: paris, locale: english)
+            )
+        }
+    }
+
+    @Test("a day reached from the calendar keeps its year however short it gets")
+    func theYearSurvivesEveryLength() {
+        let day = JournalDay(year: 2026, month: 3, day: 1)
+
+        for length in JournalDay.Length.allCases {
+            let named = day.named(at: length, withYear: true, in: paris, locale: english)
+            #expect(named.contains("2026"), "\(length) lost the year: \(named)")
+        }
+    }
+
+    @Test("what each rung gives up, in the order it gives it up")
+    func theLadderGivesUpAWordAtATime() {
+        let day = JournalDay(year: 2026, month: 3, day: 1)
+        func named(_ length: JournalDay.Length) -> String {
+            day.named(at: length, in: paris, locale: english)
+        }
+
+        // The weekday's full name goes first, then the month's, then the
+        // weekday altogether — the day and the month are what is left.
+        #expect(named(.spelledOut).contains("Sunday"))
+        #expect(named(.shortWeekday).contains("Sun"))
+        #expect(!named(.shortWeekday).contains("Sunday"))
+        #expect(named(.shortWeekday).contains("March"))
+        #expect(!named(.abbreviated).contains("March"))
+        #expect(named(.abbreviated).contains("Sun"))
+        #expect(!named(.dayAndMonth).localizedCaseInsensitiveContains("sun"))
     }
 
     @Test("the ISO-8601 form is what paths are made of, whoever is reading")

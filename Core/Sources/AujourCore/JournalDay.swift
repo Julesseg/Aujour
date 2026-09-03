@@ -195,10 +195,50 @@ public struct JournalDay: Hashable, Comparable, Sendable, CustomStringConvertibl
         in timeZone: TimeZone = .current,
         locale: Locale = .current
     ) -> String {
+        named(at: .spelledOut, withYear: withYear, in: timeZone, locale: locale)
+    }
+
+    /// How much of a day's name is spelled out.
+    ///
+    /// Declared longest first, which is the order a control that has to fit a
+    /// day into a given width tries them in: it takes the first that does not
+    /// need more room than it has. That ordering is the whole contract — a
+    /// rung that came out longer than the one above it would be a fallback
+    /// that does not fall — and it is what `JournalDayTests` holds.
+    ///
+    /// What is given up, in order: the weekday's full name, then the month's,
+    /// then the weekday altogether. The day and the month are the last things
+    /// standing, because a date with neither is not a date. The year, when it
+    /// is being said at all, survives every rung — a day from another February
+    /// that stopped saying which year would be worse than a day that had to be
+    /// abbreviated.
+    public enum Length: CaseIterable, Hashable, Sendable {
+        /// `Sunday, March 1` — the day as somebody would say it out loud.
+        case spelledOut
+        /// `Sun, March 1` — the weekday shortened, the month still spelled.
+        case shortWeekday
+        /// `Sun, Mar 1` — and the month with it.
+        case abbreviated
+        /// `Mar 1` — the weekday given up altogether.
+        case dayAndMonth
+    }
+
+    /// The day named at one of the lengths it can be said at.
+    ///
+    /// Every length is the locale's own arrangement of the same fields rather
+    /// than a string built here: which of the day and the month comes first,
+    /// and where a comma goes, is not something this app knows better than the
+    /// reader's own device.
+    public func named(
+        at length: Length,
+        withYear: Bool = false,
+        in timeZone: TimeZone = .current,
+        locale: Locale = .current
+    ) -> String {
         var style = Date.FormatStyle(locale: locale, timeZone: timeZone)
-            .weekday(.wide)
             .day()
-            .month(.wide)
+            .month(length.month)
+        if let weekday = length.weekday { style = style.weekday(weekday) }
         if withYear { style = style.year() }
         return startOfDay(in: timeZone).formatted(style)
     }
@@ -210,4 +250,25 @@ public struct JournalDay: Hashable, Comparable, Sendable, CustomStringConvertibl
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         return calendar
     }()
+}
+
+extension JournalDay.Length {
+    /// How the weekday is written at this length, or `nil` where it is not
+    /// written at all.
+    var weekday: Date.FormatStyle.Symbol.Weekday? {
+        switch self {
+        case .spelledOut: .wide
+        case .shortWeekday, .abbreviated: .abbreviated
+        case .dayAndMonth: nil
+        }
+    }
+
+    /// How the month is written at this length. Never left out: a date with no
+    /// month is a number.
+    var month: Date.FormatStyle.Symbol.Month {
+        switch self {
+        case .spelledOut, .shortWeekday: .wide
+        case .abbreviated, .dayAndMonth: .abbreviated
+        }
+    }
 }

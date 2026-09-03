@@ -50,6 +50,26 @@ licence to move logic out of Core — the test target follows its subject, so
 anything that would need neither a file system nor a system framework to test
 should not have been written in `App/` in the first place.
 
+### Scope local test runs to the change — CI runs everything
+
+Every PR runs the exhaustive matrix: the full Core suite on Linux and the full
+XCUITest suite on both device families. A local run before a commit or push is
+a smoke check, not a second gate — scope it to what the session touched and let
+CI catch fallout elsewhere. A red CI leg on a test you did not run locally is
+the system working, not a process failure.
+
+- Iterating on Core: `swift test --filter <TypeName>` for the types under
+  work. Before pushing, one full `cd Core && swift test` — it is fast enough
+  to always be worth it.
+- App-hosted unit tests (`App/AujourTests`): add `-only-testing:AujourTests`
+  to the `xcodebuild test` invocation the SessionStart hook prints, which
+  keeps the UI suite out of the run; narrow further with
+  `-only-testing:AujourTests/<TypeName>`.
+- Watching one UI behavior locally:
+  `-only-testing:AujourUITests/<TestClass>/<testMethod>`, where the class is
+  one of the feature classes over `AujourUITestCase`. The full UI suite on
+  both families is CI's job.
+
 ### Always implement the UI part of an issue — never ask
 
 **If an issue requires UI work, implement it. Do not ask whether you should,

@@ -549,13 +549,23 @@ governs the Entry alone. Everything else in the app follows the system's own
 text size, which is a decision the user already made for everything they read.
 
 ### Layout
-Which of Aujour's two presentations a window is being read in, decided by how
-wide the *window* is and by nothing else. Above roughly 820 points the
-**sidebar** presentation: the Calendar floats permanently down one side and the
-Entry beside it is set at a comfortable measure — about 65 characters of
-whichever face the reader writes in — rather than stretched across the glass.
-Below it the **page** presentation: the Entry across the whole window with the
-date pill over it, the pill being the answer to having no room for a calendar.
+Which of Aujour's two presentations a window is being read in, decided by the
+shape of the *window* and by nothing else. A window at least 820 points wide
+and 600 tall gets the **sidebar** presentation: the Calendar floats permanently
+down one side and the Entry beside it is set at a comfortable measure — about
+65 characters of whichever face the reader writes in — rather than stretched
+across the glass. Everything else gets the **page** presentation: the Entry
+across the whole window with the date pill over it, the pill being the answer
+to having no room for a calendar.
+
+Both measurements, because a sidebar needs both. A calendar that is always on
+screen has to fit on screen — six weeks, the weekday initials over them, the
+month's name over those and the day being written over all of it — and that is
+the case a width alone gets wrong: an iPhone on its side is wide enough for a
+sidebar and four hundred points short of the height to put a month in one. It
+keeps the pill, which was designed for exactly that room. A Stage Manager
+window dragged short is the same answer for the same reason, so this is still a
+fact about the window and not about the device.
 
 The two calendars are one calendar. The sidebar is the date pill with the
 gesture taken out — the same pane of glass at the same width, the day named
@@ -567,11 +577,10 @@ to go and started being somewhere to look.
 
 The window and never the device, which is why both presentations ship on both
 families. An iPad in Slide Over, in a half-width Split View or in a Stage
-Manager window dragged narrow has no more room than a phone and is read as one;
-a phone laid on its side can have more room than an iPad mini stood up. A size
-class is not enough to ask the question with: an iPad mini in portrait reports
-a regular width at 744 points, which is too narrow to hold a calendar and a
-readable measure at once.
+Manager window dragged narrow has no more room than a phone and is read as one.
+A size class is not enough to ask the question with: an iPad mini in portrait
+reports a regular width at 744 points, which is too narrow to hold a calendar
+and a readable measure at once.
 
 A resize keeps the day being written — that is the Calendar's, and the
 Calendar outlives one — and leaves the date pill shut. Any resize, not only a

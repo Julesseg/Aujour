@@ -1919,10 +1919,12 @@ final class AujourUITests: XCTestCase {
     /// presentation under the same day.
     ///
     /// Unpinned, so the app measures a real window. Rotation is the resize —
-    /// the only one a UI test can perform — and it is a real one: an iPhone
-    /// and an iPad mini both cross the line turning on their side, while a
-    /// large iPad is wide in both orientations and so proves the other half,
-    /// that the rule is read off the width rather than off the device.
+    /// the only one a UI test can perform — and what it proves depends on the
+    /// device, which is the point: an iPad mini crosses the line turning on
+    /// its side, a phone stays on the page presentation both ways up because
+    /// a landscape phone is wide enough for a sidebar and nowhere near tall
+    /// enough for one, and a large iPad has room either way. Three different
+    /// devices, one rule, read off the window every time.
     func testTheWindowDecidesWhichPresentationTheJournalIsReadIn() throws {
         let yesterday = try XCTUnwrap(dayBeforeToday())
         let app = launchApp(
@@ -1939,7 +1941,7 @@ final class AujourUITests: XCTestCase {
         XCTAssertEqual(
             started,
             presentationExpected(of: app),
-            "a \(app.frame.width)-point window was read in the \(started) presentation"
+            "a \(app.frame.size) window was read in the \(started) presentation"
         )
 
         // The day being written, before anything is resized — reached the way
@@ -1951,43 +1953,28 @@ final class AujourUITests: XCTestCase {
             opened.contains("Stood in the hall with my coat on."),
             "the day picked out of the calendar never opened, the screen holds: \(opened)"
         )
-        // And, where there is a pill, left open on the month — so that what
-        // comes back after the crossing is a pill that was shut by it.
-        if started == .page {
-            openTheDatePill(app, to: "Month")
-        }
 
-        // The resize. Out and back, so that a device which crosses the line
-        // ends on the narrow side of it, where the pill can be asked what
-        // state it is in.
+        // The resize. Out and back, so the journal is asked the question in
+        // both of the rooms this device has.
         rotate(app, to: .landscapeLeft)
         let sideways = presentationOf(app)
         XCTAssertEqual(
             sideways,
             presentationExpected(of: app),
-            "a \(app.frame.width)-point window was read in the \(sideways) presentation"
+            "a \(app.frame.size) window was read in the \(sideways) presentation"
         )
 
         rotate(app, to: .portrait)
         XCTAssertEqual(presentationOf(app), presentationExpected(of: app))
 
-        // The day survived both crossings — it is the calendar's and the
-        // calendar outlives a resize.
+        // And the day survived both resizes, whether or not they crossed
+        // anything: which day the journal is on is the calendar's, and the
+        // calendar outlives a window.
         let survived = try XCTUnwrap(theWordsOnScreen(app, timeout: 15))
         XCTAssertTrue(
             survived.contains("Stood in the hall with my coat on."),
             "the day being written was lost across the resize, the screen holds: \(survived)"
         )
-
-        // And the pill came back shut. Only worth asking on a device that
-        // actually crossed the line — on a large iPad both orientations are
-        // wide, and there was no pill to shut.
-        try XCTSkipUnless(
-            started == .page && sideways == .sidebar,
-            "this device is \(started) in portrait and \(sideways) in landscape, so a "
-                + "rotation does not cross the threshold"
-        )
-        expect(app.buttons["datePill"], toHaveValue: "Closed")
     }
 
     // MARK: - Walking the journal a day at a time
@@ -3700,16 +3687,20 @@ final class AujourUITests: XCTestCase {
         return .neither
     }
 
-    /// Which one this window should be in, worked out from its width the same
-    /// way the app works it out — the *window's* width, which is what
+    /// Which one this window should be in, worked out from its shape the same
+    /// way the app works it out — the *window's* shape, which is what
     /// `XCUIApplication.frame` is.
     ///
-    /// The number is spelled out rather than shared, like every other constant
-    /// in this suite: the UI target imports nothing from the app it drives, so
-    /// a threshold that moved in `JournalLayout` and not here is a suite that
-    /// says so.
+    /// Both measurements, because a sidebar needs both: a phone on its side
+    /// clears the width and misses the height by four hundred points, which is
+    /// the case a width alone gets wrong.
+    ///
+    /// The numbers are spelled out rather than shared, like every other
+    /// constant in this suite: the UI target imports nothing from the app it
+    /// drives, so a threshold that moved in `JournalLayout` and not here is a
+    /// suite that says so.
     private func presentationExpected(of app: XCUIApplication) -> Presentation {
-        app.frame.width >= 820 ? .sidebar : .page
+        app.frame.width >= 820 && app.frame.height >= 600 ? .sidebar : .page
     }
 
     /// Turns the device, and waits for the app to have been laid out again.
@@ -3874,11 +3865,24 @@ final class AujourUITests: XCTestCase {
         alongside day: XCUIElement,
         across distance: CGFloat
     ) {
-        let window = app.windows.firstMatch.frame
+        // Started against the grid and not against the window, because the two
+        // are not the same width: the open pill is capped at seven square
+        // columns, so on any window with room to spare it is a pane in the
+        // middle with page either side of it. A finger that began a fifth of
+        // the way across an iPad would begin on the page, where a walk is not
+        // a walk at all.
+        //
+        // A sixth of the way in from the near end, which is far enough onto
+        // the glass that the gesture is unambiguously the grid's. Where it
+        // *ends* does not matter — a drag that began on the grid goes on being
+        // the grid's wherever the finger travels.
+        let days = theDaysOfTheMonth(in: app)
+        let grid = (near: days.map(\.minX).min()!, far: days.map(\.maxX).max()!)
+        let inset = (grid.far - grid.near) / 6
         let from = app.coordinate(withNormalizedOffset: .zero)
             .withOffset(
                 CGVector(
-                    dx: distance > 0 ? window.width * 0.2 : window.width * 0.8,
+                    dx: distance > 0 ? grid.near + inset : grid.far - inset,
                     dy: day.frame.midY
                 )
             )

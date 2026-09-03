@@ -64,17 +64,21 @@ struct ContentView: View {
     /// back shut when the window narrows again (``JournalLayout``).
     @State private var pill = DatePill()
 
-    /// How wide this window is, which is the only thing that decides which of
-    /// the two presentations the journal is read in.
+    /// What shape this window is, which is the only thing that decides which
+    /// of the two presentations the journal is read in.
     ///
     /// The window and not the screen, and measured rather than inferred from a
     /// size class: an iPad in Slide Over has no more room than a phone, and an
     /// iPad mini stood up reports a regular width at 744 points, which is too
     /// narrow to hold a calendar and a readable page at once.
     ///
-    /// Nought until the first layout, which is the page presentation — an app
-    /// with no room yet is not one to put a sidebar in.
-    @State private var windowWidth: CGFloat = 0
+    /// Both measurements, because a sidebar needs both: a phone on its side is
+    /// wide enough for one and nowhere near tall enough for the month that
+    /// would go in it (``JournalLayout``).
+    ///
+    /// Nothing at all until the first layout, which is the page presentation —
+    /// an app with no room yet is not one to put a sidebar in.
+    @State private var window: CGSize = .zero
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -309,7 +313,8 @@ struct ContentView: View {
     /// how it asks — the presentation is stated, and everything downstream of
     /// it is the app's own code.
     private var layout: JournalLayout {
-        UITestingJournal.pinnedLayout ?? JournalLayout(windowWidth: windowWidth)
+        UITestingJournal.pinnedLayout
+            ?? JournalLayout(windowWidth: window.width, windowHeight: window.height)
     }
 
     /// The sidebar, on the windows there is room for one in.
@@ -339,7 +344,7 @@ struct ContentView: View {
                 // is wider than some of the windows it is drawn in — and a
                 // calendar that took the page's room to keep its own days
                 // square would have the wrong thing square.
-                atMost: windowWidth / 2
+                atMost: window.width / 2
             )
         }
     }
@@ -542,11 +547,11 @@ struct ContentView: View {
         .fullScreenCover(isPresented: theWelcomeIsDue) {
             WelcomeView(journal: journal)
         }
-        // How wide the window is, read off the one view in the app that fills
-        // it. The window and not the screen: Slide Over, a half-width Split
-        // View and a Stage Manager window dragged narrow all hand the app less
-        // room than the glass it is on, and all three should be read the way a
-        // phone is.
+        // What shape the window is, read off the one view in the app that
+        // fills it. The window and not the screen: Slide Over, a half-width
+        // Split View and a Stage Manager window dragged narrow all hand the
+        // app less room than the glass it is on, and all three should be read
+        // the way a phone is.
         //
         // The safe area is added back rather than taken off, and that is the
         // difference between a window and a *cutout*. A phone on its side is
@@ -555,15 +560,28 @@ struct ContentView: View {
         // the same window either side of the line depending on which handset
         // the notch belonged to. What the threshold is about is how much room
         // the reader has, and a strip of screen beside a camera is room.
-        .onGeometryChange(for: CGFloat.self) {
-            $0.size.width + $0.safeAreaInsets.leading + $0.safeAreaInsets.trailing
+        //
+        // It is also what keeps the height steady while somebody is typing:
+        // a keyboard is a safe area inset like any other, so a height that
+        // took it off would be a window that changed shape every time the
+        // caret landed.
+        .onGeometryChange(for: CGSize.self) {
+            CGSize(
+                width: $0.size.width + $0.safeAreaInsets.leading + $0.safeAreaInsets.trailing,
+                height: $0.size.height + $0.safeAreaInsets.top + $0.safeAreaInsets.bottom
+            )
         } action: {
-            windowWidth = $0
+            window = $0
         }
+        // The width alone, and not the whole size: the pill is a pane laid out
+        // across the room it is in, so its width is the measurement a resize
+        // invalidates. A window that only got taller left the month exactly
+        // where it was.
+        //
         // Watched here rather than at the pill, which is one presentation's
-        // and goes away in the other: the width outlives both, so a crossing
+        // and goes away in the other: the window outlives both, so a crossing
         // is a resize like any other and needs no case of its own.
-        .onChange(of: windowWidth) { _, _ in theWindowWasResized() }
+        .onChange(of: window.width) { _, _ in theWindowWasResized() }
         // And put where a day can read it, which is the one thing downstream
         // of the window that is not this screen's own: how wide a day's words
         // are set. Every Entry in the app is under this, including one pushed

@@ -162,6 +162,15 @@ documented model wins, and what they omit is extrapolated from it.
   left after the safe area: the notch and home indicator eat 124 points of an
   iPhone in landscape, and a line drawn after that subtraction puts identical
   windows on opposite sides of it depending on the handset.
+
+  And the threshold gained a **second measurement**, which the original wording
+  did not have: a window needs 600 points of height as well as 820 of width.
+  A calendar that is always on screen has to fit on screen — six weeks, the
+  weekday initials, the month's name and the day being written — and a phone on
+  its side clears the width by fifty points and misses the height by four
+  hundred. It keeps the pill, which was designed for exactly that room. Still a
+  fact about the window and not about the device: a Stage Manager window
+  dragged short gets the same answer.
 - **Onboarding is three sheets**: what this is (a folder of markdown files you
   own), where it lives (iCloud primary, "choose a folder…" for the vault case),
   when to nudge (skippable time picker). Photo permission is not among them —

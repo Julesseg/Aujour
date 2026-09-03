@@ -206,6 +206,10 @@ documented model wins, and what they omit is extrapolated from it.
   reader who has turned the text up. Nothing truncates.
   Prototyped on the `prototype/the-header` branch, which holds the five layouts
   that were measured and the contact sheets they were judged on.
+  On a window with room for a sidebar none of this applies: the month is
+  already on screen, so there is no pill, and the menu stays on the navigation
+  bar that window still has. The chip keeps its word there too — the trade was
+  made for a shared row, and a sidebar has a column to itself.
 
 Still undesigned and not extrapolated here: the iPad sidebar's own empty and
 loading states, and `{{workout}}`-class placeholders that are roadmap anyway.

@@ -31,5 +31,8 @@ simulator first (a cold headless boot can fail with "Timed out waiting for AX
 loaded notification"), then:
   cd App && xcodebuild test -project Aujour.xcodeproj -scheme Aujour \
     -destination 'platform=iOS Simulator,id=<booted-udid>' CODE_SIGNING_ALLOWED=NO
+Scope it: `-only-testing:AujourTests` runs the app-hosted unit tests without
+the UI suite; `-only-testing:AujourUITests/<TestClass>/<testMethod>` runs a
+single UI behavior. The full suite is CI's job (see AGENTS.md).
 EOF
 fi

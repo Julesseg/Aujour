@@ -34,7 +34,50 @@ jobs:
         working-directory: Core
         run: swift test
 
+  # The macOS legs are the expensive thing this workflow does — ~35 minutes of
+  # runner time each, drawn from a concurrency pool small enough that they
+  # queue behind every other macOS job the account is running. A PR that
+  # touches nothing the app links or tests — docs, agent config, CI for other
+  # workflows — cannot change what those legs verify, so this job answers once
+  # whether the PR reaches the app at all and the legs skip when it does not.
+  # Branch protection counts a skipped required check as satisfied, so a
+  # docs-only PR still merges.
+  #
+  # `core-tests` stays unconditional: at ~90 seconds it costs less than the
+  # bookkeeping to skip it, and every PR keeps one check that actually ran.
+  changes:
+    name: Changed paths
+    runs-on: ubuntu-24.04
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - name: Does the PR touch the app?
+        id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          # The files API rather than a checkout-and-diff: no fetch-depth
+          # gymnastics, and it answers for the PR as a whole rather than for
+          # whatever range this push happened to cover. `previous_filename` so
+          # a file renamed *out* of a watched path still counts as touching it.
+          FILES=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/files" \
+            --paginate --jq '.[] | .filename, (.previous_filename // empty)')
+          printf '%s\n' "$FILES"
+          # What the app build can see: the App target, Core's shipped sources
+          # and manifest (Core/Tests only ever builds into `swift test`), and
+          # this workflow itself.
+          if printf '%s\n' "$FILES" \
+            | grep -qE '^(App/|Core/Sources/|Core/Package\.swift$|\.github/workflows/ci\.yml$)'; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "app=false" >> "$GITHUB_OUTPUT"
+          fi
+
   app-ui-tests:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     # Aujour ships universal (TARGETED_DEVICE_FAMILY = "1,2"), and the two
     # families do not lay out the same: an iPad is a regular-width size class
     # where an iPhone in portrait is compact. A suite that only ever ran on
@@ -110,6 +153,14 @@ jobs:
 
       - name: Build & run UI tests
         working-directory: App
+        # Serial, deliberately. The suite is split into feature classes over
+        # `AujourUITestCase` so xcodebuild *can* spread it across simulator
+        # clones — and PR #110 measured what that buys on this runner's three
+        # cores: two clones roughly doubled every test (~55 minutes of summed
+        # test time against ~30 serial), both legs came out 15 minutes slower
+        # than one clone, and the iPad leg picked up a flake. Parallelism pays
+        # only where the cores exist — a developer's Mac, a bigger runner —
+        # and the split keeps it one `-parallel-testing-enabled` away.
         run: |
           set -o pipefail
           xcodebuild test \

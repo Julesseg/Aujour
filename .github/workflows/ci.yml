@@ -153,14 +153,14 @@ jobs:
 
       - name: Build & run UI tests
         working-directory: App
-        # Two parallel workers, because xcodebuild parallelizes per test
-        # *class* onto simulator clones — which is what the UI suite is split
-        # into feature classes over `AujourUITestCase` for. Two clones roughly
-        # halve the suite's half hour; a third would contend for the runner's
-        # three cores rather than test on them. The clones boot themselves, so
-        # the pre-boot above no longer covers every device that runs tests —
-        # if "Timed out waiting for AX loaded notification" starts appearing
-        # here, it is the clones' cold boots, and this is the flag to revisit.
+        # Serial, deliberately. The suite is split into feature classes over
+        # `AujourUITestCase` so xcodebuild *can* spread it across simulator
+        # clones — and PR #110 measured what that buys on this runner's three
+        # cores: two clones roughly doubled every test (~55 minutes of summed
+        # test time against ~30 serial), both legs came out 15 minutes slower
+        # than one clone, and the iPad leg picked up a flake. Parallelism pays
+        # only where the cores exist — a developer's Mac, a bigger runner —
+        # and the split keeps it one `-parallel-testing-enabled` away.
         run: |
           set -o pipefail
           xcodebuild test \
@@ -168,8 +168,6 @@ jobs:
             -scheme "$APP_NAME" \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -resultBundlePath TestResults.xcresult \
-            -parallel-testing-enabled YES \
-            -parallel-testing-worker-count 2 \
             ${{ matrix.only }} \
             CODE_SIGNING_ALLOWED=NO
 

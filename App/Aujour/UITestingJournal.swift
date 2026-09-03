@@ -54,7 +54,7 @@ import AujourCore
 enum UITestingJournal {
     /// The name of a folder under the app's Documents to journal into.
     ///
-    /// Spelled out again in `AujourUITests.launchApp`, which sets it: the UI
+    /// Spelled out again in `AujourUITestCase.launchApp`, which sets it: the UI
     /// suite drives the app from another target and imports nothing from it.
     static let folderKey = "AUJOUR_UITEST_JOURNAL_FOLDER"
 

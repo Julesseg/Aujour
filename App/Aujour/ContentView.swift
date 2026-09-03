@@ -311,11 +311,26 @@ struct ContentView: View {
             }
             .accessibilityIdentifier("openSettings")
         } label: {
+            // Its own glass button rather than a toolbar's, because it is not
+            // in a toolbar any more: it shares the pill's row, so it is the
+            // pill's height, in the pill's glass, and carries the glyph alone
+            // — a word beside it would be the only label on a bar that has no
+            // labels on it.
             Label("More", systemImage: "ellipsis")
+                .labelStyle(.iconOnly)
+                .font(.system(size: 16, weight: .semibold))
+                .frame(width: pillHeight, height: pillHeight)
+                .glassEffect(.regular, in: Circle())
         }
+        .buttonStyle(.plain)
         .summonsASheet(Sheets.theBar, in: sheets)
         .accessibilityIdentifier("moreActions")
     }
+
+    /// The same row height the pill is, so the two sit on one line at every
+    /// text size — a button in fixed points beside a pill that grows is a
+    /// button that drifts off the line the moment anybody turns the text up.
+    @ScaledMetric(relativeTo: .body) private var pillHeight: CGFloat = 44
 
     /// Which day the journal is on, as something that can be watched.
     private var theDayTheJournalIsOn: JournalDay? {
@@ -385,19 +400,20 @@ struct ContentView: View {
                         // are a scan of the folder, and a day being filled
                         // in this second is a day whose file is not there
                         // yet.
-                        settling: { await entryOnScreen?.editor.save() }
+                        settling: { await entryOnScreen?.editor.save() },
+                        beside: { theRestOfTheApp }
                     )
-                    // The pill names the day now, so the bar carries the
-                    // ways out of it and nothing else — a title saying the
-                    // same thing twice, once in each of two typefaces, is
-                    // the redesign's own worst screen.
-                    .navigationTitle("")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            theRestOfTheApp
-                        }
-                    }
+                    // No navigation bar on this screen at all. It was drawing
+                    // an empty title over a pill that already names the day,
+                    // and holding one button — so the pill takes the row it
+                    // was using and the button comes with it. What that buys
+                    // is a bar's worth of height back for the writing, which
+                    // is what the screen is for.
+                    //
+                    // Nothing is pushed onto this stack any more — the ways
+                    // out of today are sheets — so there is no back button to
+                    // lose with it.
+                    .toolbar(.hidden, for: .navigationBar)
 
                 case .unavailable(let problem):
                     StorageProblemNotice(

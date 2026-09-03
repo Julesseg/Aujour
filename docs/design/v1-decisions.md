@@ -172,5 +172,23 @@ documented model wins, and what they omit is extrapolated from it.
   so a day reached through search offers it as a button rather than a menu of
   one.
 
+- **The pill takes the bar, and gives up a word at a time.** Following the
+  menu decision above, the date pill moves up onto the bar's own row and the
+  screen loses its navigation bar altogether — it was drawing an empty title
+  over a pill that already names the day. That buys a bar's worth of height
+  back for the writing, which is what the screen is for.
+  It does not fit as-is. The pill carries a "Today" chip on any day that is not
+  today, spells the year out on a day from another year, and follows Dynamic
+  Type; measured, the ellipsis takes 92pt of an iPhone SE's 320 before the pill
+  gets anything, and a day from a previous year wants 347pt of the 228 left.
+  So two things change with it: the chip gives up its word for a glyph, worth
+  52pt, and the day is said at the longest of four lengths that fits
+  (`JournalDay.Length`) — the weekday's full name goes first, then the month's,
+  then the weekday altogether. Today at the factory text size is still spelled
+  out in full on the smallest phone; what steps down is a backfilled day, or a
+  reader who has turned the text up. Nothing truncates.
+  Prototyped on the `prototype/the-header` branch, which holds the five layouts
+  that were measured and the contact sheets they were judged on.
+
 Still undesigned and not extrapolated here: the iPad sidebar's own empty and
 loading states, and `{{workout}}`-class placeholders that are roadmap anyway.

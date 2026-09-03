@@ -68,6 +68,17 @@ struct DatePillView: View {
     /// How much width there is to grow into.
     @State private var roomToOpenInto: CGFloat = 0
 
+    /// How much of the row something else has: the menu the bar carries beside
+    /// the shut pill. Nought while it is open, because what the pill grows
+    /// into is the whole row and the menu gets out of its way.
+    let roomBesideIt: CGFloat
+
+    /// How wide the day's name is at each of the lengths it could be said at —
+    /// measured, because it is a date in the reader's language at the reader's
+    /// text size and a number typed in here would be right in English at the
+    /// factory setting and wrong everywhere else.
+    @State private var rungWidths: [JournalDay.Length: CGFloat] = [:]
+
     /// How tall the sentence under the grid is, when there is one — measured,
     /// because it is prose at the reader's own text size.
     @State private var noticeHeight: CGFloat = 0
@@ -111,9 +122,14 @@ struct DatePillView: View {
         // it refracts what scrolls under it, lights its own edge against it,
         // and answers Reduce Transparency without being asked.
         .glassEffect(.regular, in: shape)
-        .frame(maxWidth: .infinity)
+        // Leading, because the row is shared: the menu has the trailing end of
+        // it, and a pill centred in the whole row would sit under the menu on
+        // one side and leave a gap on the other. An open pill fills the row
+        // and the alignment stops mattering.
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(alignment: .top) { roomProbe }
         .background(alignment: .top) { noticeProbe }
+        .background(alignment: .topLeading) { ladderProbe }
         // Leaning towards the day being asked for. The whole pane and not what
         // is written in it: the pill is sized to the day it names, so a name
         // slid inside it would be a name half under the glass's own edge,
@@ -131,7 +147,7 @@ struct DatePillView: View {
         // ambient animation with it would pick up the same stale start. It
         // snaps to the new day's width instead, which is what a label doing
         // nothing but changing should do.
-        .animation(nil, value: dayBeingWritten)
+        .animation(nil, value: dayBeingWritten(at: namedAt))
         // Opening puts the month being written back on screen, whatever month
         // was browsed to last time it was open. Straight away and not in a
         // task, so the grid is the right month in the first frame of the
@@ -239,14 +255,67 @@ struct DatePillView: View {
     }
 
     private var headerContent: some View {
+        row(namedAt: namedAt)
+    }
+
+    /// The pill's one row, with the day said at one of its lengths.
+    private func row(namedAt length: JournalDay.Length) -> some View {
         HStack(spacing: Spacing.close) {
             if !calendar.isOnToday {
                 todayChip
             }
-            theDayAndTheChevron
+            theDayAndTheChevron(named: dayBeingWritten(at: length))
         }
         .padding(.horizontal, Spacing.comfortable)
         .frame(height: pillHeight)
+    }
+
+    /// How fully the day is spelled out: the longest way of saying it that
+    /// fits the room the shut pill has.
+    ///
+    /// The room and not the pill's own width, because the pill *is* whatever
+    /// this chooses — asking the other way round would be a pill sized to a
+    /// name sized to the pill. And the shut pill's room even while it is open,
+    /// so that the day's name does not change under the finger opening it: an
+    /// open pill has the whole row and could say more, and a date that grew a
+    /// word mid-drag would be the one thing on screen moving for a reason
+    /// nobody could see.
+    private var namedAt: JournalDay.Length {
+        let room = roomToOpenInto - roomBesideIt
+        // Before anything has been measured, the day is said in full: that is
+        // what it says on every phone at every size that has the room, and a
+        // first frame that guessed short would be a name that grew.
+        guard room > 0, !rungWidths.isEmpty else { return .spelledOut }
+        return JournalDay.Length.allCases.first { (rungWidths[$0] ?? 0) <= room }
+            ?? .dayAndMonth
+    }
+
+    /// Every rung laid out at its natural width and never drawn, so that
+    /// choosing one is a comparison of numbers rather than a guess.
+    ///
+    /// All four at once rather than one at a time: which one fits is a
+    /// question about all of them, and a probe that measured only the rung
+    /// already chosen could never find its way back up the ladder when the
+    /// room grew.
+    private var ladderProbe: some View {
+        ZStack {
+            ForEach(JournalDay.Length.allCases, id: \.self) { length in
+                row(namedAt: length)
+                    .fixedSize()
+                    .hidden()
+                    // Given up as an element before being hidden, like the
+                    // width probe below: this copy carries the pill's own
+                    // identifiers and its way back to today, and four more
+                    // `backToToday` buttons behind the real one is four
+                    // buttons a finger cannot reach and nothing can tell apart.
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityHidden(true)
+                    .allowsHitTesting(false)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: {
+                        rungWidths[length] = $0
+                    }
+            }
+        }
     }
 
     /// The pill proper: the day, and the chevron that says how far open it is.
@@ -255,9 +324,9 @@ struct DatePillView: View {
     /// *value* — because that is what it is. A control with three states that
     /// announced only its name would leave a reader who cannot see the chevron
     /// tapping it to find out where they had got to.
-    private var theDayAndTheChevron: some View {
+    private func theDayAndTheChevron(named day: String) -> some View {
         HStack(spacing: Spacing.close) {
-            Text(dayBeingWritten)
+            Text(day)
                 .lettering(.dayOnScreen)
                 .foregroundStyle(Palette.inkColor)
                 // One line, and shrunk a little before it truncates — the way
@@ -280,7 +349,10 @@ struct DatePillView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("datePill")
         .accessibilityAddTraits(.isButton)
-        .accessibilityLabel(dayBeingWritten)
+        // Always the day said in full, however short the pill had to draw it:
+        // what is read out is which day this is, and an abbreviation is a fact
+        // about the room on screen rather than about the day.
+        .accessibilityLabel(dayBeingWritten(at: .spelledOut))
         .accessibilityValue(howOpenItIs)
         .accessibilityHint(whatATapWouldDo)
         // The way out that tapping the page is, for somebody who is not
@@ -324,13 +396,22 @@ struct DatePillView: View {
             pick(calendar.today)
             pill.close()
         } label: {
-            Label("Today", systemImage: "arrow.uturn.forward")
-                .labelStyle(.titleAndIcon)
+            // The glyph alone. The word cost 89 points of a row the pill now
+            // shares with the menu — more than half the chip, and the single
+            // biggest thing standing between the day and being spelled out on
+            // a small phone. What it buys is roughly one rung of the ladder
+            // back on every day that is not today.
+            //
+            // Still "Today" to anything that reads the screen out: a chip that
+            // lost its name along with its word would be a control nobody
+            // could ask for.
+            Label("Today", systemImage: "calendar")
+                .labelStyle(.iconOnly)
                 .imageScale(.small)
         }
         .lettering(.chipLabel)
         .foregroundStyle(accent.ink)
-        .padding(.horizontal, Spacing.comfortable)
+        .padding(.horizontal, Spacing.close)
         .padding(.vertical, Spacing.tight)
         .background(accent.soft, in: Capsule())
         .buttonStyle(.plain)
@@ -340,9 +421,9 @@ struct DatePillView: View {
 
     /// The day named on the pill — with its year only when that is news, since
     /// the pill can be left on a day years back and every February has a 14th.
-    private var dayBeingWritten: String {
+    private func dayBeingWritten(at length: JournalDay.Length) -> String {
         let day = calendar.dayBeingWritten
-        return day.spelledOut(withYear: day.year != calendar.today.year)
+        return day.named(at: length, withYear: day.year != calendar.today.year)
     }
 
     // MARK: - The panel that grows out of it
@@ -852,12 +933,13 @@ extension View {
     /// the screen it is on is one `switch` deep, and because a calendar the
     /// journal has not opened yet is a day with no pill rather than a pill with
     /// no days.
-    func datePill(
+    func datePill<Beside: View>(
         over calendar: JournalCalendar?,
         accent: Accent,
         pick: @escaping (JournalDay) -> Void,
         turning turn: @escaping (Int) -> Void,
-        settling settleTheDayOnScreen: @escaping () async -> Void
+        settling settleTheDayOnScreen: @escaping () async -> Void,
+        @ViewBuilder beside: @escaping () -> Beside
     ) -> some View {
         safeAreaInset(edge: .top, spacing: 0) {
             if calendar != nil {
@@ -876,7 +958,8 @@ extension View {
                     accent: accent,
                     pick: pick,
                     turn: turn,
-                    settleTheDayOnScreen: settleTheDayOnScreen
+                    settleTheDayOnScreen: settleTheDayOnScreen,
+                    beside: beside
                 )
             }
         }
@@ -888,14 +971,23 @@ extension View {
 /// The two are one view because they are one decision. How far open the pill
 /// is has to be reachable from outside the glass, or the only way to shut a
 /// month somebody opened by mistake would be to open it further first.
-private struct DatePillOverThePage: View {
+private struct DatePillOverThePage<Beside: View>: View {
     let calendar: JournalCalendar
     let accent: Accent
     let pick: (JournalDay) -> Void
     let turn: (Int) -> Void
     let settleTheDayOnScreen: () async -> Void
 
+    /// What shares the row with the shut pill — the bar's menu.
+    @ViewBuilder let beside: () -> Beside
+
     @State private var pill = DatePill()
+
+    /// How much of the row that takes, measured rather than agreed: it is a
+    /// glass button at the reader's text size, and the pill has to know how
+    /// much of the row is not its own before it can decide how much of the day
+    /// it can say.
+    @State private var roomBesideIt: CGFloat = 0
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -920,11 +1012,40 @@ private struct DatePillOverThePage: View {
                 pick: pick,
                 turn: turn,
                 settleTheDayOnScreen: settleTheDayOnScreen,
-                pill: $pill
+                pill: $pill,
+                roomBesideIt: roomBesideIt
             )
                 .padding(.horizontal, Spacing.apart)
                 .padding(.top, Spacing.close)
+                // Over the row rather than beside it in a stack, so that the
+                // width the pill is offered is the whole row at every moment.
+                // Laid out as a sibling, the menu shrinking out of the way
+                // would change the room the pill was measuring itself against
+                // *while* it was growing into it, which is a pill chasing its
+                // own width.
+                .overlay(alignment: .topTrailing) { theMenuBesideIt }
         }
+    }
+
+    /// The bar's menu, at the trailing end of the pill's row — and out of the
+    /// way the moment the pill is not a pill any more.
+    ///
+    /// Faded rather than removed, and on the same spring the pill opens with:
+    /// an open calendar has the whole row, and a button that vanished on the
+    /// first frame of a drag would be a thing that disappeared rather than a
+    /// thing that got out of the way.
+    private var theMenuBesideIt: some View {
+        beside()
+            .padding(.horizontal, Spacing.apart)
+            .padding(.top, Spacing.close)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: {
+                roomBesideIt = $0
+            }
+            .opacity(1 - pill.progress)
+            // Gone to a finger as soon as it is on its way out: a button at a
+            // tenth of its opacity is one nobody can see and anybody can hit.
+            .allowsHitTesting(pill.detent == .closed)
+            .accessibilityHidden(pill.detent != .closed)
     }
 }
 
@@ -1095,7 +1216,8 @@ struct DayCellLook: Equatable {
         pick: { _ in },
         turn: { _ in },
         settleTheDayOnScreen: {},
-        pill: $pill
+        pill: $pill,
+        roomBesideIt: 0
     )
         .padding(.horizontal, Spacing.apart)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -1114,7 +1236,13 @@ struct DayCellLook: Equatable {
         accent: .driftwood,
         pick: { calendar.pick($0) },
         turning: { $0 > 0 ? calendar.showNextDay() : calendar.showPreviousDay() },
-        settling: {}
+        settling: {},
+        beside: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: 44, height: 44)
+                .glassEffect(.regular, in: Circle())
+        }
     )
     .background(Palette.backgroundColor)
 }

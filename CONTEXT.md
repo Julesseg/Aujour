@@ -593,6 +593,17 @@ answer Dynamic Type. **Rounding** and **Spacing** are four steps each, and
 **Elevation** is what lifts a surface off the one behind it. **Newsreader** is
 the prose voice — a bundled variable font, three weights in two slants.
 
+The day being written is named on the bar's own row, beside the one menu —
+there is no navigation bar over it, because a title there would be the day said
+twice. What the pill can say depends on the room that leaves it, so a Journal
+Day has four lengths it can be named at, longest first, and the pill takes the
+longest that fits: the weekday's full name goes first, then the month's, then
+the weekday altogether. The day and the month are what is left, since a date
+with neither is not a date, and the year — when it is being said at all, which
+is on a day from another year — survives every one of them. What is read out is
+always the day said in full: an abbreviation is a fact about the room on screen
+rather than about the day.
+
 Sheets are one shape and not one per screen. There is one chrome — the
 identity's own sheet paper, the sheet corner, the system's grabber and its
 scrim — and a sheet takes it rather than dressing itself, rising out of the

@@ -63,10 +63,11 @@ struct SettingsSheet: View {
                     Section {
                         FolderProblemNotice(problem: problem, identifier: "folderProblem")
                     }
+                    .settingsRows()
                 }
-                files
-                entries
-                thisDevice
+                files.settingsRows()
+                entries.settingsRows()
+                thisDevice.settingsRows()
             }
             .settingsPage(titled: "Settings")
             .toolbar {

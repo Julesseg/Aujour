@@ -52,6 +52,7 @@ struct ContentTemplateView: View {
                     .accessibilityIdentifier("contentTemplateOutOfReach")
                 }
             }
+            .settingsRows()
         }
         .settingsPage(titled: "Template")
         .fileImporter(isPresented: $picking, allowedContentTypes: Self.markdownFiles) { result in

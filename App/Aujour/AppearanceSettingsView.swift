@@ -54,6 +54,7 @@ struct AppearanceSettingsView: View {
             .pickerStyle(.segmented)
             .accessibilityIdentifier("appearanceTheme")
         }
+        .settingsRows()
     }
 
     private var chosenTheme: Binding<Theme> {
@@ -104,6 +105,7 @@ struct AppearanceSettingsView: View {
                 .foregroundStyle(appearance.accent.ink)
                 .accessibilityIdentifier("accentInUse")
         }
+        .settingsRows()
     }
 
     /// A swatch grows with the system text size like everything else on the
@@ -134,6 +136,7 @@ struct AppearanceSettingsView: View {
 
             specimen
         }
+        .settingsRows()
     }
 
     private var chosenFamily: Binding<EditorFont.Family> {

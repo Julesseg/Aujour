@@ -38,7 +38,27 @@ enum Palette {
 
     /// A raised surface on the page: a settings group, a specimen, anything
     /// that is a *thing* on the paper rather than the paper.
-    static let card = dynamic(light: 0xFFFCF7, dark: 0x201C17)
+    ///
+    /// Lifted on 2026-09-04, when the settings became grouped `Form`s and put
+    /// the token to the one use it had never really been asked to do: a card
+    /// on a *sheet* rather than on the page. The sheet's ground is a hair off
+    /// the page's own, so what read as clearly raised over `background` read
+    /// as barely there over `sheet` — four points of separation in light and
+    /// five in dark.
+    ///
+    /// The dark step is where the room was: fourteen points clear of the sheet
+    /// now against five before. It stops at `0x292520` and the ceiling is not
+    /// aesthetic — a card is a **ground**, so every accent's ink is measured
+    /// against a wash of that accent over it, and graphite's is the tightest
+    /// of the nine. At this value it reads 4.57:1; one step lighter
+    /// (`0x2B2721`) it reads 4.46 and is under ADR 0006's floor. Anything
+    /// lighter than this has to be bought from the accents.
+    ///
+    /// In light the token was already three points off white, so what it
+    /// gains there is small by arithmetic rather than by choice — enough to
+    /// tell the card from the paper, not enough to make it the cold white a
+    /// grouped list would have drawn on its own.
+    static let card = dynamic(light: 0xFFFEFC, dark: 0x292520)
 
     /// The ground of a sheet, which is a hair off the page's own so that a
     /// sheet over a screen reads as being in front of it.

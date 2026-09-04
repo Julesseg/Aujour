@@ -100,12 +100,14 @@ struct EntryPathView: View {
             } footer: {
                 saying
             }
+            .settingsRows()
 
             Section {
                 Button("Change") { propose() }
                     .disabled(!isAChange || rejection != nil || planning || !journal.isOpen)
                     .accessibilityIdentifier("changeEntryPath")
             }
+            .settingsRows()
         }
         .settingsPage(titled: "Entry path")
         .sheet(item: $proposed) { change in

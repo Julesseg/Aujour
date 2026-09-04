@@ -81,6 +81,7 @@ struct HowADataPlaceholderIsWrittenView: View {
                 Section {
                     FolderProblemNotice(problem: problem, identifier: "dataPlaceholderProblem")
                 }
+                .settingsRows()
             }
 
             aWholeDay
@@ -100,6 +101,7 @@ struct HowADataPlaceholderIsWrittenView: View {
                 .disabled(!isAChange)
                 .accessibilityIdentifier("changeHowItIsWritten")
             }
+            .settingsRows()
         }
         .settingsPage(titled: placeholder.onScreen)
         // A format changed on the iPad arrives here while the page is up
@@ -124,6 +126,7 @@ struct HowADataPlaceholderIsWrittenView: View {
                 .textSelection(.enabled)
                 .accessibilityIdentifier("wholeDayExample")
         }
+        .settingsRows()
     }
 
     private var whatEachLineStartsWith: some View {

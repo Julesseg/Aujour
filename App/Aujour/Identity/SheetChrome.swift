@@ -72,19 +72,63 @@ extension View {
         }
     }
 
-    /// Dresses a settings page: the list's own background hidden so the
-    /// sheet's paper shows through, and the page's name said in the bar's
-    /// inline place.
+    /// Dresses a settings page: the paper it is cut from, and the page's name
+    /// said in the bar's inline place.
+    ///
+    /// Half of the surfaces. A grouped `Form` draws two — the page under
+    /// everything, and one card per section — and this deals with the first
+    /// only. Hiding the scroll background gets rid of the cold grey a grouped
+    /// list lays the page down in; the cards are ``settingsRows()``, which has
+    /// to be said on each `Section` and cannot be said here.
+    ///
+    /// The paper is stated rather than inherited, and that is the half that is
+    /// easy to get wrong. The settings sheet has ``sheetChrome()`` behind it,
+    /// so the *root* of the stack shows through to cream whether or not
+    /// anything here says so — but a pushed page does not: the navigation
+    /// container puts its own white behind it, and a `Form` that has hidden
+    /// its background shows that instead. Left alone, every page one step in
+    /// came out white on white, with the rows invisible against the page they
+    /// were on.
+    ///
+    /// The **text is left to the system**, and that is a decision rather than
+    /// an omission. A list draws its values, its group headings and its
+    /// chevrons in a neutral grey where the rest of this app is warm, and the
+    /// palette has two steps that look like exactly what those roles want —
+    /// `inkMuted` for a value, `inkFaint` for a heading and a chevron. Naming
+    /// them was tried and reverted: `foregroundStyle` reaches a grouped list's
+    /// parts in the wrong order, and what came out was headings at full ink
+    /// and values with no step down from their labels — a louder screen than
+    /// the one the system draws for free.
+    ///
+    /// Which is the whole bargain of #111. A settings screen is where being
+    /// recognisably iOS beats being recognisably Aujour, and the identity is
+    /// carried by the two surfaces above — the paper and the card — with the
+    /// type hierarchy left to the platform that already has one.
     ///
     /// Named in one place rather than written out on each of the seven, for
     /// the reason ``sheetChrome()`` is: which paper a page is cut from is the
-    /// identity's and not a screen's own idea, and a `Form` that forgot to
-    /// hide its background does not fail — it quietly comes out on the
-    /// system's grey, over a sheet cut from cream.
+    /// identity's and not a screen's own idea.
     func settingsPage(titled title: String) -> some View {
         scrollContentBackground(.hidden)
+            .background(Palette.sheetColor)
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// The card a group of settings rows sits on.
+    ///
+    /// The other half of ``settingsPage(titled:)``, and separate from it
+    /// because the system will only take it here. A grouped `Form` draws two
+    /// surfaces: the page, which ``settingsPage(titled:)`` deals with, and one
+    /// card per section — `secondarySystemGroupedBackground`, which is pure
+    /// white in light and a *neutral* grey in dark, on paper that is warm in
+    /// both. `listRowBackground` is a row's own modifier: put on the `Form` it
+    /// is silently ignored, and it has to be said on each `Section`. Which is
+    /// why it is a named thing rather than a colour repeated twenty times —
+    /// a section that forgets it does not fail, it just comes out as somebody
+    /// else's app in the middle of this one.
+    func settingsRows() -> some View {
+        listRowBackground(Palette.cardColor)
     }
 
     /// Marks this control as the place a sheet comes out of — the other half

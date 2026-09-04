@@ -54,6 +54,7 @@ struct AttachmentPathView: View {
                 .disabled(!isAChange || rejection != nil)
                 .accessibilityIdentifier("changeAttachmentPath")
             }
+            .settingsRows()
         }
         .settingsPage(titled: "Photo path")
         .onChange(of: journal.attachmentPathTemplate) { _, inForce in typed = inForce }

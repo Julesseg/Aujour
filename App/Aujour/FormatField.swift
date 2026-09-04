@@ -75,5 +75,6 @@ struct FormatField: View {
                     .accessibilityIdentifier("\(identifier)Problem")
             }
         }
+        .settingsRows()
     }
 }

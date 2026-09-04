@@ -28,7 +28,7 @@ struct JournalFolderView: View {
     var body: some View {
         Form {
             whereItIs
-            waysToPointItSomewhereElse
+            waysToPointItSomewhereElse.settingsRows()
         }
         .settingsPage(titled: "Journal folder")
         .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
@@ -48,6 +48,7 @@ struct JournalFolderView: View {
                 ProgressView()
                     .frame(maxWidth: .infinity)
             }
+            .settingsRows()
 
         case .open(let root, let entryCount):
             Section {
@@ -71,6 +72,7 @@ struct JournalFolderView: View {
                     .textSelection(.enabled)
                     .accessibilityIdentifier("journalRootPath")
             }
+            .settingsRows()
 
             // Said on the page that can do something about it as well as on
             // the sheet: a folder that cannot be reached is the likeliest
@@ -79,12 +81,14 @@ struct JournalFolderView: View {
                 Section {
                     FolderProblemNotice(problem: problem, identifier: "journalFolderProblem")
                 }
+                .settingsRows()
             }
 
         case .unavailable(let problem):
             Section {
                 FolderProblemNotice(problem: problem, identifier: "journalRootProblem")
             }
+            .settingsRows()
         }
     }
 

@@ -262,6 +262,10 @@ a paragraph rather than a day: the editor re-reads the paragraph the typing
 landed in, which is only the same answer as re-reading the Entry because the
 answer was never about the rest of it.
 
+Frontmatter is the one stretch of an Entry that is not Styled Source's to
+show: it is cut off the top of the file before the body reaches the editor,
+and shown as Properties in its own section above the text.
+
 ### Live Preview
 Styled Source with the marks left out where nobody is writing: the `#` before
 a heading and the `**` around a bold word are not drawn while the cursor is
@@ -425,6 +429,67 @@ map server, so a day of two hundred photographs and a day of three cost the
 same handful of lookups. A day that went to more places than are worth naming
 offers the ones it was spent at — where most of its pictures were taken —
 because a single frame through a train window is what gives way.
+
+### Frontmatter
+The YAML block Obsidian keeps at the top of a note, read by Obsidian's rule
+and no looser one: the file's very first line is `---`, a later line is `---`
+or `...`, and what lies between is the block. A `---` anywhere else, or a
+fence never closed, is body. An Entry has a Frontmatter or it does not, and
+most do not — one arrives from the Content Template, from Obsidian, or from
+the user adding a first Property.
+
+Understood as a whole or not at all. Aujour reads the flat shape Obsidian's
+Properties read — one value to a key, or a list under it — and a block with
+one line outside that shape is a block Aujour does not understand: shown as
+the text it is, editable as text, and never rewritten by anything but the
+user's own typing. Nothing in it is ever guessed at, because a guess about
+where an unknown construct ends is how somebody else's vault gets corrupted.
+
+Shown two ways, and the user picks: as Properties, each with the input its
+kind deserves, or as source, the block's own characters fence to fence. A day
+always opens on the Properties, and a block that is not understood opens on
+the source with no other way offered. Coming back from the source re-reads
+the block by the rule above and honours whatever it finds: Properties again,
+the source still because it is not understood, or no Frontmatter at all
+because a fence went — in which case its lines are body now, and shown where
+the body is. It is the file's text either way (ADR 0001): searched like any
+other words in the day, and shared with the day when the day is shared.
+
+A Frontmatter goes with its last Property: an empty pair of fences is a block
+with nothing to say, and a day without one offers a first Property from a
+small, discreet control above the text, reached by scrolling up past it —
+there for assistive access always, and to the eye only when looked for.
+
+The other way to a first one is to type it: fences and a Property written by
+hand at the top of a day that had none are a Frontmatter by the same rule,
+recognised as they are typed and lifted into the section once the cursor has
+left them or the keyboard has gone down — the rule every Drawn Element keeps,
+so nobody watches the words they just wrote vanish from under the caret. It
+lands as Properties or as source by the same reading as any other block.
+Above a day that already has one, a `---` on the first line of the body is a
+fence after the closing fence, which is a rule across the page and nothing
+more.
+
+### Property
+One key and its value inside a Frontmatter: `mood: 7`, `tags: [walk]`,
+`done: false`. Its kind is what the value looks like — text, number, checkbox,
+date, date and time, or list — and nothing else decides it, save that `tags`,
+`aliases` and `cssclasses` are lists by name because Obsidian says so. There
+is no changing a Property's kind except by writing a value of another shape.
+
+Editing a value through its input rewrites that Property's own lines and no
+others, the way ticking a Task rewrites one character: order, quoting, blank
+lines and everything else in the block stay byte for byte what they were.
+Adding, renaming and deleting a Property are the same discipline applied to
+a whole line. Adding asks the kind, because the kind is what seeds the
+value's shape; a key is one line's worth of name, never one the block
+already has; and nothing is written until a new Property has a name.
+
+A Placeholder left in a value — `mood: {{mood}}` spawned from the Content
+Template — is text in the field, typed over like a token the cursor is in,
+and never a Widget in the row. A data placeholder that renders more than a
+line into a value leaves a block that is not understood, which is the truth
+about what the template did.
 
 ### Accessory Row
 The formatting bar above the keyboard: headings, bold and italic, lists,

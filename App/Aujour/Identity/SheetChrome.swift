@@ -4,7 +4,7 @@ import SwiftUI
 /// the corner it is cut with, the grabber at the top of it, and the way it
 /// arrives from the control that summoned it.
 ///
-/// Shared rather than repeated, for the reason the pieces in `SettingsChrome.swift`
+/// Shared rather than repeated, for the reason the pieces in `PageChrome.swift`
 /// are: a sheet is one
 /// of the two shapes this app has — a page, and something in front of a page —
 /// and two sheets that came up differently would say they were two apps. What
@@ -70,6 +70,21 @@ extension View {
         } else {
             sheetChrome()
         }
+    }
+
+    /// Dresses a settings page: the list's own background hidden so the
+    /// sheet's paper shows through, and the page's name said in the bar's
+    /// inline place.
+    ///
+    /// Named in one place rather than written out on each of the seven, for
+    /// the reason ``sheetChrome()`` is: which paper a page is cut from is the
+    /// identity's and not a screen's own idea, and a `Form` that forgot to
+    /// hide its background does not fail — it quietly comes out on the
+    /// system's grey, over a sheet cut from cream.
+    func settingsPage(titled title: String) -> some View {
+        scrollContentBackground(.hidden)
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
     }
 
     /// Marks this control as the place a sheet comes out of — the other half

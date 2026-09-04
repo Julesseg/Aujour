@@ -38,17 +38,13 @@ final class WritingTheDayTests: AujourUITestCase {
 
         openTheJournalFolder(in: app)
 
-        let location = app.staticTexts["journalRootLocation"]
+        // And it can say where it is, the way the Files app would.
+        let location = app.buttons["journalRootLocation"]
         XCTAssertTrue(location.waitForExistence(timeout: 5))
-        XCTAssertFalse(theValue(of: location).isEmpty)
-
-        // And it can say where it is, in a path the user could go and find.
-        let path = app.staticTexts["journalRootPath"]
-        XCTAssertTrue(path.exists)
-        XCTAssertTrue(path.label.hasPrefix("/"), "expected a folder path, got \(path.label)")
+        XCTAssertEqual(theValue(of: location), aujoursOwnFolder)
 
         // A folder it could not read would have been a problem notice instead.
-        XCTAssertTrue(app.staticTexts["journalEntryCount"].exists)
+        XCTAssertFalse(app.staticTexts["journalFolderProblem"].exists)
         XCTAssertFalse(app.staticTexts["storageProblem"].exists)
     }
 
@@ -71,9 +67,14 @@ final class WritingTheDayTests: AujourUITestCase {
         )
 
         // And none of it is a file: a day nobody wrote on leaves no husk
-        // behind, which the next launch is what proves.
+        // behind, which the next launch is what proves — the calendar reads
+        // the folder, and it says today is still unwritten.
         relaunch(app)
-        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "0 entries")
+        XCTAssertTrue(app.textViews["entryEditor"].waitForExistence(timeout: 30))
+        openTheMonth(app, showing: Date())
+        let today = app.buttons["day-\(todaysEntryName())"]
+        XCTAssertTrue(today.waitForExistence(timeout: 10), "today was not on the calendar")
+        XCTAssertEqual(today.value as? String, "Not written")
     }
 
     func testWhatIsTypedIsStillThereAfterARelaunch() throws {
@@ -93,7 +94,6 @@ final class WritingTheDayTests: AujourUITestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, "Walked to the market.")
-        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
     }
 
     /// The claim the editor is worth nothing without: it draws markdown, and
@@ -138,7 +138,6 @@ final class WritingTheDayTests: AujourUITestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, entry)
-        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
     }
 
     /// A checkbox is the one thing in an Entry that answers a tap, and the
@@ -183,7 +182,6 @@ final class WritingTheDayTests: AujourUITestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, "- [x] Milk\n- [ ] Bread")
-        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
     }
 
     /// The formatting row above the keyboard: the marks a journal is written

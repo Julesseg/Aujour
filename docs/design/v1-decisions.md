@@ -146,6 +146,17 @@ documented model wins, and what they omit is extrapolated from it.
   paragraph, both group sayings, the "Right now, you're writing…" line and the
   "Next: …" reminder line are gone, along with the token hints under the format
   fields.
+  **The journal folder page is one row** (2026-09-04). Its value is the
+  folder as the Files app names it — "iCloud Drive › Aujour", or the picked
+  folder's own name — the same words as the sheet's row, and tapping the row
+  offers to choose another folder, where a button under it used to. A raw
+  path was tried and rejected: a container's worth of hex ahead of the one
+  word that matters, and no path the user could go and find anyway. The way
+  back — "Use Aujour's own folder" — stays a button under the row for as long
+  as a custom folder is in force, because it undoes the choice rather than
+  making one. The entry count is gone: a number that cost a listing of the
+  folder every time the sheet opened, on a page nobody visits to be told how
+  much they have written.
 - **Data placeholder formatting gets a screen**: a row per placeholder, each
   opening its `linePrefix` / `donePrefix` / `timeFormat` / `whenEmpty` fields,
   reusing the live-preview-with-guidance field the path template already uses.

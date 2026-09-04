@@ -389,15 +389,16 @@ struct CustomJournalRootTests {
 
             let session = Session(folders: folders)
             await session.journal.use(vault)
-            let today = try #require(session.journal.today)
-            today.content = "Walked to the market.\n"
-            await today.save()
-            await session.journal.recount()
 
             // How much journal is in the folder is its Entries, not its files:
             // a vault's other notes are not the size of anybody's journal, and
-            // counting them would contradict the promise on the same screen.
-            #expect(session.entryCount == 1)
+            // Obsidian's daily note is filed where the Path Template does not
+            // look.
+            #expect(session.entryCount == 0)
+
+            let today = try #require(session.journal.today)
+            today.content = "Walked to the market.\n"
+            await today.save()
 
             // Exactly one file arrived, at the path the Path Template names.
             let store: any JournalStore = FileJournalStore(root: vault)

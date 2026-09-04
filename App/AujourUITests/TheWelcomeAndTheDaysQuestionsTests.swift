@@ -53,9 +53,6 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
         // Skipped means off, and not "on at some default hour": Aujour has
         // never nudged anybody who did not ask it to.
         openSettings(app)
-        openTheJournalFolder(in: app)
-        expect(app.staticTexts["journalEntryCount"], toBeShowing: "1 entry")
-        backToTheSettings(in: app)
         let reminder = app.switches["dailyReminder"]
         scrollTo(reminder, in: app)
         XCTAssertEqual(reminder.value as? String, "0")

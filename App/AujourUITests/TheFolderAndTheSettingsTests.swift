@@ -122,14 +122,13 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         // on the folder's own page.
         openSettings(app)
         openTheJournalFolder(in: app)
-        expect(app.staticTexts["journalRootLocation"], toBeShowing: aujoursOwnFolder)
-        expect(app.staticTexts["journalEntryCount"], toBeShowing: "1 entry")
+        let location = app.buttons["journalRootLocation"]
+        expect(location, toBeShowing: aujoursOwnFolder)
 
         // Pointed at a folder of the user's own: the journal is that folder
-        // from now on, and it is empty because that folder is.
-        app.buttons["chooseCustomFolder"].tap()
-        expect(app.staticTexts["journalRootLocation"], toBeShowing: vault)
-        expect(app.staticTexts["journalEntryCount"], toBeShowing: "0 entries")
+        // from now on.
+        chooseAnotherFolder(in: app)
+        expect(location, toBeShowing: vault)
         backToTheSettings(in: app)
         app.buttons["Done"].tap()
 
@@ -150,14 +149,12 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         XCTAssertEqual(reopened.value as? String, "Written in the folder I picked.")
         openSettings(app)
         openTheJournalFolder(in: app)
-        expect(app.staticTexts["journalRootLocation"], toBeShowing: vault)
-        expect(app.staticTexts["journalEntryCount"], toBeShowing: "1 entry")
+        expect(location, toBeShowing: vault)
 
         // And the way back: Aujour's own folder, with everything that was
         // written there still in it.
         app.buttons["useAujoursOwnFolder"].tap()
-        expect(app.staticTexts["journalRootLocation"], toBeShowing: aujoursOwnFolder)
-        expect(app.staticTexts["journalEntryCount"], toBeShowing: "1 entry")
+        expect(location, toBeShowing: aujoursOwnFolder)
         backToTheSettings(in: app)
         app.buttons["Done"].tap()
 
@@ -205,12 +202,6 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         XCTAssertEqual(showIt.label, "Show in Files")
         XCTAssertTrue(showIt.isHittable)
 
-        // The Parked File is beside the journal and not in it: one day
-        // written, one entry, whatever else is in the folder (ADR 0002).
-        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
-        backToTheSettings(in: app)
-        app.buttons["Done"].tap()
-
         // Dismissible, because the file itself is the lasting notice.
         app.buttons["dismissParkedFileNotice"].tap()
         XCTAssertFalse(notice.waitForExistence(timeout: 3))
@@ -227,10 +218,6 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         )
 
         openSettings(app)
-        openTheJournalFolder(in: app)
-        expect(app.staticTexts["journalEntryCount"], toBeShowing: "1 entry")
-        backToTheSettings(in: app)
-
         openTheEntryPath(in: app)
         typeEntryPath("[Journal]/YYYY-MM-DD", into: app)
 
@@ -256,13 +243,9 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         XCTAssertEqual(summary.label, "1 entry moved.")
         app.buttons["dismissMigrationSummary"].tap()
 
-        // Still one entry, and the same words — moved, not copied and not
-        // lost. The count is read from the folder, so this is the file being
-        // where the new template says.
+        // The same words, read from where the new template says — moved, not
+        // lost.
         XCTAssertEqual(app.textFields["entryPathField"].value as? String, "[Journal]/YYYY-MM-DD")
-        backToTheSettings(in: app)
-        openTheJournalFolder(in: app)
-        expect(app.staticTexts["journalEntryCount"], toBeShowing: "1 entry")
         backToTheSettings(in: app)
         app.buttons["Done"].tap()
 
@@ -271,11 +254,13 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         expect(editor, toHaveValue: "Walked to the market.")
 
         // And the entry path outlives the launch, the way every other
-        // journal-shaping setting does (ADR 0003).
+        // journal-shaping setting does (ADR 0003) — which is the day still
+        // being found under it from a cold start.
         relaunch(app)
-        XCTAssertTrue(app.textViews["entryEditor"].waitForExistence(timeout: 30))
-        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
-        backToTheSettings(in: app)
+        let reopened = app.textViews["entryEditor"]
+        XCTAssertTrue(reopened.waitForExistence(timeout: 30))
+        expect(reopened, toHaveValue: "Walked to the market.")
+        openSettings(app)
         openTheEntryPath(in: app)
         XCTAssertEqual(app.textFields["entryPathField"].value as? String, "[Journal]/YYYY-MM-DD")
     }
@@ -298,12 +283,8 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
 
         app.buttons["skipMigration"].tap()
 
-        // The old file is still in the folder and is no longer an Entry: the
-        // count is a scan of the folder against the *current* template, and
-        // nothing anywhere else surfaces what was left behind (ADR 0002).
-        backToTheSettings(in: app)
-        openTheJournalFolder(in: app)
-        expect(app.staticTexts["journalEntryCount"], toBeShowing: "0 entries")
+        // The old file is still in the folder and is no longer an Entry, and
+        // nothing anywhere surfaces what was left behind (ADR 0002).
         backToTheSettings(in: app)
         app.buttons["Done"].tap()
 
@@ -358,9 +339,6 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
 
         // One day, one Entry: the file that was already there. The version
         // Aujour brought is beside it and is not an Entry (ADR 0002).
-        backToTheSettings(in: app)
-        openTheJournalFolder(in: app)
-        expect(app.staticTexts["journalEntryCount"], toBeShowing: "1 entry")
         backToTheSettings(in: app)
         app.buttons["Done"].tap()
 

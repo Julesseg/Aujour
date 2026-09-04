@@ -2,21 +2,26 @@ import SwiftUI
 import UniformTypeIdentifiers
 import AujourCore
 
-/// Where the journal is kept, and the two ways of pointing it somewhere else.
+/// Where the journal is kept, and the ways of pointing it somewhere else.
 ///
-/// A page of its own, one step in from the settings sheet. The folder used to
-/// open that sheet as a hero — a 44-point glyph, the folder's name, a promise
-/// about it, the count, the path, and two buttons pinned to the bottom — which
-/// is a screenful of the one setting somebody changes once. Here it is a row
-/// showing the folder's name, and everything the hero said is on this page for
-/// the day somebody comes looking.
+/// A page of its own, one step in from the settings sheet, and one row: the
+/// folder, named the way the Files app names it, and tapping it is how the
+/// journal is moved. Choosing a folder used to be a
+/// button under the row, and before that a hero on the sheet with the count
+/// of entries and a promise about the folder, which is a screenful of the one
+/// setting somebody changes once. A row that is the folder and offers the
+/// change when it is tapped, and the way back to Aujour's own folder under it
+/// for as long as there is one, is the whole of it.
 ///
-/// It is not really a setting, which is why it is the first row rather than
-/// part of a group: it is the journal. Each device picks its own once and the
-/// bookmark is inherently local (ADR 0003), so nothing about the choice
-/// travels.
+/// It is not really a setting, which is why it is the first row on the sheet
+/// rather than part of a group: it is the journal. Each device picks its own
+/// once and the bookmark is inherently local (ADR 0003), so nothing about the
+/// choice travels.
 struct JournalFolderView: View {
     let journal: Journal
+
+    /// Whether the offer to move the journal is up.
+    @State private var changing = false
 
     /// Whether the Files picker is up.
     @State private var picking = false
@@ -28,7 +33,6 @@ struct JournalFolderView: View {
     var body: some View {
         Form {
             whereItIs
-            waysToPointItSomewhereElse.settingsRows()
         }
         .settingsPage(titled: "Journal folder")
         .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
@@ -50,29 +54,62 @@ struct JournalFolderView: View {
             }
             .settingsRows()
 
-        case .open(let root, let entryCount):
+        case .open(let root, _):
             Section {
-                LabeledContent("Location", value: root.location.name(onDevice: device))
-                    .accessibilityIdentifier("journalRootLocation")
-
-                if let entryCount {
-                    LabeledContent(
-                        "Entries", value: entryCount == 1 ? "1 entry" : "\(entryCount) entries"
-                    )
-                    .accessibilityIdentifier("journalEntryCount")
+                // The folder as the Files app names it — "iCloud Drive ›
+                // Aujour", or a picked folder's own name — which is what the
+                // sheet's row says too, and the only part of where the folder
+                // sits that means anything to the person who put it there. A
+                // raw path was tried here and is a sandbox container's worth
+                // of hex before the one word that matters.
+                //
+                // An `HStack` and not a `LabeledContent`, which answers a
+                // value that does not fit by stacking it under its label on a
+                // line of its own; a folder's name is one line, cut if it must
+                // be. The colours are `Color`s and not the hierarchical
+                // styles: inside a button `.primary` is the button's tint at
+                // full strength, and this is a row that happens to answer a
+                // tap, not a call to action.
+                Button {
+                    changing = true
+                } label: {
+                    HStack {
+                        Text("Location")
+                            .foregroundStyle(Color.primary)
+                        Spacer()
+                        Text(root.location.name(onDevice: device))
+                            .lineLimit(1)
+                            .foregroundStyle(Color.secondary)
+                    }
                 }
-
-                // A row of its own rather than a value on the right of one: a
-                // folder's path is long enough to be the whole row on a phone,
-                // and selectable because the reason to read it is to go and
-                // find the folder somewhere else.
-                Text(root.url.path(percentEncoded: false))
-                    .font(.footnote.monospaced())
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .accessibilityIdentifier("journalRootPath")
+                .accessibilityIdentifier("journalRootLocation")
+                // Anchored to the row rather than the page, which is where an
+                // iPad draws it from. No title: the row it comes out of has
+                // just said which folder this is about.
+                .confirmationDialog(
+                    "Journal folder",
+                    isPresented: $changing,
+                    titleVisibility: .hidden
+                ) {
+                    Button("Choose Another Folder…") { chooseAFolder() }
+                        .accessibilityIdentifier("chooseCustomFolder")
+                }
             }
             .settingsRows()
+
+            // The way back, when there is one. A button and not a second
+            // choice in the row's dialog: it undoes the folder rather than
+            // choosing one, and a thing that undoes belongs where it can be
+            // seen before anything is tapped.
+            if journal.hasACustomFolder {
+                Section {
+                    Button("Use Aujour's own folder") {
+                        Task { await journal.useAujoursOwnFolder() }
+                    }
+                    .accessibilityIdentifier("useAujoursOwnFolder")
+                }
+                .settingsRows()
+            }
 
             // Said on the page that can do something about it as well as on
             // the sheet: a folder that cannot be reached is the likeliest
@@ -89,20 +126,6 @@ struct JournalFolderView: View {
                 FolderProblemNotice(problem: problem, identifier: "journalRootProblem")
             }
             .settingsRows()
-        }
-    }
-
-    private var waysToPointItSomewhereElse: some View {
-        Section {
-            Button("Use a custom folder…") { chooseAFolder() }
-                .accessibilityIdentifier("chooseCustomFolder")
-
-            if journal.hasACustomFolder {
-                Button("Use Aujour's own folder") {
-                    Task { await journal.useAujoursOwnFolder() }
-                }
-                .accessibilityIdentifier("useAujoursOwnFolder")
-            }
         }
     }
 

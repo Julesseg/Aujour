@@ -584,10 +584,6 @@ struct ContentView: View {
                     // in yesterday's colours right under the control that had
                     // just changed them.
                     .preferredColorScheme(drawnIn)
-                    // Counted again on the way in: the number from launch is
-                    // one edit out of date the moment today's Entry is
-                    // created.
-                    .task { await journal.recount() }
                     .sheetChrome(risingFrom: Sheets.theBar, in: sheets)
             }
             // Outside the states for the settings sheet's reason: a journal

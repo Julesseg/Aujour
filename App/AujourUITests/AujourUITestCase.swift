@@ -208,7 +208,7 @@ class AujourUITestCase: XCTestCase {
     }
 
     /// Steps from the open settings sheet into the journal folder's own page,
-    /// which is where the folder's name, its entry count and its path are.
+    /// which is where the folder's path is, and the way to change it.
     ///
     /// Waited on as long as the journal itself is: the page is not a label the
     /// sheet draws and then fills in — it arrives with the journal, which has
@@ -219,9 +219,32 @@ class AujourUITestCase: XCTestCase {
         scrollTo(folder, in: app)
         folder.tap()
         XCTAssertTrue(
-            app.staticTexts["journalRootPath"].waitForExistence(timeout: 30),
+            app.buttons["journalRootLocation"].waitForExistence(timeout: 30),
             "the journal folder page never appeared"
         )
+    }
+
+    /// Taps the journal folder page's one row and takes up its offer to choose
+    /// another folder — which, launched with a folder to pick, is the folder
+    /// the test named.
+    ///
+    /// The offer is a system dialog, and the dialog puts its button in the
+    /// hierarchy twice — a button inside a button, both under the same
+    /// identifier — which a tap on the element refuses as ambiguous, first
+    /// match or not. So the button is found by its identifier and tapped by
+    /// where it is, which asks nothing of the hierarchy but the frame.
+    func chooseAnotherFolder(in app: XCUIApplication) {
+        app.buttons["journalRootLocation"].tap()
+        let offered = app.buttons.matching(identifier: "chooseCustomFolder")
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline, offered.count == 0 {
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        XCTAssertGreaterThan(offered.count, 0, "the folder row did not offer another folder")
+        let frame = offered.element(boundBy: 0).frame
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: frame.midX, dy: frame.midY))
+            .tap()
     }
 
     /// Steps from the open settings sheet into the entry path's own page,
@@ -530,41 +553,6 @@ class AujourUITestCase: XCTestCase {
     func relaunch(_ app: XCUIApplication) {
         app.terminate()
         app.launch()
-    }
-
-    /// How many entries the folder holds, from a cold app: through the bar's
-    /// menu, onto the sheet and into the journal folder's page, which is where
-    /// the count now is.
-    ///
-    /// Waited on as long as the journal itself is. The count is not a label a
-    /// screen draws and then fills in — it arrives with the journal, which has
-    /// to find its folder and read it before there is a number to say, and
-    /// after a relaunch that is a cold start. Five seconds is a machine with
-    /// the folder already warm; on a slow runner it is the page being asked
-    /// before the journal has answered, which reads as "no entry count was
-    /// shown" and is not what went wrong.
-    func entryCountFromTheSettingsSheet(_ app: XCUIApplication) -> String {
-        let more = app.buttons["moreActions"]
-        guard more.waitForExistence(timeout: 30) else {
-            return "the bar's menu never appeared"
-        }
-        more.tap()
-
-        let settings = app.buttons["openSettings"]
-        guard settings.waitForExistence(timeout: 10) else {
-            return "the bar's menu never offered the settings"
-        }
-        settings.tap()
-
-        let folder = app.buttons["openJournalFolder"]
-        guard folder.waitForExistence(timeout: 30) else {
-            return "the settings sheet never appeared"
-        }
-        folder.tap()
-
-        let entryCount = app.staticTexts["journalEntryCount"]
-        guard entryCount.waitForExistence(timeout: 30) else { return "no entry count was shown" }
-        return theValue(of: entryCount)
     }
 
     /// What a settings row is showing on its right.

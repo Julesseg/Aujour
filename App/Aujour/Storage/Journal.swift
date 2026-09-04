@@ -466,11 +466,16 @@ final class Journal {
     /// for the launch that opens them.
     func settleAnyDivergence(before editor: EntryEditor) async {
         guard let parking, let path = entryPath(for: editor.day) else { return }
-        // Asked first because the answer is almost always no, and everything
-        // below is work — including a save the user did not ask for.
-        guard !settlingADivergence, parking.hasDiverged(path) else { return }
+        // Held from before the question is asked, not from the answer: the
+        // question is answered off the main actor now, and a second caller
+        // arriving during it would otherwise ask it again and settle the same
+        // day twice.
+        guard !settlingADivergence else { return }
         settlingADivergence = true
         defer { settlingADivergence = false }
+        // Asked first because the answer is almost always no, and everything
+        // below is work — including a save the user did not ask for.
+        guard await parking.hasDiverged(path) else { return }
 
         // What is on screen goes into the file before the versions are weighed
         // against each other. Otherwise the words being typed are the one

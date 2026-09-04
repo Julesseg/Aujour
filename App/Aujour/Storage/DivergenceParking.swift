@@ -63,9 +63,28 @@ struct DivergenceParking {
     /// the caller has work to do before the answer is yes — the words on
     /// screen belong in the file before the versions of that file are compared
     /// by their dates.
-    func hasDiverged(_ entryPath: String) -> Bool {
+    func hasDiverged(_ entryPath: String) async -> Bool {
         guard let url = try? url(for: entryPath) else { return false }
-        return !versions.unresolved(at: url).isEmpty
+        return !(await unresolvedVersions(at: url)).isEmpty
+    }
+
+    /// The system's answer, asked off the main actor.
+    ///
+    /// `NSFileVersion` answers over a round trip to the file coordination
+    /// daemon, and that round trip is hundreds of milliseconds on a plain
+    /// local folder and seconds on one iCloud is syncing. Every caller of
+    /// this is on the main actor and asks it the moment a day is opened —
+    /// which, from the date pill, is the moment the page is sliding: a main
+    /// thread held for that long freezes the slide on its first frame and
+    /// then snaps to the end, so the day arriving looked as though it had
+    /// simply appeared. Detached rather than merely `async` so that where it
+    /// runs is said here and does not depend on the module's isolation
+    /// settings.
+    private func unresolvedVersions(at url: URL) async -> [any EntryVersion] {
+        let versions = self.versions
+        return await Task.detached(priority: .userInitiated) {
+            versions.unresolved(at: url)
+        }.value
     }
 
     /// Parks every version of this day but the newest, and answers the Parked
@@ -82,7 +101,7 @@ struct DivergenceParking {
     @discardableResult
     func park(_ entryPath: String, of day: JournalDay) async throws -> [ParkedFile] {
         let url = try url(for: entryPath)
-        let otherVersions = versions.unresolved(at: url)
+        let otherVersions = await unresolvedVersions(at: url)
         guard !otherVersions.isEmpty else { return [] }
 
         let filesInTheFolder = Set(try await store.listFiles())

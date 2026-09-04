@@ -179,14 +179,14 @@ struct DivergenceParkingTests {
                 versions: TheVersionsHeldFor(entry, in: root, are: [iPad])
             )
 
-            #expect(parking.hasDiverged(entry))
+            #expect(await parking.hasDiverged(entry))
             _ = try await parking.park(entry, of: march1)
 
             // Told the system it has been taken care of, so that the same
             // divergence does not come back as news at every change in the
             // folder and leave a `_2`, a `_3`, and a journal full of copies.
             #expect(iPad.isSettled)
-            #expect(!parking.hasDiverged(entry))
+            #expect(!(await parking.hasDiverged(entry)))
             #expect(try await parking.park(entry, of: march1).isEmpty)
             #expect(try await store.listFiles() == [entry, "2026/03/2026-03-01_1.md"])
         }

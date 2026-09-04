@@ -27,7 +27,7 @@ struct HowADataPlaceholderIsWrittenView: View {
     let placeholder: DataPlaceholder
 
     /// The four fields as they are being typed, which is not what is in force
-    /// until "Change" is pressed. The time format is held as the pattern the
+    /// until the tick is pressed. The time format is held as the pattern the
     /// user wrote, empty standing for no times at all — the same way an empty
     /// one is stored (`JournalSettings`).
     @State private var linePrefix: String
@@ -76,7 +76,7 @@ struct HowADataPlaceholderIsWrittenView: View {
             // The one thing that can stop a change here, and the reason it is
             // said on this page rather than only on the sheet behind: a folder
             // that will not take today's words takes no settings change
-            // either, and the button that did nothing is this one.
+            // either, and the tick that did nothing is this page's.
             if let problem = journal.folderProblem {
                 Section {
                     FolderProblemNotice(problem: problem, identifier: "dataPlaceholderProblem")
@@ -91,19 +91,24 @@ struct HowADataPlaceholderIsWrittenView: View {
             }
             howTimesAreWritten
             whatADayThatHeldNothingSays
-
-            Section {
-                // One button for all four fields — see
-                // `Journal.changeHowItIsWritten`.
-                Button("Change") {
+        }
+        .settingsPage(titled: placeholder.onScreen)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                // One tick for all four fields — see
+                // `Journal.changeHowItIsWritten`. In the bar, as the two
+                // paths' are, and with a reason of this page's own: four
+                // fields is a page that scrolls on a small phone, and a row
+                // at the bottom of it was a button under the fold.
+                Button {
                     Task { await journal.changeHowItIsWritten(placeholder, to: typed) }
+                } label: {
+                    Label("Change", systemImage: "checkmark")
                 }
                 .disabled(!isAChange)
                 .accessibilityIdentifier("changeHowItIsWritten")
             }
-            .settingsRows()
         }
-        .settingsPage(titled: placeholder.onScreen)
         // A format changed on the iPad arrives here while the page is up
         // (ADR 0003), and the fields are supposed to be showing what is in
         // force rather than their own idea of it.

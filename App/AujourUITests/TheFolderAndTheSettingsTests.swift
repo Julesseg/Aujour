@@ -686,9 +686,9 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
 
         replaceTheText(in: "timeFormatField", with: "[at] HH:mm", in: app)
 
-        let change = app.buttons["changeHowItIsWritten"]
-        scrollTo(change, in: app)
-        change.tap()
+        // Not scrolled to: the tick is in the bar, which is on screen however
+        // far down the fields have gone.
+        app.buttons["changeHowItIsWritten"].tap()
 
         // A launch later, because that is the claim: the setting travels
         // through the synced seam, and the next day spawned is written by it.
@@ -721,9 +721,9 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         scrollTo(onAnEmptyDay, in: app)
         XCTAssertEqual(onAnEmptyDay.label, "Nothing on the list.")
 
-        let change = app.buttons["changeHowItIsWritten"]
-        scrollTo(change, in: app)
-        change.tap()
+        // Not scrolled to: the tick is in the bar, which is on screen however
+        // far down the fields have gone.
+        app.buttons["changeHowItIsWritten"].tap()
 
         relaunch(app)
 

@@ -584,8 +584,9 @@ final class WritingTheDayTests: AujourUITestCase {
     /// Which nudges exist — one a day, none for a day already written in, the
     /// Rollover Hour respected — is decided in Core and tested there against a
     /// folder said rather than read. What only a running app can show is the
-    /// setting itself: a fresh install with no reminder in it, a time chosen
-    /// that survives a relaunch, and a switch that takes it away again.
+    /// setting itself: a fresh install with no reminder in it, any minute of
+    /// the clock available to be chosen, a choice that survives a relaunch,
+    /// and a switch that takes it away again.
     func testTheDailyReminderIsOffUntilATimeIsChosenAndStaysChosen() throws {
         let app = launchApp()
         openSettings(app)
@@ -596,7 +597,7 @@ final class WritingTheDayTests: AujourUITestCase {
         // not ask it to, so there is no reminder here to turn off.
         XCTAssertEqual(reminder.value as? String, "0")
         XCTAssertFalse(
-            app.buttons["dailyReminderTime"].exists,
+            app.datePickers["dailyReminderTime"].exists,
             "a reminder nobody has turned on was offering a time"
         )
 
@@ -604,25 +605,26 @@ final class WritingTheDayTests: AujourUITestCase {
 
         // The evening it lands on — a starting point, not a default, since it
         // took a tap to get here at all.
-        let time = app.buttons["dailyReminderTime"]
+        let time = app.datePickers["dailyReminderTime"]
         XCTAssertTrue(time.waitForExistence(timeout: 10), "no time was offered")
-        XCTAssertTrue(
-            time.label.hasSuffix(", \(onTheClock(hour: 21, minute: 0))"),
-            "expected the evening to be offered, got \(time.label)"
+        XCTAssertEqual(
+            theTimeShowing(on: time, in: app),
+            onTheClock(hour: 21, minute: 0),
+            "expected the evening to be offered"
         )
-        // Changed to the half hour beside it, which is the setting being a
-        // setting rather than a switch.
-        scrollTo(time, in: app)
-        time.tap()
-        tapTheOption(labelled: onTheClock(hour: 21, minute: 30), in: app)
+        // Moved to a minute nothing would have offered as an option, which is
+        // the whole of what a clock face is for: the reminder is any time on
+        // it and not a list of the sensible ones.
+        setTheMinutes(of: time, to: 7, in: app)
+        XCTAssertEqual(theTimeShowing(on: time, in: app), onTheClock(hour: 21, minute: 7))
 
         relaunch(app)
         openSettings(app)
-        let afterARelaunch = app.buttons["dailyReminderTime"]
-        scrollTo(afterARelaunch, in: app)
-        XCTAssertTrue(
-            afterARelaunch.label.hasSuffix(", \(onTheClock(hour: 21, minute: 30))"),
-            "expected the time chosen to still be in force, got \(afterARelaunch.label)"
+        let afterARelaunch = app.datePickers["dailyReminderTime"]
+        XCTAssertEqual(
+            theTimeShowing(on: afterARelaunch, in: app),
+            onTheClock(hour: 21, minute: 7),
+            "expected the time chosen to still be in force"
         )
 
         // And off again, which takes the time with it: there is no reminder
@@ -633,7 +635,7 @@ final class WritingTheDayTests: AujourUITestCase {
         XCTAssertEqual(stillOn.value as? String, "1")
         flip(stillOn)
         XCTAssertFalse(
-            app.buttons["dailyReminderTime"].waitForExistence(timeout: 3),
+            app.datePickers["dailyReminderTime"].waitForExistence(timeout: 3),
             "a reminder that was turned off was still offering a time"
         )
     }

@@ -197,13 +197,8 @@ struct SettingsSheet: View {
             // toggle means: there is no reminder to disable on a fresh
             // install. So the time only exists while there is one.
             if journal.dailyReminder.time != nil {
-                Picker("Time", selection: reminderTime) {
-                    ForEach(DailyReminder.everyHalfHour, id: \.self) { time in
-                        Text(time.spelledOut()).tag(time)
-                    }
-                }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("dailyReminderTime")
+                TimeOfDayPicker(label: "Time", time: reminderTime)
+                    .accessibilityIdentifier("dailyReminderTime")
             }
         } footer: {
             // A problem notice, which is the one kind of sentence this sheet
@@ -257,9 +252,14 @@ struct SettingsSheet: View {
         )
     }
 
-    /// The time it arrives — a menu of half hours rather than a clock face to
-    /// spin: one tap and a scroll rather than two wheels, and nobody has ever
-    /// wanted to be reminded at 9:07.
+    /// The time it arrives.
+    ///
+    /// Written through on every minute the picker passes over rather than on
+    /// the one it is let go at, because a `DatePicker` has no notion of being
+    /// let go: the reminder is whatever the wheels say, at every moment they
+    /// say it. What that costs is a handful of settings writes and reckonings
+    /// nobody sees — and the reckoning that lands out of order is dropped by
+    /// `DailyReminder` rather than booked.
     private var reminderTime: Binding<TimeOfDay> {
         Binding(
             get: { journal.dailyReminder.time ?? DailyReminder.suggestedTime },

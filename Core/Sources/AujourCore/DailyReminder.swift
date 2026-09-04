@@ -122,17 +122,6 @@ public final class DailyReminder {
     /// answered. A week is how long Aujour can be left alone and still ask.
     public static let daysBookedAhead = 7
 
-    /// Every time a reminder can be set to: each half hour of the day, in
-    /// order.
-    ///
-    /// Half hours rather than a clock face to spin, because nobody has ever
-    /// wanted to be reminded at 9:07 — and here rather than beside a screen
-    /// because two screens offer it, the welcome and the journal sheet, and
-    /// they are offering one setting.
-    public static let everyHalfHour: [TimeOfDay] = (0..<24).flatMap { hour in
-        [0, 30].compactMap { TimeOfDay(hour: hour, minute: $0) }
-    }
-
     /// The time offered to somebody who has just turned the reminder on.
     ///
     /// The evening, because that is when a day is over and there is something
@@ -240,7 +229,15 @@ public final class DailyReminder {
     ///     day turns.
     public func reconsider(over store: (any JournalStore)?, journal: JournalSettings) async {
         access = await nudging.access()
+        let asked = time
         let due = await whatIsDue(over: store, journal: journal)
+        // A reckoning the time moved out from under is a reckoning about a
+        // reminder nobody is set to any more, and it is dropped rather than
+        // booked. Somebody dragging a picker sets a time a minute at a time,
+        // so several of these are in flight at once and the folder they each
+        // wait on does not answer in the order they were asked — without this
+        // the device can be left holding the time the finger passed over.
+        guard time == asked else { return }
         // A reckoning that changed nothing leaves the device alone. Coming
         // back to the front and a folder finishing a sync both land here, and
         // neither is a reason to tear down a week of pending nudges and

@@ -139,22 +139,19 @@ struct WelcomeView: View {
                     written in.
                     """
                 )
-                // The same offer the journal sheet makes, out of the same
-                // list, because it is the same setting.
-                Picker("When", selection: $time) {
-                    ForEach(DailyReminder.everyHalfHour, id: \.self) { time in
-                        Text(time.spelledOut()).tag(time)
-                    }
-                }
-                .pickerStyle(.menu)
-                // A control, and so in the identity's chrome face and the
-                // accent rather than in the prose voice and the muted ink the
-                // page around it is set in: what a finger acts on is not the
-                // app speaking, and a time that read as a sentence would be a
-                // time nobody knew they could change.
-                .lettering(.rowLabel)
-                .foregroundStyle(.tint)
-                .accessibilityIdentifier("welcomeReminderTime")
+                // The same control the journal sheet offers, because it is
+                // the same setting — and with its label off, because the page
+                // has already asked the question the sheet's row has to label.
+                //
+                // In the system's own dress and not the page's, which is the
+                // one thing on these three pages that is: it draws itself as a
+                // chip with a time in it, and a chip is what everything else
+                // on the phone that can be tapped and changed looks like. The
+                // prose voice around it is the app talking, and this is not
+                // the app talking.
+                TimeOfDayPicker(label: "When", time: $time)
+                    .labelsHidden()
+                    .accessibilityIdentifier("welcomeReminderTime")
 
                 // Only after somebody has taken the offer up and the device
                 // has said no, which is the one answer that leaves this page

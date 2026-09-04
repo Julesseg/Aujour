@@ -139,29 +139,67 @@ public struct TimeOfDay: Hashable, Sendable, CustomStringConvertible {
         self.init(hour: hour, minute: minute)
     }
 
+    /// The zone every clock face in Aujour is written off: GMT, which is the
+    /// one with no daylight saving in it.
+    ///
+    /// What a `TimeOfDay` writes down is a clock face and not a moment — nine
+    /// in the evening is nine in the evening on the two days a year the local
+    /// zone has an hour missing from it, and a time hung off *those* would be
+    /// a setting that read back as the wrong hour twice a year. So both the
+    /// way out of this type and the way back in go through here, and a screen
+    /// showing a ``clockFace`` has to be in this zone too or it draws the
+    /// instant in the device's own and hands back an hour that was never
+    /// chosen.
+    public static let clockFaceZone = TimeZone(secondsFromGMT: 0)!
+
+    /// This time as an instant, for the one kind of control that edits times.
+    ///
+    /// A `DatePicker` moves a `Date` around, and this is the date that reads
+    /// as this time on ``clockFaceZone``'s clock. It means nothing as a
+    /// moment: the day under it is the epoch's, and only the hands matter.
+    public var clockFace: Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = Self.clockFaceZone
+
+        let midnight = Date(timeIntervalSince1970: 0)
+        return calendar.date(byAdding: DateComponents(hour: hour, minute: minute), to: midnight)
+            ?? midnight
+    }
+
+    /// The time a clock face is showing — the way back from whatever a picker
+    /// was left on.
+    ///
+    /// Read on ``clockFaceZone`` like everything else here, and seconds are
+    /// dropped: a reminder is a minute of the day, and a picker offering hours
+    /// and minutes can still hand back the seconds that were in the date it
+    /// started from.
+    public init(clockFace: Date) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = Self.clockFaceZone
+
+        let hands = calendar.dateComponents([.hour, .minute], from: clockFace)
+        // Every hour and minute a calendar reads off a date is on the clock,
+        // so the fallback is unreachable — and midnight is the honest answer
+        // if a calendar ever surprises us, since it is the one time no reader
+        // would mistake for a time they chose.
+        let onTheClock = TimeOfDay(hour: hands.hour ?? 0, minute: hands.minute ?? 0)
+        self = onTheClock ?? TimeOfDay(hour: 0, minute: 0)!
+    }
+
     /// The time as this reader's own clock writes it — 12- or 24-hour,
     /// whichever their region is on.
     ///
     /// The one place a `TimeOfDay` is read rather than stored, so it is the
     /// one place a locale gets a say: `description` stays `HH:mm` wherever the
     /// user is, because that is what goes into storage and what is read back.
-    ///
-    /// Measured off a day with no daylight saving in it, deliberately. What is
-    /// being written down is a clock face and not a moment — nine in the
-    /// evening is nine in the evening on the two days a year the local one has
-    /// an hour missing from it, and a time hung off *those* would be a setting
-    /// that read back as the wrong hour twice a year.
     public func spelledOut(locale: Locale = .current) -> String {
-        let noRules = TimeZone(secondsFromGMT: 0)!
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = noRules
-
-        let midnight = Date(timeIntervalSince1970: 0)
-        let atThatTime =
-            calendar.date(byAdding: DateComponents(hour: hour, minute: minute), to: midnight)
-            ?? midnight
-        return atThatTime.formatted(
-            Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, timeZone: noRules)
+        clockFace.formatted(
+            Date.FormatStyle(
+                date: .omitted,
+                time: .shortened,
+                locale: locale,
+                timeZone: Self.clockFaceZone
+            )
         )
     }
 }

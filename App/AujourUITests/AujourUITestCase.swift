@@ -328,6 +328,63 @@ class AujourUITestCase: XCTestCase {
         )
     }
 
+    /// What a time picker is showing, spelled the way its own device writes a
+    /// clock — the thing to compare against ``onTheClock(hour:minute:)``.
+    ///
+    /// Read off the one element the picker puts inside itself rather than the
+    /// picker, which carries no value of its own — and asked for by position
+    /// rather than by kind, because the clock face inside a time picker is a
+    /// button while the picker is shut and something else while it is open.
+    ///
+    /// Scrolled to first, because a row a grouped `Form` has not brought into
+    /// view is a row with nothing inside it yet.
+    func theTimeShowing(on picker: XCUIElement, in app: XCUIApplication) -> String {
+        scrollTo(picker, in: app)
+        let face = picker.descendants(matching: .any).firstMatch
+        XCTAssertTrue(face.waitForExistence(timeout: 10), "the time picker showed no time")
+        return (face.value as? String) ?? ""
+    }
+
+    /// Opens a time picker, moves the minutes, and puts it away again.
+    ///
+    /// The minutes and not the hour, deliberately. The hour wheel says
+    /// "9 o’clock" where the region is on a twelve-hour clock and "21 o’clock"
+    /// where it is on a twenty-four-hour one, so a test that named one of them
+    /// would pass on one machine and fail on the other — and every region
+    /// spells the minutes the same way. Which wheel that is is asked of the
+    /// wheels rather than counted off, since a region can order them as it
+    /// likes.
+    func setTheMinutes(of picker: XCUIElement, to minute: Int, in app: XCUIApplication) {
+        scrollTo(picker, in: app)
+        picker.tap()
+
+        let wheels = app.pickerWheels
+        XCTAssertTrue(
+            wheels.firstMatch.waitForExistence(timeout: 10),
+            "the time picker never opened"
+        )
+        let minutes = wheels.allElementsBoundByIndex.first {
+            ($0.value as? String)?.hasSuffix("minutes") == true
+        }
+        guard let minutes else {
+            XCTFail(
+                "no wheel of minutes in the time picker — it offered "
+                    + wheels.allElementsBoundByIndex
+                        .map { "[\($0.value as? String ?? "")]" }
+                        .joined()
+            )
+            return
+        }
+        // The options are the numbers alone, though the wheel says its own
+        // value as "00 minutes".
+        minutes.adjust(toPickerWheelValue: String(format: "%02d", minute))
+
+        // The picker opens over the screen, so it is in the way of everything
+        // the test does next.
+        let dismiss = app.buttons["PopoverDismissRegion"]
+        if dismiss.waitForExistence(timeout: 3) { dismiss.tap() }
+    }
+
     /// Replaces what is in the entry path field, and puts the keyboard away.
     /// Called with the entry path's own page already open.
     func typeEntryPath(_ path: String, into app: XCUIApplication) {

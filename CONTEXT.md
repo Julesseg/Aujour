@@ -4,10 +4,12 @@ Aujour is a journaling app built on plain markdown files: one file per day,
 living in a user-visible folder that can coexist with an Obsidian vault.
 
 These are the words the code and the team use for each other. They are not
-the words on screen: the app speaks to whoever is writing in it, so a
-*Rollover Hour* is asked about as "when the day turns" and a *Content
-Template* as "what a new day starts from". A term earning a place here is a
-term the codebase can be precise with, never a label to reach for in the UI.
+necessarily the words on screen: the app speaks to whoever is writing in it,
+so a *Rollover Hour* is a row called "Day starts at" and a *Content Template*
+one called "Template". A term earns a place here by being one the codebase
+can be precise with. The screen may use it where it is the plainest word
+there is, and may use a simpler one where it is not; the two are allowed to
+differ, and the glossary is the more technical of the pair.
 
 ## Glossary
 

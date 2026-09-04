@@ -45,18 +45,21 @@ struct AttachmentPathView: View {
                 saying: saying,
                 identifier: "attachmentPath"
             )
-
-            Section {
-                Button("Change") {
+        }
+        .settingsPage(titled: "Photo path")
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                // In the bar, as the entry path's is: one field, one tick.
+                Button {
                     guard case .success(let template) = typedTemplate else { return }
                     Task { await journal.changeTheAttachmentPathTemplate(to: template) }
+                } label: {
+                    Label("Change", systemImage: "checkmark")
                 }
                 .disabled(!isAChange || rejection != nil)
                 .accessibilityIdentifier("changeAttachmentPath")
             }
-            .settingsRows()
         }
-        .settingsPage(titled: "Photo path")
         .onChange(of: journal.attachmentPathTemplate) { _, inForce in typed = inForce }
     }
 

@@ -25,7 +25,7 @@ struct EntryPathView: View {
     /// it is changed.
     @State private var typed: String
 
-    /// What went wrong the last time "Change" was tapped — a folder that
+    /// What went wrong the last time the tick was tapped — a folder that
     /// would not answer, or words that would not save. A rejected template is
     /// not this: that is shown while it is being typed.
     @State private var problem: StorageProblem?
@@ -101,15 +101,22 @@ struct EntryPathView: View {
                 saying
             }
             .settingsRows()
-
-            Section {
-                Button("Change") { propose() }
-                    .disabled(!isAChange || rejection != nil || planning || !journal.isOpen)
-                    .accessibilityIdentifier("changeEntryPath")
-            }
-            .settingsRows()
         }
         .settingsPage(titled: "Entry path")
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                // A tick in the bar rather than a "Change" row under the
+                // field: this page is one field, and a row that is only a
+                // button is a second card on the screen for one word. The
+                // bar is where a page keeps the thing that commits it, and a
+                // tick is what the row was saying.
+                Button { propose() } label: {
+                    Label("Change", systemImage: "checkmark")
+                }
+                .disabled(!isAChange || rejection != nil || planning || !journal.isOpen)
+                .accessibilityIdentifier("changeEntryPath")
+            }
+        }
         .sheet(item: $proposed) { change in
             PathTemplateMigrationSheet(
                 journal: journal,

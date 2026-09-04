@@ -1056,9 +1056,9 @@ extension JournalRoot.Location {
         switch self {
         case .aujoursOwn(.iCloudDrive): "iCloud Drive › Aujour"
         case .aujoursOwn(.onThisDevice): "On My \(device) › Aujour"
-        // Their own name for their own folder, which is what they picked it
-        // by and the only part of where it sits that Aujour can be sure of.
-        case .customFolder(let name): name
+        // The way the Files app showed it to them, as far as the path can
+        // honestly say — and their own name for their own folder past that.
+        case .customFolder(let breadcrumb): breadcrumb.description
         }
     }
 

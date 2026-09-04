@@ -151,7 +151,12 @@ documented model wins, and what they omit is extrapolated from it.
   folder's own name — the same words as the sheet's row, and tapping the row
   offers to choose another folder, where a button under it used to. A raw
   path was tried and rejected: a container's worth of hex ahead of the one
-  word that matters, and no path the user could go and find anyway. The way
+  word that matters, and no path the user could go and find anyway. A picked
+  folder gets the breadcrumb the Files app showed on the way to it, "iCloud
+  Drive › Obsidian › Vault › Journal", read off the path for as far as the
+  path can honestly say (iCloud Drive's layout is public; another app's
+  on-device folder is not), and its own name past that (`FolderBreadcrumb`
+  in Core). The way
   back — "Use Aujour's own folder" — stays a button under the row for as long
   as a custom folder is in force, because it undoes the choice rather than
   making one. The entry count is gone: a number that cost a listing of the

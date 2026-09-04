@@ -265,7 +265,7 @@ struct JournalStorageTests {
 
     @Test("every place the journal can live is described to the user")
     func everyLocationSaysWhatItMeansForTheirWords() {
-        for location in [JournalRoot.Location.aujoursOwn(.iCloudDrive), .aujoursOwn(.onThisDevice), .customFolder(name: "Journal")] {
+        for location in [JournalRoot.Location.aujoursOwn(.iCloudDrive), .aujoursOwn(.onThisDevice), .customFolder(FolderBreadcrumb(crumbs: ["Journal"]))] {
             #expect(location.name(onDevice: "iPhone").isEmpty == false)
             #expect(location.promise(onDevice: "iPhone").isEmpty == false)
             #expect(location.symbolName(onDevice: "iPhone").isEmpty == false)

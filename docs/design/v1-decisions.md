@@ -149,7 +149,9 @@ documented model wins, and what they omit is extrapolated from it.
   **The journal folder page is one row** (2026-09-04). Its value is the
   folder as the Files app names it — "iCloud Drive › Aujour", or the picked
   folder's own name — the same words as the sheet's row, and tapping the row
-  offers to choose another folder, where a button under it used to. A raw
+  opens the Files picker, where a button under it used to; nothing is asked
+  first, since the picker has its own Cancel and a folder only changes by
+  picking one. A raw
   path was tried and rejected: a container's worth of hex ahead of the one
   word that matters, and no path the user could go and find anyway. A picked
   folder gets the breadcrumb the Files app showed on the way to it, "iCloud

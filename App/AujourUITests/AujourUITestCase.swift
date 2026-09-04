@@ -224,29 +224,6 @@ class AujourUITestCase: XCTestCase {
         )
     }
 
-    /// Taps the journal folder page's one row and takes up its offer to choose
-    /// another folder — which, launched with a folder to pick, is the folder
-    /// the test named.
-    ///
-    /// The offer is a system dialog, and the dialog puts its button in the
-    /// hierarchy twice — a button inside a button, both under the same
-    /// identifier — which a tap on the element refuses as ambiguous, first
-    /// match or not. So the button is found by its identifier and tapped by
-    /// where it is, which asks nothing of the hierarchy but the frame.
-    func chooseAnotherFolder(in app: XCUIApplication) {
-        app.buttons["journalRootLocation"].tap()
-        let offered = app.buttons.matching(identifier: "chooseCustomFolder")
-        let deadline = Date().addingTimeInterval(10)
-        while Date() < deadline, offered.count == 0 {
-            Thread.sleep(forTimeInterval: 0.25)
-        }
-        XCTAssertGreaterThan(offered.count, 0, "the folder row did not offer another folder")
-        let frame = offered.element(boundBy: 0).frame
-        app.coordinate(withNormalizedOffset: .zero)
-            .withOffset(CGVector(dx: frame.midX, dy: frame.midY))
-            .tap()
-    }
-
     /// Steps from the open settings sheet into the entry path's own page,
     /// which is where the field and the change that offers the migration are.
     func openTheEntryPath(in app: XCUIApplication) {

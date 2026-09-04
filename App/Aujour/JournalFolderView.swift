@@ -5,13 +5,13 @@ import AujourCore
 /// Where the journal is kept, and the ways of pointing it somewhere else.
 ///
 /// A page of its own, one step in from the settings sheet, and one row: the
-/// folder, named the way the Files app names it, and tapping it is how the
-/// journal is moved. Choosing a folder used to be a
-/// button under the row, and before that a hero on the sheet with the count
-/// of entries and a promise about the folder, which is a screenful of the one
-/// setting somebody changes once. A row that is the folder and offers the
-/// change when it is tapped, and the way back to Aujour's own folder under it
-/// for as long as there is one, is the whole of it.
+/// folder, named the way the Files app names it, and tapping it opens the
+/// Files picker. Choosing a folder used to be a button under the row, and
+/// before that a hero on the sheet with the count of entries and a promise
+/// about the folder, which is a screenful of the one setting somebody changes
+/// once. A row that is the folder and is tapped to change it, and the way
+/// back to Aujour's own folder under it for as long as there is one, is the
+/// whole of it.
 ///
 /// It is not really a setting, which is why it is the first row on the sheet
 /// rather than part of a group: it is the journal. Each device picks its own
@@ -19,9 +19,6 @@ import AujourCore
 /// choice travels.
 struct JournalFolderView: View {
     let journal: Journal
-
-    /// Whether the offer to move the journal is up.
-    @State private var changing = false
 
     /// Whether the Files picker is up.
     @State private var picking = false
@@ -70,8 +67,11 @@ struct JournalFolderView: View {
                 // styles: inside a button `.primary` is the button's tint at
                 // full strength, and this is a row that happens to answer a
                 // tap, not a call to action.
+                // Straight into the Files picker, with nothing asked first:
+                // the picker has its own Cancel, and a folder is only changed
+                // by picking one.
                 Button {
-                    changing = true
+                    chooseAFolder()
                 } label: {
                     HStack {
                         Text("Location")
@@ -83,17 +83,6 @@ struct JournalFolderView: View {
                     }
                 }
                 .accessibilityIdentifier("journalRootLocation")
-                // Anchored to the row rather than the page, which is where an
-                // iPad draws it from. No title: the row it comes out of has
-                // just said which folder this is about.
-                .confirmationDialog(
-                    "Journal folder",
-                    isPresented: $changing,
-                    titleVisibility: .hidden
-                ) {
-                    Button("Choose Another Folder…") { chooseAFolder() }
-                        .accessibilityIdentifier("chooseCustomFolder")
-                }
             }
             .settingsRows()
 

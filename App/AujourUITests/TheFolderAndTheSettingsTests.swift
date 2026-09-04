@@ -125,9 +125,10 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         let location = app.buttons["journalRootLocation"]
         expect(location, toBeShowing: aujoursOwnFolder)
 
-        // Pointed at a folder of the user's own: the journal is that folder
-        // from now on.
-        chooseAnotherFolder(in: app)
+        // Pointed at a folder of the user's own — the row opens the picker,
+        // and launched with a folder to pick, the picker is the folder the
+        // test named. The journal is that folder from now on.
+        location.tap()
         expect(location, toBeShowing: vault)
         backToTheSettings(in: app)
         app.buttons["Done"].tap()

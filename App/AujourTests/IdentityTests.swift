@@ -36,7 +36,7 @@ struct PaletteTests {
     func groundsAreTheIdentitys() {
         #expect(Palette.background.hex(in: .light) == "#F6F2EC")
         #expect(Palette.background.hex(in: .dark) == "#16130F")
-        #expect(Palette.card.hex(in: .light) == "#FFFEFC")
+        #expect(Palette.card.hex(in: .light) == "#F5F1EB")
         #expect(Palette.card.hex(in: .dark) == "#292520")
         #expect(Palette.sheet.hex(in: .light) == "#FBF8F2")
         #expect(Palette.sheet.hex(in: .dark) == "#1B1712")

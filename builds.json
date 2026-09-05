@@ -1,0 +1,32 @@
+[
+  {
+    "pr": 118,
+    "title": "fix(settings): the template page says which file it is, as it changes",
+    "sha": "f078c2f",
+    "time": "2026-09-05T17:20:18.168Z"
+  },
+  {
+    "pr": 117,
+    "title": "feat(frontmatter): a Frontmatter section above the day, with Properties and a source view",
+    "sha": "0e6bab0",
+    "time": "2026-09-05T17:19:49.401Z"
+  },
+  {
+    "pr": 113,
+    "title": "feat(settings): the settings sheet as a grouped Form, by subject",
+    "sha": "d8d62e0",
+    "time": "2026-09-04T23:57:33.448Z"
+  },
+  {
+    "pr": 114,
+    "title": "fix(calendar): a day reached by a swipe slides in rather than appearing",
+    "sha": "4271a73",
+    "time": "2026-09-04T23:11:56.378Z"
+  },
+  {
+    "pr": 110,
+    "title": "ci(tests): parallel UI classes, and macOS legs only when the app is touched",
+    "sha": "a890c99",
+    "time": "2026-09-03T19:23:16.789Z"
+  }
+]

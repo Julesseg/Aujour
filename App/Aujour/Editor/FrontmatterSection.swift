@@ -342,7 +342,7 @@ private struct ListField: View {
     @State private var adding = ""
 
     var body: some View {
-        WrappingRow(spacing: Spacing.tight) {
+        WrappingRow(spacing: Spacing.tight, alignment: .trailing) {
             ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                 HStack(spacing: Spacing.tight) {
                     Text(item).lettering(.chipLabel)
@@ -365,6 +365,7 @@ private struct ListField: View {
             }
             TextField("Add", text: $adding)
                 .lettering(.chipLabel)
+                .multilineTextAlignment(.trailing)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
                 .submitLabel(.done)

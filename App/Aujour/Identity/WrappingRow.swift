@@ -10,6 +10,11 @@ import SwiftUI
 struct WrappingRow: Layout {
     var spacing: CGFloat = Spacing.close
 
+    /// Which edge the lines are set against. Leading for a set that reads
+    /// from the left, like the accent swatches; trailing for a value that
+    /// sits at the right of a row, like the other values in the column do.
+    var alignment: HorizontalAlignment = .leading
+
     func sizeThatFits(
         proposal: ProposedViewSize,
         subviews: Subviews,
@@ -31,7 +36,7 @@ struct WrappingRow: Layout {
     ) {
         var y = bounds.minY
         for line in lines(of: subviews, within: bounds.width) {
-            var x = bounds.minX
+            var x = alignment == .trailing ? bounds.maxX - line.width : bounds.minX
             for index in line.indices {
                 let size = subviews[index].sizeThatFits(.unspecified)
                 subviews[index].place(
@@ -50,6 +55,9 @@ struct WrappingRow: Layout {
     private struct Line {
         var indices: [Subviews.Index] = []
         var height: CGFloat = 0
+        /// How wide what is on it comes to, gaps included — where it starts
+        /// from when it is set against the trailing edge.
+        var width: CGFloat = 0
     }
 
     /// How the subviews fall into lines at this width — worked out the same
@@ -71,6 +79,7 @@ struct WrappingRow: Layout {
             }
             line.indices.append(index)
             line.height = max(line.height, size.height)
+            line.width = x + size.width
             x += size.width + spacing
         }
         if !line.indices.isEmpty { lines.append(line) }

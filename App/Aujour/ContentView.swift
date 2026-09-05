@@ -488,6 +488,43 @@ struct ContentView: View {
         reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.32, bounce: 0.1)
     }
 
+    /// Which of the three the screen is showing.
+    ///
+    /// The journal's state with what is inside it left out, because that is
+    /// what the screen is changing between: an open journal that has counted
+    /// its Entries again is the same screen, and one that dissolved into
+    /// itself every time the folder was read would be blinking at its own
+    /// housekeeping.
+    private enum WhatTheScreenShows {
+        case theJournalOpening
+        case theJournal
+        case aProblem
+    }
+
+    private var whatTheScreenShows: WhatTheScreenShows {
+        switch journal.state {
+        case .opening: .theJournalOpening
+        case .open: .theJournal
+        case .unavailable: .aProblem
+        }
+    }
+
+    /// How one of them gives way to the next: a dissolve, slow enough to read
+    /// as the journal being opened again rather than as a flinch.
+    ///
+    /// A fade and not the day's own slide, because nothing has moved. The
+    /// journal is being opened again over the same day — what changed is what
+    /// it is opened *by* — and a screen that slid in from the side would be
+    /// saying the reader had turned a page.
+    ///
+    /// The one movement in the app with no second answer for a reader who
+    /// asked for less of it: a cross-dissolve is what Reduce Motion asks for
+    /// in place of everything else, and there is nothing gentler to swap it
+    /// for.
+    private var theJournalIsOpenedAgain: Animation {
+        .easeInOut(duration: 0.35)
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -584,6 +621,14 @@ struct ContentView: View {
                     .navigationTitle("Aujour")
                 }
             }
+            // One page giving way to another rather than one being swapped
+            // for the next. Every settings change reopens the journal
+            // (ADR 0003) — the folder is found again and today is spawned
+            // again — so the page goes away and comes back for a template
+            // picked or an hour changed, and it does it while the settings
+            // sheet is up and the reader is looking at the strip of it the
+            // sheet does not cover.
+            .animation(theJournalIsOpenedAgain, value: whatTheScreenShows)
             // Outside the states, like the calendar below and for the same
             // reason: choosing a folder closes the journal it was opened from
             // and opens another, and a sheet that lives inside one state is a

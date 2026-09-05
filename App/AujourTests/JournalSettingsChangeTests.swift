@@ -96,6 +96,45 @@ struct JournalSettingsChangeTests {
         }
     }
 
+    @Test("the screen showing which file it is gets told the moment it changes")
+    func theTemplateOnScreenIsAnnounced() async throws {
+        try await withAJournal { aujour in
+            try aujour.root.seed("## Morning\n", at: "templates/Daily.md")
+            await aujour.journal.open()
+
+            // What SwiftUI does with the Template page: read the value, and
+            // wait to be told that what it read has changed. That page shows
+            // nothing else of the journal's, so a change nobody announces is a
+            // row still naming the file the user has just replaced.
+            let picking = SaidItChanged()
+            withObservationTracking {
+                _ = aujour.journal.contentTemplateName
+            } onChange: {
+                picking.say()
+            }
+
+            await aujour.journal.useAsTheContentTemplate(
+                aujour.root.appending(path: "templates/Daily.md")
+            )
+
+            #expect(picking.itDid)
+            #expect(aujour.journal.contentTemplateName == "templates/Daily.md")
+
+            // And the other way out of the page, which changes the same row.
+            let clearing = SaidItChanged()
+            withObservationTracking {
+                _ = aujour.journal.contentTemplateName
+            } onChange: {
+                clearing.say()
+            }
+
+            await aujour.journal.useAsTheContentTemplate(nil)
+
+            #expect(clearing.itDid)
+            #expect(aujour.journal.contentTemplateName == nil)
+        }
+    }
+
     @Test("a template picked while a day has words never replaces them")
     func wordsAreNeverReplacedByANewTemplate() async throws {
         try await withAJournal { aujour in
@@ -303,6 +342,19 @@ extension BookmarkedTemplateFile {
             rememberBookmark: { remembered.data = $0 }
         )
     }
+}
+
+/// Whether an observed value announced that it changed.
+///
+/// Unchecked because `withObservationTracking` promises nothing about where it
+/// calls back from, and the flag is behind a lock.
+private final class SaidItChanged: @unchecked Sendable {
+    private let lock = NSLock()
+    private var changed = false
+
+    var itDid: Bool { lock.withLock { changed } }
+
+    func say() { lock.withLock { changed = true } }
 }
 
 /// Somewhere for one bookmark to sit for the length of a test.

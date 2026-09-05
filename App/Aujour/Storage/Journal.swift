@@ -305,6 +305,10 @@ final class Journal {
     }
 
     func open() async {
+        // Before anything else, because it is true before anything else is:
+        // the file days are spawned from is whatever the bookmark and the
+        // settings say this moment, and a screen showing it is waiting.
+        readWhichTemplateIsInForce()
         state = .opening
         today = nil
         calendar = nil
@@ -818,23 +822,40 @@ final class Journal {
     /// What this device spawns new days from, said the way a screen would say
     /// it — the path inside the folder, the name of the file picked outside
     /// it, or `nil` for no template, which is a blank page.
-    var contentTemplateName: String? {
-        if let picked = templateElsewhere.name { return picked }
-        if templateElsewhere.isSet {
-            // Bookmarked and unresolvable: renamed, deleted, or on a drive
-            // nobody has plugged in. Said as what it is rather than as no
-            // template at all, since "there is one and Aujour cannot reach it"
-            // is the sentence that explains the blank page.
-            return nil
-        }
-        return settings.contentTemplateFile.isEmpty ? nil : settings.contentTemplateFile
-    }
+    ///
+    /// Held rather than worked out each time it is asked for, because the two
+    /// places it comes from are both invisible to a screen: a bookmark in
+    /// local storage and a synced setting read through the store. A view over
+    /// a value like that is never told it changed — which is what left the
+    /// Template page still naming the file the user had just replaced, until
+    /// they went back to a screen that happened to be reading something else.
+    private(set) var contentTemplateName: String?
 
     /// Whether a template was picked that Aujour cannot reach right now —
     /// which is a blank page the user did not ask for, and the one thing about
     /// this setting worth saying out loud.
-    var theTemplateIsOutOfReach: Bool {
-        templateElsewhere.isSet && templateElsewhere.name == nil
+    private(set) var theTemplateIsOutOfReach = false
+
+    /// Re-reads which file this device spawns from, and says so.
+    ///
+    /// Called wherever that can have changed, which is every opening of the
+    /// journal: picking a file reopens it, so does adopting a path, and so
+    /// does the same setting arriving from the user's iPad.
+    private func readWhichTemplateIsInForce() {
+        let picked = templateElsewhere.name
+        // Bookmarked and unresolvable: renamed, deleted, or on a drive nobody
+        // has plugged in. Said as what it is rather than as no template at
+        // all, since "there is one and Aujour cannot reach it" is the sentence
+        // that explains the blank page.
+        theTemplateIsOutOfReach = templateElsewhere.isSet && picked == nil
+        if let picked {
+            contentTemplateName = picked
+        } else if templateElsewhere.isSet {
+            contentTemplateName = nil
+        } else {
+            let inTheFolder = settings.contentTemplateFile
+            contentTemplateName = inTheFolder.isEmpty ? nil : inTheFolder
+        }
     }
 
     /// Points new days at the file the user just picked, or at no file at all.

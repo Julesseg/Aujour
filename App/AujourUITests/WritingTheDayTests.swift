@@ -520,7 +520,14 @@ final class WritingTheDayTests: AujourUITestCase {
 
         openSettings(app)
         openTheTemplate(in: app)
-        app.buttons["contentTemplateFile"].tap()
+        let file = app.buttons["contentTemplateFile"]
+        file.tap()
+
+        // The row is the setting, said back, on the page the file was picked
+        // on — a page that has to be left before it admits what it is showing
+        // is a page saying something untrue.
+        expect(file, toBeShowing: "Daily.md")
+
         backToTheSettings(in: app)
         app.buttons["Done"].tap()
 
@@ -542,6 +549,15 @@ final class WritingTheDayTests: AujourUITestCase {
         let noTemplate = app.buttons["noContentTemplate"]
         scrollTo(noTemplate, in: app)
         noTemplate.tap()
+
+        // Said back here too, and the way out of the setting goes with it:
+        // there is no template left to ask for none of.
+        expect(app.buttons["contentTemplateFile"], toBeShowing: "None")
+        XCTAssertTrue(
+            noTemplate.waitForNonExistence(timeout: 5),
+            "the page still offers no template when there is none"
+        )
+
         backToTheSettings(in: app)
         app.buttons["Done"].tap()
         expect(editor, toHaveValue: "")

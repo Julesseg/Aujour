@@ -669,6 +669,49 @@ class AujourUITestCase: XCTestCase {
         )
     }
 
+    /// Long-presses a day of the open month, and answers the offer to delete
+    /// its Entry.
+    ///
+    /// One helper for both calendars: a day is long-pressed the same way on
+    /// the pill and in the sidebar, and there is one offer in the app.
+    ///
+    /// - Parameter cell: the day cell, already on screen.
+    func deleteTheEntry(on cell: XCUIElement, in app: XCUIApplication) {
+        cell.press(forDuration: 1.0)
+        XCTAssertTrue(
+            app.buttons["deleteEntry"].firstMatch.waitForExistence(timeout: 10),
+            "long-pressing a day that was written offered nothing"
+        )
+        tapByFrame("deleteEntry", in: app)
+        tapByFrame("confirmDeleteEntry", in: app)
+    }
+
+    /// Taps a button by where it came out rather than by tapping the element.
+    ///
+    /// A context menu and a confirmation dialog both put each of their actions
+    /// into the accessibility tree twice — a Button inside a Button, both
+    /// carrying the identifier — so `app.buttons[id].tap()` refuses as
+    /// ambiguous however the query is narrowed. The frame is unambiguous
+    /// because both copies came out in the same place.
+    func tapByFrame(
+        _ identifier: String,
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let matches = app.descendants(matching: .any).matching(identifier: identifier)
+        XCTAssertTrue(
+            waitFor { matches.count > 0 && matches.element(boundBy: 0).frame.height > 0 },
+            "\(identifier) never came up",
+            file: file,
+            line: line
+        )
+        let frame = matches.element(boundBy: 0).frame
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: frame.midX, dy: frame.midY))
+            .tap()
+    }
+
     /// The 15th of the month a day falls in.
     func theMiddleOf(_ day: Date) -> Date {
         var parts = Calendar.current.dateComponents([.year, .month], from: day)

@@ -20,6 +20,15 @@ struct ContentView: View {
     /// Where a sheet rises from: the one button on the bar that summons them.
     @Namespace private var sheets
 
+    /// Why a day the user asked to delete is still there, while they are being
+    /// told about it.
+    ///
+    /// An alert and not the notice along the bottom of a page, because this is
+    /// about a thing they asked for once and watched not happen — a line under
+    /// the words would be a sentence about a folder appearing beside a day that
+    /// looks exactly as it did before they asked.
+    @State private var deletionProblem: StorageProblem?
+
     /// The day whose sheet asking how to send it is up, and `nil` the rest of
     /// the time.
     ///
@@ -178,6 +187,27 @@ struct ContentView: View {
     private func pick(_ day: JournalDay) {
         guard let calendar = journal.calendar else { return }
         move(forwards: day > calendar.dayBeingWritten) { calendar.pick(day) }
+    }
+
+    /// Deletes a day's Entry, after the calendar has asked and been answered.
+    ///
+    /// Everything a day leaving the folder changes is the Journal's — see
+    /// ``Journal/deleteTheEntry(for:onScreenIn:)``. What is this screen's is
+    /// the two things only it knows: which editor is over that day, and what
+    /// to do when the folder would not let go of it.
+    private func deleteTheEntry(for day: JournalDay) {
+        guard let calendar = journal.calendar else { return }
+        // Held before anything is awaited: which editor is over this day is a
+        // question about now, and the answer changes while the folder works.
+        let pageOverIt = day == calendar.dayBeingWritten ? entryOnScreen?.editor : nil
+
+        Task {
+            // Said rather than swallowed. A day the user watched themselves ask
+            // to delete, which is still there, is the one outcome they would
+            // try again — and try again on a file that may by then be somebody
+            // else's.
+            deletionProblem = await journal.deleteTheEntry(for: day, onScreenIn: pageOverIt)
+        }
     }
 
     /// Moves the journal a day, which is what a finger drawn sideways across
@@ -417,6 +447,7 @@ struct ContentView: View {
                 calendar: calendar,
                 accent: appearance.accent,
                 pick: pick,
+                deleteTheEntry: deleteTheEntry,
                 // Written down before the folder is read, for the same reason
                 // the pill does it: the marks are a scan of the folder, and a
                 // day being filled in this second is a day whose file is not
@@ -542,6 +573,7 @@ struct ContentView: View {
                             accent: appearance.accent,
                             openedTo: $pill,
                             pick: pick,
+                            deleting: deleteTheEntry,
                             turning: turn,
                             // Written down before the month is read: the marks
                             // are a scan of the folder, and a day being filled
@@ -671,6 +703,24 @@ struct ContentView: View {
         // by a search — a day reached by what was written in it is set the
         // same way as the day reached by when it was.
         .environment(\.journalLayout, layout)
+        // A day the user asked to delete and that is still there. Nothing else
+        // in the app puts an alert in front of anybody — the failures a journal
+        // has are about the folder, and the answer to them is to go on typing
+        // while the app keeps trying. This one is not: it is one action, asked
+        // for once, that did not happen, and the day still sitting there marked
+        // is the app saying nothing at all.
+        .alert(
+            deletionProblem?.message ?? "",
+            isPresented: Binding(
+                get: { deletionProblem != nil },
+                set: { if !$0 { deletionProblem = nil } }
+            ),
+            presenting: deletionProblem
+        ) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { problem in
+            Text(problem.suggestion)
+        }
         .task { await journal.open() }
         // A journal that has been reopened — a folder changed, a Path Template
         // changed — is a new calendar over new files, and a day held from the

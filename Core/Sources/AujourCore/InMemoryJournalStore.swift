@@ -8,11 +8,11 @@ import Foundation
 /// every platform `swift test` runs on.
 ///
 /// It is a fake rather than a stub: the answers come from actually keeping the
-/// files, so a listing reflects every write and move, content round-trips
-/// byte-for-byte, and the refusals a real folder makes — reading what is not
-/// there, moving onto something that is, putting a file where a folder is —
-/// are made here too. A test that passes against this store is making a claim
-/// about behavior over a folder, not about this class.
+/// files, so a listing reflects every write, move and delete, content
+/// round-trips byte-for-byte, and the refusals a real folder makes — reading
+/// or deleting what is not there, moving onto something that is, putting a
+/// file where a folder is — are made here too. A test that passes against this
+/// store is making a claim about behavior over a folder, not about this class.
 ///
 /// Three things a real folder has are deliberately missing. Two because the
 /// domain does not decide them: modification dates (divergence is decided by
@@ -82,6 +82,10 @@ public actor InMemoryJournalStore: JournalStore {
         // the one the caller is asking about a file at.
         try files.move(from: RelativePath(source), to: RelativePath(destination))
     }
+
+    public func delete(at relativePath: String) throws(JournalStoreError) {
+        try files.remove(at: RelativePath(relativePath))
+    }
 }
 
 /// The files themselves, as a value.
@@ -123,6 +127,15 @@ private struct FileTable {
             throw JournalStoreError.fileAlreadyExists(path.string)
         }
         contents[path.string] = data
+    }
+
+    mutating func remove(at path: RelativePath) throws(JournalStoreError) {
+        // A folder is not a file, so a path some file merely sits under is
+        // nothing to remove — the same answer a real folder gives, and not
+        // the one that empties a subtree.
+        guard contents.removeValue(forKey: path.string) != nil else {
+            throw JournalStoreError.fileNotFound(path.string)
+        }
     }
 
     mutating func move(

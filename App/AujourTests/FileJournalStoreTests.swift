@@ -188,6 +188,76 @@ struct FileJournalStoreTests {
         }
     }
 
+    @Test("a deleted file leaves the folder, and nothing beside it does")
+    func deletingRemovesOneFile() async throws {
+        try await withTemporaryFolder { root in
+            try root.seed("Walked to the market.\n", at: "2026/03/2026-03-01.md")
+            try root.seed("Rain all day.\n", at: "2026/03/2026-03-14.md")
+            try root.seed("A parked divergence.\n", at: "2026/03/2026-03-14_1.md")
+            let store: any JournalStore = FileJournalStore(root: root)
+
+            try await store.delete(at: "2026/03/2026-03-14.md")
+
+            #expect(
+                try await store.listFiles() == [
+                    "2026/03/2026-03-01.md",
+                    "2026/03/2026-03-14_1.md",
+                ]
+            )
+            #expect(try await store.fileExists(at: "2026/03/2026-03-14.md") == false)
+        }
+    }
+
+    @Test("the folder a deleted file was in stays, empty or not")
+    func deletingLeavesTheFoldersAlone() async throws {
+        // A vault's folders are shaped by more than this app, and an empty
+        // `2026/03` is not a mess for Aujour to tidy up after somebody.
+        try await withTemporaryFolder { root in
+            try root.seed("Rain all day.\n", at: "2026/03/2026-03-14.md")
+            let store: any JournalStore = FileJournalStore(root: root)
+
+            try await store.delete(at: "2026/03/2026-03-14.md")
+
+            #expect(try await store.listFiles().isEmpty)
+            var isDirectory: ObjCBool = false
+            #expect(
+                FileManager.default.fileExists(
+                    atPath: root.appending(path: "2026/03").path,
+                    isDirectory: &isDirectory
+                )
+            )
+            #expect(isDirectory.boolValue)
+        }
+    }
+
+    @Test("deleting a file that is not there fails, rather than passing quietly")
+    func deletingAMissingFileFails() async throws {
+        try await withTemporaryFolder { root in
+            try root.seed("Walked to the market.\n", at: "day.md")
+            let store: any JournalStore = FileJournalStore(root: root)
+
+            await #expect(throws: JournalStoreError.fileNotFound("missing.md")) {
+                try await store.delete(at: "missing.md")
+            }
+
+            #expect(try await store.listFiles() == ["day.md"])
+        }
+    }
+
+    @Test("deleting a folder deletes nothing — a folder is not a file")
+    func deletingAFolderIsRefused() async throws {
+        try await withTemporaryFolder { root in
+            try root.seed("Walked to the market.\n", at: "2026/03/2026-03-01.md")
+            let store: any JournalStore = FileJournalStore(root: root)
+
+            await #expect(throws: JournalStoreError.fileNotFound("2026/03")) {
+                try await store.delete(at: "2026/03")
+            }
+
+            #expect(try await store.listFiles() == ["2026/03/2026-03-01.md"])
+        }
+    }
+
     @Test("attachment bytes survive the round trip untouched")
     func binaryContentRoundTrips() async throws {
         try await withTemporaryFolder { root in
@@ -329,6 +399,22 @@ struct FileJournalStoreRealFolderTests {
         }
     }
 
+    @Test("a day iCloud has not sent down is still a day that can be deleted")
+    func anEvictedFileCanBeDeletedWithoutWaitingForIt() async throws {
+        try await withTemporaryFolder { root in
+            // Every other operation waits for the download, because every
+            // other one needs the words. This one is throwing them away.
+            try root.seed("", at: "2026/03/.2026-03-01.md.icloud")
+            let store: any JournalStore = FileJournalStore(root: root)
+            #expect(try await store.fileExists(at: "2026/03/2026-03-01.md"))
+
+            try await store.delete(at: "2026/03/2026-03-01.md")
+
+            #expect(try await store.fileExists(at: "2026/03/2026-03-01.md") == false)
+            #expect(try await store.listFiles().isEmpty)
+        }
+    }
+
     @Test("a folder that cannot be read through is an error, not a shorter journal")
     func aFolderThatCannotBeReadThroughFailsRatherThanListingLess() async throws {
         try await withTemporaryFolder { root in
@@ -364,6 +450,7 @@ struct FileJournalStoreRealFolderTests {
             .readFailed(path: "day.md", reason: "permission denied"),
             .writeFailed(path: "day.md", reason: "disk full"),
             .moveFailed(source: "a.md", destination: "b.md", reason: "permission denied"),
+            .deleteFailed(path: "day.md", reason: "permission denied"),
         ]
 
         for failure in failures {

@@ -198,6 +198,10 @@ private final class TallyingJournalStore: JournalStore, @unchecked Sendable {
         try await folder.move(from: source, to: destination)
     }
 
+    func delete(at relativePath: String) async throws {
+        try await folder.delete(at: relativePath)
+    }
+
     /// A write nobody in Aujour made: Obsidian saving the same file, or iCloud
     /// bringing another device's version down. Untallied, because the tally is
     /// what Aujour itself wrote.

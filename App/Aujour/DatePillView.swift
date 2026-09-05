@@ -27,6 +27,11 @@ struct DatePillView: View {
     /// day was chosen, and the screen behind it is the one that is over a day.
     let pick: (JournalDay) -> Void
 
+    /// What deleting a day's Entry does. The pill does not delete files
+    /// either — it says which day was long-pressed and confirmed, and the
+    /// screen behind it is what owns the folder.
+    let deleteTheEntry: (JournalDay) -> Void
+
     /// What walking the journal a day does, as a number of days: the day
     /// before is -1 and the day after is 1.
     ///
@@ -58,6 +63,11 @@ struct DatePillView: View {
     /// outside the glass is a way of walking a day, and this is back at nought
     /// by the time anything could ask it a question.
     @State private var swipe = DaySwipe()
+
+    /// The day a long press has offered to delete, while the question is being
+    /// asked. Here rather than in a cell because the answer outlives both the
+    /// menu and the cell the press landed on.
+    @State private var theDayBeingDeleted: JournalDay?
 
     /// How wide the pill is when it is only the pill — measured rather than
     /// guessed, because it is a sentence in the reader's language at the
@@ -166,6 +176,7 @@ struct DatePillView: View {
             await settleTheDayOnScreen()
             await calendar.scan()
         }
+        .askingBeforeADayGoes($theDayBeingDeleted, delete: deleteTheEntry)
     }
 
     // MARK: - The pill itself
@@ -695,7 +706,16 @@ struct DatePillView: View {
                     // day, so that a scan arriving mid-drag changes what a cell
                     // says and never which cell it is.
                     ForEach(Array(week.enumerated()), id: \.offset) { _, day in
-                        DayCell(day: day, accent: accent, side: rowHeight) { pickAndClose(day.day) }
+                        DayCell(
+                            day: day,
+                            accent: accent,
+                            side: rowHeight,
+                            pick: { pickAndClose(day.day) },
+                            // Without closing the pill, unlike a pick: the day
+                            // was not chosen, and the mark coming off the grid
+                            // is what the reader asked to see happen.
+                            offerToDelete: { theDayBeingDeleted = day.day }
+                        )
                     }
                 }
                 .frame(height: rowHeight)
@@ -878,6 +898,7 @@ extension View {
         accent: Accent,
         openedTo pill: Binding<DatePill>,
         pick: @escaping (JournalDay) -> Void,
+        deleting deleteTheEntry: @escaping (JournalDay) -> Void,
         turning turn: @escaping (Int) -> Void,
         settling settleTheDayOnScreen: @escaping () async -> Void,
         @ViewBuilder beside: @escaping () -> Beside
@@ -898,6 +919,7 @@ extension View {
                     calendar: calendar,
                     accent: accent,
                     pick: pick,
+                    deleteTheEntry: deleteTheEntry,
                     turn: turn,
                     settleTheDayOnScreen: settleTheDayOnScreen,
                     pill: pill,
@@ -917,6 +939,7 @@ private struct DatePillOverThePage<Beside: View>: View {
     let calendar: JournalCalendar
     let accent: Accent
     let pick: (JournalDay) -> Void
+    let deleteTheEntry: (JournalDay) -> Void
     let turn: (Int) -> Void
     let settleTheDayOnScreen: () async -> Void
 
@@ -952,6 +975,7 @@ private struct DatePillOverThePage<Beside: View>: View {
                 calendar: calendar,
                 accent: accent,
                 pick: pick,
+                deleteTheEntry: deleteTheEntry,
                 turn: turn,
                 settleTheDayOnScreen: settleTheDayOnScreen,
                 pill: $pill,
@@ -1032,6 +1056,7 @@ private struct RoomForTheShutPill: View {
         calendar: previewCalendar(),
         accent: .driftwood,
         pick: { _ in },
+        deleteTheEntry: { _ in },
         turn: { _ in },
         settleTheDayOnScreen: {},
         pill: $pill,
@@ -1056,6 +1081,7 @@ private struct RoomForTheShutPill: View {
         accent: .driftwood,
         openedTo: $pill,
         pick: { calendar.pick($0) },
+        deleting: { day in Task { try? await calendar.deleteTheEntry(for: day) } },
         turning: { $0 > 0 ? calendar.showNextDay() : calendar.showPreviousDay() },
         settling: {},
         beside: {

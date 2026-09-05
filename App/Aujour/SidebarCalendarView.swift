@@ -33,6 +33,11 @@ struct SidebarCalendarView: View {
     /// day.
     let pick: (JournalDay) -> Void
 
+    /// What deleting a day's Entry does. The sidebar does not delete files
+    /// either — it says which day was long-pressed and confirmed, and the
+    /// screen around it is what owns the folder.
+    let deleteTheEntry: (JournalDay) -> Void
+
     /// What has to be written down before the folder is read.
     ///
     /// The marks are a scan of the folder and nothing else (ADR 0001), so a
@@ -56,6 +61,10 @@ struct SidebarCalendarView: View {
     /// The pill's own number, because this is the pill: a day is the same size
     /// to aim a finger at whichever calendar it is on.
     @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 44
+
+    /// The day a long press has offered to delete, while the question is being
+    /// asked. Here rather than in a cell because the answer outlives the menu.
+    @State private var theDayBeingDeleted: JournalDay?
 
     /// How tall the row of weekday initials is, and how tall the month's own
     /// row is — the pill's numbers again, for the same reason.
@@ -128,6 +137,7 @@ struct SidebarCalendarView: View {
             await settleTheDayOnScreen()
             await calendar.scan()
         }
+        .askingBeforeADayGoes($theDayBeingDeleted, delete: deleteTheEntry)
     }
 
     /// The pane itself: the day, the month, and the grid under them.
@@ -229,7 +239,13 @@ struct SidebarCalendarView: View {
                     // day, so that a scan arriving changes what a cell says
                     // and never which cell it is.
                     ForEach(Array(week.enumerated()), id: \.offset) { _, day in
-                DayCell(day: day, accent: accent, side: side) { pick(day.day) }
+                        DayCell(
+                            day: day,
+                            accent: accent,
+                            side: side,
+                            pick: { pick(day.day) },
+                            offerToDelete: { theDayBeingDeleted = day.day }
+                        )
                     }
                 }
                 .frame(height: side)
@@ -255,6 +271,7 @@ struct SidebarCalendarView: View {
             calendar: calendar,
             accent: .driftwood,
             pick: { calendar.pick($0) },
+            deleteTheEntry: { day in Task { try? await calendar.deleteTheEntry(for: day) } },
             settleTheDayOnScreen: {},
             atMost: 500
         )

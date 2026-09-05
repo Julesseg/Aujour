@@ -115,6 +115,31 @@ arrived and finds it locked there too. That walk is the pill's, and so the
 page presentation's alone (see Layout): a window with the month permanently
 beside it has the grid to step through instead.
 
+The Calendar is also the one way a day is taken back *out* — see Deleting a
+Day.
+
+### Deleting a Day
+Removing a Journal Day's Entry from the Journal Root: the file goes, and the
+day goes back to being one nobody has written, ready to be backfilled like any
+other. The only thing in Aujour that removes a file. Everything else that
+changes the shape of the folder moves — Migration moves, divergence parks —
+so a folder shared with an Obsidian vault loses a file only where a person
+pointed at the day it belongs to.
+
+Offered on the Calendar and nowhere else, because that is where a day is a
+thing that can be pointed at: long-pressing a day that has an Entry offers it,
+and the offer is confirmed before anything happens. A day with no Entry offers
+nothing. Which file a day is stays the current Path Template's answer and
+nobody else's (ADR 0002), which is why the deletion is the Calendar's rather
+than a screen's own idea of a path.
+
+The file is removed and not put anywhere: an iOS app's container has no
+trash, and a trash of Aujour's own inside the Journal Root would be the app
+keeping a copy of a day somebody asked it to be rid of. So the offer is made
+behind a long press, where nobody reaches it by aiming badly, and confirmed in
+words that say what happens — the entry's file leaves the journal folder, and
+Aujour cannot undo it.
+
 ### Backfill
 Writing a past Journal Day after the fact: opening a day whose Entry does not
 exist and spawning it for *that* day, so a Monday nobody wrote on is not a

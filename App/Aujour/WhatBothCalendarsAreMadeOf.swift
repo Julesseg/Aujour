@@ -32,6 +32,16 @@ struct DayCell: View {
 
     let pick: () -> Void
 
+    /// What a long press on a day that was written on offers, and `nil` where
+    /// there is nothing to offer — a day with no Entry, or a calendar drawn
+    /// somewhere nothing can be deleted from.
+    ///
+    /// Behind a press and not a control of its own, because it is the one
+    /// thing on this screen nobody should be able to do by aiming badly: a
+    /// cell is a seventh of a phone wide, seven of them sit in a row, and the
+    /// tap they are all *for* is the way in to writing the day.
+    var offerToDelete: (() -> Void)?
+
     private var look: DayCellLook { DayCellLook(day, accent: accent) }
 
     var body: some View {
@@ -75,6 +85,72 @@ struct DayCell: View {
         .accessibilityLabel(day.day.spelledOut(withYear: true))
         .accessibilityValue(day.isJournaled ? "Written" : "Not written")
         .accessibilityAddTraits(day.isBeingWritten ? [.isSelected] : [])
+        // Only over a day there is an Entry to delete: an empty builder is no
+        // menu, and a press on a day nobody wrote does nothing at all. A menu
+        // that came up on every cell with its one row greyed out would be
+        // forty-two squares answering a press by saying no.
+        //
+        // Always attached rather than branched on, so that a scan arriving
+        // changes what a cell offers and never which cell it is — the same
+        // reason both grids identify their cells by place (`ForEach`).
+        .contextMenu(menuItems: theOfferToDelete)
+    }
+
+    @ViewBuilder private func theOfferToDelete() -> some View {
+        if day.isJournaled, let offerToDelete {
+            Button("Delete Entry", systemImage: "trash", role: .destructive, action: offerToDelete)
+                .accessibilityIdentifier("deleteEntry")
+        }
+    }
+}
+
+/// The question asked before a day's Entry is deleted, and the same question
+/// on both calendars.
+///
+/// Asked at all because of what is being deleted. Everywhere else in Aujour a
+/// mistake is a keystroke — a day written into is a day that can be written
+/// over — and this is the one place where a slip takes words out of the folder
+/// and Aujour has nothing to put back (ADR 0001: the files are the journal).
+/// So the long press offers, and this is where it is meant.
+///
+/// The day says its own name in the question. A grid is forty-two squares of
+/// two digits and a menu that came up over the wrong one looks exactly like a
+/// menu that came up over the right one; a date spelled out is the one thing
+/// that tells them apart.
+///
+/// Says what it does and does not dress it up. The file is removed and not
+/// put anywhere — an iOS app's container has no trash, and one of Aujour's own
+/// inside the Journal Root would be the app quietly keeping a copy of a day
+/// somebody asked it to be rid of. So the sentence is the plain one.
+struct TheQuestionBeforeADayGoes: ViewModifier {
+    /// The day being asked about, and `nil` whenever nothing is.
+    @Binding var day: JournalDay?
+
+    let delete: (JournalDay) -> Void
+
+    func body(content: Content) -> some View {
+        content.confirmationDialog(
+            day.map { $0.spelledOut(withYear: true) } ?? "",
+            isPresented: Binding(get: { day != nil }, set: { if !$0 { day = nil } }),
+            titleVisibility: .visible,
+            presenting: day
+        ) { day in
+            Button("Delete Entry", role: .destructive) { delete(day) }
+                .accessibilityIdentifier("confirmDeleteEntry")
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("This deletes the entry's file from your journal folder. Aujour can't undo it.")
+        }
+    }
+}
+
+extension View {
+    /// Asks before a day's Entry is deleted — see ``TheQuestionBeforeADayGoes``.
+    func askingBeforeADayGoes(
+        _ day: Binding<JournalDay?>,
+        delete: @escaping (JournalDay) -> Void
+    ) -> some View {
+        modifier(TheQuestionBeforeADayGoes(day: day, delete: delete))
     }
 }
 

@@ -482,4 +482,8 @@ private actor AFolderThatHoldsTheFirstReader: JournalStore {
     func move(from source: String, to destination: String) async throws {
         try await folder.move(from: source, to: destination)
     }
+
+    func delete(at relativePath: String) async throws {
+        try await folder.delete(at: relativePath)
+    }
 }

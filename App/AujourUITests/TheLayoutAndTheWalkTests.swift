@@ -87,6 +87,30 @@ final class TheLayoutAndTheWalkTests: AujourUITestCase {
         )
     }
 
+    /// The same offer on the other calendar, because there is one offer in the
+    /// app: a day held in the sidebar is deleted exactly as a day held on the
+    /// pill is, and a reader who turns their iPad on its side should not have
+    /// to learn it again.
+    func testAWrittenDayIsDeletedByHoldingItInTheSidebar() throws {
+        let written = try XCTUnwrap(dayOfTheMonthOnScreen(1))
+        let app = launchApp(
+            layout: .sidebar,
+            entries: "\(entryName(for: written)) Walked to the market with Robin."
+        )
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+
+        showInTheSidebar(app, written)
+        let cell = app.buttons["day-\(entryName(for: written))"]
+        expect(cell, toHaveValue: "Written")
+
+        deleteTheEntry(on: cell, in: app)
+
+        expect(cell, toHaveValue: "Not written")
+    }
+
     /// The other half of the sidebar layout: the day beside the calendar is
     /// *set* rather than stretched.
     ///

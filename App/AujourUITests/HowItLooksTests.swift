@@ -133,7 +133,7 @@ final class HowItLooksTests: AujourUITestCase {
     func testTheAppearancePageHoldsTogetherAtTheLargestTextSize() throws {
         let atTheFactorySetting = launchApp()
         openHowItLooks(in: atTheFactorySetting)
-        let smallPrint = atTheFactorySetting.staticTexts["appearanceIsDeviceLocal"]
+        let smallPrint = atTheFactorySetting.staticTexts["accentInUse"]
         scrollTo(smallPrint, in: atTheFactorySetting)
         let ordinaryHeight = smallPrint.frame.height
         atTheFactorySetting.terminate()
@@ -141,34 +141,42 @@ final class HowItLooksTests: AujourUITestCase {
         let app = launchApp(textSize: "UICTContentSizeCategoryAccessibilityXXXL")
         openHowItLooks(in: app)
 
-        // It grew. Measured on the smallest lettering on the page, because the
-        // caption is the one a reader who needs this most cannot read, and the
-        // one an app is likeliest to have pinned.
-        let turnedUp = app.staticTexts["appearanceIsDeviceLocal"]
-        scrollTo(turnedUp, in: app)
-        XCTAssertGreaterThan(
-            turnedUp.frame.height, ordinaryHeight,
-            "the page's small print did not grow with the system text size — "
-                + "it was \(ordinaryHeight) points tall and is now \(turnedUp.frame.height)"
-        )
-
-        // And nothing on it has climbed on top of anything else, or slid off
-        // the side. Checked over what is on screen at each stop of a scroll
-        // down the page, since an element that has not been scrolled to has no
+        // Nothing on it has climbed on top of anything else, or slid off the
+        // side. Checked over what is on screen at each stop of a scroll down
+        // the page, since an element that has not been scrolled to has no
         // frame worth comparing.
-        // Named by what is in it rather than taken as the first one on screen:
-        // this suite runs on iPad too, where the page is inside a form sheet
-        // and "the first scroll view" is not a promise anybody made.
-        let page = app.scrollViews.containing(.segmentedControl, identifier: "appearanceTheme")
-            .firstMatch
-        XCTAssertTrue(page.waitForExistence(timeout: 10), "the appearance page has no scroll view")
-        page.swipeDown(velocity: .slow)
+        //
+        // Taken first, and from the top the page opens at, rather than after
+        // scrolling somewhere and swiping back up. The page is a grouped
+        // `Form` inside a sheet now, and a downward swipe on a list already at
+        // its top is the gesture that dismisses the sheet — the page it was
+        // measuring goes with it.
+        //
+        // Asked for by kind and not by name, since what scrolls is a list here
+        // and a scroll view on the screens that are still hand-drawn.
+        let page = theScroller(in: app)
+        XCTAssertTrue(
+            page.waitForExistence(timeout: 10), "the appearance page has nothing to scroll"
+        )
 
         for _ in 0..<4 {
             assertTheLayoutHolds(on: page)
             page.swipeUp(velocity: .fast)
         }
         assertTheLayoutHolds(on: page)
+
+        // And it grew. Measured on the accent's name, which is now the
+        // smallest lettering the page has: the notes it used to be measured on
+        // are gone, and this is the one line left that is neither a heading
+        // the list sets itself nor the specimen, which follows the editor's
+        // own size control rather than the system's.
+        let turnedUp = app.staticTexts["accentInUse"]
+        scrollTo(turnedUp, in: app)
+        XCTAssertGreaterThan(
+            turnedUp.frame.height, ordinaryHeight,
+            "the page's smallest lettering did not grow with the system text size — "
+                + "it was \(ordinaryHeight) points tall and is now \(turnedUp.frame.height)"
+        )
     }
 
     /// The other half of what S/M/L/XL is: a *writing* preference, so it moves

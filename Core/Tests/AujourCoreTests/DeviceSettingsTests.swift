@@ -135,6 +135,36 @@ struct TimeOfDayTests {
         #expect(TimeOfDay(hour: -1, minute: 0) == nil)
         #expect(TimeOfDay(hour: 23, minute: 59) != nil)
     }
+
+    /// The round trip a time picker makes: out to the instant it shows, and
+    /// back from whatever the wheels were left on. Every minute of the day and
+    /// not a sample of them, because the setting is now any of them.
+    @Test("every minute of the day comes back off the clock face unchanged")
+    func everyMinuteSurvivesTheClockFace() {
+        for hour in 0..<24 {
+            for minute in 0..<60 {
+                let time = TimeOfDay(hour: hour, minute: minute)!
+                #expect(TimeOfDay(clockFace: time.clockFace) == time)
+            }
+        }
+    }
+
+    /// A clock face is read by its hands and nothing else — which is what
+    /// keeps a reminder off the calendar's two awkward days.
+    @Test("a clock face is read by its hands, whatever day is under them")
+    func onlyTheHandsAreRead() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeOfDay.clockFaceZone
+
+        // The morning European clocks jump: half past two does not happen in
+        // Paris that day, and it is still a time somebody can be reminded at.
+        let theMorningTheClocksGoForward = calendar.date(
+            from: DateComponents(year: 2026, month: 3, day: 29, hour: 2, minute: 30, second: 47)
+        )!
+
+        let halfPastTwo = TimeOfDay(clockFace: theMorningTheClocksGoForward)
+        #expect(halfPastTwo == TimeOfDay(hour: 2, minute: 30))
+    }
 }
 
 /// Collects what an observer was told, so a test can assert on the sequence.

@@ -118,16 +118,19 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         editor.typeText("Written in Aujour's own folder.")
         Thread.sleep(forTimeInterval: 4)
 
-        // Where a journal nobody has moved lives.
+        // Where a journal nobody has moved lives — a step in from the sheet,
+        // on the folder's own page.
         openSettings(app)
-        XCTAssertEqual(app.staticTexts["journalRootLocation"].label, aujoursOwnFolder)
-        XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
+        openTheJournalFolder(in: app)
+        let location = app.buttons["journalRootLocation"]
+        expect(location, toBeShowing: aujoursOwnFolder)
 
-        // Pointed at a folder of the user's own: the journal is that folder
-        // from now on, and it is empty because that folder is.
-        app.buttons["chooseCustomFolder"].tap()
-        expect(app.staticTexts["journalRootLocation"], toHaveLabel: vault)
-        XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "0 entries")
+        // Pointed at a folder of the user's own — the row opens the picker,
+        // and launched with a folder to pick, the picker is the folder the
+        // test named. The journal is that folder from now on.
+        location.tap()
+        expect(location, toBeShowing: vault)
+        backToTheSettings(in: app)
         app.buttons["Done"].tap()
 
         // Today is a day nobody has written on there, and writing in it
@@ -146,14 +149,14 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, "Written in the folder I picked.")
         openSettings(app)
-        XCTAssertEqual(app.staticTexts["journalRootLocation"].label, vault)
-        XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
+        openTheJournalFolder(in: app)
+        expect(location, toBeShowing: vault)
 
         // And the way back: Aujour's own folder, with everything that was
         // written there still in it.
         app.buttons["useAujoursOwnFolder"].tap()
-        expect(app.staticTexts["journalRootLocation"], toHaveLabel: aujoursOwnFolder)
-        XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
+        expect(location, toBeShowing: aujoursOwnFolder)
+        backToTheSettings(in: app)
         app.buttons["Done"].tap()
 
         let backHome = app.textViews["entryEditor"]
@@ -200,11 +203,6 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         XCTAssertEqual(showIt.label, "Show in Files")
         XCTAssertTrue(showIt.isHittable)
 
-        // The Parked File is beside the journal and not in it: one day
-        // written, one entry, whatever else is in the folder (ADR 0002).
-        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
-        app.buttons["Done"].tap()
-
         // Dismissible, because the file itself is the lasting notice.
         app.buttons["dismissParkedFileNotice"].tap()
         XCTAssertFalse(notice.waitForExistence(timeout: 3))
@@ -221,7 +219,7 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         )
 
         openSettings(app)
-        XCTAssertEqual(app.staticTexts["journalEntryCount"].label, "1 entry")
+        openTheEntryPath(in: app)
         typeEntryPath("[Journal]/YYYY-MM-DD", into: app)
 
         // Changing it is an offer, not a change: the files are still where
@@ -246,11 +244,10 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         XCTAssertEqual(summary.label, "1 entry moved.")
         app.buttons["dismissMigrationSummary"].tap()
 
-        // Still one entry, and the same words — moved, not copied and not
-        // lost. The count is read from the folder, so this is the file being
-        // where the new template says.
-        expect(app.staticTexts["journalEntryCount"], toHaveLabel: "1 entry")
+        // The same words, read from where the new template says — moved, not
+        // lost.
         XCTAssertEqual(app.textFields["entryPathField"].value as? String, "[Journal]/YYYY-MM-DD")
+        backToTheSettings(in: app)
         app.buttons["Done"].tap()
 
         let editor = app.textViews["entryEditor"]
@@ -258,10 +255,14 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         expect(editor, toHaveValue: "Walked to the market.")
 
         // And the entry path outlives the launch, the way every other
-        // journal-shaping setting does (ADR 0003).
+        // journal-shaping setting does (ADR 0003) — which is the day still
+        // being found under it from a cold start.
         relaunch(app)
-        XCTAssertTrue(app.textViews["entryEditor"].waitForExistence(timeout: 30))
-        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
+        let reopened = app.textViews["entryEditor"]
+        XCTAssertTrue(reopened.waitForExistence(timeout: 30))
+        expect(reopened, toHaveValue: "Walked to the market.")
+        openSettings(app)
+        openTheEntryPath(in: app)
         XCTAssertEqual(app.textFields["entryPathField"].value as? String, "[Journal]/YYYY-MM-DD")
     }
 
@@ -273,6 +274,7 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         )
 
         openSettings(app)
+        openTheEntryPath(in: app)
         typeEntryPath("[Journal]/YYYY-MM-DD", into: app)
         app.buttons["changeEntryPath"].tap()
         XCTAssertTrue(
@@ -282,10 +284,9 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
 
         app.buttons["skipMigration"].tap()
 
-        // The old file is still in the folder and is no longer an Entry: the
-        // count is a scan of the folder against the *current* template, and
-        // nothing anywhere else surfaces what was left behind (ADR 0002).
-        expect(app.staticTexts["journalEntryCount"], toHaveLabel: "0 entries")
+        // The old file is still in the folder and is no longer an Entry, and
+        // nothing anywhere surfaces what was left behind (ADR 0002).
+        backToTheSettings(in: app)
         app.buttons["Done"].tap()
 
         // Today, under the new path, is a day nobody has written on.
@@ -314,6 +315,7 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         )
 
         openSettings(app)
+        openTheEntryPath(in: app)
         typeEntryPath("[Journal]/YYYY-MM-DD", into: app)
         app.buttons["changeEntryPath"].tap()
 
@@ -338,7 +340,7 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
 
         // One day, one Entry: the file that was already there. The version
         // Aujour brought is beside it and is not an Entry (ADR 0002).
-        expect(app.staticTexts["journalEntryCount"], toHaveLabel: "1 entry")
+        backToTheSettings(in: app)
         app.buttons["Done"].tap()
 
         let editor = app.textViews["entryEditor"]
@@ -511,112 +513,133 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         XCTAssertEqual(spawned, "# \(todaysEntryName())\n\n## Today\n\n")
     }
 
-    // MARK: - What travels and what stays
+    // MARK: - What the sheet is grouped by
 
-    /// ADR 0003's boundary, made visible: the settings sheet is two groups,
-    /// and which one a setting is in is the whole of what tells the user
-    /// whether changing it reaches their iPad.
+    /// The sheet as the redesign made it: three groups by subject, in one
+    /// order, and every row saying what it is set to.
     ///
-    /// Asked by where each control sits rather than by reading the two
-    /// headings, because the headings are the easy half. A sheet can say
-    /// "these travel" over a group with the theme in it, and it would pass
-    /// every check that only looked for the words.
+    /// Asked by where each control sits and not only by reading the headings,
+    /// because the headings are the easy half — a sheet can say "Files" over a
+    /// group holding the daily reminder and pass every check that looked for
+    /// the words.
     ///
-    /// Every frame is read at one scroll position and none of them is
-    /// scrolled to, which is what makes the comparison a comparison: the
-    /// sections are laid out whether or not they are on screen, and a swipe
-    /// between two readings would be measuring a position before it against a
-    /// position after it.
+    /// Every frame is read at one scroll position and none of them is scrolled
+    /// to, which is what makes the comparison a comparison: the rows are laid
+    /// out whether or not they are on screen, and a swipe between two readings
+    /// would be measuring a position before it against a position after it.
     ///
-    /// The two the design files get wrong are in the travelling list on
-    /// purpose: where photographs go and how they are written are separate
-    /// controls, not one row called "Attachments".
-    func testTheSettingsSayWhichOfThemReachTheOtherDevices() throws {
+    /// The half that would go unnoticed is the values. A sheet of four
+    /// chevrons that named the settings and said nothing about them would look
+    /// tidy and be a menu of doors — the point of grouping by subject is that
+    /// the sheet is a summary of the journal, readable without opening
+    /// anything.
+    func testTheSheetIsGroupedBySubjectAndEveryRowSaysWhatItIsSetTo() throws {
         let app = launchApp()
         openSettings(app)
 
-        let travels = app.staticTexts["journalSettingsSaying"]
-        XCTAssertTrue(
-            travels.waitForExistence(timeout: 10),
-            "the sheet never said which of its settings reach the other devices"
-        )
-        let stays = app.staticTexts["deviceSettingsSaying"]
-        XCTAssertTrue(
-            stays.waitForExistence(timeout: 10),
-            "the sheet never said which of its settings stay on this device"
-        )
-
-        let travelling = travels.frame.minY
-        let onThisDevice = stays.frame.minY
+        let files = app.staticTexts["Files"]
+        XCTAssertTrue(files.waitForExistence(timeout: 10), "the sheet has no Files group")
+        let entries = app.staticTexts["Entries"]
+        XCTAssertTrue(entries.exists, "the sheet has no Entries group")
         XCTAssertLessThan(
-            travelling, onThisDevice,
-            "the two groups are not one above the other — the journal's are at "
-                + "\(travelling) and the device's at \(onThisDevice)"
+            files.frame.minY, entries.frame.minY,
+            "Entries comes before Files — the writing's own settings are above where it lives"
         )
 
-        // Every Journal Setting with a control of its own, under the heading
-        // that promises it travels.
-        let journals: [(String, XCUIElement)] = [
-            ("where each day's entry goes", app.textFields["entryPathField"]),
-            ("what a new day starts from", app.buttons["contentTemplateFile"]),
-            ("how the calendar is written out", app.buttons["dataPlaceholder-events"]),
-            ("how the reminders are written out", app.buttons["dataPlaceholder-reminders"]),
-            ("when the day turns", app.buttons["rolloverHour"]),
-            ("where photos go", app.textFields["attachmentPathField"]),
-            ("how photos are written", app.segmentedControls["embedSyntax"]),
+        // Where the writing lives, in order, each row saying what it is set
+        // to. Read off the end of the row's label, which is where a list puts
+        // a value.
+        //
+        // Two comparisons rather than a range, which would trap on the very
+        // inversion this is checking for.
+        let inFiles: [(String, String)] = [
+            ("openJournalFolder", aujoursOwnFolder),
+            ("openEntryPath", "YYYY/MM/YYYY-MM-DD"),
+            ("openPhotoPath", "[attachments]/YYYY/MM"),
+            ("openContentTemplate", "None"),
         ]
-        for (what, control) in journals {
-            XCTAssertTrue(control.exists, "\(what) is not on the settings sheet at all")
-            // Two comparisons rather than a range, which would trap on the
-            // very inversion this test exists to catch.
-            let y = control.frame.minY
+        var previously = files.frame.minY
+        for (identifier, value) in inFiles {
+            let row = app.buttons[identifier]
+            XCTAssertTrue(row.exists, "\(identifier) is not on the settings sheet at all")
             XCTAssertTrue(
-                y > travelling && y < onThisDevice,
-                "\(what) is not among the settings that travel — it is at \(y), "
-                    + "and that group runs from \(travelling) to \(onThisDevice)"
+                row.frame.minY > previously && row.frame.minY < entries.frame.minY,
+                "\(identifier) is not under Files, in order — it is at \(row.frame.minY), and "
+                    + "that group runs from \(previously) to \(entries.frame.minY)"
             )
+            XCTAssertEqual(
+                theValue(of: row), value,
+                "\(identifier) is not saying what it is set to — it says \(row.label)"
+            )
+            previously = row.frame.minY
         }
 
-        // And every Device Setting under the heading that promises it does
-        // not. The half that would go unnoticed: a sheet with both headings
-        // and everything under the first one says nothing at all.
-        let devices: [(String, XCUIElement)] = [
-            ("how it looks", app.buttons["openHowItLooks"]),
-            ("the daily reminder", app.switches["dailyReminder"]),
+        // What goes into an entry: the two data placeholders showing the token
+        // the user would type, then the day's turn — which acts in place
+        // rather than opening anything.
+        let inEntries: [(String, XCUIElement, String)] = [
+            ("the calendar", app.buttons["dataPlaceholder-events"], "{{events}}"),
+            ("the reminders", app.buttons["dataPlaceholder-reminders"], "{{reminders}}"),
+            ("the day's turn", app.buttons["rolloverHour"], onTheClock(hour: 0)),
         ]
-        for (what, control) in devices {
-            XCTAssertTrue(control.exists, "\(what) is not on the settings sheet at all")
+        previously = entries.frame.minY
+        for (what, row, value) in inEntries {
+            XCTAssertTrue(row.exists, "\(what) is not on the settings sheet at all")
             XCTAssertGreaterThan(
-                control.frame.minY, onThisDevice,
-                "\(what) is being promised to the user's other devices — it is at "
-                    + "\(control.frame.minY), above the line at \(onThisDevice)"
+                row.frame.minY, previously,
+                "\(what) is not under Entries, in order — it is at \(row.frame.minY), and the "
+                    + "row before it is at \(previously)"
             )
+            XCTAssertEqual(
+                theValue(of: row), value,
+                "\(what) is not saying what it is set to — it says \(row.label)"
+            )
+            previously = row.frame.minY
         }
 
-        // And each heading says which kind it is in words, since that is what
-        // a user actually reads; the positions above are only how a test can
-        // tell. Told apart by whether the sentence names *this* device, which
-        // is the difference between them rather than a phrase to match: a
-        // group that stays is about this iPhone by name, and one that travels
-        // cannot be about any device in particular. Two sayings swapped
-        // between the groups fail here, which a check for the word "device"
-        // in both would not.
-        let thisDevice = UIDevice.current.model.lowercased()
+        // The last group is unnamed, so it is read by position alone — and on
+        // the smallest phone it is below the fold, which is a `Form` and not a
+        // stack: a row that has not been scrolled to has not been built and is
+        // not there to be asked. So everything about it is read after the
+        // scroll, against the row above it, and nothing measured before the
+        // scroll is compared with anything measured after.
+        let appearance = app.buttons["openHowItLooks"]
+        scrollTo(appearance, in: app)
+
+        let embeds = app.switches["embedSyntax"]
+        XCTAssertTrue(embeds.exists, "the embed spelling is not on the sheet")
+        XCTAssertLessThan(
+            embeds.frame.minY, appearance.frame.minY,
+            "the embed spelling is below the appearance, so it is not under Entries"
+        )
+        // And the one line that group is allowed: the embed as it would be
+        // written into today.
         XCTAssertTrue(
-            travels.label.lowercased().contains("devices"),
-            "the group that travels does not say where its settings go — it says "
-                + "\"\(travels.label)\""
+            app.staticTexts["embedSyntaxExample"].exists,
+            "the group never showed what an embed would come out as"
         )
-        XCTAssertFalse(
-            travels.label.lowercased().contains(thisDevice),
-            "the group that travels is talking about this \(UIDevice.current.model) "
-                + "in particular — it says \"\(travels.label)\""
+
+        XCTAssertEqual(
+            theValue(of: appearance), "Driftwood",
+            "the appearance row is not saying which accent is in force — it says "
+                + appearance.label
         )
-        XCTAssertTrue(
-            stays.label.lowercased().contains(thisDevice),
-            "the group that stays does not say which device it stays on — it says "
-                + "\"\(stays.label)\""
+        let reminder = app.switches["dailyReminder"]
+        XCTAssertTrue(reminder.exists, "the daily reminder is not on the sheet")
+        XCTAssertGreaterThan(
+            reminder.frame.minY, appearance.frame.minY,
+            "the daily reminder is above the appearance, so the last group is not in order"
         )
+
+        // And nothing explains anything. The three lines the old sheet led
+        // with — what travels, what stays, and which day the rollover hour
+        // makes — are the ones a caption paragraph would come back as.
+        for gone in ["journalSettingsSaying", "deviceSettingsSaying", "rolloverHourDay"] {
+            XCTAssertFalse(
+                app.staticTexts[gone].exists,
+                "\(gone) is back on the sheet — the sheet explains itself again"
+            )
+        }
     }
 
     // MARK: - How the day's own data is written out
@@ -663,9 +686,9 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
 
         replaceTheText(in: "timeFormatField", with: "[at] HH:mm", in: app)
 
-        let change = app.buttons["changeHowItIsWritten"]
-        scrollTo(change, in: app)
-        change.tap()
+        // Not scrolled to: the tick is in the bar, which is on screen however
+        // far down the fields have gone.
+        app.buttons["changeHowItIsWritten"].tap()
 
         // A launch later, because that is the claim: the setting travels
         // through the synced seam, and the next day spawned is written by it.
@@ -698,9 +721,9 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         scrollTo(onAnEmptyDay, in: app)
         XCTAssertEqual(onAnEmptyDay.label, "Nothing on the list.")
 
-        let change = app.buttons["changeHowItIsWritten"]
-        scrollTo(change, in: app)
-        change.tap()
+        // Not scrolled to: the tick is in the bar, which is on screen however
+        // far down the fields have gone.
+        app.buttons["changeHowItIsWritten"].tap()
 
         relaunch(app)
 

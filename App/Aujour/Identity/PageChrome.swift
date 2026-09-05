@@ -1,13 +1,17 @@
 import SwiftUI
 
-/// The pieces of chrome the settings screens are built out of: the small
-/// capitals over a group of controls, the sentence under one saying what it
-/// does, and the line between two groups.
+/// The pieces of chrome a hand-drawn page is built out of: the small capitals
+/// over a group, the sentence under one saying what it does, and the line
+/// between two of them.
 ///
 /// Shared rather than repeated, because they are the identity and not a
-/// screen's own idea: the settings sheet and the appearance page are one door
-/// and a step further in, and a sentence that was `.caption` and `.secondary`
-/// on one and note-on-muted-ink on the other would say they were two apps.
+/// screen's own idea: a sentence that was `.caption` and `.secondary` on one
+/// screen and note-on-muted-ink on the next would say they were two apps.
+///
+/// These used to be the settings screens' own, which is what the file was
+/// called. The settings are a grouped `Form` now and draw none of them — what
+/// is left is the search sheet's result headings, the migration's small print
+/// and the share sheet's caption, which are pages the platform has no row for.
 
 /// The small capitals over a group of controls.
 ///

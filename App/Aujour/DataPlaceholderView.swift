@@ -1,70 +1,17 @@
 import SwiftUI
 import AujourCore
 
-/// The way in to how each of the day's own data writes itself into an Entry —
-/// one row per data placeholder, each opening a page of its own.
-///
-/// A row apiece rather than one page of everything, because the four fields
-/// behind a row are one answer to one question — *what does `{{events}}` put
-/// in my file?* — and two placeholders' worth of them side by side is eight
-/// text fields nobody could tell apart.
-///
-/// The token is the row's value and not its title. What a user is looking for
-/// here is "my calendar"; what they need to see, because it is the thing they
-/// type into their template, is `{{events}}` — so the jargon is shown rather
-/// than used as a label.
-///
-/// These travel. What a placeholder writes is characters in the file, so an
-/// iPhone and an iPad spawning one template must not write the same day two
-/// ways (ADR 0003).
-struct DataPlaceholderSection: View {
-    let journal: Journal
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("What the day already knows")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            ForEach(DataPlaceholder.allCases, id: \.self) { placeholder in
-                NavigationLink {
-                    HowADataPlaceholderIsWrittenView(journal: journal, placeholder: placeholder)
-                } label: {
-                    HStack {
-                        Label(placeholder.inProse, systemImage: placeholder.symbolName)
-                        Spacer()
-                        Text(placeholder.token)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                        Image(systemName: "chevron.right")
-                            .font(.footnote)
-                            .foregroundStyle(.tertiary)
-                    }
-                    // The whole row and not only the words on it: the middle
-                    // of this one is the gap the spacer opened, and a finger
-                    // landing there would be a finger landing on nothing.
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("dataPlaceholder-\(placeholder.rawValue)")
-            }
-
-            // One line and not the paragraph this deserves. The sheet is
-            // scrolled to reach what is under it, and a caption three lines
-            // long at the largest text size is most of a screen of scrolling
-            // between the journal's settings and the device's — the rest of
-            // what there is to say is on the page each row opens.
-            Text("Put these in your template; Aujour fills them in as the day is spawned.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
 /// How one data placeholder writes itself out: what its lines start with, what
 /// a line the day already saw through starts with, the shape its times take,
 /// and what it says on a day that held nothing.
+///
+/// A page apiece rather than one page of everything, because the four fields
+/// behind a row are one answer to one question — *what does `{{events}}` put
+/// in my file?* — and two placeholders' worth of them side by side is eight
+/// text fields nobody could tell apart. The rows that open these pages are on
+/// the settings sheet, under "Entries", showing the token as their value: what
+/// a user is looking for is "events", and what they need to see, because it is
+/// the thing they type into their template, is `{{events}}`.
 ///
 /// Every field is a `FormatField`, for the reason that type exists: these are
 /// format strings nobody can evaluate in their head, and the entry path solved
@@ -80,7 +27,7 @@ struct HowADataPlaceholderIsWrittenView: View {
     let placeholder: DataPlaceholder
 
     /// The four fields as they are being typed, which is not what is in force
-    /// until "Change" is pressed. The time format is held as the pattern the
+    /// until the tick is pressed. The time format is held as the pattern the
     /// user wrote, empty standing for no times at all — the same way an empty
     /// one is stored (`JournalSettings`).
     @State private var linePrefix: String
@@ -125,40 +72,43 @@ struct HowADataPlaceholderIsWrittenView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.apart) {
-                // The one thing that can stop a change here, and the reason it
-                // is said on this page rather than only on the sheet behind:
-                // a folder that will not take today's words takes no settings
-                // change either, and the button that did nothing is this one.
-                if let problem = journal.folderProblem {
+        Form {
+            // The one thing that can stop a change here, and the reason it is
+            // said on this page rather than only on the sheet behind: a folder
+            // that will not take today's words takes no settings change
+            // either, and the tick that did nothing is this page's.
+            if let problem = journal.folderProblem {
+                Section {
                     FolderProblemNotice(problem: problem, identifier: "dataPlaceholderProblem")
                 }
-                aWholeDay
-                Hairline()
-                whatEachLineStartsWith
-                if placeholder.itemsCanBeDone {
-                    Hairline()
-                    whatADoneLineStartsWith
-                }
-                Hairline()
-                howTimesAreWritten
-                Hairline()
-                whatADayThatHeldNothingSays
-                // One button for all four fields — see
-                // `Journal.changeHowItIsWritten`.
-                Button("Change") {
+                .settingsRows()
+            }
+
+            aWholeDay
+            whatEachLineStartsWith
+            if placeholder.itemsCanBeDone {
+                whatADoneLineStartsWith
+            }
+            howTimesAreWritten
+            whatADayThatHeldNothingSays
+        }
+        .settingsPage(titled: placeholder.onScreen)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                // One tick for all four fields — see
+                // `Journal.changeHowItIsWritten`. In the bar, as the two
+                // paths' are, and with a reason of this page's own: four
+                // fields is a page that scrolls on a small phone, and a row
+                // at the bottom of it was a button under the fold.
+                Button {
                     Task { await journal.changeHowItIsWritten(placeholder, to: typed) }
+                } label: {
+                    Label("Change", systemImage: "checkmark")
                 }
-                .buttonStyle(.bordered)
                 .disabled(!isAChange)
                 .accessibilityIdentifier("changeHowItIsWritten")
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Spacing.apart)
         }
-        .navigationTitle(placeholder.inProse)
-        .navigationBarTitleDisplayMode(.inline)
         // A format changed on the iPad arrives here while the page is up
         // (ADR 0003), and the fields are supposed to be showing what is in
         // force rather than their own idea of it.
@@ -174,24 +124,14 @@ struct HowADataPlaceholderIsWrittenView: View {
     /// each would come out as. The fields underneath each explain one line of
     /// it.
     private var aWholeDay: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("A day would read")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
-
+        Section("A day would read") {
             Text(written(example.throughTheDay))
                 .font(.callout.monospaced())
-                .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 10))
                 .textSelection(.enabled)
                 .accessibilityIdentifier("wholeDayExample")
-
-            Text("Written into the day when it's spawned, and yours to edit afterwards.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
+        .settingsRows()
     }
 
     private var whatEachLineStartsWith: some View {
@@ -200,10 +140,6 @@ struct HowADataPlaceholderIsWrittenView: View {
             prompt: "Line marker",
             text: $linePrefix,
             saying: .example(written([example.atAnHour])),
-            guidance: """
-                A markdown list marker keeps this part of the day a list in \
-                Aujour and a list in Obsidian. Leave it empty for plain lines.
-                """,
             identifier: "linePrefix"
         )
     }
@@ -214,12 +150,6 @@ struct HowADataPlaceholderIsWrittenView: View {
             prompt: "Done marker",
             text: $donePrefix,
             saying: .example(example.alreadyDone.map { written([$0]) } ?? ""),
-            guidance: """
-                A day written up later held everything that day's list held, \
-                and what got done is written as done rather than as still to \
-                do — a ticked box says so, and so does anything else you put \
-                here.
-                """,
             identifier: "donePrefix"
         )
     }
@@ -230,12 +160,6 @@ struct HowADataPlaceholderIsWrittenView: View {
             prompt: "Time format",
             text: $timeFormat,
             saying: .example(written([example.atAnHour, example.withoutAnHour])),
-            guidance: """
-                The same date tokens as your entry path — HH:mm for a 24-hour \
-                clock, h:mm a for a 12-hour one. Leave it empty to write no \
-                times at all. Anything the day held without an hour is written \
-                without one either way.
-                """,
             identifier: "timeFormat"
         )
     }
@@ -251,36 +175,25 @@ struct HowADataPlaceholderIsWrittenView: View {
             saying: .example(
                 written([]).isEmpty ? "Nothing at all — the day is left blank there." : written([])
             ),
-            guidance: """
-                Empty leaves no trace of the placeholder having been asked, so \
-                a heading with nothing under it stays a heading with nothing \
-                under it.
-                """,
             identifier: "whenEmpty"
         )
     }
 }
 
 extension DataPlaceholder {
-    /// What the user calls the thing this reads — the row's title, in the
-    /// words somebody looking for it would use rather than the model's.
-    var inProse: String {
+    /// What the row and the page it opens are called — the plainest word for
+    /// the thing this reads, which for both of these is the glossary's own
+    /// (`CONTEXT.md`'s preamble allows that where it is also the plainest).
+    var onScreen: String {
         switch self {
-        case .events: "Your calendar"
-        case .reminders: "Your reminders"
+        case .events: "Events"
+        case .reminders: "Reminders"
         }
     }
 
     /// The placeholder as it is written in a template, which is the one piece
     /// of jargon this screen has to show: it is the thing the user types.
     var token: String { "{{\(rawValue)}}" }
-
-    var symbolName: String {
-        switch self {
-        case .events: "calendar"
-        case .reminders: "checklist"
-        }
-    }
 }
 
 #Preview {

@@ -124,6 +124,46 @@ documented model wins, and what they omit is extrapolated from it.
   "Rollover Hour". Attachment Path Template and embed syntax stay two rows,
   not one, and the sheet is split into "Your journal" (syncs) and "This
   device" so ADR 0003's boundary is visible.
+  **The split is reversed** (grilling session 2026-09-03/04, shipped in #111).
+  Sorting the sheet by where a setting goes answered a question nobody had
+  asked — "does this reach my iPad?" — at the cost of the one they had, and
+  paid for it in prose: two group sayings, a caption under every control, a
+  folder hero, and a screenful before the first setting. The sheet is grouped
+  by **subject** now, in three sections: **Files** (Journal folder, Entry path,
+  Photo path, Template), **Entries** (Events, Reminders, Day starts at,
+  Wiki-style embeds) and an unnamed last one (Appearance, Daily reminder).
+  Nothing on it says which settings sync, deliberately — ADR 0003's boundary is
+  still the model's and still true, it is simply no longer something the layout
+  is spent on.
+  The labels go with it: short and plain, and a glossary term where that is the
+  plainest word ("Entry path", "Template", "Events"), which #112 made allowed.
+  **And the identity's hand-built rows go.** Settings are the one screen where
+  being recognisably iOS beats being recognisably Aujour — a grouped `Form`,
+  system rows, toggles and menu pickers, with the list's background hidden so
+  the sheet's paper still shows through. The four rows that need more than a
+  value open `Form` pages of their own. What survives of the old prose rule:
+  worked examples and problem notices, and nothing else. Every caption
+  paragraph, both group sayings, the "Right now, you're writing…" line and the
+  "Next: …" reminder line are gone, along with the token hints under the format
+  fields.
+  **The journal folder page is one row** (2026-09-04). Its value is the
+  folder as the Files app names it — "iCloud Drive › Aujour", or the picked
+  folder's own name — the same words as the sheet's row, and tapping the row
+  opens the Files picker, where a button under it used to; nothing is asked
+  first, since the picker has its own Cancel and a folder only changes by
+  picking one. A raw
+  path was tried and rejected: a container's worth of hex ahead of the one
+  word that matters, and no path the user could go and find anyway. A picked
+  folder gets the breadcrumb the Files app showed on the way to it, "iCloud
+  Drive › Obsidian › Vault › Journal", read off the path for as far as the
+  path can honestly say (iCloud Drive's layout is public; another app's
+  on-device folder is not), and its own name past that (`FolderBreadcrumb`
+  in Core). The way
+  back — "Use Aujour's own folder" — stays a button under the row for as long
+  as a custom folder is in force, because it undoes the choice rather than
+  making one. The entry count is gone: a number that cost a listing of the
+  folder every time the sheet opened, on a page nobody visits to be told how
+  much they have written.
 - **Data placeholder formatting gets a screen**: a row per placeholder, each
   opening its `linePrefix` / `donePrefix` / `timeFormat` / `whenEmpty` fields,
   reusing the live-preview-with-guidance field the path template already uses.

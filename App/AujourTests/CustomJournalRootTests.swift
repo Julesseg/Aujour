@@ -76,7 +76,7 @@ struct CustomJournalRootBookmarkTests {
                 chosen: remembered.customRoot()
             ).locate()
 
-            #expect(root.location == .customFolder(name: "Journal"))
+            #expect(root.location == .customFolder(FolderBreadcrumb(crumbs: ["Journal"])))
             #expect(root.url == vault.standardizedFileURL)
             // Taken as it was found: nothing is written into it, and the
             // Entries already there are the journal from now on.
@@ -100,7 +100,7 @@ struct CustomJournalRootBookmarkTests {
                 chosen: remembered.customRoot()
             ).locate()
 
-            #expect(afterRelaunch.location == .customFolder(name: "Journal"))
+            #expect(afterRelaunch.location == .customFolder(FolderBreadcrumb(crumbs: ["Journal"])))
             #expect(afterRelaunch.url == vault.standardizedFileURL)
         }
     }
@@ -124,7 +124,7 @@ struct CustomJournalRootBookmarkTests {
             ).locate()
 
             #expect(root.url == renamed.standardizedFileURL)
-            #expect(root.location == .customFolder(name: "Daybook"))
+            #expect(root.location == .customFolder(FolderBreadcrumb(crumbs: ["Daybook"])))
         }
     }
 
@@ -208,7 +208,7 @@ struct CustomJournalRootTests {
 
             await session.journal.use(vault)
 
-            #expect(session.root?.location == .customFolder(name: "Journal"))
+            #expect(session.root?.location == .customFolder(FolderBreadcrumb(crumbs: ["Journal"])))
             #expect(session.journal.hasACustomFolder)
             #expect(session.journal.folderProblem == nil)
 
@@ -275,7 +275,7 @@ struct CustomJournalRootTests {
             session.relaunch()
             await session.journal.open()
 
-            #expect(session.root?.location == .customFolder(name: "Journal"))
+            #expect(session.root?.location == .customFolder(FolderBreadcrumb(crumbs: ["Journal"])))
             #expect(session.journal.today?.content == "Written in Obsidian this morning.\n")
         }
     }
@@ -321,7 +321,7 @@ struct CustomJournalRootTests {
 
             await session.journal.use(vault)
 
-            #expect(session.root?.location == .customFolder(name: "Journal"))
+            #expect(session.root?.location == .customFolder(FolderBreadcrumb(crumbs: ["Journal"])))
             #expect(
                 try String(
                     contentsOf: session.defaultFolder.appending(path: todaysEntryPath),
@@ -389,15 +389,16 @@ struct CustomJournalRootTests {
 
             let session = Session(folders: folders)
             await session.journal.use(vault)
-            let today = try #require(session.journal.today)
-            today.content = "Walked to the market.\n"
-            await today.save()
-            await session.journal.recount()
 
             // How much journal is in the folder is its Entries, not its files:
             // a vault's other notes are not the size of anybody's journal, and
-            // counting them would contradict the promise on the same screen.
-            #expect(session.entryCount == 1)
+            // Obsidian's daily note is filed where the Path Template does not
+            // look.
+            #expect(session.entryCount == 0)
+
+            let today = try #require(session.journal.today)
+            today.content = "Walked to the market.\n"
+            await today.save()
 
             // Exactly one file arrived, at the path the Path Template names.
             let store: any JournalStore = FileJournalStore(root: vault)

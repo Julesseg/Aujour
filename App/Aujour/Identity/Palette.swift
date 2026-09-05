@@ -38,7 +38,51 @@ enum Palette {
 
     /// A raised surface on the page: a settings group, a specimen, anything
     /// that is a *thing* on the paper rather than the paper.
-    static let card = dynamic(light: 0xFFFCF7, dark: 0x201C17)
+    ///
+    /// Moved on 2026-09-04, when the settings became grouped `Form`s and put
+    /// the token to the one use it had never really been asked to do: a card
+    /// on a *sheet* rather than on the page. The sheet's ground is a hair off
+    /// the page's own, so what read as clearly raised over `background` read
+    /// as barely there over `sheet` — four points of separation in light and
+    /// five in dark.
+    ///
+    /// **The two appearances now say opposite things, and that is forced.** In
+    /// dark the card is *raised*: fourteen points lighter than the sheet, up
+    /// from five. In light it is *recessed* — darker than the paper it sits
+    /// on — because upward there were only three points before pure white,
+    /// which is both no separation at all and the cold `#FFFFFF` a grouped
+    /// list would have drawn on its own. Darker had the room. A dark card
+    /// darker than the dark sheet would have had none, that sheet being
+    /// near-black already, so the two could not be made to agree.
+    ///
+    /// Both ends are held by the same measurement, and it is not the ink: a
+    /// card is a **ground**, so every accent's ink is measured against a wash
+    /// of that accent laid over it, and the tightest of the nine decides how
+    /// far this can go. Light stops here because terracotta reads 4.55:1 at
+    /// this value and 4.47 one step darker, under ADR 0006's floor; dark stops
+    /// at `0x292520` because graphite reads 4.57:1 there and 4.46 one step
+    /// lighter. Neither end has room left that is not bought from the accents.
+    ///
+    /// The light value is the **hard floor** — the darkest this can be and
+    /// still clear ADR 0006 — and it is worth knowing that it was chosen as
+    /// such rather than arrived at. Terracotta reads 4.51:1 on its own wash
+    /// here against a floor of 4.5, so there is one hundredth of a point in
+    /// hand; one step darker (`0xF4F0EA`) reads 4.47 and fails. That is not a
+    /// margin, and it is deliberate: the separation from the sheet was worth
+    /// more than the room to move. What it means in practice is that **this is
+    /// the first thing that breaks if any accent is ever retuned** — which is
+    /// exactly what `IdentityTests` measures on every ground in both
+    /// appearances, so it breaks loudly and at the right place.
+    ///
+    /// It also sits a point below `background`, which is the other reason not
+    /// to go further: a card that reached the page's own tone would be
+    /// invisible on the page. Nothing draws one there today — the settings
+    /// rows, the search sheet's result, the migration summary, the share
+    /// sheet's chip and the place widget's rows are all on a sheet, and the
+    /// accent swatch's tick is on an accent — but the token's own promise is
+    /// "a raised surface on the page", and this is as close as it can come to
+    /// breaking that promise without breaking it.
+    static let card = dynamic(light: 0xF5F1EB, dark: 0x292520)
 
     /// The ground of a sheet, which is a hair off the page's own so that a
     /// sheet over a screen reads as being in front of it.

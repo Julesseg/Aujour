@@ -36,17 +36,15 @@ final class WritingTheDayTests: AujourUITestCase {
         XCTAssertTrue(settings.waitForExistence(timeout: 10), "the menu did not offer the settings")
         settings.tap()
 
-        let location = app.staticTexts["journalRootLocation"]
-        XCTAssertTrue(location.waitForExistence(timeout: 5))
-        XCTAssertFalse(location.label.isEmpty)
+        openTheJournalFolder(in: app)
 
-        // And it can say where it is, in a path the user could go and find.
-        let path = app.staticTexts["journalRootPath"]
-        XCTAssertTrue(path.exists)
-        XCTAssertTrue(path.label.hasPrefix("/"), "expected a folder path, got \(path.label)")
+        // And it can say where it is, the way the Files app would.
+        let location = app.buttons["journalRootLocation"]
+        XCTAssertTrue(location.waitForExistence(timeout: 5))
+        XCTAssertEqual(theValue(of: location), aujoursOwnFolder)
 
         // A folder it could not read would have been a problem notice instead.
-        XCTAssertTrue(app.staticTexts["journalEntryCount"].exists)
+        XCTAssertFalse(app.staticTexts["journalFolderProblem"].exists)
         XCTAssertFalse(app.staticTexts["storageProblem"].exists)
     }
 
@@ -69,9 +67,14 @@ final class WritingTheDayTests: AujourUITestCase {
         )
 
         // And none of it is a file: a day nobody wrote on leaves no husk
-        // behind, which the next launch is what proves.
+        // behind, which the next launch is what proves — the calendar reads
+        // the folder, and it says today is still unwritten.
         relaunch(app)
-        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "0 entries")
+        XCTAssertTrue(app.textViews["entryEditor"].waitForExistence(timeout: 30))
+        openTheMonth(app, showing: Date())
+        let today = app.buttons["day-\(todaysEntryName())"]
+        XCTAssertTrue(today.waitForExistence(timeout: 10), "today was not on the calendar")
+        XCTAssertEqual(today.value as? String, "Not written")
     }
 
     func testWhatIsTypedIsStillThereAfterARelaunch() throws {
@@ -91,7 +94,6 @@ final class WritingTheDayTests: AujourUITestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, "Walked to the market.")
-        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
     }
 
     /// The claim the editor is worth nothing without: it draws markdown, and
@@ -136,7 +138,6 @@ final class WritingTheDayTests: AujourUITestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, entry)
-        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
     }
 
     /// A checkbox is the one thing in an Entry that answers a tap, and the
@@ -181,7 +182,6 @@ final class WritingTheDayTests: AujourUITestCase {
         let reopened = app.textViews["entryEditor"]
         XCTAssertTrue(reopened.waitForExistence(timeout: 30))
         XCTAssertEqual(reopened.value as? String, "- [x] Milk\n- [ ] Bread")
-        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
     }
 
     /// The formatting row above the keyboard: the marks a journal is written
@@ -355,9 +355,9 @@ final class WritingTheDayTests: AujourUITestCase {
         scrollTo(example, in: app)
         XCTAssertEqual(example.label, "![](\(todaysPhotograph(named: "jpg")))")
 
-        let wiki = app.buttons["Wiki-style"]
+        let wiki = app.switches["embedSyntax"]
         scrollTo(wiki, in: app)
-        wiki.tap()
+        flip(wiki)
         // The setting made concrete, on the day the user is in.
         expect(example, toHaveLabel: "![[\(todaysEntryName()).jpg]]")
         app.buttons["Done"].tap()
@@ -519,9 +519,9 @@ final class WritingTheDayTests: AujourUITestCase {
         )
 
         openSettings(app)
-        let chooseTemplate = app.buttons["contentTemplateFile"]
-        scrollTo(chooseTemplate, in: app)
-        chooseTemplate.tap()
+        openTheTemplate(in: app)
+        app.buttons["contentTemplateFile"].tap()
+        backToTheSettings(in: app)
         app.buttons["Done"].tap()
 
         // Today has not been written in, so today is what the file says.
@@ -538,9 +538,11 @@ final class WritingTheDayTests: AujourUITestCase {
         // Until it is asked for no template, which forgets the file and
         // nothing else: today goes back to the blank page it was.
         openSettings(app)
+        openTheTemplate(in: app)
         let noTemplate = app.buttons["noContentTemplate"]
         scrollTo(noTemplate, in: app)
         noTemplate.tap()
+        backToTheSettings(in: app)
         app.buttons["Done"].tap()
         expect(editor, toHaveValue: "")
     }
@@ -560,18 +562,16 @@ final class WritingTheDayTests: AujourUITestCase {
         hour.tap()
         tapTheOption(labelled: fourInTheMorning, in: app)
 
-        // The setting said as the day it makes, which is what it is for.
-        XCTAssertTrue(
-            app.staticTexts["rolloverHourDay"].waitForExistence(timeout: 10),
-            "the day being written was never shown"
-        )
+        // The row is the setting, said back: the sheet is a summary of the
+        // journal, so an hour chosen is an hour the row is showing.
+        expect(hour, toBeShowing: fourInTheMorning)
 
         relaunch(app)
         openSettings(app)
         let afterARelaunch = app.buttons["rolloverHour"]
         XCTAssertTrue(afterARelaunch.waitForExistence(timeout: 15), "settings never came back")
         // The end of the label rather than any of it: an hour that merely
-        // appears in "When the day turns, 14:00" is not the hour it turns at.
+        // appears in "Day starts at, 14:00" is not the hour it turns at.
         XCTAssertTrue(
             afterARelaunch.label.hasSuffix(", \(fourInTheMorning)"),
             "expected the day to still turn at \(fourInTheMorning), got \(afterARelaunch.label)"
@@ -584,8 +584,9 @@ final class WritingTheDayTests: AujourUITestCase {
     /// Which nudges exist — one a day, none for a day already written in, the
     /// Rollover Hour respected — is decided in Core and tested there against a
     /// folder said rather than read. What only a running app can show is the
-    /// setting itself: a fresh install with no reminder in it, a time chosen
-    /// that survives a relaunch, and a switch that takes it away again.
+    /// setting itself: a fresh install with no reminder in it, any minute of
+    /// the clock available to be chosen, a choice that survives a relaunch,
+    /// and a switch that takes it away again.
     func testTheDailyReminderIsOffUntilATimeIsChosenAndStaysChosen() throws {
         let app = launchApp()
         openSettings(app)
@@ -596,40 +597,34 @@ final class WritingTheDayTests: AujourUITestCase {
         // not ask it to, so there is no reminder here to turn off.
         XCTAssertEqual(reminder.value as? String, "0")
         XCTAssertFalse(
-            app.buttons["dailyReminderTime"].exists,
+            app.datePickers["dailyReminderTime"].exists,
             "a reminder nobody has turned on was offering a time"
         )
 
-        reminder.tap()
+        flip(reminder)
 
         // The evening it lands on — a starting point, not a default, since it
         // took a tap to get here at all.
-        let time = app.buttons["dailyReminderTime"]
+        let time = app.datePickers["dailyReminderTime"]
         XCTAssertTrue(time.waitForExistence(timeout: 10), "no time was offered")
-        XCTAssertTrue(
-            time.label.hasSuffix(", \(onTheClock(hour: 21, minute: 0))"),
-            "expected the evening to be offered, got \(time.label)"
+        XCTAssertEqual(
+            theTimeShowing(on: time, in: app),
+            onTheClock(hour: 21, minute: 0),
+            "expected the evening to be offered"
         )
-        // And it is booked, not merely written down: the line underneath is
-        // the nudge the app has actually put in front of the device.
-        XCTAssertTrue(
-            app.staticTexts["nextDailyReminder"].waitForExistence(timeout: 10),
-            "nothing was said about when the next reminder would arrive"
-        )
-
-        // Changed to the half hour beside it, which is the setting being a
-        // setting rather than a switch.
-        scrollTo(time, in: app)
-        time.tap()
-        tapTheOption(labelled: onTheClock(hour: 21, minute: 30), in: app)
+        // Moved to a minute nothing would have offered as an option, which is
+        // the whole of what a clock face is for: the reminder is any time on
+        // it and not a list of the sensible ones.
+        setTheMinutes(of: time, to: 7, in: app)
+        XCTAssertEqual(theTimeShowing(on: time, in: app), onTheClock(hour: 21, minute: 7))
 
         relaunch(app)
         openSettings(app)
-        let afterARelaunch = app.buttons["dailyReminderTime"]
-        scrollTo(afterARelaunch, in: app)
-        XCTAssertTrue(
-            afterARelaunch.label.hasSuffix(", \(onTheClock(hour: 21, minute: 30))"),
-            "expected the time chosen to still be in force, got \(afterARelaunch.label)"
+        let afterARelaunch = app.datePickers["dailyReminderTime"]
+        XCTAssertEqual(
+            theTimeShowing(on: afterARelaunch, in: app),
+            onTheClock(hour: 21, minute: 7),
+            "expected the time chosen to still be in force"
         )
 
         // And off again, which takes the time with it: there is no reminder
@@ -638,9 +633,9 @@ final class WritingTheDayTests: AujourUITestCase {
         let stillOn = app.switches["dailyReminder"]
         scrollTo(stillOn, in: app)
         XCTAssertEqual(stillOn.value as? String, "1")
-        stillOn.tap()
+        flip(stillOn)
         XCTAssertFalse(
-            app.buttons["dailyReminderTime"].waitForExistence(timeout: 3),
+            app.datePickers["dailyReminderTime"].waitForExistence(timeout: 3),
             "a reminder that was turned off was still offering a time"
         )
     }

@@ -61,6 +61,12 @@ struct ContentView: View {
     /// and that is a step forwards like any other.
     @State private var goingForwards = true
 
+    /// How wide the page is, which is how far a day has to travel to be off
+    /// it. Measured off the container the days slide in, so that it is the
+    /// page beside the sidebar on a wide window and the whole window on a
+    /// narrow one.
+    @State private var pageWidth: CGFloat = 0
+
     /// How far open the date pill is.
     ///
     /// Here rather than inside the pill for the two things only this screen
@@ -201,13 +207,13 @@ struct ContentView: View {
     /// two of them.
     ///
     /// The folder is read *behind* the move and never in front of it. Settling
-    /// a divergence reaches iCloud through a system call that answers on the
-    /// main actor's own thread, and a journal that would not move until that
-    /// came back is a journal a folder can stop moving — which is a stall
-    /// measured in seconds on a machine with a real iCloud folder, in exchange
-    /// for a frame of "Opening" on a page that is turning anyway. The page
-    /// holds its own size while that frame is on it, so nothing else on screen
-    /// is at its mercy.
+    /// a divergence asks iCloud what else it holds for the day, and a journal
+    /// that would not move until that came back is a journal a folder can
+    /// stop moving — which on a real iCloud folder is seconds, in exchange for
+    /// a moment of "Opening" on a page that is turning anyway. The asking is
+    /// off the main actor (``DivergenceParking``), which is what lets the page
+    /// go on turning while it is asked: a main thread held for the answer
+    /// froze the slide on its first frame and then snapped it to the end.
     ///
     /// The direction is handed in rather than worked out afterwards from the
     /// two days, and that is a timing matter and not a taste one: a transition
@@ -462,12 +468,18 @@ struct ContentView: View {
     /// A plain fade for a reader who asked for less movement — the direction
     /// is worth having and is not worth sliding a screenful of somebody's
     /// writing across the page to say.
+    ///
+    /// An offset by the page's own width, and not `.move(edge:)`, which says
+    /// the same thing and is the obvious way to say it. The day's words are a
+    /// `UITextView` under the SwiftUI view, and an edge move over one of
+    /// those draws the words twice on the way in — once sliding with the
+    /// page and once being uncovered where the page will stop. An offset is
+    /// carried by the view's own position, frame by frame, and the text view
+    /// is simply where the page is.
     private var theDaySlides: AnyTransition {
         guard !reduceMotion else { return .opacity }
-        return .asymmetric(
-            insertion: .move(edge: goingForwards ? .trailing : .leading),
-            removal: .move(edge: goingForwards ? .leading : .trailing)
-        )
+        let across = goingForwards ? pageWidth : -pageWidth
+        return .asymmetric(insertion: .offset(x: across), removal: .offset(x: -across))
     }
 
     /// What it slides with: the pill's own page-turn, because that is what
@@ -517,6 +529,9 @@ struct ContentView: View {
                         // day turned here slides across all of it.
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
+                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: {
+                            pageWidth = $0
+                        }
                         .datePill(
                             // No pill where the month is already on screen: a
                             // window wide enough for a sidebar has answered

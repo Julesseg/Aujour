@@ -171,15 +171,20 @@ struct EntryView: View {
     var body: some View {
         Group {
             switch editor.state {
-            case .opening:
-                ProgressView("Opening \(editor.day.spelledOut())")
-                    .accessibilityIdentifier("openingEntry")
-
-            case .editing:
+            case .opening, .editing:
                 // Bound straight to the editor's own text, which is what
                 // makes every keystroke an edit it knows to save. What the
                 // markdown in it looks like is `MarkdownEditor`'s, and what
                 // it means is Core's.
+                //
+                // Built while the day is still being read, and not only once
+                // it has been. The text view is a UIKit view under the page,
+                // and a UIKit view that comes into being while the page is
+                // sliding in is put where the page will stop rather than
+                // where it is — so a day reached by a swipe, which is read
+                // behind the turn, arrived in place while the spinner that
+                // stood in for it slid. The spinner is over the text view
+                // now, and the text view is on the page from its first frame.
                 MarkdownEditor(
                     text: $editor.content,
                     pictures: pictures,
@@ -195,10 +200,21 @@ struct EntryView: View {
                     label: "Entry for \(editor.day.spelledOut())"
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Nothing to type into until there is a day to type into: a
+                // keystroke that landed before the file was read would be
+                // written over by it.
+                .allowsHitTesting(editor.state.isEditing)
+                .overlay {
+                    if !editor.state.isEditing {
+                        ProgressView("Opening \(editor.day.spelledOut())")
+                            .accessibilityIdentifier("openingEntry")
+                    }
+                }
                 // A day with nothing in it yet, said as the invitation it is
-                // rather than left as a grey rectangle.
+                // rather than left as a grey rectangle. Only once it has been
+                // read: every day is empty for the moment before that.
                 .overlay(alignment: .topLeading) {
-                    if editor.content.isEmpty { ABlankPage() }
+                    if editor.state.isEditing, editor.content.isEmpty { ABlankPage() }
                 }
                 // Answering writes plain markdown where the token stood, and
                 // cancelling writes nothing at all — so an unanswered

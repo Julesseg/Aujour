@@ -104,6 +104,21 @@ extension InteractivePlaceholder {
     }
 }
 
+// MARK: - One standing alone
+
+extension InteractivePlaceholder {
+    /// The token this text is, when it is one token and nothing else — a
+    /// Property whose whole value is `{{location}}`, spawned from the Content
+    /// Template — or `nil` for anything with other words in it.
+    public static func token(standingAloneIn text: String) -> Token? {
+        let units = Array(text.utf16)
+        guard let token = token(in: units, at: 0, notBeyond: units.count),
+            token.range.upperBound == units.count
+        else { return nil }
+        return token
+    }
+}
+
 // MARK: - Finding them
 
 extension EntryMarkdown {

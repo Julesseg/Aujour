@@ -165,14 +165,42 @@ struct FrontmatterReadingTests {
     @Test("what is not quite a date or a number is text")
     func almost() throws {
         let read = try #require(
-            properties("---\na: 2026-13-14\nb: 2026-03-14T25:00\nc: 7pm\nd: 1,5\ne: 2026-03-14 09:05\n---")
+            properties("---\na: 2026-13-14\nb: 2026-03-14T25:00\nc: 7pm\nd: 1,5\ne: 2026-03-14  09:05\nf: 2026-03-14T09:05:30\n---")
         )
         #expect(
             read.map(\.value) == [
                 .text("2026-13-14"), .text("2026-03-14T25:00"), .text("7pm"), .text("1,5"),
-                .text("2026-03-14 09:05"),
+                .text("2026-03-14  09:05"), .text("2026-03-14T09:05:30"),
             ]
         )
+    }
+
+    @Test("a date and time with a space where the T goes is the same moment, and keeps its space")
+    func spacedDateTime() throws {
+        let block = Frontmatter(source: "---\nat: 2026-03-14 09:05\nlater: 2026-03-14T09:05\n---")
+        let read = try #require(block.properties)
+        let moment = Property.Value.dateTime(year: 2026, month: 3, day: 14, hour: 9, minute: 5)
+        #expect(read.map(\.value) == [moment, moment])
+
+        let written = block
+            .setting("at", to: .dateTime(year: 2026, month: 9, day: 5, hour: 10, minute: 48))
+            .setting("later", to: .dateTime(year: 2026, month: 9, day: 5, hour: 10, minute: 48))
+        #expect(written.source == "---\nat: 2026-09-05 10:48\nlater: 2026-09-05T10:48\n---")
+        #expect(block.adding("new", as: moment)?.source.hasSuffix("new: 2026-03-14T09:05\n---") == true)
+    }
+
+    @Test("a Placeholder standing alone in a value is the token, and its answer is the bare value")
+    func placeholderInAValue() throws {
+        let alone = try #require(Property.Value.text("{{location}}").placeholder)
+        #expect(alone.placeholder == .location)
+        #expect(Property.answer(alone, with: "The market") == "The market")
+
+        let worded = try #require(Property.Value.text("{{mood:{value} out of 5}}").placeholder)
+        #expect(Property.answer(worded, with: "4") == "4 out of 5")
+
+        #expect(Property.Value.text("{{location}} today").placeholder == nil)
+        #expect(Property.Value.text("{{nothing}}").placeholder == nil)
+        #expect(Property.Value.number(7).placeholder == nil)
     }
 
     @Test("comments and blank lines are kept, and are nobody's Property")
@@ -322,6 +350,7 @@ struct FrontmatterWritingTests {
             ("", "\"\""),
             ("2026-03-14", "\"2026-03-14\""),
             ("2026-03-14T09:05", "\"2026-03-14T09:05\""),
+            ("2026-03-14 09:05", "\"2026-03-14 09:05\""),
             (" leading", "\" leading\""),
             ("trailing ", "\"trailing \""),
             ("a: b", "\"a: b\""),

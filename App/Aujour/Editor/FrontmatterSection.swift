@@ -29,6 +29,11 @@ struct FrontmatterSection: View {
     /// The Journal Day the Entry is for: what a date Property starts as.
     let day: JournalDay
 
+    /// Asks a Placeholder's question, because a finger landed on its chip
+    /// in a row — put up by the screen the day is on, as the editor's own
+    /// widgets are.
+    let asks: (PlaceholderQuestion) -> Void
+
     /// The one colour a control here is drawn in: the device's own accent,
     /// handed in because a view hosted inside a text view inherits nothing
     /// from the screen around it.
@@ -50,7 +55,7 @@ struct FrontmatterSection: View {
     var body: some View {
         Group {
             if cut.frontmatter != nil || pending != nil {
-                PropertiesCard(cut: $cut, pending: $pending, day: day)
+                PropertiesCard(cut: $cut, pending: $pending, day: day, asks: asks)
             } else {
                 AddTheFirstProperty(pending: $pending)
             }
@@ -68,6 +73,7 @@ private struct PropertiesCard: View {
     @Binding var cut: CutEntry
     @Binding var pending: Property.Kind?
     let day: JournalDay
+    let asks: (PlaceholderQuestion) -> Void
 
     var body: some View {
         VStack(alignment: .trailing, spacing: Spacing.tight) {
@@ -77,7 +83,7 @@ private struct PropertiesCard: View {
                 } else {
                     ForEach(Array(cut.properties.enumerated()), id: \.element.key) { index, property in
                         if index > 0 { Hairline().padding(.leading, Spacing.comfortable) }
-                        PropertyRow(property: property, cut: $cut)
+                        PropertyRow(property: property, cut: $cut, asks: asks)
                     }
                     if let kind = pending {
                         if !cut.properties.isEmpty {
@@ -105,6 +111,7 @@ private struct PropertiesCard: View {
                         if cut.isShowingSource { cut.showProperties() } else { cut.showSource() }
                     } label: {
                         Image(systemName: cut.isShowingSource ? "list.bullet" : "square.and.pencil")
+                            .lettering(.marker)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.mini)
@@ -128,11 +135,12 @@ private struct PropertiesCard: View {
 private struct PropertyRow: View {
     let property: Property
     @Binding var cut: CutEntry
+    let asks: (PlaceholderQuestion) -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: Spacing.comfortable) {
             KeyField(key: property.key) { newKey in cut.rename(property.key, to: newKey) }
-            ValueControl(property: property, cut: $cut)
+            ValueControl(property: property, cut: $cut, asks: asks)
         }
         .padding(.horizontal, Spacing.comfortable)
         .padding(.vertical, Spacing.close)
@@ -187,9 +195,20 @@ private struct KeyField: View {
 private struct ValueControl: View {
     let property: Property
     @Binding var cut: CutEntry
+    let asks: (PlaceholderQuestion) -> Void
 
     var body: some View {
         switch property.value {
+        case .text where property.value.placeholder != nil:
+            PlaceholderChip(token: property.value.placeholder!, asks: asks) { answer in
+                guard let token = cut.properties.first(where: { $0.key == property.key })?
+                    .value.placeholder
+                else { return }
+                cut.set(property.key, to: .text(Property.answer(token, with: answer)))
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .accessibilityIdentifier("propertyPlaceholder-\(property.key)")
+
         case .text(let text):
             TextField(
                 "",
@@ -243,6 +262,37 @@ private struct ValueControl: View {
         case .list(let items):
             ListField(key: property.key, items: items) { cut.set(property.key, to: .list($0)) }
         }
+    }
+}
+
+/// A Placeholder standing alone as a value, drawn as the chip the editor
+/// draws over its token: tapped, it asks its question, and the answer is
+/// the value (`CONTEXT.md`, *Property*).
+///
+/// The chip carries the way back into the Entry, and reads the token again
+/// when the answer arrives rather than trusting the one it was drawn for —
+/// a sheet is up while the Entry goes on living, and a value that stopped
+/// being a question while it was up is left alone.
+private struct PlaceholderChip: View {
+    let token: InteractivePlaceholder.Token
+    let asks: (PlaceholderQuestion) -> Void
+    let answered: (String) -> Void
+
+    var body: some View {
+        Button {
+            asks(PlaceholderQuestion(placeholder: token.placeholder) { answer in
+                guard !answer.isEmpty else { return }
+                answered(answer)
+            })
+        } label: {
+            Label(token.placeholder.title, systemImage: token.placeholder.symbol)
+                .lettering(.chipLabel)
+                .padding(.horizontal, Spacing.close)
+                .padding(.vertical, Spacing.tight)
+                .foregroundStyle(.tint)
+                .background(.tint.opacity(0.14), in: Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -458,6 +508,10 @@ private struct SourceField: View {
 
     @FocusState private var isEditing: Bool
 
+    /// How tall the text came out, which is how tall the field is made: a
+    /// text editor offered any height takes all of it.
+    @State private var height: CGFloat = 0
+
     private let face = Font.system(.footnote, design: .monospaced)
 
     var body: some View {
@@ -468,8 +522,10 @@ private struct SourceField: View {
                 .padding(.vertical, Spacing.close)
                 .opacity(0)
                 .accessibilityHidden(true)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
             TextEditor(text: Binding(get: { cut.source }, set: { cut.typedSource($0) }))
                 .font(face)
+                .frame(height: max(height, 44))
                 .scrollDisabled(true)
                 .scrollContentBackground(.hidden)
                 .autocorrectionDisabled()

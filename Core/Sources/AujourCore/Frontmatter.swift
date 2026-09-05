@@ -101,7 +101,7 @@ public struct Frontmatter: Hashable, Sendable {
         guard let property = properties?.first(where: { $0.key == key }) else { return self }
         return replacing(
             property.lines,
-            with: YAMLScalar.lines(key: key, value: value.under(key), style: property.listStyle)
+            with: YAMLScalar.lines(key: key, value: value.under(key), style: property.style)
         )
     }
 
@@ -181,7 +181,7 @@ public struct Frontmatter: Hashable, Sendable {
                 properties.append(
                     Property(
                         key: key, value: .list(items), lines: line..<next,
-                        listStyle: .block(indent: indent)
+                        style: .blockList(indent: indent)
                     )
                 )
                 line = next
@@ -190,7 +190,7 @@ public struct Frontmatter: Hashable, Sendable {
 
             guard let read = YAMLScalar.value(of: rest, asAList: byName) else { return nil }
             properties.append(
-                Property(key: key, value: read.value, lines: line..<(line + 1), listStyle: read.style)
+                Property(key: key, value: read.value, lines: line..<(line + 1), style: read.style)
             )
             line += 1
         }
@@ -269,10 +269,10 @@ enum YAMLScalar {
     /// `nil` for one outside the flat shape.
     static func value(
         of text: String, asAList: Bool
-    ) -> (value: Property.Value, style: Property.ListStyle?)? {
+    ) -> (value: Property.Value, style: Property.WrittenStyle?)? {
         if text.hasPrefix("[") {
             guard let items = flowItems(of: text) else { return nil }
-            return (.list(items), .flow)
+            return (.list(items), .flowList)
         }
         if asAList {
             guard let item = string(of: text) else { return nil }
@@ -283,7 +283,7 @@ enum YAMLScalar {
             return (.text(quoted), nil)
         }
         guard isAPlainScalar(text) else { return nil }
-        return (plainValue(text), nil)
+        return plainValue(text)
     }
 
     /// A scalar as the text it is: quotes taken off, or the plain words.
@@ -293,12 +293,12 @@ enum YAMLScalar {
         return isNull(text) ? "" : text
     }
 
-    private static func plainValue(_ text: String) -> Property.Value {
-        if isNull(text) { return .text("") }
-        if let checkbox = bool(text) { return .checkbox(checkbox) }
-        if isANumber(text), let number = Double(text) { return .number(number) }
-        if let date = date(text) { return date }
-        return .text(text)
+    private static func plainValue(_ text: String) -> (value: Property.Value, style: Property.WrittenStyle?) {
+        if isNull(text) { return (.text(""), nil) }
+        if let checkbox = bool(text) { return (.checkbox(checkbox), nil) }
+        if isANumber(text), let number = Double(text) { return (.number(number), nil) }
+        if let date = date(text) { return (date.value, date.spaced ? .dateTimeWithASpace : nil) }
+        return (.text(text), nil)
     }
 
     private static func isNull(_ text: String) -> Bool {
@@ -336,19 +336,26 @@ enum YAMLScalar {
         return rest.isEmpty
     }
 
-    /// `2026-03-14`, or `2026-03-14T09:05` — Obsidian's two shapes, and
-    /// nothing looser: a time with seconds, or a space where the `T` goes, is
+    /// `2026-03-14`, or `2026-03-14T09:05` — Obsidian's two shapes — and
+    /// `2026-03-14 09:05`, the same moment with a space where the `T` goes,
+    /// which is how a hand writes it. Nothing looser: a time with seconds is
     /// text.
-    private static func date(_ text: String) -> Property.Value? {
-        let parts = text.split(separator: "T", omittingEmptySubsequences: false)
+    private static func date(_ text: String) -> (value: Property.Value, spaced: Bool)? {
+        let separator: Character = text.contains("T") ? "T" : " "
+        let parts = text.split(separator: separator, omittingEmptySubsequences: false)
         guard parts.count <= 2, let day = calendarDay(parts[0]) else { return nil }
-        guard parts.count == 2 else { return .date(year: day.year, month: day.month, day: day.day) }
+        guard parts.count == 2 else {
+            return (.date(year: day.year, month: day.month, day: day.day), false)
+        }
         let clock = parts[1].split(separator: ":", omittingEmptySubsequences: false)
         guard clock.count == 2, clock[0].count == 2, clock[1].count == 2,
             let hour = digits(clock[0]), let minute = digits(clock[1]),
             (0...23).contains(hour), (0...59).contains(minute)
         else { return nil }
-        return .dateTime(year: day.year, month: day.month, day: day.day, hour: hour, minute: minute)
+        return (
+            .dateTime(year: day.year, month: day.month, day: day.day, hour: hour, minute: minute),
+            separator == " "
+        )
     }
 
     private static func calendarDay(_ text: Substring) -> (year: Int, month: Int, day: Int)? {
@@ -479,20 +486,22 @@ enum YAMLScalar {
     /// The lines that say `key: value`, in whichever shape the value has —
     /// one line for a scalar or a flow list, and a line per item under the
     /// key for a block list.
-    static func lines(key: String, value: Property.Value, style: Property.ListStyle?) -> [String] {
+    static func lines(key: String, value: Property.Value, style: Property.WrittenStyle?) -> [String] {
         switch value {
         case .list(let items):
             guard !items.isEmpty else { return ["\(key): []"] }
             switch style {
-            case .flow:
+            case .flowList:
                 return ["\(key): [" + items.map { quotedIfNeeded($0, inFlow: true) }.joined(separator: ", ") + "]"]
-            case .block(let indent):
+            case .blockList(let indent):
                 return ["\(key):"] + items.map { indent + "- " + quotedIfNeeded($0, inFlow: false) }
-            case nil:
+            case .dateTimeWithASpace, nil:
                 return ["\(key):"] + items.map { "  - " + quotedIfNeeded($0, inFlow: false) }
             }
         case .text(let text):
             return ["\(key): " + quotedIfNeeded(text, inFlow: false)]
+        case .dateTime where style == .dateTimeWithASpace:
+            return ["\(key): " + plain(value).replacingOccurrences(of: "T", with: " ")]
         default:
             return ["\(key): " + plain(value)]
         }

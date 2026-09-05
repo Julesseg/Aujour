@@ -20,10 +20,11 @@ public struct Property: Hashable, Sendable {
     /// per line for a list written under its key.
     public let lines: Range<Int>
 
-    /// How a list was written, kept so that rewriting it keeps the style it
-    /// had. `nil` for anything that was not written as a list, which a new
-    /// list under that key is written in block style.
-    let listStyle: ListStyle?
+    /// How the value was written, where there is more than one way: which
+    /// style a list was in, and whether a date and time had a space where
+    /// the `T` goes. Kept so that rewriting the Property keeps the spelling
+    /// it had. `nil` for a value with only one spelling.
+    let style: WrittenStyle?
 
     /// The value a Property holds, in the shape it was written in.
     public enum Value: Hashable, Sendable {
@@ -48,6 +49,15 @@ public struct Property: Hashable, Sendable {
         /// The value as it is written in the block, bare: `7.5`, `true`,
         /// `2026-03-14` — what a field shows before anybody types into it.
         public var spelledOut: String { YAMLScalar.plain(self) }
+
+        /// The Placeholder this value is, when it is one token and nothing
+        /// else — `{{location}}` spawned into a Property by the Content
+        /// Template — and so a Widget in the row rather than words in a
+        /// field. Text with other words around a token is text.
+        public var placeholder: InteractivePlaceholder.Token? {
+            guard case .text(let text) = self else { return nil }
+            return InteractivePlaceholder.token(standingAloneIn: text)
+        }
     }
 
     /// The kinds a Property can be — what the row for one asks for when it is
@@ -86,13 +96,26 @@ public struct Property: Hashable, Sendable {
         }
     }
 
-    /// How a list was written in the block.
-    enum ListStyle: Hashable, Sendable {
+    /// The spellings a value can have been written in, where it has more
+    /// than one.
+    enum WrittenStyle: Hashable, Sendable {
         /// `tags: [walk, market]`, on the key's own line.
-        case flow
+        case flowList
         /// `tags:` and then `- walk` on the lines under it, each item
         /// indented by this much.
-        case block(indent: String)
+        case blockList(indent: String)
+        /// `2026-03-14 09:05`, with a space where Obsidian writes a `T`. Read
+        /// as the same moment, and written back with its space.
+        case dateTimeWithASpace
+    }
+
+    /// The bare value a Placeholder's answer becomes in a Property: the
+    /// words the token asked for — a place name, a rating — unless the
+    /// token words them itself with a `:FORMAT`. The placeholder's own
+    /// default wording is a sentence for a line of prose, and a Property
+    /// is not one.
+    public static func answer(_ token: InteractivePlaceholder.Token, with answer: String) -> String {
+        (token.format ?? AnswerFormat(unchecked: "{value}")).filled(with: answer)
     }
 
     /// The keys Obsidian reads as lists whatever they hold.

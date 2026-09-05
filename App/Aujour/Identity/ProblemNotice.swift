@@ -4,7 +4,7 @@ import SwiftUI
 /// happened, and what to do about it.
 ///
 /// Shared rather than written out per sheet, for the reason the pieces in
-/// `SettingsChrome.swift` are shared: how the app says something has gone
+/// `PageChrome.swift` are shared: how the app says something has gone
 /// wrong is the identity's and not a screen's own idea, and two screens each
 /// inventing their own pair of inks is how an identity stops being one.
 ///

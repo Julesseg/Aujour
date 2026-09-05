@@ -316,6 +316,42 @@ struct DailyReminderTests {
         #expect(reminder.booked.first?.day == JournalDay(year: 2026, month: 3, day: 14))
     }
 
+    // MARK: - A time that keeps moving
+
+    @Test("a reckoning the time moved out from under is dropped rather than booked")
+    func aReckoningOvertakenByANewTimeIsDropped() async {
+        let device = ADeviceToNudge()
+        let settings = DeviceSettingsStore(storedOn: InMemoryLocalKeyValueStore())
+        let reminder = DailyReminder(
+            settings: settings,
+            nudges: device,
+            timeZone: paris,
+            now: { instant(2026, 3, 14, 10, in: paris) }
+        )
+        let folder = AFolderThatHoldsTheFirstReader()
+
+        // A finger on the picker sets a time a minute at a time, so the app
+        // asks for one reckoning and then another before the first has
+        // finished asking the folder which days are written.
+        await reminder.remind(at: TimeOfDay(hour: 21, minute: 0))
+        let theFirstReckoning = Task { await reminder.reconsider(over: folder, journal: .default) }
+        await folder.waitUntilSomebodyIsHeld()
+
+        await reminder.remind(at: TimeOfDay(hour: 21, minute: 1))
+        await reminder.reconsider(over: folder, journal: .default)
+
+        await folder.letThemGo()
+        await theFirstReckoning.value
+
+        // The minute the finger stopped on, and not the one it passed over on
+        // the way — the overtaken reckoning is about a reminder nobody is set
+        // to any more, so it is dropped rather than handed to the device.
+        #expect(reminder.time == TimeOfDay(hour: 21, minute: 1))
+        #expect(reminder.booked.first?.at == instant(2026, 3, 14, 21, 1, in: paris))
+        #expect(await device.booked.first?.at == instant(2026, 3, 14, 21, 1, in: paris))
+        #expect(await device.bookings == 1)
+    }
+
     /// A reminder over an empty device, set to a time and pinned to an instant
     /// — the three lines every test above opens with.
     private func aReminder(at time: TimeOfDay?, now: (Int, Int, Int, Int)) -> DailyReminder {
@@ -388,5 +424,62 @@ private actor ADeviceToNudge: Nudges {
     func book(_ nudges: [Nudge]) async {
         booked = nudges
         bookings += 1
+    }
+}
+
+/// A folder that holds the first reader who reaches it and answers everybody
+/// after them at once — the shape of a reckoning still waiting on iCloud while
+/// a second one, asked a moment later, is already done.
+///
+/// It is what makes the overtaking deterministic: without somebody held, two
+/// reckonings started a line apart finish in whatever order they please, and a
+/// test over them would pass on the order rather than on the rule.
+private actor AFolderThatHoldsTheFirstReader: JournalStore {
+    private let folder = InMemoryJournalStore()
+
+    private var whoIsHeld: CheckedContinuation<Void, Never>?
+    private var somebodyHasBeenHeld = false
+    private var watchingForThem: [CheckedContinuation<Void, Never>] = []
+
+    /// Returns once a reader is being held at the folder.
+    func waitUntilSomebodyIsHeld() async {
+        guard !somebodyHasBeenHeld else { return }
+        await withCheckedContinuation { watchingForThem.append($0) }
+    }
+
+    /// Lets the held reader finish.
+    func letThemGo() {
+        whoIsHeld?.resume()
+        whoIsHeld = nil
+    }
+
+    func fileExists(at relativePath: String) async throws -> Bool {
+        if !somebodyHasBeenHeld {
+            somebodyHasBeenHeld = true
+            for watcher in watchingForThem { watcher.resume() }
+            watchingForThem = []
+            await withCheckedContinuation { whoIsHeld = $0 }
+        }
+        return try await folder.fileExists(at: relativePath)
+    }
+
+    func listFiles() async throws -> [String] {
+        await folder.listFiles()
+    }
+
+    func read(at relativePath: String) async throws -> Data {
+        try await folder.read(at: relativePath)
+    }
+
+    func write(_ contents: Data, at relativePath: String) async throws {
+        try await folder.write(contents, at: relativePath)
+    }
+
+    func create(_ contents: Data, at relativePath: String) async throws {
+        try await folder.create(contents, at: relativePath)
+    }
+
+    func move(from source: String, to destination: String) async throws {
+        try await folder.move(from: source, to: destination)
     }
 }

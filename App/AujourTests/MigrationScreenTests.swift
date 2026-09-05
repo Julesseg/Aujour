@@ -254,7 +254,7 @@ struct MigrationScreenTests {
             way.ink, way.ring, way.wash,
             moving.barInk, moving.headlineInk, moving.tallyInk,
             said.mark, said.headlineInk, said.detailInk,
-            EntryPathSection.rejectionInk,
+            EntryPathView.rejectionInk,
         ]
         for colour in drawnWith {
             #expect(theIdentitys.contains(colour), "\(colour) is not one of the identity's")
@@ -266,7 +266,7 @@ struct MigrationScreenTests {
     /// coloured that like a fault would be telling somebody off for typing.
     @Test("a template that cannot be read is refused without a warning colour")
     func arefusedTemplateIsNotDrawnAsAFailure() {
-        #expect(EntryPathSection.rejectionInk == Palette.ink)
+        #expect(EntryPathView.rejectionInk == Palette.ink)
     }
 
     // MARK: - How many of them get named

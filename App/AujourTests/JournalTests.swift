@@ -169,27 +169,6 @@ struct JournalStorageTests {
         }
     }
 
-    @Test("how much is in the folder is asked again, not remembered from launch")
-    func recountingSeesWhatWasWrittenSince() async throws {
-        try await withTemporaryFolder { folders in
-            let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
-            let root = JournalRoot(url: iCloud.standardizedFileURL, location: .aujoursOwn(.iCloudDrive))
-            let journal = Journal(
-                locator: .test(iCloudDocuments: iCloud, folders: folders),
-                settings: .inMemory(),
-                templateElsewhere: .unpicked
-            )
-            await journal.open()
-            #expect(journal.state == .open(root, entryCount: 0))
-
-            // What today's first edit does, from the outside.
-            try await #require(journal.store).writeText("First words.\n", at: "2026/03/2026-03-01.md")
-            await journal.recount()
-
-            #expect(journal.state == .open(root, entryCount: 1))
-        }
-    }
-
     @Test("a day edited outside Aujour turns up on screen, without anybody asking")
     func anEditMadeElsewhereReachesTodaysEntry() async throws {
         try await withTemporaryFolder { folders in
@@ -286,7 +265,7 @@ struct JournalStorageTests {
 
     @Test("every place the journal can live is described to the user")
     func everyLocationSaysWhatItMeansForTheirWords() {
-        for location in [JournalRoot.Location.aujoursOwn(.iCloudDrive), .aujoursOwn(.onThisDevice), .customFolder(name: "Journal")] {
+        for location in [JournalRoot.Location.aujoursOwn(.iCloudDrive), .aujoursOwn(.onThisDevice), .customFolder(FolderBreadcrumb(crumbs: ["Journal"]))] {
             #expect(location.name(onDevice: "iPhone").isEmpty == false)
             #expect(location.promise(onDevice: "iPhone").isEmpty == false)
             #expect(location.symbolName(onDevice: "iPhone").isEmpty == false)

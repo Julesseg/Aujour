@@ -53,7 +53,6 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
         // Skipped means off, and not "on at some default hour": Aujour has
         // never nudged anybody who did not ask it to.
         openSettings(app)
-        expect(app.staticTexts["journalEntryCount"], toHaveLabel: "1 entry")
         let reminder = app.switches["dailyReminder"]
         scrollTo(reminder, in: app)
         XCTAssertEqual(reminder.value as? String, "0")
@@ -85,20 +84,15 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
         XCTAssertTrue(app.staticTexts["welcomeWhereYourWordsGo"].waitForExistence(timeout: 30))
         app.buttons["continueTheWelcome"].tap()
 
-        // The evening it opens on, changed to an hour earlier — the offer is a
-        // time to pick and not a switch to flick.
-        //
-        // An hour either side rather than the other end of the clock: a menu
-        // of forty-eight half hours opens scrolled to the one that is
-        // selected, and only the ones near it are on screen to be tapped.
-        let time = app.buttons["welcomeReminderTime"]
+        // The evening it opens on, moved off the hour — the offer is a time to
+        // pick and not a switch to flick.
+        let time = app.datePickers["welcomeReminderTime"]
         XCTAssertTrue(time.waitForExistence(timeout: 10), "no time was offered")
-        time.tap()
-        tapTheOption(labelled: onTheClock(hour: 20, minute: 0), in: app)
+        setTheMinutes(of: time, to: 20, in: app)
 
         let takeItUp = app.buttons["takeTheReminderUp"]
         XCTAssertTrue(
-            takeItUp.label.hasSuffix(onTheClock(hour: 20, minute: 0)),
+            takeItUp.label.hasSuffix(onTheClock(hour: 21, minute: 20)),
             "the button did not say the time it would set, it said \(takeItUp.label)"
         )
         takeItUp.tap()
@@ -114,11 +108,11 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
         let reminder = app.switches["dailyReminder"]
         scrollTo(reminder, in: app)
         XCTAssertEqual(reminder.value as? String, "1")
-        let chosen = app.buttons["dailyReminderTime"]
-        scrollTo(chosen, in: app)
-        XCTAssertTrue(
-            chosen.label.hasSuffix(", \(onTheClock(hour: 20, minute: 0))"),
-            "expected the time taken up in the welcome, got \(chosen.label)"
+        let chosen = app.datePickers["dailyReminderTime"]
+        XCTAssertEqual(
+            theTimeShowing(on: chosen, in: app),
+            onTheClock(hour: 21, minute: 20),
+            "expected the time taken up in the welcome"
         )
     }
 

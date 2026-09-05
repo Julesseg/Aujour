@@ -4,16 +4,16 @@ import AujourCore
 /// Where inside the journal folder each day's Entry goes — the Path Template,
 /// as something the user can change.
 ///
-/// It sits beside the folder rather than on a settings screen of its own,
-/// because the two answer one question together: *where are my files?* The
-/// folder is the half Aujour picks up from the Files app; this is the half it
-/// writes.
+/// A page of its own, one step in from the settings sheet, beside the folder
+/// and the photo path: the three answer one question together, *where are my
+/// files?* The folder is the half Aujour picks up from the Files app; this is
+/// the half it writes.
 ///
 /// Changing it is the one setting in the app that moves somebody's existing
 /// journal, so it is deliberately two steps. Typing a template only says what
 /// the paths would look like; what happens to the files already in the folder
 /// is asked separately, and is skippable (ADR 0002).
-struct EntryPathSection: View {
+struct EntryPathView: View {
     let journal: Journal
 
     /// The one colour the app spends on itself, carried through to the sheet
@@ -25,7 +25,7 @@ struct EntryPathSection: View {
     /// it is changed.
     @State private var typed: String
 
-    /// What went wrong the last time "Change" was tapped — a folder that
+    /// What went wrong the last time the tick was tapped — a folder that
     /// would not answer, or words that would not save. A rejected template is
     /// not this: that is shown while it is being typed.
     @State private var problem: StorageProblem?
@@ -82,32 +82,41 @@ struct EntryPathSection: View {
     ///
     /// A role and a token rather than `.caption` and `.red`, which is the rule
     /// the whole palette rests on: a screen names what a thing *is* and never
-    /// what colour it comes out (`Palette`). The rest of this section is still
-    /// in the system's own sizes, and follows when the settings screens do.
+    /// what colour it comes out (`Palette`).
     static let rejectionInk = Palette.ink
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Where each day's entry goes")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            TextField("Entry path", text: $typed)
-                .textFieldStyle(.roundedBorder)
-                .font(.callout.monospaced())
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-                .submitLabel(.done)
-                .accessibilityIdentifier("entryPathField")
-
-            saying
-
-            Button("Change") { propose() }
-                .buttonStyle(.bordered)
+        Form {
+            // Not a `FormatField`, for the one thing this field has that the
+            // others do not: a change here can fail against the folder, so the
+            // footer has three things to say rather than two.
+            Section {
+                TextField("Entry path", text: $typed)
+                    .font(.body.monospaced())
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .submitLabel(.done)
+                    .accessibilityIdentifier("entryPathField")
+            } footer: {
+                saying
+            }
+            .settingsRows()
+        }
+        .settingsPage(titled: "Entry path")
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                // A tick in the bar rather than a "Change" row under the
+                // field: this page is one field, and a row that is only a
+                // button is a second card on the screen for one word. The
+                // bar is where a page keeps the thing that commits it, and a
+                // tick is what the row was saying.
+                Button { propose() } label: {
+                    Label("Change", systemImage: "checkmark")
+                }
                 .disabled(!isAChange || rejection != nil || planning || !journal.isOpen)
                 .accessibilityIdentifier("changeEntryPath")
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .sheet(item: $proposed) { change in
             PathTemplateMigrationSheet(
                 journal: journal,
@@ -126,32 +135,28 @@ struct EntryPathSection: View {
         .onChange(of: journal.pathTemplate) { _, inForce in typed = inForce }
     }
 
-    /// The one line under the field: what a day's file would be called, or
-    /// why the template cannot say — the same sentence `PathTemplateError`
-    /// carries, which is written to be shown as it is.
+    /// The one line under the field: what a day's file would be called, why
+    /// the template cannot say — the same sentence `PathTemplateError` carries,
+    /// which is written to be shown as it is — or what the folder said when
+    /// the change was last attempted.
     @ViewBuilder
     private var saying: some View {
         if let rejection {
             Text(rejection.description)
-                .lettering(.note)
                 .foregroundStyle(Color(Self.rejectionInk))
                 .accessibilityIdentifier("entryPathProblem")
         } else if let problem {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Spacing.tight) {
                 Text(problem.message)
-                    .font(.caption.weight(.semibold))
                     .accessibilityIdentifier("entryPathChangeProblem")
                 Text(problem.suggestion)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         } else if case .success(let template) = typedTemplate {
             // The rule made concrete, on the day the user is actually in:
             // a template is easier to check against one real file name than
             // to read.
             Text("Today: \(template.render(journal.dayOnScreen))")
-                .font(.caption.monospaced())
-                .foregroundStyle(.secondary)
+                .monospaced()
                 .accessibilityIdentifier("entryPathExample")
         }
     }
@@ -177,5 +182,11 @@ struct EntryPathSection: View {
                 problem = StorageProblem(error)
             }
         }
+    }
+}
+
+#Preview {
+    NavigationStack {
+        EntryPathView(journal: Journal.inAPreview(over: .system), accent: .driftwood)
     }
 }

@@ -5,12 +5,17 @@ import UIKit
 /// How Aujour looks on this device, as something the user can change: the
 /// appearance, the accent, and the typeface their days are written in.
 ///
-/// A page of its own rather than three more sections under "This device",
-/// because the appearance, the accent and the typeface are one question asked
-/// three ways and the group they are reached from is a list of separate ones.
-/// Nothing on it shapes a file, so nothing on it travels (ADR 0003) — a dark
-/// iPhone and a light iPad are both right — which is what puts the row into
-/// that group rather than the one above it.
+/// A page of its own rather than three more rows on the sheet, because the
+/// appearance, the accent and the typeface are one question asked three ways
+/// and the sheet is a list of separate ones.
+///
+/// A grouped `Form`, like every other settings screen: three sections, each
+/// headed with the one word it is about, and nothing said in prose. The notes
+/// this page used to carry — what Auto follows, that the size control is the
+/// entry's alone, that none of this reaches the other devices — are gone. Two
+/// of the three are answered by the controls themselves the moment they are
+/// touched, and the third was answering a question the sheet no longer sets
+/// out to raise.
 ///
 /// It changes the appearance by asking it, and shows what the appearance
 /// answers — there is no copy of a choice here for the screen to disagree
@@ -28,60 +33,28 @@ import UIKit
 struct AppearanceSettingsView: View {
     let appearance: DeviceAppearance
 
-    /// "iPhone" or "iPad" — this page is about this device, and saying which
-    /// one is what makes "and not the other one" true rather than implied.
-    private var device: String { UIDevice.current.model }
-
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.apart) {
-                appearanceSection
-                Hairline()
-                accentSection
-                Hairline()
-                editorFontSection
-                Hairline()
-                // Said again a step in from the group that says it, because
-                // this page is a screen of its own: somebody who walked here
-                // to change one thing reads this and not the sentence they
-                // passed on the way.
-                Note(
-                    """
-                    These stay on this \(device). Your other devices keep their \
-                    own — nothing here changes a word in your journal folder.
-                    """
-                )
-                .accessibilityIdentifier("appearanceIsDeviceLocal")
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Spacing.apart)
+        Form {
+            appearanceSection
+            accentSection
+            editorFontSection
         }
-        .background(Palette.backgroundColor)
-        .navigationTitle("How it looks")
-        .navigationBarTitleDisplayMode(.inline)
+        .settingsPage(titled: "Appearance")
     }
 
     // MARK: - Light, dark, or the system's
 
     private var appearanceSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.close) {
-            SectionHeader("Appearance")
-
-            Picker("Appearance", selection: chosenTheme) {
+        Section("Theme") {
+            Picker("Theme", selection: chosenTheme) {
                 ForEach(Theme.asOffered, id: \.self) { theme in
                     Text(theme.name).tag(theme)
                 }
             }
             .pickerStyle(.segmented)
             .accessibilityIdentifier("appearanceTheme")
-
-            Note(
-                """
-                Auto follows this \(device) — light through the day, dark at \
-                night if that is how it is set.
-                """
-            )
         }
+        .settingsRows()
     }
 
     private var chosenTheme: Binding<Theme> {
@@ -91,9 +64,7 @@ struct AppearanceSettingsView: View {
     // MARK: - The one colour the app spends on itself
 
     private var accentSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.close) {
-            SectionHeader("Accent")
-
+        Section("Accent") {
             // Wrapped rather than scrolled or squeezed. Nine of these do not
             // fit across a phone, and the two ways of pretending they do are
             // both worse than a second row: shrinking them to fit makes nine
@@ -124,16 +95,17 @@ struct AppearanceSettingsView: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             // What the swatches cannot say out loud, and what a test asks for:
             // which of the nine is the one in force. In that accent's own ink
             // — the shade the identity keeps for accent-coloured words — so
             // the name is legible whichever colour it is naming.
             Text(appearance.accent.name)
-                .lettering(.rowValue)
                 .foregroundStyle(appearance.accent.ink)
                 .accessibilityIdentifier("accentInUse")
         }
+        .settingsRows()
     }
 
     /// A swatch grows with the system text size like everything else on the
@@ -145,9 +117,7 @@ struct AppearanceSettingsView: View {
     // MARK: - What the days are written in
 
     private var editorFontSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.close) {
-            SectionHeader("Editor font")
-
+        Section("Editor font") {
             Picker("Editor font", selection: chosenFamily) {
                 ForEach(EditorFont.Family.allCases, id: \.self) { family in
                     Text(family.name).tag(family)
@@ -165,15 +135,8 @@ struct AppearanceSettingsView: View {
             .accessibilityIdentifier("editorFontSize")
 
             specimen
-
-            Note(
-                """
-                How big your own words are. Everything else in Aujour follows \
-                the text size on this \(device); this is the entry alone, and \
-                it moves with that too.
-                """
-            )
         }
+        .settingsRows()
     }
 
     private var chosenFamily: Binding<EditorFont.Family> {
@@ -201,9 +164,6 @@ struct AppearanceSettingsView: View {
             .foregroundStyle(Palette.inkColor)
             .lineLimit(3)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Spacing.comfortable)
-            .background(Palette.cardColor, in: RoundedRectangle(cornerRadius: Rounding.card))
-            .elevated(.resting)
             .accessibilityIdentifier("editorFontSpecimen")
             // What the specimen shows and a test cannot read off it: which
             // face, at what size.

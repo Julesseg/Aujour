@@ -1,4 +1,5 @@
 import Foundation
+import AujourCore
 
 /// The folder the Journal lives in, and which of the two places it is.
 ///
@@ -19,10 +20,10 @@ struct JournalRoot: Equatable, Sendable {
         /// inside an Obsidian vault, so that daily notes and Entries are the
         /// same files.
         ///
-        /// Named rather than pathed, because the name is what the user picked
-        /// and what they would recognize; where it sits in the Files app is
-        /// not something a security-scoped folder can be asked.
-        case customFolder(name: String)
+        /// Said the way the Files app showed it on the way to picking it —
+        /// "iCloud Drive › Obsidian › Vault › Journal" — as far as the path
+        /// can honestly say, and by the folder's own name past that.
+        case customFolder(FolderBreadcrumb)
     }
 
     /// Which of the two folders Aujour can find on its own a journal lives in.
@@ -83,7 +84,7 @@ struct JournalRootLocator: Sendable {
         if let chosen = try customRoot.resolve() {
             return JournalRoot(
                 url: chosen,
-                location: .customFolder(name: chosen.lastPathComponent)
+                location: .customFolder(FolderBreadcrumb(folderPath: chosen.path(percentEncoded: false)))
             )
         }
 

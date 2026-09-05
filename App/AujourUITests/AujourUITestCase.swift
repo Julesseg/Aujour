@@ -193,13 +193,92 @@ class AujourUITestCase: XCTestCase {
         item.tap()
     }
 
-    /// Opens the one sheet: where the journal is kept, every setting that
-    /// shapes what goes into it, and the ones that stay on this device.
+    /// Opens the one sheet: the folder, every setting that shapes what goes
+    /// into it, and the two that are about this device.
+    ///
+    /// Waited on by the first row rather than by the folder's name, which is
+    /// no longer on the sheet: the folder is a row showing where it is, and
+    /// everything it used to say up front is on the page that row opens.
     func openSettings(_ app: XCUIApplication) {
         fromTheMenu("openSettings", in: app)
         XCTAssertTrue(
-            app.staticTexts["journalRootLocation"].waitForExistence(timeout: 10),
+            app.buttons["openJournalFolder"].waitForExistence(timeout: 10),
             "the settings sheet never appeared"
+        )
+    }
+
+    /// Steps from the open settings sheet into the journal folder's own page,
+    /// which is where the folder's path is, and the way to change it.
+    ///
+    /// Waited on as long as the journal itself is: the page is not a label the
+    /// sheet draws and then fills in — it arrives with the journal, which has
+    /// to find its folder and read it before there is anything to say, and
+    /// after a relaunch that is a cold start.
+    func openTheJournalFolder(in app: XCUIApplication) {
+        let folder = app.buttons["openJournalFolder"]
+        scrollTo(folder, in: app)
+        folder.tap()
+        XCTAssertTrue(
+            app.buttons["journalRootLocation"].waitForExistence(timeout: 30),
+            "the journal folder page never appeared"
+        )
+    }
+
+    /// Steps from the open settings sheet into the entry path's own page,
+    /// which is where the field and the change that offers the migration are.
+    func openTheEntryPath(in app: XCUIApplication) {
+        let entryPath = app.buttons["openEntryPath"]
+        scrollTo(entryPath, in: app)
+        entryPath.tap()
+        XCTAssertTrue(
+            app.textFields["entryPathField"].waitForExistence(timeout: 10),
+            "the entry path page never appeared"
+        )
+    }
+
+    /// Steps from the open settings sheet into the content template's own
+    /// page, which is where the file is chosen and given up.
+    func openTheTemplate(in app: XCUIApplication) {
+        let template = app.buttons["openContentTemplate"]
+        scrollTo(template, in: app)
+        template.tap()
+        XCTAssertTrue(
+            app.buttons["contentTemplateFile"].waitForExistence(timeout: 10),
+            "the template page never appeared"
+        )
+    }
+
+    /// Flips a toggle.
+    ///
+    /// The switch inside the row rather than the row itself. A `Toggle` in a
+    /// grouped `Form` comes through as one row-wide element carrying the
+    /// label, the value and the identifier, with the control it is actually
+    /// made of in the last sixty points of it — and a tap in the middle of the
+    /// row lands on the label, which is a tap the platform ignores. That is
+    /// the system's own behaviour and not the app's: iOS Settings does not
+    /// flip a switch when the words beside it are tapped either.
+    func flip(_ row: XCUIElement) {
+        let control = row.switches.firstMatch
+        if control.exists, control.isHittable {
+            control.tap()
+            return
+        }
+        // The trailing end of the row rather than the middle of it, for the
+        // same reason: where the row has not been taken apart into a control
+        // of its own, that is where the control is drawn. A tap on the row's
+        // centre would be the tap the platform ignores, and the failure would
+        // surface several lines later as a switch that did not flip.
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+    }
+
+    /// The way back out of one of the sheet's pages, to the sheet itself.
+    func backToTheSettings(in app: XCUIApplication) {
+        let back = app.buttons["BackButton"]
+        XCTAssertTrue(back.waitForExistence(timeout: 10), "the page had no way back")
+        back.tap()
+        XCTAssertTrue(
+            app.buttons["openJournalFolder"].waitForExistence(timeout: 10),
+            "the settings sheet never came back"
         )
     }
 
@@ -249,7 +328,65 @@ class AujourUITestCase: XCTestCase {
         )
     }
 
+    /// What a time picker is showing, spelled the way its own device writes a
+    /// clock — the thing to compare against ``onTheClock(hour:minute:)``.
+    ///
+    /// Read off the one element the picker puts inside itself rather than the
+    /// picker, which carries no value of its own — and asked for by position
+    /// rather than by kind, because the clock face inside a time picker is a
+    /// button while the picker is shut and something else while it is open.
+    ///
+    /// Scrolled to first, because a row a grouped `Form` has not brought into
+    /// view is a row with nothing inside it yet.
+    func theTimeShowing(on picker: XCUIElement, in app: XCUIApplication) -> String {
+        scrollTo(picker, in: app)
+        let face = picker.descendants(matching: .any).firstMatch
+        XCTAssertTrue(face.waitForExistence(timeout: 10), "the time picker showed no time")
+        return (face.value as? String) ?? ""
+    }
+
+    /// Opens a time picker, moves the minutes, and puts it away again.
+    ///
+    /// The minutes and not the hour, deliberately. The hour wheel says
+    /// "9 o’clock" where the region is on a twelve-hour clock and "21 o’clock"
+    /// where it is on a twenty-four-hour one, so a test that named one of them
+    /// would pass on one machine and fail on the other — and every region
+    /// spells the minutes the same way. Which wheel that is is asked of the
+    /// wheels rather than counted off, since a region can order them as it
+    /// likes.
+    func setTheMinutes(of picker: XCUIElement, to minute: Int, in app: XCUIApplication) {
+        scrollTo(picker, in: app)
+        picker.tap()
+
+        let wheels = app.pickerWheels
+        XCTAssertTrue(
+            wheels.firstMatch.waitForExistence(timeout: 10),
+            "the time picker never opened"
+        )
+        let minutes = wheels.allElementsBoundByIndex.first {
+            ($0.value as? String)?.hasSuffix("minutes") == true
+        }
+        guard let minutes else {
+            XCTFail(
+                "no wheel of minutes in the time picker — it offered "
+                    + wheels.allElementsBoundByIndex
+                        .map { "[\($0.value as? String ?? "")]" }
+                        .joined()
+            )
+            return
+        }
+        // The options are the numbers alone, though the wheel says its own
+        // value as "00 minutes".
+        minutes.adjust(toPickerWheelValue: String(format: "%02d", minute))
+
+        // The picker opens over the screen, so it is in the way of everything
+        // the test does next.
+        let dismiss = app.buttons["PopoverDismissRegion"]
+        if dismiss.waitForExistence(timeout: 3) { dismiss.tap() }
+    }
+
     /// Replaces what is in the entry path field, and puts the keyboard away.
+    /// Called with the entry path's own page already open.
     func typeEntryPath(_ path: String, into app: XCUIApplication) {
         replaceTheText(in: "entryPathField", with: path, in: app)
     }
@@ -452,29 +589,40 @@ class AujourUITestCase: XCTestCase {
         app.launch()
     }
 
-    func entryCountFromTheSettingsSheet(_ app: XCUIApplication) -> String {
-        let more = app.buttons["moreActions"]
-        guard more.waitForExistence(timeout: 30) else {
-            return "the bar's menu never appeared"
-        }
-        more.tap()
+    /// What a settings row is showing on its right.
+    ///
+    /// A `LabeledContent` comes through as one accessibility element labelled
+    /// "<what it is>, <what it says>" — "Entries, 1 entry" — so the value is
+    /// what follows the first comma. Read that way rather than off the
+    /// separate `StaticText` beside it, which is the label a second time and
+    /// not the value.
+    func theValue(of row: XCUIElement) -> String {
+        let label = row.label
+        guard let comma = label.range(of: ", ") else { return label }
+        return String(label[comma.upperBound...])
+    }
 
-        let settings = app.buttons["openSettings"]
-        guard settings.waitForExistence(timeout: 10) else {
-            return "the bar's menu never offered the settings"
+    /// Waits for a settings row to be showing a value.
+    ///
+    /// The row and not the label, which is what separates this from
+    /// ``expect(_:toHaveLabel:)`` above: a `LabeledContent` row's label is its
+    /// name *and* its value together, so an equality check against the value
+    /// alone has to go through ``theValue(of:)`` — and a check against the
+    /// whole label would be asserting the row's name on every call.
+    ///
+    /// Waited on rather than read, because a row over a journal that is being
+    /// reopened says nothing at all for as long as that takes: choosing a
+    /// folder closes one journal and opens another.
+    func expect(
+        _ row: XCUIElement,
+        toBeShowing value: String,
+        timeout: TimeInterval = 15
+    ) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline, theValue(of: row) != value {
+            Thread.sleep(forTimeInterval: 0.25)
         }
-        settings.tap()
-
-        // Waited on as long as the journal itself is. The count is not a
-        // label the sheet draws and then fills in — it arrives with the
-        // journal, which has to find its folder and read it before there is a
-        // number to say, and after a relaunch that is a cold start. Five
-        // seconds is a machine with the folder already warm; on a slow runner
-        // it is the sheet being asked before the journal has answered, which
-        // reads as "no entry count was shown" and is not what went wrong.
-        let entryCount = app.staticTexts["journalEntryCount"]
-        guard entryCount.waitForExistence(timeout: 30) else { return "no entry count was shown" }
-        return entryCount.label
+        XCTAssertEqual(theValue(of: row), value)
     }
 
     /// Opens the month on the date pill and steps it to the month a day is in.
@@ -957,10 +1105,28 @@ class AujourUITestCase: XCTestCase {
     /// presents this sheet as a form sheet with the app showing around it, and
     /// a gesture aimed at the screen is a gesture at whatever is behind.
     func scrollTo(_ element: XCUIElement, in app: XCUIApplication) {
-        XCTAssertTrue(element.waitForExistence(timeout: 10), "\(element) never appeared")
+        let scroller = theScroller(in: app)
 
-        let sheet = app.scrollViews.firstMatch
-        let scroller = sheet.exists ? sheet : app
+        // A grouped `Form` builds its rows as they come into view, so a row
+        // far enough down one does not exist to be waited for — it has to be
+        // scrolled into being first, and a wait on its own would sit there for
+        // ten seconds and then say it was never there. The hand-drawn pages
+        // lay all of themselves out at once and this loop does nothing on
+        // them.
+        //
+        // Waited on first, and that order is the whole of the care here: an
+        // element that is merely *late* — a screen still arriving — is not an
+        // element to go looking for, and swiping at one is how a test scrolls
+        // past the thing it was about to find. Only what is still not there
+        // after the wait is treated as a row that has not been built.
+        if !element.waitForExistence(timeout: 3) {
+            var reveals = 0
+            while !element.exists, reveals < 8 {
+                scroller.swipeUp(velocity: .slow)
+                reveals += 1
+            }
+        }
+        XCTAssertTrue(element.waitForExistence(timeout: 10), "\(element) never appeared")
 
         // Where a tap on this element would actually land, which is the
         // question this helper is being asked — and not the same question as
@@ -1038,6 +1204,26 @@ class AujourUITestCase: XCTestCase {
             "\(element) never came into view — it is at \(element.frame), "
                 + "and the sheet it is in is at \(scroller.frame)"
         )
+    }
+
+    /// The thing on screen a swipe should be aimed at.
+    ///
+    /// Asked by kind rather than by name, because the answer differs per
+    /// screen and every caller wants the same thing. The settings screens are
+    /// grouped `Form`s, which come through as a collection view (a SwiftUI
+    /// `List` is one) or, depending on how the platform builds it, as a table;
+    /// the screens that are still hand-drawn come through as scroll views. The
+    /// app itself is the fallback, for a screen that scrolls nothing at all.
+    ///
+    /// Content behind a presented sheet is out of the accessibility hierarchy
+    /// while the sheet is up, so "the first one" is the sheet's own.
+    func theScroller(in app: XCUIApplication) -> XCUIElement {
+        let candidates = [
+            app.collectionViews.firstMatch,
+            app.tables.firstMatch,
+            app.scrollViews.firstMatch,
+        ]
+        return candidates.first { $0.exists } ?? app
     }
 
     /// Moves a scroll view's content by a chosen number of points, exactly —

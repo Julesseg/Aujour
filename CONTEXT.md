@@ -485,11 +485,12 @@ a whole line. Adding asks the kind, because the kind is what seeds the
 value's shape; a key is one line's worth of name, never one the block
 already has; and nothing is written until a new Property has a name.
 
-A Placeholder left in a value — `mood: {{mood}}` spawned from the Content
-Template — is text in the field, typed over like a token the cursor is in,
-and never a Widget in the row. A data placeholder that renders more than a
-line into a value leaves a block that is not understood, which is the truth
-about what the template did.
+A Placeholder standing alone as a value — `location: {{location}}` spawned
+from the Content Template — is a Widget in the row, as it is in the text:
+tapped, it asks its question, and the answer is the value, bare unless the
+token words it. A Placeholder among other words is text in the field. A data
+placeholder that renders more than a line into a value leaves a block that is
+not understood, which is the truth about what the template did.
 
 ### Accessory Row
 The formatting bar above the keyboard: headings, bold and italic, lists,

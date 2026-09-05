@@ -56,6 +56,20 @@ struct EntryView: View {
     /// over the way to write the answer back into the Entry.
     @State private var question: PlaceholderQuestion?
 
+    /// The day as the screen holds it: the Frontmatter cut off the top for
+    /// its section, the body under it for the text view, and the one text the
+    /// two join back into — which is what the Entry is handed after every
+    /// change to either half.
+    ///
+    /// Here rather than inside the editor because it is a reading of the
+    /// Entry's text and not the text: the editor holds the file, byte for
+    /// byte, and this is what the screen makes of its top (ADR 0007).
+    @State private var cut = CutEntry("")
+
+    /// The kind of the Property being added, while its name is being typed —
+    /// the one row that is on screen and not in the file.
+    @State private var pendingProperty: Property.Kind?
+
     /// This day on its way out of the app, while it is going.
     ///
     /// Here for the same reason the pictures are: a day reached from the
@@ -158,6 +172,32 @@ struct EntryView: View {
         )
     }
 
+    /// The body as the text view types into it: everything under the block,
+    /// and every keystroke joined back onto the block for the Entry to save.
+    private var bodyText: Binding<String> {
+        Binding(
+            get: { cut.body },
+            set: { typed in
+                var reading = cut
+                reading.typed(typed)
+                cut = reading
+                editor.content = reading.content
+            }
+        )
+    }
+
+    /// The reading as the section changes it, every change reaching the
+    /// Entry through the same door a keystroke goes through.
+    private var cutBinding: Binding<CutEntry> {
+        Binding(
+            get: { cut },
+            set: { reading in
+                cut = reading
+                editor.content = reading.content
+            }
+        )
+    }
+
     /// The Entry these are all about, as something that can be compared.
     ///
     /// Both the day and the editor holding it, because either one changing is
@@ -186,7 +226,7 @@ struct EntryView: View {
                 // stood in for it slid. The spinner is over the text view
                 // now, and the text view is on the page from its first frame.
                 MarkdownEditor(
-                    text: $editor.content,
+                    text: bodyText,
                     pictures: pictures,
                     photographs: photographs,
                     asks: { question = $0 },
@@ -196,6 +236,20 @@ struct EntryView: View {
                     // looking like a day somebody wrote — and the ink is the
                     // one place a page of prose can say otherwise.
                     isUnwritten: editor.isUnwritten,
+                    // The block above the text, and every change to it made
+                    // through the same reading the body is typed into.
+                    section: FrontmatterSection(
+                        cut: cutBinding, pending: $pendingProperty, day: editor.day,
+                        asks: { question = $0 }, accent: look.accent.color
+                    ),
+                    sectionIsTucked: cut.frontmatter == nil && pendingProperty == nil,
+                    caretSettled: { caret, afterAPaste in
+                        var reading = cut
+                        reading.caret(at: caret, afterAPaste: afterAPaste)
+                        guard reading != cut else { return nil }
+                        cut = reading
+                        return reading.body
+                    },
                     identifier: "entryEditor",
                     label: "Entry for \(editor.day.spelledOut())"
                 )
@@ -233,6 +287,14 @@ struct EntryView: View {
                         photographsFrom: library,
                         for: editor.day
                     )
+                }
+                // Text that reached the Entry from elsewhere — the day being
+                // opened, or its file having moved on underneath it — is read
+                // afresh. What the screen wrote itself is already read.
+                .onChange(of: editor.content, initial: true) {
+                    var reading = cut
+                    reading.contentArrived(editor.content)
+                    if reading != cut { cut = reading }
                 }
                 // The Entry on screen decides where a relative embed points, so
                 // both halves of an embed follow it — including on the morning

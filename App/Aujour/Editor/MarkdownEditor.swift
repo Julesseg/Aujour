@@ -51,6 +51,29 @@ struct MarkdownEditor: UIViewRepresentable {
     /// this day and whether anybody has typed since are both its own.
     var isUnwritten = false
 
+    /// The Frontmatter section, shown above the first line and scrolling
+    /// with the text (``MarkdownTextView``). `nil` for an editor with no
+    /// Entry behind it — a preview, a test of the formatting controls.
+    var section: FrontmatterSection?
+
+    /// Whether the section is the small control over a day with no block,
+    /// which is tucked above the top rather than laid over the first line.
+    var sectionIsTucked = false
+
+    /// Where the caret has come to rest in the body, as the text view counts,
+    /// or `nil` when the keyboard has gone — after every keystroke, every
+    /// tap, and every edit a control made, and whether it got there by a
+    /// paste. What a block typed by hand waits on before it is lifted into
+    /// the section (``AujourCore/CutEntry``).
+    ///
+    /// Answers with the body the text view should hold now, when the caret
+    /// moving is what changed it — the block lifted off the top — and `nil`
+    /// the rest of the time. The text view takes the answer at once rather
+    /// than waiting for the next update: a keystroke that landed between the
+    /// lift and the update would otherwise be reported over a text that
+    /// still had the block in it, and joined onto the block a second time.
+    var caretSettled: ((_ caret: Int?, _ afterAPaste: Bool) -> String?)?
+
     /// What a UI test finds this by, and what VoiceOver calls it. Set on the
     /// text view itself rather than through SwiftUI's accessibility
     /// modifiers, which would describe the wrapper instead of the thing being
@@ -115,10 +138,10 @@ struct MarkdownEditor: UIViewRepresentable {
         layoutManager.allowsNonContiguousLayout = true
         container.widthTracksTextView = true
 
-        let textView = UITextView(frame: .zero, textContainer: container)
+        let textView = MarkdownTextView(frame: .zero, textContainer: container)
         textView.delegate = context.coordinator
         textView.backgroundColor = .clear
-        textView.textContainerInset = Self.textInset
+        textView.baseInset = Self.textInset
         // Set rather than left at the default, so that the number a view drawn
         // over the text lines itself up by is one this file decides.
         container.lineFragmentPadding = Self.lineFragmentPadding
@@ -147,12 +170,21 @@ struct MarkdownEditor: UIViewRepresentable {
         pictures.whenOneArrives = { [weak storage] in storage?.aPictureArrived() }
 
         context.coordinator.asks = asks
+        context.coordinator.caretSettled = caretSettled
         context.coordinator.answersTaps(in: textView)
         context.coordinator.formats(
             in: textView, addingPhotographs: photographs, accent: styling.box
         )
         storage.setSource(text)
+        context.coordinator.textSettled(in: textView)
+        if let section { textView.shows(section, tucked: sectionIsTucked) }
         return textView
+    }
+
+    /// The day is going off screen: the section hosted inside the text view
+    /// goes with it, off the screen it was made a child of.
+    static func dismantleUIView(_ textView: UITextView, coordinator: Coordinator) {
+        (textView as? MarkdownTextView)?.removesTheSection()
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
@@ -161,7 +193,11 @@ struct MarkdownEditor: UIViewRepresentable {
         // and so does the way to the sheet.
         context.coordinator.text = $text
         context.coordinator.asks = asks
+        context.coordinator.caretSettled = caretSettled
         textView.accessibilityLabel = label
+        if let section, let textView = textView as? MarkdownTextView {
+            textView.shows(section, tucked: sectionIsTucked)
+        }
 
         guard let storage = textView.textStorage as? MarkdownTextStorage else { return }
         storage.pictures = pictures
@@ -202,12 +238,20 @@ struct MarkdownEditor: UIViewRepresentable {
         guard textView.text != text else { return }
 
         let caret = textView.selectedRange
+        let shifted = CutEntry.caretShift(from: textView.text, to: text)
         storage.setSource(text)
+        context.coordinator.textSettled(in: textView)
         // Wherever it was, if there is still a there: a version arriving from
         // iCloud can be shorter than the one on screen.
         let length = (text as NSString).length
-        textView.selectedRange = NSRange(location: min(caret.location, length), length: 0)
+        textView.selectedRange = NSRange(
+            location: min(max(caret.location + shifted, 0), length), length: 0
+        )
         storage.cursor = context.coordinator.cursorIfSomebodyIsWriting(in: textView)
+        // Text from elsewhere is a page opened afresh, and a page opens on its
+        // first line — with the control for a day that has no block above
+        // it, where scrolling up past the top finds it.
+        (textView as? MarkdownTextView)?.tucksTheControlAway()
     }
 
     func makeCoordinator() -> Coordinator {
@@ -223,6 +267,31 @@ struct MarkdownEditor: UIViewRepresentable {
         /// Nothing at all until the editor is on screen, and rebuilt with the
         /// view it writes back through.
         var asks: ((PlaceholderQuestion) -> Void)?
+
+        /// Says where the caret has come to rest — see
+        /// ``MarkdownEditor/caretSettled``.
+        var caretSettled: ((_ caret: Int?, _ afterAPaste: Bool) -> String?)?
+
+        /// How long the text was when the Entry was last told what it says.
+        ///
+        /// The caret is reported against the text it is in, and a text view
+        /// moves the caret for a change *before* it says the change happened:
+        /// between the two, the selection it announces belongs to text the
+        /// Entry has not been told about. A caret reported then would be one
+        /// character past a block that had not gained its character yet, and
+        /// the block lifted a keystroke early. So a selection is reported
+        /// only over text the Entry has already heard, which is told apart
+        /// by its length — the one measure that is free to take.
+        private var settledLength = 0
+
+        /// Whether the change under way is a paste rather than a keystroke:
+        /// more than one character arriving at once.
+        private var changeIsAPaste = false
+
+        /// Notes that the Entry has the text the text view has now.
+        func textSettled(in textView: UITextView) {
+            settledLength = textView.textStorage.length
+        }
 
         /// Kept for as long as the text view is, because the layout manager
         /// holds its delegate weakly.
@@ -477,6 +546,7 @@ struct MarkdownEditor: UIViewRepresentable {
             }
 
             textView.textStorage.replaceCharacters(in: edit.range, with: edit.replacement)
+            textSettled(in: textView)
             // Where the edit says, or back where it was. Ticking a box and
             // answering a widget are not claims about where the user was
             // writing, and a caret that jumped to either would reveal that
@@ -521,6 +591,32 @@ struct MarkdownEditor: UIViewRepresentable {
                 length: min(max(cursor.length, 0), length - location)
             )
             storage(of: textView)?.cursor = cursorIfSomebodyIsWriting(in: textView)
+            settle(in: textView)
+        }
+
+        /// Tells the Entry where the caret has come to rest, and shows what
+        /// it answers — the body without the block that just lifted off it,
+        /// on the days it answers anything.
+        ///
+        /// Shown here and now, rather than left to the next update from
+        /// SwiftUI, so that no keystroke can land on a text view still
+        /// holding characters the Entry has already moved into the section.
+        /// The caret stays on the character it was on (``caretShift``).
+        private func settle(in textView: UITextView, caret: Int?? = nil, afterAPaste: Bool = false) {
+            let caret = caret ?? cursorIfSomebodyIsWriting(in: textView)?.location
+            guard let body = caretSettled?(caret, afterAPaste), let storage = storage(of: textView),
+                body != textView.text
+            else { return }
+            let selection = textView.selectedRange
+            let shift = CutEntry.caretShift(from: textView.text, to: body)
+            storage.setSource(body)
+            textSettled(in: textView)
+            // The typing that made the block is not undoable now that the
+            // block is somewhere else: an undo registered over the body as
+            // it was would reach into characters the section holds, and put
+            // the block back into the body under the section's copy of it.
+            textView.undoManager?.removeAllActions()
+            put(NSRange(location: selection.location + shift, length: 0), in: textView)
         }
 
         /// What a tap at this point would answer, or `nil` for a tap that
@@ -550,6 +646,12 @@ struct MarkdownEditor: UIViewRepresentable {
 
         func textViewDidChange(_ textView: UITextView) {
             text.wrappedValue = textView.text
+            textSettled(in: textView)
+            // After the text, deliberately: where the caret is only means
+            // anything against the words it is in.
+            let pasted = changeIsAPaste
+            changeIsAPaste = false
+            settle(in: textView, afterAPaste: pasted)
         }
 
         /// Opens the next item when a return lands in a list, in place of the
@@ -571,7 +673,10 @@ struct MarkdownEditor: UIViewRepresentable {
         ) -> Bool {
             guard text == "\n",
                 let edit = MarkdownReturn.edit(textView.text, over: range)
-            else { return true }
+            else {
+                changeIsAPaste = (text as NSString).length > 1
+                return true
+            }
 
             apply(edit, in: textView)
             return false
@@ -589,6 +694,10 @@ struct MarkdownEditor: UIViewRepresentable {
         /// or the `- [ ] ` where a box belongs.
         func textViewDidChangeSelection(_ textView: UITextView) {
             storage(of: textView)?.cursor = cursorIfSomebodyIsWriting(in: textView)
+            // Not while the text is changing under it: that caret is reported
+            // with the text, a moment from now.
+            guard textView.textStorage.length == settledLength else { return }
+            settle(in: textView)
         }
 
         /// Where the cursor is, as live preview means it: where the caret is
@@ -602,6 +711,7 @@ struct MarkdownEditor: UIViewRepresentable {
         /// be revealed again by hand.
         func textViewDidBeginEditing(_ textView: UITextView) {
             storage(of: textView)?.cursor = textView.selectedRange
+            settle(in: textView, caret: textView.selectedRange.location)
         }
 
         /// The keyboard going down, and with it the last revealed element. A
@@ -610,10 +720,23 @@ struct MarkdownEditor: UIViewRepresentable {
         /// be edited last.
         func textViewDidEndEditing(_ textView: UITextView) {
             storage(of: textView)?.cursor = nil
+            settle(in: textView, caret: .some(nil))
         }
 
         private func storage(of textView: UITextView) -> MarkdownTextStorage? {
             textView.textStorage as? MarkdownTextStorage
+        }
+
+        // MARK: - Scrolling up past the top
+
+        /// A pull past the top and let go is how the control over a day with
+        /// no block is reached (``MarkdownTextView``).
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate: Bool) {
+            (scrollView as? MarkdownTextView)?.draggingEnded()
+        }
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            (scrollView as? MarkdownTextView)?.scrolled()
         }
     }
 }

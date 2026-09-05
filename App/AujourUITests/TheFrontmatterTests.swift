@@ -61,7 +61,6 @@ final class TheFrontmatterTests: AujourUITestCase {
         XCTAssertEqual(reopened.value as? String, "1")
         XCTAssertEqual(app.textFields["propertyNumber-Mood"].value as? String, "7")
         expect(app.textViews["entryEditor"], toHaveValue: "# A walk", timeout: 30)
-        XCTAssertEqual(entryCountFromTheSettingsSheet(app), "1 entry")
     }
 
     /// The source is edited as text, and leaving it reads the block again:

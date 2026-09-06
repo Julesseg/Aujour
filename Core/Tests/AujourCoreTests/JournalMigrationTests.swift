@@ -294,4 +294,8 @@ private final class ObstructiveJournalStore: JournalStore, @unchecked Sendable {
         if source == refuseMovingFrom { throw JournalStoreError.fileNotFound(source) }
         try await folder.move(from: source, to: destination)
     }
+
+    func delete(at relativePath: String) async throws {
+        try await folder.delete(at: relativePath)
+    }
 }

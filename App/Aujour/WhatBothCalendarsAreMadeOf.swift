@@ -32,10 +32,36 @@ struct DayCell: View {
 
     let pick: () -> Void
 
+    /// What deleting this day's Entry does, and `nil` on a calendar where
+    /// nothing can be deleted.
+    ///
+    /// Behind a press and not a control of its own, because it is the one
+    /// thing on this screen nobody should be able to do by aiming badly: a
+    /// cell is a seventh of a phone wide, seven of them sit in a row, and the
+    /// tap they are all *for* is the way in to writing the day. The press is
+    /// what makes it deliberate; the button that comes up is what makes it
+    /// certain.
+    var deleteTheEntry: (() -> Void)?
+
+    /// Whether the one button is up over this day.
+    ///
+    /// The cell's own and not the calendar's, which is what puts the button
+    /// *on the day*: a confirmation is anchored to the view it was asked from,
+    /// so one owned a whole calendar up the tree comes up pointing at the
+    /// calendar. On an iPhone that is a sheet from the bottom either way and
+    /// the mistake does not show; on an iPad it is a popover, and it showed.
+    @State private var asking = false
+
     private var look: DayCellLook { DayCellLook(day, accent: accent) }
 
     var body: some View {
-        Button(action: pick) {
+        Button {
+            // A finger that has just asked about this day is not a finger
+            // tapping it. The press and the tap are one touch, and the tap end
+            // of it arrives after the button is already up.
+            guard !asking else { return }
+            pick()
+        } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: Rounding.control, style: .continuous)
                     .fill(Color(look.fill))
@@ -75,6 +101,49 @@ struct DayCell: View {
         .accessibilityLabel(day.day.spelledOut(withYear: true))
         .accessibilityValue(day.isJournaled ? "Written" : "Not written")
         .accessibilityAddTraits(day.isBeingWritten ? [.isSelected] : [])
+        // Straight to the asking, rather than through a menu holding one row
+        // that says what the asking says. Two steps to delete a day was the
+        // same sentence twice, and the second is the one that has to be there.
+        //
+        // Simultaneous, which is the only kind of gesture that gets to happen
+        // *while* the finger is still down. The pill's grid is under a drag
+        // that has the first claim on the finger (``DatePillView``), and an
+        // ancestor's claim outranks everything in the rows below it — so a
+        // gesture competing for that finger cannot be settled until the touch
+        // ends, and the button came up on the lift rather than on the press.
+        // One that competes with nothing is answered on time. What it costs is
+        // that the tap still arrives afterwards, which is what `asking` above
+        // is for.
+        //
+        // Always attached rather than branched on, so that a scan arriving
+        // changes what a cell asks and never which cell it is — the same
+        // reason both grids identify their cells by place (`ForEach`). A day
+        // with no Entry has nothing to ask about.
+        .simultaneousGesture(
+            LongPressGesture().onEnded { _ in
+                guard day.isJournaled, deleteTheEntry != nil else { return }
+                asking = true
+            }
+        )
+        // Under the finger, at the moment the button appears — because the
+        // finger is still down, and a press that has done something should be
+        // felt rather than only seen. The system's own answer for a press that
+        // has landed, which is what a long press elsewhere on the phone gives.
+        .sensoryFeedback(.impact(weight: .medium), trigger: asking) { _, asking in
+            asking
+        }
+        // One button, and no words around it. What it does is what it says,
+        // and a title and a paragraph would be the app explaining a thing the
+        // reader is holding their finger on.
+        //
+        // Here on the cell, so that it comes up on the day it is about: a
+        // popover is anchored to whatever asked for it, and a grid is
+        // forty-two squares of two digits, so the day it points at is the only
+        // thing saying which day is about to go.
+        .confirmationDialog("", isPresented: $asking, titleVisibility: .hidden) {
+            Button("Delete Entry", role: .destructive) { deleteTheEntry?() }
+                .accessibilityIdentifier("confirmDeleteEntry")
+        }
     }
 }
 

@@ -26,6 +26,11 @@ import Observation
 ///   not a copy of today's date, so that a journal left open past the rollover
 ///   moves on to the new day.
 ///
+/// It is also the way a day is taken back *out*. A day is a thing that can be
+/// pointed at here and nowhere else in Aujour, so the one operation that
+/// removes an Entry from the folder hangs off the grid — see
+/// ``deleteTheEntry(for:)``.
+///
 /// It reaches the world through a Journal Store and a clock, and nothing
 /// else, so all of the above is tested against an in-memory folder on any
 /// platform.
@@ -531,6 +536,51 @@ public final class JournalCalendar {
             day: day,
             now: now
         )
+    }
+
+    // MARK: - Taking a day back out of the folder
+
+    /// Deletes a day's Entry, and puts the day back to being one nobody has
+    /// written: the file leaves the Journal Root, and the mark leaves the
+    /// grid.
+    ///
+    /// The one place in Aujour that removes a file, and it is here for the
+    /// same reason the way *in* to a day is: the calendar is where a day is a
+    /// thing that can be pointed at. Which file that day is happens to be the
+    /// current Path Template's answer and nobody else's (ADR 0002), which is
+    /// the whole reason this is not the screen's to do with a path it worked
+    /// out itself.
+    ///
+    /// Not offered for a day with no Entry, and not refused for one either.
+    /// The grid already knows which days are journaled and only offers this
+    /// where one is, so the case left over is a file that went in between —
+    /// deleted in Obsidian, or on another device since the last scan. That is
+    /// the asked-for state arrived at without Aujour, not a failure to put in
+    /// front of anybody; the mark comes off, which is the only thing about it
+    /// that was out of date.
+    ///
+    /// Throws for a Path Template that cannot name a day, and for a folder
+    /// that would not do it. Both leave the day marked, because both leave
+    /// the file where it was — a calendar that unmarked a day whose file is
+    /// still there would be the app disagreeing with the folder, which is the
+    /// one thing the indicators must never do (ADR 0001).
+    ///
+    /// It does not touch what is on screen. An editor over this day is still
+    /// holding the day's words, and putting the page back to a day nobody
+    /// wrote is the caller's — it is the caller that knows whether there is a
+    /// page over this day at all.
+    public func deleteTheEntry(for day: JournalDay) async throws {
+        // A Path Template that cannot name a day cannot name the file to
+        // delete either, and guessing at the default would delete a file this
+        // user's other devices do not think is theirs (ADR 0002).
+        let template = try PathTemplate(settings.pathTemplate)
+        do {
+            try await store.delete(at: template.render(day))
+        } catch JournalStoreError.fileNotFound {
+            // Already gone — see above.
+        }
+        journaledDays.remove(day)
+        layOutTheMonth()
     }
 
     // MARK: - Laying out the grid

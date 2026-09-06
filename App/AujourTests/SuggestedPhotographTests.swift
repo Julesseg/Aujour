@@ -196,4 +196,5 @@ private struct AFolderThatRefusesAPhotograph: JournalStore {
     func write(_ contents: Data, at relativePath: String) async throws { throw ItWillNotGo() }
     func create(_ contents: Data, at relativePath: String) async throws { throw ItWillNotGo() }
     func move(from source: String, to destination: String) async throws { throw ItWillNotGo() }
+    func delete(at relativePath: String) async throws { throw ItWillNotGo() }
 }

@@ -33,6 +33,11 @@ struct SidebarCalendarView: View {
     /// day.
     let pick: (JournalDay) -> Void
 
+    /// What deleting a day's Entry does. The sidebar does not delete files
+    /// either — it says which day was long-pressed and confirmed, and the
+    /// screen around it is what owns the folder.
+    let deleteTheEntry: (JournalDay) -> Void
+
     /// What has to be written down before the folder is read.
     ///
     /// The marks are a scan of the folder and nothing else (ADR 0001), so a
@@ -229,7 +234,13 @@ struct SidebarCalendarView: View {
                     // day, so that a scan arriving changes what a cell says
                     // and never which cell it is.
                     ForEach(Array(week.enumerated()), id: \.offset) { _, day in
-                DayCell(day: day, accent: accent, side: side) { pick(day.day) }
+                        DayCell(
+                            day: day,
+                            accent: accent,
+                            side: side,
+                            pick: { pick(day.day) },
+                            deleteTheEntry: { deleteTheEntry(day.day) }
+                        )
                     }
                 }
                 .frame(height: side)
@@ -255,6 +266,7 @@ struct SidebarCalendarView: View {
             calendar: calendar,
             accent: .driftwood,
             pick: { calendar.pick($0) },
+            deleteTheEntry: { day in Task { try? await calendar.deleteTheEntry(for: day) } },
             settleTheDayOnScreen: {},
             atMost: 500
         )

@@ -307,6 +307,52 @@ struct FileJournalStore: JournalStore {
         }
     }
 
+    func delete(at relativePath: String) async throws {
+        let path = try RelativePath(relativePath)
+        try checkTheRootIsThere()
+
+        let url = url(for: path)
+        guard isRegularFile(at: url) || isEvicted(at: url) else {
+            throw JournalStoreError.fileNotFound(path.string)
+        }
+
+        // No wait for iCloud, and this is the one operation where that is
+        // right: every other one needs the bytes, and this one is throwing
+        // them away. A day the user asked to be rid of should not be held up
+        // by a download of the words being deleted.
+        //
+        // Both names, because during a download the real file and the
+        // placeholder standing in for it can be there at once and they are one
+        // file (`listFiles`). The day is gone only when neither is left.
+        let names = [url, evictionPlaceholderURL(for: url)]
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+
+        do {
+            for name in names {
+                // Removed and not put anywhere. An iOS app's container has no
+                // trash — `trashItem` answers "the volume doesn't have one" —
+                // so a hand to the system to hold the file for a while is a
+                // safety net that would never once catch anything, and one
+                // written into the folder would be Aujour keeping a copy of a
+                // day the user asked it to be rid of. The confirmation says
+                // this plainly, which is the whole of what is owed here.
+                try coordinatedDelete(of: name) { deleting in
+                    try FileManager.default.removeItem(at: deleting)
+                }
+            }
+        } catch {
+            throw JournalRootError.deleteFailed(
+                path: path.string,
+                reason: error.localizedDescription
+            )
+        }
+
+        // Not announced with `aujourWrote`. A file that is no longer there is
+        // news in its own right — the same end of a move this store leaves to
+        // be reported — and what it makes happen is a rescan, which is exactly
+        // what a folder that has just lost a day should get.
+    }
+
     /// When the file at this path was last written, or `nil` where the folder
     /// will not say — which includes a file that is not there.
     ///
@@ -359,6 +405,20 @@ struct FileJournalStore: JournalStore {
         var refused: NSError?
         coordinator.coordinate(writingItemAt: url, options: options, error: &refused) { url in
             outcome = Result { try write(url) }
+        }
+        try whatHappened(outcome, refused, .fileWriteUnknown)
+    }
+
+    private func coordinatedDelete(
+        of url: URL,
+        _ delete: @escaping (URL) throws -> Void
+    ) throws {
+        var outcome: Result<Void, any Error>?
+        var refused: NSError?
+        // `.forDeleting`, which is what tells the other apps in the folder to
+        // let go of the file rather than to expect a new version of it.
+        coordinator.coordinate(writingItemAt: url, options: .forDeleting, error: &refused) { url in
+            outcome = Result { try delete(url) }
         }
         try whatHappened(outcome, refused, .fileWriteUnknown)
     }

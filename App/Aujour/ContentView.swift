@@ -61,6 +61,32 @@ struct ContentView: View {
     /// and that is a step forwards like any other.
     @State private var goingForwards = true
 
+    /// The journal as this screen last drew it open: the calendar the pill
+    /// and the sidebar are over, and today's editor.
+    ///
+    /// Kept so that a journal being opened again has a page to fade out
+    /// from. Every settings change reopens the journal (ADR 0003), and the
+    /// journal lets go of its calendar and its editor the moment it starts —
+    /// which, drawn literally, is the day's words vanishing under the
+    /// settings sheet and coming back a moment later, changed. What the
+    /// screen does instead is go on drawing this while a cover comes in over
+    /// it (``thePageBeingLeft``).
+    @State private var theJournalAsLastOpen: TheJournalAsItWas?
+
+    /// The page still being drawn while the journal opens again, under the
+    /// cover fading in over it — and `nil` the rest of the time, which is
+    /// what the cover reads to know whether it is there.
+    ///
+    /// Let go of only once the cover is opaque, and never before: the new
+    /// page is a fresh UIKit text view, and one of those lands on screen at
+    /// full strength whatever SwiftUI is fading around it. Swapped under an
+    /// opaque cover, it is simply there when the cover lifts.
+    @State private var thePageBeingLeft: ThePageAsItWas?
+
+    /// When the cover will have finished coming in — the earliest moment the
+    /// page under it can be swapped unseen.
+    @State private var theCoverIsOpaqueAt: ContinuousClock.Instant?
+
     /// How wide the page is, which is how far a day has to travel to be off
     /// it. Measured off the container the days slide in, so that it is the
     /// page beside the sidebar on a wide window and the whole window on a
@@ -153,6 +179,10 @@ struct ContentView: View {
     /// of it kept here, so that a phone left open past the rollover moves on
     /// to the new day rather than staying on the old one.
     private var entryOnScreen: OpenedDay? {
+        // While the journal opens again, the page that was here — exactly as
+        // it was, whichever day it was on — until the cover over it is
+        // opaque.
+        if let leaving = thePageBeingLeft { return leaving.entry }
         // A day that has not arrived has no Entry to open, and this is where
         // the screen stops looking for one: an editor is the only thing that
         // can write an Entry, so a day with no editor is a day with no file,
@@ -162,6 +192,12 @@ struct ContentView: View {
             return picked
         }
         return journal.today.map { OpenedDay(day: $0.day, editor: $0) }
+    }
+
+    /// The calendar the pill and the sidebar are drawn over: the journal's,
+    /// or the one the page being left was on for as long as it is being left.
+    private var calendarOnScreen: JournalCalendar? {
+        thePageBeingLeft?.calendar ?? journal.calendar
     }
 
     /// Opens a day picked out of the date pill's grid.
@@ -295,7 +331,7 @@ struct ContentView: View {
                 risingFrom: sheets
             )
             .parkedFilesNotice(from: journal, for: onScreen.day, in: appearance.accent)
-        } else if let calendar = journal.calendar, let opensAt = calendar.writingOpensAt {
+        } else if let calendar = calendarOnScreen, let opensAt = calendar.writingOpensAt {
             ADayThatHasNotArrived(writingOpensAt: opensAt)
         } else {
             // There is no open journal without today's Entry over it — but a
@@ -372,7 +408,7 @@ struct ContentView: View {
 
     /// Which day the journal is on, as something that can be watched.
     private var theDayTheJournalIsOn: JournalDay? {
-        journal.calendar?.dayBeingWritten ?? journal.today?.day
+        calendarOnScreen?.dayBeingWritten ?? journal.today?.day
     }
 
     // MARK: - Which presentation the window is wide enough for
@@ -412,7 +448,7 @@ struct ContentView: View {
     /// beside it would be the app saying these are two panels when what they
     /// are is a calendar over a page.
     @ViewBuilder private var theSidebar: some View {
-        if layout == .sidebar, let calendar = journal.calendar {
+        if layout == .sidebar, let calendar = calendarOnScreen {
             SidebarCalendarView(
                 calendar: calendar,
                 accent: appearance.accent,
@@ -488,16 +524,87 @@ struct ContentView: View {
         reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.32, bounce: 0.1)
     }
 
+    /// Which of the three the screen is showing.
+    ///
+    /// The journal's state with what is inside it left out, because that is
+    /// what the screen is changing between: an open journal that has counted
+    /// its Entries again is the same screen, and one that covered itself
+    /// every time the folder was read would be blinking at its own
+    /// housekeeping.
+    private enum WhatTheScreenShows {
+        case theJournalOpening
+        case theJournal
+        case aProblem
+    }
+
+    private var whatTheScreenShows: WhatTheScreenShows {
+        switch journal.state {
+        case .opening: .theJournalOpening
+        case .open: .theJournal
+        case .unavailable: .aProblem
+        }
+    }
+
+    /// What the journal opening again does to this screen, in three acts.
+    ///
+    /// The page being left is held and the cover starts in over it; when the
+    /// journal is back, the page is swapped under the cover once the cover is
+    /// opaque, and the cover lifts. A folder that could not be opened gets
+    /// the page let go of at once, because the notice about it is the thing
+    /// to show.
+    ///
+    /// The page is held *here*, at the moment the journal lets go of it, out
+    /// of what the screen was drawing a moment before — the day picked out of
+    /// the grid, or today — and that copy is put down in the same breath,
+    /// since it is now an editor over a journal that is being closed.
+    private func theJournalIs(_ showing: WhatTheScreenShows) {
+        switch showing {
+        case .theJournalOpening:
+            let picked = dayPickedOutOfTheGrid
+            dayPickedOutOfTheGrid = nil
+            guard let wasOpen = theJournalAsLastOpen else { return }
+            let onScreen: OpenedDay? =
+                wasOpen.calendar.writingOpensAt == nil
+                ? picked ?? OpenedDay(day: wasOpen.today.day, editor: wasOpen.today)
+                : nil
+            thePageBeingLeft = ThePageAsItWas(calendar: wasOpen.calendar, entry: onScreen)
+            // Only ever later, never sooner: a second opening under a cover
+            // already in has nothing to wait for that the first is not
+            // waiting for.
+            let opaqueAt =
+                ContinuousClock.now + .seconds(TheCoverWhileTheJournalOpensAgain.comesInOver)
+            theCoverIsOpaqueAt = max(theCoverIsOpaqueAt ?? opaqueAt, opaqueAt)
+
+        case .theJournal:
+            guard thePageBeingLeft != nil, let opaqueAt = theCoverIsOpaqueAt else { return }
+            Task {
+                try? await Task.sleep(until: opaqueAt, clock: .continuous)
+                // Still the journal, and not a third opening that began in
+                // the meantime — that one will lift the cover itself.
+                guard whatTheScreenShows == .theJournal else { return }
+                thePageBeingLeft = nil
+            }
+
+        case .aProblem:
+            thePageBeingLeft = nil
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Group {
                 switch journal.state {
-                case .opening:
+                case .opening where thePageBeingLeft == nil:
                     ProgressView("Opening your journal")
                         .accessibilityIdentifier("openingJournal")
                         .navigationTitle("Aujour")
 
-                case .open:
+                // The journal, and the journal opening again with the page it
+                // is leaving still drawn — the same layout, over the calendar
+                // and editor that were on screen, with the cover coming in
+                // over all of it. The title and the spinner the first opening
+                // shows were exactly the flash this had to cross.
+                case .open, .opening:
                     // The month down one side on a window with room for it,
                     // and nothing at all on a window without — and the day's
                     // words beside it either way.
@@ -538,7 +645,7 @@ struct ContentView: View {
                             // the question the pill exists to ask, and a
                             // second calendar over the first is the calendar
                             // drawn twice.
-                            over: thePillIsTheCalendar ? journal.calendar : nil,
+                            over: thePillIsTheCalendar ? calendarOnScreen : nil,
                             accent: appearance.accent,
                             openedTo: $pill,
                             pick: pick,
@@ -572,6 +679,11 @@ struct ContentView: View {
                                 theRestOfTheApp(inItsOwnGlass: false)
                             }
                         }
+                    }
+                    // Over the page, the pill and the sidebar alike: all of
+                    // it is the journal, and all of it is being opened again.
+                    .overlay {
+                        TheCoverWhileTheJournalOpensAgain(isIn: thePageBeingLeft != nil)
                     }
 
                 case .unavailable(let problem):
@@ -672,12 +784,13 @@ struct ContentView: View {
         // same way as the day reached by when it was.
         .environment(\.journalLayout, layout)
         .task { await journal.open() }
-        // A journal that has been reopened — a folder changed, a Path Template
-        // changed — is a new calendar over new files, and a day held from the
-        // old one is an editor over a store nothing is journaling into any
-        // more.
-        .onChange(of: journal.calendar.map(ObjectIdentifier.init)) { _, _ in
-            dayPickedOutOfTheGrid = nil
+        // What the journal last looked like open, written down each time it
+        // opens — the calendar and today's editor arrive together — so that
+        // there is a page to hold the next time it lets go of them.
+        .onChange(of: journal.today.map(ObjectIdentifier.init), initial: true) { _, _ in
+            if let calendar = journal.calendar, let today = journal.today {
+                theJournalAsLastOpen = TheJournalAsItWas(calendar: calendar, today: today)
+            }
         }
         // Kept in step with the journal for every way the day moves that is
         // not somebody moving it: the first day there is one, the morning an
@@ -688,6 +801,12 @@ struct ContentView: View {
         .onChange(of: theDayTheJournalIsOn, initial: true) { _, day in
             dayOnScreen = day
         }
+        // The journal opening again — a folder changed, a Path Template
+        // changed, a template picked — is a new calendar over new files, and
+        // a day held from the old one is an editor over a store nothing is
+        // journaling into any more. It is also the page going and coming
+        // back, which is what the cover is for.
+        .onChange(of: whatTheScreenShows) { _, showing in theJournalIs(showing) }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .inactive, .background:
@@ -731,6 +850,71 @@ struct ContentView: View {
     }
 }
 
+/// The journal as the screen last drew it open — enough to go on drawing
+/// the same picture after the journal has let go of both.
+private struct TheJournalAsItWas {
+    let calendar: JournalCalendar
+    let today: EntryEditor
+}
+
+/// The page the screen was on when the journal started opening again: the
+/// calendar it was over, and the day and editor on it — or no day, for a day
+/// that had not arrived.
+private struct ThePageAsItWas {
+    let calendar: JournalCalendar
+    let entry: OpenedDay?
+}
+
+/// Paper drawn over the journal while it is being opened again.
+///
+/// A cover and not a transition, because of what the page is made of. The
+/// day's words are a UIKit text view under the SwiftUI view, and a text view
+/// made while SwiftUI is fading something in lands on screen at full strength
+/// — the words popping in under a pill still coming up. So nothing on the
+/// page is ever faded: the page that was there stays, this comes in over it,
+/// the page is swapped while nothing can be seen, and this goes.
+///
+/// For the length of a settings change over a folder on the device that is
+/// the whole of it: words fading to paper and paper fading back to words. A
+/// folder that keeps the screen waiting — an iCloud folder can take seconds
+/// — is a different matter, and blank paper held for seconds is the one
+/// thing this screen must never be (ADR 0001). So the spinner is still here,
+/// after a beat long enough that a reopen on the device never reaches it.
+private struct TheCoverWhileTheJournalOpensAgain: View {
+    /// Whether the journal is being opened again right now.
+    let isIn: Bool
+
+    /// How long it takes to come in, and to go: slow enough to read as the
+    /// journal being opened again rather than as a flinch. A dissolve is
+    /// what Reduce Motion asks for in place of everything else, so there is
+    /// no second answer for a reader who asked for less movement.
+    static let comesInOver: TimeInterval = 0.35
+
+    @State private var theFolderIsTakingItsTime = false
+
+    var body: some View {
+        ZStack {
+            Color(Palette.background)
+            if theFolderIsTakingItsTime {
+                ProgressView("Opening your journal")
+                    .accessibilityIdentifier("openingJournal")
+            }
+        }
+        .ignoresSafeArea()
+        .opacity(isIn ? 1 : 0)
+        .allowsHitTesting(isIn)
+        .animation(.easeInOut(duration: Self.comesInOver), value: isIn)
+        .animation(.easeInOut(duration: Self.comesInOver), value: theFolderIsTakingItsTime)
+        .task(id: isIn) {
+            theFolderIsTakingItsTime = false
+            guard isIn else { return }
+            // A sleep cut short is the cover lifting, which is the journal
+            // having opened: nothing to say then.
+            guard (try? await Task.sleep(for: .seconds(1))) != nil else { return }
+            theFolderIsTakingItsTime = true
+        }
+    }
+}
 
 extension EnvironmentValues {
     /// Which presentation the journal is being read in, put where the views

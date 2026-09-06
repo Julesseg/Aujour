@@ -354,6 +354,10 @@ class AujourUITestCase: XCTestCase {
     /// spells the minutes the same way. Which wheel that is is asked of the
     /// wheels rather than counted off, since a region can order them as it
     /// likes.
+    /// How many throws a picker wheel gets before the miss is the test's
+    /// answer rather than the harness's.
+    private static let triesAtAPickerWheel = 4
+
     func setTheMinutes(of picker: XCUIElement, to minute: Int, in app: XCUIApplication) {
         scrollTo(picker, in: app)
         picker.tap()
@@ -377,12 +381,39 @@ class AujourUITestCase: XCTestCase {
         }
         // The options are the numbers alone, though the wheel says its own
         // value as "00 minutes".
-        minutes.adjust(toPickerWheelValue: String(format: "%02d", minute))
+        //
+        // Asked for until it lands, because one ask is not reliable: adjusting
+        // a picker wheel is a synthesized drag at a computed velocity, and a
+        // long one stops a row or two short of where it was aimed — which is a
+        // test that fails on a minute nobody chose, once in a while and never
+        // on the machine it is being written on. Each retry is a shorter drag
+        // than the one before, so this converges rather than repeating a throw
+        // that already missed.
+        let wanted = String(format: "%02d", minute)
+        for _ in 0..<Self.triesAtAPickerWheel where !minutes.reads(wanted) {
+            minutes.adjust(toPickerWheelValue: wanted)
+        }
+        XCTAssertTrue(
+            minutes.reads(wanted),
+            "the minutes would not settle on \(wanted) — the wheel is showing "
+                + "\(minutes.value as? String ?? "nothing")"
+        )
 
         // The picker opens over the screen, so it is in the way of everything
         // the test does next.
         let dismiss = app.buttons["PopoverDismissRegion"]
         if dismiss.waitForExistence(timeout: 3) { dismiss.tap() }
+
+        // And the face is waited for, because it is not the wheel. A test
+        // reads the time off the shut picker the moment this returns, and a
+        // wheel that has landed is not yet a clock that says so — on a loaded
+        // machine the two are far enough apart to read the minute before last,
+        // which is a test failing on a minute nobody chose.
+        XCTAssertTrue(
+            waitFor { theTimeShowing(on: picker, in: app).minutesShowing == wanted },
+            "the clock would not come round to \(wanted) minutes — it is showing "
+                + "\(theTimeShowing(on: picker, in: app))"
+        )
     }
 
     /// Replaces what is in the entry path field, and puts the keyboard away.
@@ -1374,5 +1405,28 @@ class AujourUITestCase: XCTestCase {
 
     func todaysEntryName() -> String {
         entryName(for: Date())
+    }
+}
+
+extension String {
+    /// The minutes a short clock time is showing, as the two digits a picker
+    /// wheel names them by.
+    ///
+    /// Taken off the digits rather than by splitting on a separator, because
+    /// the separator is the region's: a clock reads "9:07 PM" in one place and
+    /// "21:07" in another, and the minutes are the last two digits of both.
+    var minutesShowing: String {
+        String(filter(\.isNumber).suffix(2))
+    }
+}
+
+extension XCUIElement {
+    /// Whether a picker wheel has landed on one of its options.
+    ///
+    /// By the number the option is named by rather than by the sentence the
+    /// wheel says it with: a wheel of minutes reads its own value as
+    /// "07 minutes", while the thing it is adjusted to is "07".
+    func reads(_ option: String) -> Bool {
+        (value as? String)?.hasPrefix(option) == true
     }
 }

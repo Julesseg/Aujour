@@ -8,11 +8,13 @@ import SwiftUI
 /// yet more often than a mail app is empty, and a grey rectangle on day one is
 /// an app that looks broken to the only reader who cannot tell whether it is.
 ///
-/// Shared rather than written out per screen, because the three of them are one
-/// idea said three times — a first day, a Calendar month, a Search over a
-/// Journal nobody has written in — and three screens each inventing their own
-/// mark size and their own two shades of ink is how an identity stops being
-/// one. `ContentUnavailableView` is the shape this replaces: it says the same
+/// Shared rather than written out per screen, because they are one idea said
+/// more than once — a first day, a Search over a Journal nobody has written in
+/// — and screens each inventing their own mark size and their own two shades
+/// of ink is how an identity stops being one. A Calendar month is deliberately
+/// not among them: an empty grid reads for itself, and the app does not
+/// narrate what the reader is looking at (`CONTEXT.md`, Empty State).
+/// `ContentUnavailableView` is the shape this replaces: it says the same
 /// three things in the platform's own voice, which is the one voice a
 /// paper-and-ink identity cannot borrow.
 ///
@@ -36,9 +38,9 @@ struct EmptyState: View {
     /// What to do about it, or what it means. One sentence.
     let sentence: String
 
-    /// What a test finds this state by, on the line: which of the three a
-    /// screen is showing is the whole of what a running app has to be able to
-    /// say about an empty one.
+    /// What a test finds this state by, on the line: which of them a screen is
+    /// showing is the whole of what a running app has to be able to say about
+    /// an empty one.
     let identifier: String
 
     /// The mark grows with the reader's text size like everything else, and

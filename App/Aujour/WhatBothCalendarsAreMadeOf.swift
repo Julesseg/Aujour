@@ -211,25 +211,27 @@ struct DayCellLook: Equatable {
     }
 }
 
-/// The sentence under a month, on the two occasions there is one.
+/// The sentence under a month, on the one occasion there is one.
 ///
 /// A grid with no marks on it is four different things (ADR 0001): a folder
 /// nothing has looked in yet, a folder that would not answer, a month a
 /// journal does not reach into, and a journal nobody has written in.
-/// ``JournalCalendar`` tells them apart; only two of them are worth saying
+/// ``JournalCalendar`` tells them apart; only one of them is worth saying
 /// anything about.
 ///
-/// A month a journal does not reach into is not one of them. It is an ordinary
-/// gap — August was quiet — and the grid has already said so by having no
-/// marks on it; a line underneath explaining the same thing in words is the app
-/// narrating what the reader is looking at. Nor is a folder nobody has read
-/// yet, which knows nothing and so says nothing.
+/// Neither empty month is. A month a journal does not reach into is an
+/// ordinary gap — August was quiet — and the grid has already said so by
+/// having no marks on it; a line underneath explaining the same thing in words
+/// is the app narrating what the reader is looking at. A journal nobody has
+/// written in is that same grid on its first morning, and it reads as a
+/// beginning without being told it is one: the days are there, today is
+/// tinted, and tapping one is the only thing a calendar has ever meant. Nor is
+/// a folder nobody has read yet worth a line, which knows nothing and so says
+/// nothing.
 ///
-/// A line and not a page. On the screen this came off it could be a
-/// `ContentUnavailableView` with room around it, and on a pane of glass an inch
-/// tall it cannot — but the beginning of a journal is worth a sentence wherever
-/// it is said, because the grid *is* the way in and somebody who has just
-/// installed the app has no reason to know that.
+/// What is left is the folder that would not answer, which is the only one the
+/// grid gets *wrong* rather than merely leaves quiet: days that were written on
+/// and are not marked. That is worth a note wherever it is said.
 ///
 /// One view for both calendars: what a grid cannot say for itself does not
 /// depend on how wide the window it is in happens to be.
@@ -239,7 +241,7 @@ struct TheGridsOwnSentence: View {
     /// Whether there is a sentence at all — asked before one is built, because
     /// the pill has to open far enough to hold whatever this comes out as.
     static func isThereOne(for calendar: JournalCalendar) -> Bool {
-        calendar.problem != nil || calendar.theJournalIsAtItsBeginning
+        calendar.problem != nil
     }
 
     var body: some View {
@@ -256,29 +258,15 @@ struct TheGridsOwnSentence: View {
             // a month with no marks on it, which is exactly what a journal
             // nobody has written in looks like.
             //
-            // In the system's own face and at the size of a note, which is
-            // what keeps it from reading as the sentence below it: a folder
+            // In the system's own face and at the size of a note: a folder
             // that would not answer is not an Empty State, and the identity
-            // arriving on this panel is not licence to start drawing the two
-            // the same way (`CONTEXT.md`, Empty State).
+            // arriving on this panel is not licence to draw a problem in the
+            // prose voice (`CONTEXT.md`, Empty State).
             Text("Aujour couldn't read your folder, so days you've written may not be marked.")
                 .lettering(.note)
                 .foregroundStyle(Palette.inkMutedColor)
                 .accessibilityIdentifier("indicatorsProblem")
                 .accessibilityLabel(StorageProblem(problem).message)
-        } else if calendar.theJournalIsAtItsBeginning {
-            // The Empty State, in the identity's own aside — the same quiet
-            // prose voice the other two are said in, cut down to a line
-            // because this one is said on an inch of glass rather than on a
-            // page of its own.
-            //
-            // The muted step and not the faint one it used to be drawn in.
-            // This is a sentence, and the faint ink is held to the marker
-            // floor (ADR 0006, and ``Palette/inkFaint``).
-            Text("Your journal starts here. Tap any day up to today and write it.")
-                .lettering(.aside)
-                .foregroundStyle(Palette.inkMutedColor)
-                .accessibilityIdentifier("aJournalNobodyHasWrittenIn")
         }
     }
 }

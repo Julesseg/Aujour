@@ -811,13 +811,17 @@ later has not been, and nothing about the Welcome shapes a file in the folder
 (ADR 0003).
 
 ### Empty State
-What a screen says where the Journal has nothing to show on it. Three of them,
+What a screen says where the Journal has nothing to show on it. Two of them,
 and each is a sentence rather than a blank: a first day, which says that
-anything will do and that nothing reaches the folder until it is typed; a
-Calendar month, which reads as a beginning where the Journal is new and as an
-ordinary gap where it is not; and a Search over a Journal with no Entries in
-it, which says there is nothing to search yet rather than that a query was not
-found.
+anything will do and that nothing reaches the folder until it is typed; and a
+Search over a Journal with no Entries in it, which says there is nothing to
+search yet rather than that a query was not found.
+
+A Calendar month is not one of them, however empty it is. A month with no marks
+on it is a Journal that has not been written in yet or a month it does not
+reach into, and both read for themselves: the days are on screen, today is
+tinted, and tapping one is what a calendar has always meant. A line underneath
+saying so in words would be the app narrating what the reader is looking at.
 
 Never said about a folder that has not answered. A Journal Root still being
 read and one that could not be read both look exactly like a Journal nobody

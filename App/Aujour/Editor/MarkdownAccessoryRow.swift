@@ -33,6 +33,13 @@ import UIKit
 /// reached both edges would read as part of the keyboard rather than as
 /// something the app put there.
 ///
+/// So the inset is how close to the edges it may come and not where it sits.
+/// A phone has less room than nine keys want, and the pill takes all of it;
+/// an iPad has more, the keys stop at square, and the pill stops with them
+/// rather than going on as glass nobody is going to press. An accessory view
+/// is as wide as the keyboard is, and across an iPad's keyboard that is the
+/// bar this row is not.
+///
 /// It is the platform's own glass, tinted to `Palette.glass`, rather than the
 /// blur-and-paint the design file spells out in CSS. The mock is a web page
 /// approximating a material the web does not have; on iOS 26 the material is
@@ -92,10 +99,12 @@ final class MarkdownAccessoryRow: UIInputView {
     /// can reach them without a walk back down the view tree.
     private var controls: [UIButton] = []
 
-    /// The floor and the ceiling on how wide a key is, held because both move
-    /// with the text size — the same way the row's own height does.
+    /// The floor and the ceiling on how wide a key is, and the width a key
+    /// takes when the room is nobody else's to want — held because all three
+    /// move with the text size, the same way the row's own height does.
     private var narrowKeys: [NSLayoutConstraint] = []
     private var wideKeys: [NSLayoutConstraint] = []
+    private var roomyKeys: [NSLayoutConstraint] = []
 
     init(
         accent: UIColor,
@@ -268,7 +277,16 @@ final class MarkdownAccessoryRow: UIInputView {
         wideKeys = controls.map {
             $0.widthAnchor.constraint(lessThanOrEqualToConstant: Self.widestKey)
         }
-        NSLayoutConstraint.activate(narrowKeys + wideKeys)
+        // And what a key comes out at when nothing is pushing on it, which is
+        // the ceiling: a phone squeezes the keys down off this, an iPad does
+        // not squeeze at all, and on an iPad this is what the pane is as wide
+        // as. Said out loud rather than left to the pane, because the pane
+        // has stopped saying it — anywhere between the floor and the ceiling
+        // would satisfy every other constraint here, and a width nine keys
+        // are free to pick is a width they can pick differently.
+        roomyKeys = controls.map { $0.widthAnchor.constraint(equalToConstant: Self.widestKey) }
+        for key in roomyKeys { key.priority = .defaultHigh }
+        NSLayoutConstraint.activate(narrowKeys + wideKeys + roomyKeys)
 
         // Scrolled, for the one case the keys cannot divide their way out of:
         // a narrow phone with its text turned up, where nine keys at their
@@ -283,12 +301,18 @@ final class MarkdownAccessoryRow: UIInputView {
         pill.pane.contentView.addSubview(scroller)
         addSubview(pill)
 
-        // An accessory view is built before anything has told it how wide it
-        // is, and a pane inset from both edges of nothing at all is a pane of
-        // negative width. Breakable, so that the one layout pass at zero
-        // resolves instead of being logged as a mistake.
+        // How far the pane may reach, rather than how far it does: a phone
+        // has less room than nine keys want and the pane takes all of it, an
+        // iPad has more and the pane stops at the keys. Said as an edge the
+        // pane keeps off rather than an edge it meets, because an accessory
+        // view is as wide as the keyboard, and a pill drawn to the far side
+        // of an iPad's keyboard is the bar this row is not.
+        //
+        // Breakable, and it breaks once: an accessory view is built before
+        // anything has told it how wide it is, and a pane inset from both
+        // edges of nothing at all is a pane of negative width.
         let trailing = pill.trailingAnchor.constraint(
-            equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -Self.inset
+            lessThanOrEqualTo: safeAreaLayoutGuide.trailingAnchor, constant: -Self.inset
         )
         trailing.priority = .required - 1
 
@@ -333,18 +357,17 @@ final class MarkdownAccessoryRow: UIInputView {
             keys.bottomAnchor.constraint(equalTo: scroller.contentLayoutGuide.bottomAnchor),
             keys.heightAnchor.constraint(equalTo: scroller.frameLayoutGuide.heightAnchor),
 
-            // And as wide as the pane, which is what turns `fillEqually` into
-            // a width: the keys share out the room there is rather than
-            // taking a number this file picked and leaving the rest of the
-            // pane empty beside them.
+            // The keys and the pane are the same width, which is what turns
+            // `fillEqually` into a width. Read either way round, and it is
+            // read both: on a phone the pane is what there is and the keys
+            // share it out; on an iPad the keys are as wide as a key gets and
+            // the pane is only as wide as the nine of them.
             //
-            // Breakable both ways, and it breaks in both. Wider than nine
-            // keys are allowed to be — an iPad, where the ceiling wins and
-            // the keys stop growing. Narrower than nine keys can shrink to —
-            // a small phone at a large text size, where the floor wins and
-            // the row scrolls, which is what the scroller is here for. And
-            // the one layout pass before anything has said how wide the row
-            // is, which is neither.
+            // Breakable, for the one case neither reading covers — a small
+            // phone at a large text size, where nine keys at their floor are
+            // wider than the pane can be. Then this is what gives, the pane
+            // takes what room the row has, and the keys run off the edge of
+            // it, which is what the scroller is here for.
             fill,
         ])
     }
@@ -354,6 +377,7 @@ final class MarkdownAccessoryRow: UIInputView {
     private func sizeTheKeys() {
         for key in narrowKeys { key.constant = Self.narrowestKey }
         for key in wideKeys { key.constant = Self.widestKey }
+        for key in roomyKeys { key.constant = Self.widestKey }
     }
 
     /// The row, left to right: what a line is, then what a word is, then the

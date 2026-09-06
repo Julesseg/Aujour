@@ -127,18 +127,19 @@ so a folder shared with an Obsidian vault loses a file only where a person
 pointed at the day it belongs to.
 
 Offered on the Calendar and nowhere else, because that is where a day is a
-thing that can be pointed at: long-pressing a day that has an Entry offers it,
-and the offer is confirmed before anything happens. A day with no Entry offers
-nothing. Which file a day is stays the current Path Template's answer and
-nobody else's (ADR 0002), which is why the deletion is the Calendar's rather
-than a screen's own idea of a path.
+thing that can be pointed at: long-pressing a day that has an Entry puts one
+red button under it, and that button is the whole of the asking — no menu in
+front of it and no paragraph around it. The press is what makes it deliberate
+and the button is what makes it certain. A day with no Entry has nothing to
+ask about, so holding it does nothing. Which file a day is stays the current
+Path Template's answer and nobody else's (ADR 0002), which is why the deletion
+is the Calendar's rather than a screen's own idea of a path.
 
 The file is removed and not put anywhere: an iOS app's container has no
 trash, and a trash of Aujour's own inside the Journal Root would be the app
-keeping a copy of a day somebody asked it to be rid of. So the offer is made
-behind a long press, where nobody reaches it by aiming badly, and confirmed in
-words that say what happens — the entry's file leaves the journal folder, and
-Aujour cannot undo it.
+keeping a copy of a day somebody asked it to be rid of. Aujour cannot undo it,
+which is what the long press is for — the guard is that it is hard to do by
+accident, rather than that it is explained at length before it happens.
 
 ### Backfill
 Writing a past Journal Day after the fact: opening a day whose Entry does not

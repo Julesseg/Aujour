@@ -669,30 +669,29 @@ class AujourUITestCase: XCTestCase {
         )
     }
 
-    /// Long-presses a day of the open month, and answers the offer to delete
-    /// its Entry.
+    /// Long-presses a day of the open month, and answers the one button that
+    /// comes up.
     ///
     /// One helper for both calendars: a day is long-pressed the same way on
-    /// the pill and in the sidebar, and there is one offer in the app.
+    /// the pill and in the sidebar, and there is one way to delete one.
     ///
     /// - Parameter cell: the day cell, already on screen.
     func deleteTheEntry(on cell: XCUIElement, in app: XCUIApplication) {
         cell.press(forDuration: 1.0)
         XCTAssertTrue(
-            app.buttons["deleteEntry"].firstMatch.waitForExistence(timeout: 10),
-            "long-pressing a day that was written offered nothing"
+            app.buttons["confirmDeleteEntry"].firstMatch.waitForExistence(timeout: 10),
+            "holding a day that was written asked nothing"
         )
-        tapByFrame("deleteEntry", in: app)
         tapByFrame("confirmDeleteEntry", in: app)
     }
 
     /// Taps a button by where it came out rather than by tapping the element.
     ///
-    /// A context menu and a confirmation dialog both put each of their actions
-    /// into the accessibility tree twice — a Button inside a Button, both
-    /// carrying the identifier — so `app.buttons[id].tap()` refuses as
-    /// ambiguous however the query is narrowed. The frame is unambiguous
-    /// because both copies came out in the same place.
+    /// A confirmation dialog puts each of its actions into the accessibility
+    /// tree twice — a Button inside a Button, both carrying the identifier —
+    /// so `app.buttons[id].tap()` refuses as ambiguous however the query is
+    /// narrowed. The frame is unambiguous because both copies came out in the
+    /// same place.
     func tapByFrame(
         _ identifier: String,
         in app: XCUIApplication,

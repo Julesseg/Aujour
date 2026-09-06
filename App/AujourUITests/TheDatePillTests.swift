@@ -350,7 +350,7 @@ final class TheDatePillTests: AujourUITestCase {
     }
 
     /// The other half of the same offer: a day nobody wrote has nothing to
-    /// delete, so holding it offers nothing at all rather than a row that
+    /// delete, so holding it asks nothing rather than putting up a button that
     /// would do nothing.
     func testHoldingADayNobodyWroteOffersNothing() throws {
         let written = try XCTUnwrap(dayOfTheMonthOnScreen(1))
@@ -366,19 +366,15 @@ final class TheDatePillTests: AujourUITestCase {
         cell.press(forDuration: 1.0)
 
         XCTAssertFalse(
-            app.buttons["deleteEntry"].firstMatch.waitForExistence(timeout: 3),
+            app.buttons["confirmDeleteEntry"].firstMatch.waitForExistence(timeout: 3),
             "a day with no entry offered to delete one"
         )
-        // And nothing came up over the grid to be dismissed either. What the
-        // press did instead is what a press on a button does when there is no
-        // menu to intercept it: it opened the day, exactly as a tap would.
-        // Which is the right dead end to have — a finger held on a day with
-        // nothing to delete lands on that day rather than on a menu saying no.
-        XCTAssertTrue(
-            app.buttons["backToToday"].waitForExistence(timeout: 10),
-            "holding a day with nothing to delete neither offered anything nor opened it"
-        )
-        expect(app.buttons["datePill"], toHaveValue: "Closed")
+        // And the press came to nothing rather than to something else. The
+        // month is still out and the day is still on it, so a finger held on a
+        // day with nothing to delete has not been answered by a button, and
+        // has not been answered by opening the day either.
+        expect(app.buttons["datePill"], toHaveValue: "Month")
+        XCTAssertTrue(cell.exists, "the grid went away under a press that did nothing")
     }
 
     /// The claim the pill's own geometry is bounded by: a month is seven

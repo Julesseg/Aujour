@@ -32,14 +32,15 @@ struct DayCell: View {
 
     let pick: () -> Void
 
-    /// What a long press on a day that was written on offers, and `nil` where
-    /// there is nothing to offer — a day with no Entry, or a calendar drawn
-    /// somewhere nothing can be deleted from.
+    /// What a long press on a day that was written on asks, and `nil` where
+    /// there is nothing to ask about — a calendar drawn somewhere nothing can
+    /// be deleted from.
     ///
     /// Behind a press and not a control of its own, because it is the one
     /// thing on this screen nobody should be able to do by aiming badly: a
     /// cell is a seventh of a phone wide, seven of them sit in a row, and the
-    /// tap they are all *for* is the way in to writing the day.
+    /// tap they are all *for* is the way in to writing the day. The press is
+    /// what makes it deliberate; the asking is what makes it certain.
     var offerToDelete: (() -> Void)?
 
     private var look: DayCellLook { DayCellLook(day, accent: accent) }
@@ -85,43 +86,45 @@ struct DayCell: View {
         .accessibilityLabel(day.day.spelledOut(withYear: true))
         .accessibilityValue(day.isJournaled ? "Written" : "Not written")
         .accessibilityAddTraits(day.isBeingWritten ? [.isSelected] : [])
-        // Only over a day there is an Entry to delete: an empty builder is no
-        // menu, and a press on a day nobody wrote does nothing at all. A menu
-        // that came up on every cell with its one row greyed out would be
-        // forty-two squares answering a press by saying no.
+        // Straight to the asking, rather than through a menu holding one row
+        // that says what the asking says. Two steps to delete a day was the
+        // same sentence twice, and the second is the one that has to be there.
+        //
+        // Given the first claim on the finger, because the cell is a button
+        // and a button pressed and released counts the press however long it
+        // was held: an ordinary `onLongPressGesture` here loses the race and
+        // the day is opened instead of asked about. A long press only succeeds
+        // after it has been held, so a tap still falls through to the button
+        // underneath — which is the whole of the arrangement between them.
         //
         // Always attached rather than branched on, so that a scan arriving
-        // changes what a cell offers and never which cell it is — the same
-        // reason both grids identify their cells by place (`ForEach`).
-        .contextMenu(menuItems: theOfferToDelete)
-    }
-
-    @ViewBuilder private func theOfferToDelete() -> some View {
-        if day.isJournaled, let offerToDelete {
-            Button("Delete Entry", systemImage: "trash", role: .destructive, action: offerToDelete)
-                .accessibilityIdentifier("deleteEntry")
-        }
+        // changes what a cell asks and never which cell it is — the same
+        // reason both grids identify their cells by place (`ForEach`). A day
+        // with no Entry has nothing to ask about, so the press comes to
+        // nothing rather than to the day being opened.
+        .highPriorityGesture(
+            LongPressGesture().onEnded { _ in
+                guard day.isJournaled else { return }
+                offerToDelete?()
+            }
+        )
     }
 }
 
-/// The question asked before a day's Entry is deleted, and the same question
-/// on both calendars.
+/// The one thing between a long press and a day leaving the folder, and the
+/// same thing on both calendars.
 ///
-/// Asked at all because of what is being deleted. Everywhere else in Aujour a
+/// There at all because of what is being deleted. Everywhere else in Aujour a
 /// mistake is a keystroke — a day written into is a day that can be written
 /// over — and this is the one place where a slip takes words out of the folder
 /// and Aujour has nothing to put back (ADR 0001: the files are the journal).
-/// So the long press offers, and this is where it is meant.
 ///
-/// The day says its own name in the question. A grid is forty-two squares of
-/// two digits and a menu that came up over the wrong one looks exactly like a
-/// menu that came up over the right one; a date spelled out is the one thing
-/// that tells them apart.
-///
-/// Says what it does and does not dress it up. The file is removed and not
-/// put anywhere — an iOS app's container has no trash, and one of Aujour's own
-/// inside the Journal Root would be the app quietly keeping a copy of a day
-/// somebody asked it to be rid of. So the sentence is the plain one.
+/// One button, and no words around it. What it does is what it says, and the
+/// two sentences that used to be here were the app explaining a thing the
+/// reader is already holding their finger on: a red **Delete Entry** under the
+/// day they pressed says the whole of it, and a paragraph about the folder is
+/// the app talking rather than asking. The press is what makes it deliberate;
+/// this is what makes it certain, and it need be no bigger than that.
 struct TheQuestionBeforeADayGoes: ViewModifier {
     /// The day being asked about, and `nil` whenever nothing is.
     @Binding var day: JournalDay?
@@ -130,22 +133,20 @@ struct TheQuestionBeforeADayGoes: ViewModifier {
 
     func body(content: Content) -> some View {
         content.confirmationDialog(
-            day.map { $0.spelledOut(withYear: true) } ?? "",
+            "",
             isPresented: Binding(get: { day != nil }, set: { if !$0 { day = nil } }),
-            titleVisibility: .visible,
+            titleVisibility: .hidden,
             presenting: day
         ) { day in
             Button("Delete Entry", role: .destructive) { delete(day) }
                 .accessibilityIdentifier("confirmDeleteEntry")
-            Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("This deletes the entry's file from your journal folder. Aujour can't undo it.")
         }
     }
 }
 
 extension View {
-    /// Asks before a day's Entry is deleted — see ``TheQuestionBeforeADayGoes``.
+    /// Puts the one button between a long press and a day going — see
+    /// ``TheQuestionBeforeADayGoes``.
     func askingBeforeADayGoes(
         _ day: Binding<JournalDay?>,
         delete: @escaping (JournalDay) -> Void

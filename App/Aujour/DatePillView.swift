@@ -572,7 +572,7 @@ struct DatePillView: View {
 
     // MARK: - What a grid of numbers cannot say for itself
 
-    /// The sentence under the month, on the two occasions there is one —
+    /// The sentence under the month, on the one occasion there is one —
     /// which is ``TheGridsOwnSentence``, and what is added here is when the
     /// pill shows it.
     @ViewBuilder private var whatTheGridCannotSayForItself: some View {

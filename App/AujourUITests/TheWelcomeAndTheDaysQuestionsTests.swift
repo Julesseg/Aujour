@@ -187,22 +187,22 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
         )
     }
 
-    /// A journal with nothing in it yet, on the three screens that would
-    /// otherwise be blank.
+    /// A journal with nothing in it yet, on the screens that would otherwise be
+    /// blank — and on the one that is left exactly as it is.
     ///
     /// Which of the ways a screen can be empty this is — nothing written,
     /// nothing read yet, or a folder that would not answer — is decided in
     /// Core and tested there against folders that are told what to say. What
     /// only a running app can show is that the sentences are on the screens: a
-    /// first day that says what to do with itself, a calendar that reads as a
-    /// beginning rather than a grid of numbers, and a search box that does not
-    /// tell somebody their query was not found in a journal they have not
+    /// first day that says what to do with itself, and a search box that does
+    /// not tell somebody their query was not found in a journal they have not
     /// written yet.
     ///
-    /// And that they stop. A beginning is the one empty grid worth words,
-    /// because the grid is the way in and nobody who has just installed the
-    /// app knows that; every other empty month is a gap the grid states for
-    /// itself.
+    /// And that the calendar is not one of them. An empty month is a grid of
+    /// days that can be tapped, which is the way in and says so by being what
+    /// it is; a line underneath explaining that is the app narrating what the
+    /// reader is looking at. What the grid has to say it says in marks, and
+    /// the day that gets written on comes back marked.
     func testAFreshJournalSaysSoOnEveryScreenWithNothingToShow() throws {
         let app = launchApp()
 
@@ -218,10 +218,19 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
             "a blank first day said nothing at all"
         )
 
+        // The month, which is the one empty screen with nothing to say: a grid
+        // of days somebody can tap is already the invitation, so it is left as
+        // a grid of days.
         openTheMonth(app, showing: Date())
         XCTAssertTrue(
-            app.staticTexts["aJournalNobodyHasWrittenIn"].waitForExistence(timeout: 15),
-            "a month with no marks on it was left as a grid of numbers"
+            app.buttons["day-\(todaysEntryName())"].waitForExistence(timeout: 15),
+            "the month never came out"
+        )
+        XCTAssertTrue(
+            app.staticTexts.matching(
+                NSPredicate(format: "identifier == %@", "aJournalNobodyHasWrittenIn")
+            ).count == 0,
+            "an empty month was narrated instead of being left as a calendar"
         )
         shutTheDatePill(app)
 
@@ -232,7 +241,7 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
         )
         closeSearch(app)
 
-        // One day written, and every one of those sentences stops being true.
+        // One day written, and both of those sentences stop being true.
         XCTAssertTrue(editor.waitForExistence(timeout: 30))
         editor.tap()
         editor.typeText("Walked to the market.")
@@ -242,25 +251,16 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
         )
         Thread.sleep(forTimeInterval: 4)
 
+        // And the month, which said nothing before and still says nothing —
+        // what changed is the one thing a grid says for itself, which is that
+        // today has been written on.
         openTheMonth(app, showing: Date())
         expect(app.buttons["day-\(todaysEntryName())"], toHaveValue: "Written")
-        XCTAssertFalse(
-            app.staticTexts["aJournalNobodyHasWrittenIn"].exists,
-            "a journal with a day in it was still being called empty"
-        )
-
-        // And a month it does not reach into says nothing at all. It is an
-        // ordinary gap, which the grid states by having no marks on it — a
-        // line underneath explaining that next month was quiet would be the
-        // app narrating what the reader is looking at, and calling it a
-        // journal nobody has written in would be the app forgetting today.
-        app.buttons["pillNextMonth"].tap()
-        Thread.sleep(forTimeInterval: 1)
         XCTAssertTrue(
             app.staticTexts.matching(
                 NSPredicate(format: "identifier == %@", "aJournalNobodyHasWrittenIn")
             ).count == 0,
-            "an empty month in a journal with a past was called a journal with nothing in it"
+            "the month narrated itself once there was a day in it"
         )
     }
 

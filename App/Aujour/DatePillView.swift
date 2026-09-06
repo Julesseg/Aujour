@@ -64,11 +64,6 @@ struct DatePillView: View {
     /// by the time anything could ask it a question.
     @State private var swipe = DaySwipe()
 
-    /// The day a long press has offered to delete, while the question is being
-    /// asked. Here rather than in a cell because the answer outlives both the
-    /// menu and the cell the press landed on.
-    @State private var theDayBeingDeleted: JournalDay?
-
     /// How wide the pill is when it is only the pill — measured rather than
     /// guessed, because it is a sentence in the reader's language at the
     /// reader's text size, and a number typed in here would be right in
@@ -176,7 +171,6 @@ struct DatePillView: View {
             await settleTheDayOnScreen()
             await calendar.scan()
         }
-        .askingBeforeADayGoes($theDayBeingDeleted, delete: deleteTheEntry)
     }
 
     // MARK: - The pill itself
@@ -714,7 +708,7 @@ struct DatePillView: View {
                             // Without closing the pill, unlike a pick: the day
                             // was not chosen, and the mark coming off the grid
                             // is what the reader asked to see happen.
-                            offerToDelete: { theDayBeingDeleted = day.day }
+                            deleteTheEntry: { deleteTheEntry(day.day) }
                         )
                     }
                 }

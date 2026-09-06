@@ -62,10 +62,6 @@ struct SidebarCalendarView: View {
     /// to aim a finger at whichever calendar it is on.
     @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 44
 
-    /// The day a long press has offered to delete, while the question is being
-    /// asked. Here rather than in a cell because the answer outlives the menu.
-    @State private var theDayBeingDeleted: JournalDay?
-
     /// How tall the row of weekday initials is, and how tall the month's own
     /// row is — the pill's numbers again, for the same reason.
     @ScaledMetric(relativeTo: .caption2) private var weekdayHeight: CGFloat = 22
@@ -137,7 +133,6 @@ struct SidebarCalendarView: View {
             await settleTheDayOnScreen()
             await calendar.scan()
         }
-        .askingBeforeADayGoes($theDayBeingDeleted, delete: deleteTheEntry)
     }
 
     /// The pane itself: the day, the month, and the grid under them.
@@ -244,7 +239,7 @@ struct SidebarCalendarView: View {
                             accent: accent,
                             side: side,
                             pick: { pick(day.day) },
-                            offerToDelete: { theDayBeingDeleted = day.day }
+                            deleteTheEntry: { deleteTheEntry(day.day) }
                         )
                     }
                 }

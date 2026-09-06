@@ -369,12 +369,16 @@ final class TheDatePillTests: AujourUITestCase {
             app.buttons["confirmDeleteEntry"].firstMatch.waitForExistence(timeout: 3),
             "a day with no entry offered to delete one"
         )
-        // And the press came to nothing rather than to something else. The
-        // month is still out and the day is still on it, so a finger held on a
-        // day with nothing to delete has not been answered by a button, and
-        // has not been answered by opening the day either.
-        expect(app.buttons["datePill"], toHaveValue: "Month")
-        XCTAssertTrue(cell.exists, "the grid went away under a press that did nothing")
+        // What the press did instead is what the tap at the end of it does:
+        // it opened the day. Nothing came up to swallow that tap, because
+        // there was nothing to ask about — so a finger held on a day with
+        // nothing to delete lands on the day rather than on a button saying
+        // no, which is the right dead end to have.
+        XCTAssertTrue(
+            app.buttons["backToToday"].waitForExistence(timeout: 10),
+            "holding a day with nothing to delete neither asked anything nor opened it"
+        )
+        expect(app.buttons["datePill"], toHaveValue: "Closed")
     }
 
     /// The claim the pill's own geometry is bounded by: a month is seven

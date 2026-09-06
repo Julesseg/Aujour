@@ -111,6 +111,47 @@ final class TheLayoutAndTheWalkTests: AujourUITestCase {
         expect(cell, toHaveValue: "Not written")
     }
 
+    /// Where the button comes up: on the day it is about.
+    ///
+    /// A grid is forty-two squares of two digits, so a button that came up
+    /// pointing at the calendar rather than at the day would leave nothing on
+    /// screen saying which day is about to go. Only checkable where the window
+    /// has room for a popover — a phone puts the same button in a sheet from
+    /// the bottom, where it is anchored to nothing and cannot be wrong.
+    func testTheButtonComesUpOnTheDayItIsAbout() throws {
+        let written = try XCTUnwrap(dayOfTheMonthOnScreen(1))
+        let app = launchApp(
+            layout: .sidebar,
+            entries: "\(entryName(for: written)) Walked to the market with Robin."
+        )
+        XCTAssertTrue(
+            app.textViews["entryEditor"].waitForExistence(timeout: 30),
+            "today's entry never appeared"
+        )
+        // A regular-width window is what puts the button in a popover, which
+        // is the only presentation that has an anchor to get wrong. Every iPad
+        // clears this standing up; a phone puts the button in a sheet from the
+        // bottom, where it is anchored to nothing.
+        try XCTSkipUnless(
+            app.frame.width >= 700,
+            "this device's window is \(app.frame.width) points, which puts the button in a "
+                + "sheet from the bottom rather than in a popover on the day"
+        )
+
+        showInTheSidebar(app, written)
+        let cell = app.buttons["day-\(entryName(for: written))"]
+        cell.press(forDuration: 1.0)
+
+        let confirm = app.buttons["confirmDeleteEntry"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10), "the button never came up")
+        XCTAssertLessThan(
+            abs(confirm.frame.midY - cell.frame.midY),
+            cell.frame.height * 6,
+            "the button came up \(confirm.frame.midY) with the day at \(cell.frame.midY), "
+                + "which is not a button on the day it is about"
+        )
+    }
+
     /// The other half of the sidebar layout: the day beside the calendar is
     /// *set* rather than stretched.
     ///

@@ -324,6 +324,39 @@ final class TheFrontmatterTests: AujourUITestCase {
         expect(source, toHaveValue: "---\ncreated: 2025-09-15T13:50\n---")
     }
 
+    /// The hour is still an hour to set after the calendar beside it has been
+    /// up.
+    ///
+    /// A finger that lands on the hour while the month is open puts the month
+    /// away and no more, which is what a popover does with the tap that
+    /// dismisses it. What is not the platform's doing is what came next: the
+    /// picker underneath, having been touched while it could not answer,
+    /// never opened again — not on the next tap, not after the calendar had
+    /// been away and back, not after the day around it had been typed in.
+    func testTheHourStillOpensAfterTheCalendarHasBeenUp() throws {
+        let app = launchApp(todaysEntry: "---\ncreated: 2025-09-04T13:50\n---\n# A walk\n")
+        let pill = app.buttons["propertyDate-created"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the date never appeared")
+        pill.tap()
+
+        let calendar = app.datePickers["propertyCalendar"]
+        XCTAssertTrue(calendar.waitForExistence(timeout: 10), "the calendar never opened")
+
+        // By where it came out rather than by the element: the popover is
+        // over it, so what is being asked here is what a finger does.
+        tapByFrame("propertyTime-created", in: app)
+        XCTAssertTrue(
+            calendar.waitForNonExistence(timeout: 10),
+            "the tap on the hour did not put the calendar away"
+        )
+
+        tapByFrame("propertyTime-created", in: app)
+        XCTAssertTrue(
+            app.pickerWheels.firstMatch.waitForExistence(timeout: 10),
+            "the hour never opened again"
+        )
+    }
+
     /// Types a day in from the top, block and all — the one way a UI test has
     /// of putting a Frontmatter in a file the next launch will not seed over.
     ///

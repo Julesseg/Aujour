@@ -347,6 +347,11 @@ private struct ValueControl: View {
     @Binding var cut: CutEntry
     let asks: (PlaceholderQuestion) -> Void
 
+    /// Whether the day's calendar is up. Here rather than inside the pill
+    /// that puts it there, because the hour beside it is built around the
+    /// answer (``theHour``).
+    @State private var isPickingTheDay = false
+
     var body: some View {
         switch property.value {
         case .text where property.value.placeholder != nil:
@@ -425,13 +430,24 @@ private struct ValueControl: View {
     private func theDay(writing value: @escaping (Date) -> Property.Value) -> some View {
         DayPill(
             moment: theMoment(writing: value),
-            identifier: "propertyDate-\(property.key)"
+            identifier: "propertyDate-\(property.key)",
+            isPicking: $isPickingTheDay
         )
     }
 
     /// And the hour of a date-and-time one, in the system's own picker: an
     /// hour is digits and a colon in every language, so there is nothing here
     /// for a control to spell one way and measure another.
+    ///
+    /// Built afresh either side of the calendar being up, which is a plaster
+    /// over the system control and is here because the alternative is a row
+    /// with a dead half in it. A finger that lands on the hour while the
+    /// calendar is open puts the calendar away — a popover takes the tap that
+    /// dismisses it — and the picker underneath, having had a touch it could
+    /// not answer, never opens again: not on the next tap, not after the
+    /// calendar has been away and back, not after the day around it has been
+    /// typed in. Only a new one works, so the hour is a new one every time the
+    /// calendar opens or closes.
     private var theHour: some View {
         DatePicker(
             "",
@@ -441,6 +457,7 @@ private struct ValueControl: View {
         .labelsHidden()
         .foregroundStyle(.tint)
         .accessibilityIdentifier("propertyTime-\(property.key)")
+        .id(isPickingTheDay)
     }
 
     /// The moment the value names, as the controls over it read and write it:
@@ -489,7 +506,9 @@ private struct DayPill: View {
     @Binding var moment: Date
     let identifier: String
 
-    @State private var isPicking = false
+    /// Whether its calendar is up — the row's state and not this view's,
+    /// because the hour beside it has to hear about it (``ValueControl``).
+    @Binding var isPicking: Bool
 
     /// How wide a month of days comes to at the reader's text size — seven
     /// columns and the padding round them, which is what the system's own

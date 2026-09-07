@@ -340,6 +340,11 @@ class AujourUITestCase: XCTestCase {
     /// view is a row with nothing inside it yet.
     func theTimeShowing(on picker: XCUIElement, in app: XCUIApplication) -> String {
         scrollTo(picker, in: app)
+        return theTimeShowing(on: picker)
+    }
+
+    /// The same, off a picker that is already where a finger can reach it.
+    func theTimeShowing(on picker: XCUIElement) -> String {
         let face = picker.descendants(matching: .any).firstMatch
         XCTAssertTrue(face.waitForExistence(timeout: 10), "the time picker showed no time")
         return (face.value as? String) ?? ""
@@ -360,6 +365,31 @@ class AujourUITestCase: XCTestCase {
 
     func setTheMinutes(of picker: XCUIElement, to minute: Int, in app: XCUIApplication) {
         scrollTo(picker, in: app)
+        driveTheMinutes(of: picker, to: minute, in: app)
+    }
+
+    /// The same, for a picker that is already where a finger can reach it —
+    /// one in the Frontmatter over a day, which is not on a `Form` and has no
+    /// rows below the fold to be scrolled into being.
+    func driveTheMinutes(of picker: XCUIElement, to minute: Int, in app: XCUIApplication) {
+        let landed = throwTheMinutes(of: picker, at: minute, in: app)
+        XCTAssertEqual(
+            landed, String(format: "%02d", minute),
+            "the minutes would not settle where they were sent"
+        )
+    }
+
+    /// And the same again for a test whose claim is about what moving the
+    /// clock did to the file rather than about the number it was moved to:
+    /// the minutes it actually landed on, whether or not that is the minute
+    /// it was thrown at.
+    ///
+    /// A wheel is adjusted by a synthesized drag at a computed velocity and a
+    /// throw lands a row or two out often enough to matter. A test that only
+    /// needs the clock to have *moved* should not be a test that fails on a
+    /// minute nobody chose.
+    @discardableResult
+    func throwTheMinutes(of picker: XCUIElement, at minute: Int, in app: XCUIApplication) -> String {
         picker.tap()
 
         let wheels = app.pickerWheels
@@ -377,7 +407,7 @@ class AujourUITestCase: XCTestCase {
                         .map { "[\($0.value as? String ?? "")]" }
                         .joined()
             )
-            return
+            return ""
         }
         // The options are the numbers alone, though the wheel says its own
         // value as "00 minutes".
@@ -393,27 +423,25 @@ class AujourUITestCase: XCTestCase {
         for _ in 0..<Self.triesAtAPickerWheel where !minutes.reads(wanted) {
             minutes.adjust(toPickerWheelValue: wanted)
         }
-        XCTAssertTrue(
-            minutes.reads(wanted),
-            "the minutes would not settle on \(wanted) — the wheel is showing "
-                + "\(minutes.value as? String ?? "nothing")"
-        )
 
         // The picker opens over the screen, so it is in the way of everything
         // the test does next.
         let dismiss = app.buttons["PopoverDismissRegion"]
         if dismiss.waitForExistence(timeout: 3) { dismiss.tap() }
 
-        // And the face is waited for, because it is not the wheel. A test
-        // reads the time off the shut picker the moment this returns, and a
-        // wheel that has landed is not yet a clock that says so — on a loaded
-        // machine the two are far enough apart to read the minute before last,
-        // which is a test failing on a minute nobody chose.
-        XCTAssertTrue(
-            waitFor { theTimeShowing(on: picker, in: app).minutesShowing == wanted },
-            "the clock would not come round to \(wanted) minutes — it is showing "
-                + "\(theTimeShowing(on: picker, in: app))"
-        )
+        // What landed is read off the clock and not off the wheel, and only
+        // once it has stopped moving. The wheel reports the row it was dragged
+        // to while the picker is still settling on the one beside it, and the
+        // clock lags the wheel by long enough on a loaded machine to be read
+        // a minute behind — so this is two readings that agree rather than
+        // one that is merely first.
+        var landed = ""
+        _ = waitFor {
+            let showing = theTimeShowing(on: picker).minutesShowing
+            defer { landed = showing }
+            return !showing.isEmpty && showing == landed
+        }
+        return landed
     }
 
     /// Replaces what is in the entry path field, and puts the keyboard away.

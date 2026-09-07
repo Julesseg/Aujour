@@ -75,6 +75,13 @@ private struct PropertiesCard: View {
     let day: JournalDay
     let asks: (PlaceholderQuestion) -> Void
 
+    /// Which Property's calendar is up, by its name, and `nil` while none is.
+    ///
+    /// The card's and not the pill's, for the two things a pill cannot say on
+    /// its own: that opening one calendar closes another, and that the card
+    /// underneath an open one is not to be pressed (``body``).
+    @State private var dayBeingPicked: String?
+
     var body: some View {
         VStack(alignment: .trailing, spacing: Spacing.tight) {
             VStack(spacing: 0) {
@@ -83,7 +90,12 @@ private struct PropertiesCard: View {
                 } else {
                     ForEach(Array(cut.properties.enumerated()), id: \.element.key) { index, property in
                         if index > 0 { Hairline().padding(.leading, Spacing.comfortable) }
-                        PropertyRow(property: property, cut: $cut, asks: asks)
+                        PropertyRow(
+                            property: property,
+                            cut: $cut,
+                            asks: asks,
+                            dayBeingPicked: $dayBeingPicked
+                        )
                     }
                     if let kind = pending {
                         if !cut.properties.isEmpty {
@@ -123,6 +135,14 @@ private struct PropertiesCard: View {
         }
         .padding(.horizontal, Spacing.comfortable)
         .padding(.top, Spacing.comfortable)
+        // Nothing here is to be pressed while a calendar is up over it. A
+        // popover dismisses on a touch outside itself and the touch is meant
+        // to be spent doing that, but this card is inside the view the
+        // calendar is anchored to and the touch was reaching both — putting
+        // the month away and pressing whatever was under it in the same
+        // movement. The hour picker in particular never recovered: it had
+        // been touched while it could not answer, and it did not open again.
+        .allowsHitTesting(dayBeingPicked == nil)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("frontmatterSection")
     }
@@ -137,10 +157,19 @@ private struct PropertyRow: View {
     @Binding var cut: CutEntry
     let asks: (PlaceholderQuestion) -> Void
 
+    /// Which Property's calendar is up, which is the card's to hold
+    /// (``PropertiesCard/dayBeingPicked``).
+    @Binding var dayBeingPicked: String?
+
     var body: some View {
-        HStack(alignment: .center, spacing: Spacing.comfortable) {
+        PropertyRowLayout(valueIsIndivisible: property.value.isIndivisible) {
             KeyField(key: property.key) { newKey in cut.rename(property.key, to: newKey) }
-            ValueControl(property: property, cut: $cut, asks: asks)
+            ValueControl(
+                property: property,
+                cut: $cut,
+                asks: asks,
+                dayBeingPicked: $dayBeingPicked
+            )
         }
         .padding(.horizontal, Spacing.comfortable)
         .padding(.vertical, Spacing.close)
@@ -153,6 +182,157 @@ private struct PropertyRow: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("property-\(property.key)")
         .accessibilityAction(named: "Delete") { cut.delete(property.key) }
+    }
+}
+
+/// The name and the value of one Property, laid out so that the value is
+/// never the one that gives.
+///
+/// A row that hands the name a column of its own and the value whatever is
+/// left is a row that crops the value the first time the two do not both fit
+/// — and a cropped date is not a shorter date, it is a date with its year cut
+/// off. Which happens on nobody's exotic device: a compact date-and-time
+/// picker asks for more room every step the reader turns their text up, and
+/// the Entry it sits over is set to a measure rather than to the window, so
+/// the room it is asking out of does not grow with the screen.
+///
+/// So the name is what yields. It is ``key`` wide wherever the row can afford
+/// it, because a column of names that line up is what makes a stack of rows
+/// read as a table; down to ``narrowestKey`` where it cannot, which is still
+/// a word and still a target for the finger that renames it; and under that
+/// the row is two lines, the name on one and the value under it against the
+/// same trailing edge it sits at when they share a line. A value wider than
+/// the whole row even then is the value's own business — a date picker at the
+/// accessibility sizes breaks its date over the two lines itself.
+///
+/// All of which is only for the values it is true of, which is why the row is
+/// told which it has: a date squeezed loses its year, a sentence squeezed is
+/// still the sentence and scrolls in its field. A row whose value is words
+/// divides exactly as it always did — the name's column, and the rest.
+struct PropertyRowLayout: Layout {
+    /// Whether the value is read whole or not at all, and so is measured
+    /// before the name is handed its column.
+    var valueIsIndivisible = false
+
+    /// How wide the name column is when the row can afford it.
+    static let key: CGFloat = 110
+
+    /// And the narrowest it is squeezed to before the value goes underneath
+    /// instead. A name is held as typed and committed on leaving, so a field
+    /// this wide with more in it than fits is a field that scrolls under the
+    /// caret rather than a name that has lost its end.
+    static let narrowestKey: CGFloat = 56
+
+    /// Between the name and the value beside it.
+    var spacing: CGFloat = Spacing.comfortable
+
+    /// And between the name and the value under it, which is closer than
+    /// that: two lines that are one row.
+    var stackedSpacing: CGFloat = Spacing.tight
+
+    /// How a row this wide divides between a name and a value that wants this
+    /// much of it.
+    struct Division: Equatable {
+        var key: CGFloat
+        var value: CGFloat
+        /// Whether the value is under the name rather than beside it.
+        var isStacked: Bool
+    }
+
+    /// The whole rule, in the one place both the measuring and the placing
+    /// read it from — two passes that divided a row differently would draw a
+    /// value over a name.
+    ///
+    /// - Parameters:
+    ///   - width: how wide the row is.
+    ///   - wanted: how wide the value would be if nothing were pressing on
+    ///     it, which is the number this is all in aid of.
+    static func division(of width: CGFloat, forAValueWanting wanted: CGFloat, spacing: CGFloat)
+        -> Division
+    {
+        let beside = width - spacing
+        if beside - key >= wanted {
+            return Division(key: key, value: beside - key, isStacked: false)
+        }
+        if beside - narrowestKey >= wanted {
+            return Division(key: beside - wanted, value: wanted, isStacked: false)
+        }
+        return Division(key: width, value: width, isStacked: true)
+    }
+
+    /// How much of the row the value is asking for: what it would come out
+    /// at with nothing pressing on it, or nothing at all when it is words —
+    /// which is a value with no claim on the room, and a row divided the way
+    /// it always was.
+    private func widthWanted(by subviews: Subviews) -> CGFloat {
+        valueIsIndivisible ? subviews[1].sizeThatFits(.unspecified).width : 0
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let wanted = widthWanted(by: subviews)
+        // Asked with no width — which is how a row is asked what it would
+        // like to be — the row would like the name beside the whole value.
+        let width = proposal.width ?? Self.key + spacing + wanted
+        let division = Self.division(of: width, forAValueWanting: wanted, spacing: spacing)
+        let key = subviews[0].sizeThatFits(ProposedViewSize(width: division.key, height: nil))
+        let value = subviews[1].sizeThatFits(ProposedViewSize(width: division.value, height: nil))
+        return CGSize(
+            width: width,
+            height: division.isStacked
+                ? key.height + stackedSpacing + value.height
+                : max(key.height, value.height)
+        )
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        let wanted = widthWanted(by: subviews)
+        let division = Self.division(of: bounds.width, forAValueWanting: wanted, spacing: spacing)
+        let key = ProposedViewSize(width: division.key, height: nil)
+        let value = ProposedViewSize(width: division.value, height: nil)
+
+        guard division.isStacked else {
+            subviews[0].place(
+                at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading, proposal: key
+            )
+            subviews[1].place(
+                at: CGPoint(x: bounds.maxX, y: bounds.midY), anchor: .trailing, proposal: value
+            )
+            return
+        }
+        subviews[0].place(
+            at: CGPoint(x: bounds.minX, y: bounds.minY), anchor: .topLeading, proposal: key
+        )
+        subviews[1].place(
+            at: CGPoint(
+                x: bounds.minX,
+                y: bounds.minY + subviews[0].sizeThatFits(key).height + stackedSpacing
+            ),
+            anchor: .topLeading,
+            proposal: value
+        )
+    }
+}
+
+extension Property.Value {
+    /// Whether a squeeze takes something off this value rather than out of
+    /// the middle of it — which is what decides whether the row hands it its
+    /// width before the name's (``PropertyRowLayout``).
+    ///
+    /// A date and a time are read whole: a picker with a hundred points to
+    /// draw them in shows a day and a month and no year, which is not a
+    /// shorter date but the wrong one. Words, numbers and chips are not — a
+    /// field of them scrolls under the caret, and a list wraps onto as many
+    /// lines as it costs.
+    fileprivate var isIndivisible: Bool {
+        switch kind {
+        case .date, .dateTime: true
+        case .text, .number, .checkbox, .list: false
+        }
     }
 }
 
@@ -181,7 +361,6 @@ private struct KeyField: View {
             .onChange(of: key) { draft = key }
             .onSubmit { commit() }
             .onChange(of: isEditing) { if !isEditing { commit() } }
-            .frame(width: 110, alignment: .leading)
             .accessibilityIdentifier("propertyKey-\(key)")
     }
 
@@ -196,6 +375,9 @@ private struct ValueControl: View {
     let property: Property
     @Binding var cut: CutEntry
     let asks: (PlaceholderQuestion) -> Void
+
+    /// Which Property's calendar is up (``PropertiesCard/dayBeingPicked``).
+    @Binding var dayBeingPicked: String?
 
     var body: some View {
         switch property.value {
@@ -232,36 +414,177 @@ private struct ValueControl: View {
             .accessibilityIdentifier("propertyToggle-\(property.key)")
 
         case .date:
-            DatePicker(
-                "",
-                selection: Binding(
-                    get: { property.value.moment(in: .current) ?? Date() },
-                    set: { cut.set(property.key, to: .date(of: $0, in: .current)) }
-                ),
-                displayedComponents: .date
-            )
-            .labelsHidden()
-            .foregroundStyle(.tint)
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .accessibilityIdentifier("propertyDate-\(property.key)")
+            theDay(writing: { .date(of: $0, in: .current) })
+                .frame(maxWidth: .infinity, alignment: .trailing)
 
         case .dateTime:
-            DatePicker(
-                "",
-                selection: Binding(
-                    get: { property.value.moment(in: .current) ?? Date() },
-                    set: { cut.set(property.key, to: .dateTime(of: $0, in: .current)) }
-                ),
-                displayedComponents: [.date, .hourAndMinute]
-            )
-            .labelsHidden()
-            .foregroundStyle(.tint)
+            // The day and the hour separately, and never the one control that
+            // shows both: it sizes the day for a date it is not going to draw
+            // — 04/09/2025 in a pill it measured for a shorter month-name one
+            // — and cuts the year off wherever the reader's date is written in
+            // numbers. Each of these says one thing and comes out the width of
+            // what it says.
+            //
+            // Both write the whole moment, so the day is set by the one and
+            // the hour by the other and neither loses the other's half.
+            //
+            // Side by side while the row can hold them both, and the hour
+            // under the day where it cannot — which is what the control that
+            // draws them together did at the accessibility sizes, and what two
+            // pills of their own would otherwise run off the screen rather
+            // than do.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Spacing.close) {
+                    theDay(writing: { .dateTime(of: $0, in: .current) })
+                    theHour
+                }
+                VStack(alignment: .trailing, spacing: Spacing.tight) {
+                    theDay(writing: { .dateTime(of: $0, in: .current) })
+                    theHour
+                }
+            }
             .frame(maxWidth: .infinity, alignment: .trailing)
-            .accessibilityIdentifier("propertyDate-\(property.key)")
 
         case .list(let items):
             ListField(key: property.key, items: items) { cut.set(property.key, to: .list($0)) }
         }
+    }
+
+    /// The day of a date Property, said in words and opened as a calendar.
+    ///
+    /// - Parameter writing: what a day picked out of it makes of the value —
+    ///   a date for a date Property, a moment for a date-and-time one.
+    private func theDay(writing value: @escaping (Date) -> Property.Value) -> some View {
+        DayPill(
+            moment: theMoment(writing: value),
+            key: property.key,
+            dayBeingPicked: $dayBeingPicked
+        )
+    }
+
+    /// And the hour of a date-and-time one, in the system's own picker: an
+    /// hour is digits and a colon in every language, so there is nothing here
+    /// for a control to spell one way and measure another.
+    private var theHour: some View {
+        DatePicker(
+            "",
+            selection: theMoment(writing: { .dateTime(of: $0, in: .current) }),
+            displayedComponents: .hourAndMinute
+        )
+        .labelsHidden()
+        .foregroundStyle(.tint)
+        .accessibilityIdentifier("propertyTime-\(property.key)")
+    }
+
+    /// The moment the value names, as the controls over it read and write it:
+    /// either of them hands back the whole moment, its own half changed and
+    /// the other half as it was given.
+    private func theMoment(writing value: @escaping (Date) -> Property.Value) -> Binding<Date> {
+        Binding(
+            get: { property.value.moment(in: .current) ?? Date() },
+            set: { cut.set(property.key, to: value($0)) }
+        )
+    }
+}
+
+/// A day, said in words and opened as a calendar.
+///
+/// The words are the app's own (``AujourCore/JournalDay/named(at:withYear:in:locale:)``)
+/// rather than the ones a compact date picker draws, which are whatever it
+/// decides will fit: a month spelled out where it has room and `04/09/2025`
+/// where it has not, and the two swapping between them as a row changes width
+/// or a reader changes language. A journal is read back years later and a date
+/// in it should be the same shape every time — and the shape is the one nobody
+/// has to decode, which is the month in letters.
+///
+/// The reader's own wording of it, and the reader's own order: whether the day
+/// or the month comes first is the device's business and not this app's. Only
+/// the calendar behind it is the system's control, because picking a day out
+/// of a month is a thing iOS already does well.
+extension Locale {
+    /// The reader's own language, which is not the app's.
+    ///
+    /// Aujour is written in English and nothing else, so a French device runs
+    /// it in English and `Locale.current` comes back English with a French
+    /// region — English words in the French order. Which is fine for a label
+    /// the app wrote, and wrong for a date: the system's own controls say the
+    /// months in French on that device, and a date this app spells itself
+    /// would be the one thing on the screen arguing with them.
+    ///
+    /// So the device's own first language, and its region with it, falling
+    /// back to what the app was given where a device has said nothing.
+    static var asTheDeviceIsSet: Locale {
+        preferredLanguages.first.map(Locale.init(identifier:)) ?? .current
+    }
+}
+
+private struct DayPill: View {
+    @Binding var moment: Date
+
+    /// The name of the Property this is the day of — which is how the card
+    /// knows whose calendar is up.
+    let key: String
+
+    /// Which Property's calendar is up (``PropertiesCard/dayBeingPicked``).
+    @Binding var dayBeingPicked: String?
+
+    /// The same, as this pill's own answer to whether it is showing one.
+    private var isPicking: Binding<Bool> {
+        Binding(
+            get: { dayBeingPicked == key },
+            set: { dayBeingPicked = $0 ? key : nil }
+        )
+    }
+
+    /// How wide a month of days comes to at the reader's text size — seven
+    /// columns and the padding round them, which is what the system's own
+    /// calendar takes at the usual size.
+    @ScaledMetric(relativeTo: .body) private var monthWide: CGFloat = 320
+
+    var body: some View {
+        Button {
+            dayBeingPicked = key
+        } label: {
+            Text(theDay.named(at: .dayAndMonth, withYear: true, locale: .asTheDeviceIsSet))
+                .lettering(.rowLabel)
+                .foregroundStyle(Palette.inkColor)
+                .padding(.horizontal, Spacing.close)
+                .padding(.vertical, Spacing.tight)
+                .background(Palette.fieldStrongColor, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("propertyDate-\(key)")
+        .accessibilityValue(theDay.named(at: .spelledOut, withYear: true, locale: .asTheDeviceIsSet))
+        // A popover on the phone too, and not the sheet a popover becomes
+        // there: this is the calendar the pill beside it puts up, and a month
+        // to pick a day out of is not a screenful of anything.
+        .popover(isPresented: isPicking) {
+            DatePicker("", selection: $moment, displayedComponents: .date)
+                .datePickerStyle(.graphical)
+                .labelsHidden()
+                .padding(Spacing.close)
+                // Told how wide a month is, because a popover offers its
+                // content the width of the thing it hangs off: hung off a
+                // pill, the calendar came up one weekday wide with the rest
+                // of the month cut off it. A floor and not a width, and one
+                // that grows with the reader's text, so that a month asking
+                // for more room than seven columns of digits is given it.
+                .frame(minWidth: min(monthWide, 420))
+                .presentationCompactAdaptation(.popover)
+                .accessibilityIdentifier("propertyCalendar")
+                // A day picked is the whole of what this was opened for, so
+                // it closes on one — which is what the system's own pill does
+                // and what stops the month sitting over the day it just
+                // changed.
+                .onChange(of: moment) { dayBeingPicked = nil }
+        }
+    }
+
+    /// The day the moment falls on, in the reader's own zone — which is the
+    /// zone the value was written in and is read back in.
+    private var theDay: JournalDay {
+        let parts = Calendar.current.dateComponents([.year, .month, .day], from: moment)
+        return JournalDay(year: parts.year ?? 1, month: parts.month ?? 1, day: parts.day ?? 1)
     }
 }
 

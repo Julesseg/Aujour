@@ -923,8 +923,19 @@ class AujourUITestCase: XCTestCase {
 
         // Two taps at most: a shut pill opens on the week, and from there a
         // tap goes between the week and the month.
+        //
+        // By the centre of the pill's frame rather than by the element. An
+        // element tap lets the harness choose its own hit point, and over an
+        // open pill it chooses badly: the pill's accessibility frame stays
+        // where the shut pill was, the grid's cells report their frames
+        // without the row they are offset by, and the point the harness
+        // settles on lands on a day of the week strip — which on the right
+        // date is a day that can be picked, and picking it shuts the pill on
+        // another day altogether. That was every calendar test failing on
+        // both legs on a Monday, with the app on the Sunday before. A
+        // coordinate is tapped where it says and nowhere else.
         for _ in 0..<3 where pill.value as? String != state {
-            pill.tap()
+            pill.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
             // Given the settle a moment to finish, so the next tap steps from
             // where this one left it rather than from mid-flight.
             Thread.sleep(forTimeInterval: 0.8)

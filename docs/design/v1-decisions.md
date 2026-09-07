@@ -74,8 +74,9 @@ records the remaining product decisions and the v1 line.
 
 ## v1 scope
 
-Ships: photo suggestions panel ("N photos from this day", library
-permission), manual photo insert via system picker (no permission),
+Ships: photo sheet off the accessory row's photo key — the day's own
+photos ("N photos from this day", library permission) with a button to the
+system picker under them (no permission),
 {{events}} + {{reminders}} data placeholders (EventKit), {{mood}} and
 {{location}} interactive widgets, full-text search, export/share
 (PDF/text via share sheet), one gentle daily reminder auto-skipped when

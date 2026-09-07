@@ -61,12 +61,12 @@ class AujourUITestCase: XCTestCase {
     ///   - photoLibrary: the days the device's camera roll holds a photograph
     ///     from, one per line as `YYYY-MM-DD` or `YYYY-MM-DD HH:mm`. The
     ///     simulator's library is empty and behind a system alert nothing here
-    ///     can answer, so this is the only way the suggestions panel has
-    ///     anything to offer.
+    ///     can answer, so this is the only way the photo sheet has anything
+    ///     from the day to offer.
     ///   - photoLibraryAccess: where the library permission stands before the
     ///     test starts, and what the user says if they are asked — `allowed`,
     ///     which is the default; `undecided` for somebody who says yes to the
-    ///     panel's offer to look; `refuses` for somebody who says no to it;
+    ///     sheet's offer to look; `refuses` for somebody who says no to it;
     ///     `refused` for somebody who said no some launch ago.
     ///   - events: what the day being spawned holds in the calendar, one per
     ///     line as `HH:mm Title` — or `Title` for something with no hour. The

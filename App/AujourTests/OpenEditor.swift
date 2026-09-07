@@ -42,14 +42,18 @@ final class OpenEditor {
     /// what the screen would be showing a sheet for.
     private(set) var asked: PlaceholderQuestion?
 
-    /// - Parameter photographs: the way to add a photograph to the day, for
-    ///   the tests that press that control. Left out, the control is on the
-    ///   row and not offered — which is what an editor with no Entry behind it
-    ///   shows.
+    /// The photo key pressed, still waiting on a photograph — what the screen
+    /// would be showing the photo sheet for.
+    private(set) var requested: PhotoRequest?
+
+    /// - Parameter overADay: whether there is an Entry behind the editor for
+    ///   a photograph to be written beside, for the tests that press the photo
+    ///   key. Left out, the key is on the row and not offered — which is what
+    ///   an editor with no Entry behind it shows.
     init(
         holding source: String,
         styling: MarkdownStyling = MarkdownStyling(),
-        addingPhotographs photographs: InsertedPhotographs? = nil
+        overADay: Bool = false
     ) {
         let storage = MarkdownTextStorage(styling: styling)
         let layoutManager = MarkdownLayoutManager()
@@ -78,10 +82,11 @@ final class OpenEditor {
         )
         textView.delegate = coordinator
         coordinator.asks = { [weak self] question in self?.asked = question }
+        if overADay {
+            coordinator.requests = { [weak self] request in self?.requested = request }
+        }
         coordinator.answersTaps(in: textView)
-        coordinator.formats(
-            in: textView, addingPhotographs: photographs, accent: styling.box
-        )
+        coordinator.formats(in: textView, offeringPhotos: overADay, accent: styling.box)
 
         storage.setSource(source)
         layoutManager.ensureLayout(for: container)

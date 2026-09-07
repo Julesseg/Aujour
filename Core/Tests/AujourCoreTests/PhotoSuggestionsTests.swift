@@ -3,10 +3,11 @@ import Testing
 
 @testable import AujourCore
 
-// What the suggestions panel has to get right is which photographs belong to
-// the day on screen, and when it should not be there at all. Both are decided
-// here, over a library said rather than read — the pixels and the permission
-// alert are the app's, and neither is a thing this module has ever seen.
+// What the photo sheet's offer has to get right is which photographs belong
+// to the day on screen, and when there is nothing to offer at all. Both are
+// decided here, over a library said rather than read — the pixels and the
+// permission alert are the app's, and neither is a thing this module has ever
+// seen.
 
 @MainActor
 @Suite("The photographs a day is offered")
@@ -25,7 +26,7 @@ struct PhotoSuggestionsTests {
         #expect(suggestions.state == .offering([morning, evening]))
     }
 
-    @Test("a day the library has nothing from has no panel")
+    @Test("a day the library has nothing from has nothing to offer")
     func aDayWithNoPhotographs() async {
         let library = ALibrary(holding: [])
 
@@ -72,9 +73,9 @@ struct PhotoSuggestionsTests {
         )
     }
 
-    // MARK: - The permission, which is the panel's alone
+    // MARK: - The permission, which is the offer's alone
 
-    // Nothing is asked for by a day being opened. The panel says there is
+    // Nothing is asked for by a day being opened. The sheet says there is
     // something to look at, and asking happens when the user says to look —
     // which is what keeps the library permission a thing Aujour asks about
     // suggestions and about nothing else.
@@ -106,10 +107,10 @@ struct PhotoSuggestionsTests {
         #expect(suggestions.state == .offering([market]))
     }
 
-    // The acceptance criterion, and the whole of what a refusal costs: no
-    // panel, no notice, and a photo button on the row that works exactly as it
-    // did — the picker needs no permission at all.
-    @Test("a refusal leaves no panel and nothing said about it")
+    // The acceptance criterion, and the whole of what a refusal costs: nothing
+    // from the day, no notice, and a library button on the sheet that works
+    // exactly as it did — the picker needs no permission at all.
+    @Test("a refusal leaves nothing to offer and nothing said about it")
     func aRefusal() async {
         let library = ALibrary(
             holding: [DayPhotograph(id: "market", takenAt: instant(2026, 3, 14, 11, in: paris))],
@@ -126,8 +127,8 @@ struct PhotoSuggestionsTests {
     }
 
     // Somebody who said no once is not asked again on the next day they open:
-    // the way back from a refusal is Settings, and a panel that re-offered
-    // itself every morning would be the app asking for ever.
+    // the way back from a refusal is Settings, and a sheet that re-offered
+    // itself every time would be the app asking for ever.
     @Test("a library already refused is never offered again")
     func aLibraryAlreadyRefused() async {
         let library = ALibrary(holding: [], access: .refused)
@@ -163,7 +164,7 @@ struct PhotoSuggestionsTests {
         #expect(suggestions.state == .offering([april]))
     }
 
-    // The morning an app left open overnight moves on. Yesterday's strip must
+    // The morning an app left open overnight moves on. Yesterday's grid must
     // not still be there while the library is being read about today: a tap in
     // that window would write yesterday's photograph into today's Entry.
     @Test("the last day's photographs go the moment a different day is looked at")
@@ -184,9 +185,9 @@ struct PhotoSuggestionsTests {
         await today.value
     }
 
-    // And looking again at the same day does not: coming back to the front
-    // re-reads the library, and a strip that blinked away and back every time
-    // would be a strip nobody could tap.
+    // And looking again at the same day does not: the sheet coming up again
+    // re-reads the library, and a grid that blinked away and back every time
+    // would be a grid nobody could tap.
     @Test("looking again at the same day leaves what is on screen alone")
     func lookingAgainAtTheSameDay() async {
         let march = DayPhotograph(id: "march", takenAt: instant(2026, 3, 14, 11, in: paris))

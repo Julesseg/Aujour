@@ -28,14 +28,16 @@ struct MarkdownEditor: UIViewRepresentable {
     /// which Entry is not a thing a text view knows.
     let pictures: EmbeddedPictures
 
-    /// The way a photograph gets into the day: the picker, and the file
-    /// written into the Journal Root beside the Entry. Aimed at the day on
-    /// screen by the same hand as the pictures above, and for the same reason.
+    /// Puts up the sheet a photograph is chosen on, because the photo key was
+    /// pressed. What that looks like is a sheet, and a sheet is put up where
+    /// there is a view hierarchy to put it in — which is the screen the day
+    /// is on, not the text view the key is over. What travels is where the
+    /// caret was, folded into the request (``PhotoRequest``).
     ///
-    /// `nil` leaves the row's photograph control on the row and not offered,
-    /// which is what a text view with no Entry behind it — a preview, a test
-    /// of the formatting controls — has to show.
-    let photographs: InsertedPhotographs?
+    /// `nil` leaves the key on the row and not offered, which is what a text
+    /// view with no Entry behind it — a preview, a test of the formatting
+    /// controls — has to show.
+    let requests: ((PhotoRequest) -> Void)?
 
     /// Asks an unanswered placeholder's question, because a finger landed on
     /// its widget. What that looks like is a sheet, and a sheet is put up
@@ -170,10 +172,11 @@ struct MarkdownEditor: UIViewRepresentable {
         pictures.whenOneArrives = { [weak storage] in storage?.aPictureArrived() }
 
         context.coordinator.asks = asks
+        context.coordinator.requests = requests
         context.coordinator.caretSettled = caretSettled
         context.coordinator.answersTaps(in: textView)
         context.coordinator.formats(
-            in: textView, addingPhotographs: photographs, accent: styling.box
+            in: textView, offeringPhotos: requests != nil, accent: styling.box
         )
         storage.setSource(text)
         context.coordinator.textSettled(in: textView)
@@ -193,6 +196,7 @@ struct MarkdownEditor: UIViewRepresentable {
         // and so does the way to the sheet.
         context.coordinator.text = $text
         context.coordinator.asks = asks
+        context.coordinator.requests = requests
         context.coordinator.caretSettled = caretSettled
         textView.accessibilityLabel = label
         if let section, let textView = textView as? MarkdownTextView {
@@ -201,7 +205,6 @@ struct MarkdownEditor: UIViewRepresentable {
 
         guard let storage = textView.textStorage as? MarkdownTextStorage else { return }
         storage.pictures = pictures
-        context.coordinator.insertsPhotographs(from: photographs, into: textView)
 
         // The four things that move how an Entry is drawn without a word of it
         // changing: Dynamic Type, the editor font, the accent, and the day
@@ -302,10 +305,11 @@ struct MarkdownEditor: UIViewRepresentable {
         /// of its own.
         fileprivate var drawingTap: UITapGestureRecognizer?
 
-        /// The way to a photograph, if this editor is over an Entry that could
-        /// hold one. Kept rather than captured, because the row is built once
-        /// and this struct is rebuilt on every keystroke.
-        var photographs: InsertedPhotographs?
+        /// The way the photo key's request reaches the screen, if this editor
+        /// is over an Entry that could hold a photograph. Kept rather than
+        /// captured, because the row is built once and this struct is rebuilt
+        /// on every keystroke.
+        var requests: ((PhotoRequest) -> Void)?
 
         init(text: Binding<String>) {
             self.text = text
@@ -397,23 +401,22 @@ struct MarkdownEditor: UIViewRepresentable {
         /// it comes and goes with the keyboard — see ``MarkdownAccessoryRow``.
         /// The row is handed two ways of saying what was pressed and nothing
         /// else: what a control writes is Core's, and where it writes it is
-        /// this text view's. The photograph control is the one that is not
-        /// punctuation, and it is offered exactly when there is an Entry
-        /// behind this editor for a photograph to be written beside.
+        /// this text view's. The photo key is the one that is not punctuation,
+        /// and it is offered exactly when there is an Entry behind this editor
+        /// for a photograph to be written beside.
         func formats(
             in textView: UITextView,
-            addingPhotographs: InsertedPhotographs?,
+            offeringPhotos: Bool,
             accent: UIColor
         ) {
-            insertsPhotographs(from: addingPhotographs, into: textView)
             textView.inputAccessoryView = MarkdownAccessoryRow(
                 accent: accent,
-                insertPhoto: addingPhotographs == nil
-                    ? nil
-                    : { [weak self, weak textView] in
+                insertPhoto: offeringPhotos
+                    ? { [weak self, weak textView] in
                         guard let self, let textView else { return }
-                        insertAPhotograph(in: textView)
+                        asksForAPhoto(in: textView)
                     }
+                    : nil
             ) { [weak self, weak textView] command in
                 guard let self, let textView else { return }
                 format(command, in: textView)
@@ -431,72 +434,37 @@ struct MarkdownEditor: UIViewRepresentable {
             (textView.inputAccessoryView as? MarkdownAccessoryRow)?.accent = accent
         }
 
-        /// Points both ways into a photograph at this text view — the control
-        /// on the row, which is already here, and the suggestions panel, which
-        /// is not.
+        /// Asks the screen for the photo sheet, and says where in the day
+        /// whatever is chosen on it goes.
         ///
-        /// The panel is a view beside this one and has no caret to insert at,
-        /// so the way into the text is handed to it: it says which photograph,
-        /// and where an embed goes stays the text view's. The edit is the one a
-        /// tapped control makes, so a suggested picture is one undo step and
-        /// the Entry saves it as typing.
-        ///
-        /// Called again whenever the editor is handed different ones, because
-        /// the text view is built once and this struct is rebuilt on every
-        /// keystroke.
-        func insertsPhotographs(
-            from addingPhotographs: InsertedPhotographs?,
-            into textView: UITextView
-        ) {
-            // Once each, and not once per keystroke: this runs from
-            // `updateUIView`, which runs on every character typed, and the
-            // way in is the same way in until the day on screen changes.
-            guard addingPhotographs !== photographs else { return }
-            photographs = addingPhotographs
-            addingPhotographs?.writesTheEmbed = { [weak self, weak textView] attachment in
-                guard let self, let textView else { return }
-                // Where the caret is if somebody is writing there, and the end
-                // of the day if nobody is: a text view reports a caret at its
-                // very start whether or not anyone is in it, and a panel tapped
-                // over a day nobody has touched would put the picture above the
-                // first line.
-                let caret =
-                    cursorIfSomebodyIsWriting(in: textView)
-                    ?? NSRange(location: (textView.text as NSString).length, length: 0)
-                apply(attachment.insertion(into: textView.text, at: caret), in: textView)
-            }
-        }
-
-        /// Puts the picker up, and what comes back into the folder and then
-        /// into the day.
-        ///
-        /// The caret is read before the picker rather than after it: a picker
-        /// is another screen, and it takes the keyboard and the first
+        /// The caret is read now rather than when the photograph arrives: a
+        /// sheet is another screen, and it takes the keyboard and the first
         /// responder with it — so "at the caret" has to mean where the cursor
-        /// was when the control was pressed. The keyboard is asked back
-        /// afterwards, because somebody who has just put a picture in their day
-        /// is somebody who was writing in it.
+        /// was when the key was pressed. The keyboard is asked back when the
+        /// sheet goes, whatever happened on it, because somebody who pressed
+        /// a key above the keyboard was writing — and the commonest outcome of
+        /// opening a sheet is closing it again.
         ///
-        /// Internal, and answering with the work it started, so that a test
-        /// can press the control and wait for what it did.
+        /// The embed goes in through the same door a tapped control goes
+        /// through, so the picture is one undo step and the Entry saves it as
+        /// typing.
+        ///
+        /// Internal, and answering with the request it made, so that a test
+        /// can press the key and stand in for the sheet.
         @discardableResult
-        func insertAPhotograph(in textView: UITextView) -> Task<Void, Never>? {
-            guard let photographs else { return nil }
+        func asksForAPhoto(in textView: UITextView) -> PhotoRequest? {
+            guard let requests else { return nil }
             let caret = textView.selectedRange
 
-            return Task {
-                let added = await photographs.pick(over: textView)
-                // Back to writing either way, including the commonest outcome
-                // of opening a picker — closing it again. Somebody who has
-                // just been to the picker and back was writing before they
-                // went, and the row and the keyboard went with it.
-                textView.becomeFirstResponder()
-
-                guard let added else { return }
-                // Through the same door a tapped control goes through, so the
-                // picture is one undo step and the Entry saves it as typing.
-                apply(added.insertion(into: textView.text, at: caret), in: textView)
-            }
+            let request = PhotoRequest(
+                insert: { [weak self, weak textView] attachment in
+                    guard let self, let textView else { return }
+                    apply(attachment.insertion(into: textView.text, at: caret), in: textView)
+                },
+                finished: { [weak textView] in textView?.becomeFirstResponder() }
+            )
+            requests(request)
+            return request
         }
 
         /// Rewrites what the cursor is on the way this control means, and says

@@ -27,11 +27,11 @@ import AujourCore
 ///   the resolving, the formatting, the spawn — is the app's own code. A
 ///   UI-test journal never reaches EventKit at all, which is also what keeps
 ///   a permission alert from another process out of the middle of a test.
-/// - **A day's photographs.** The suggestions panel reads the device's photo
+/// - **A day's photographs.** The photo sheet reads the device's photo
 ///   library, which in a simulator is empty and behind a system alert nothing
 ///   in the suite can answer. So the test says which days the camera has
 ///   something from, and everything after that — which of them belong to the
-///   day on screen, the panel, the tap — is the app's own code.
+///   day on screen, the sheet, the tap — is the app's own code.
 /// - **A place to be.** The `{{location}}` widget reads where the device is,
 ///   which in a simulator is a coordinate somebody set in a menu and behind a
 ///   system alert nothing in the suite can answer. So the test says which
@@ -201,8 +201,8 @@ enum UITestingJournal {
     /// line as `YYYY-MM-DD` — or `YYYY-MM-DD HH:mm` for one taken at an hour
     /// the test cares about. One photograph each, drawn rather than carried.
     ///
-    /// Which photographs a day is offered is the whole of the suggestions
-    /// panel, so a test says them by the day they were taken on: that is how
+    /// Which photographs a day is offered is the whole of the photo sheet's
+    /// grid, so a test says them by the day they were taken on: that is how
     /// "today's photographs" and "the photographs of a day filled in later"
     /// are two different claims rather than the same one twice.
     /// A line may say where the photograph was taken as well as when —
@@ -220,7 +220,7 @@ enum UITestingJournal {
     /// There is no reaching the device's own library from a UI test: it would
     /// be a system alert in the middle of one, and a simulator's library is
     /// nobody's day. So this stands in, and everything after the answer — the
-    /// panel, the day query, the tap — is the app's own code.
+    /// sheet, the day query, the tap — is the app's own code.
     static let photoLibraryAccessKey = "AUJOUR_UITEST_PHOTO_LIBRARY_ACCESS"
 
     @MainActor
@@ -541,11 +541,12 @@ private struct ADaySeededByATest: DayItemSource {
 ///
 /// Always built, even when the test seeded nothing — what a UI test must not
 /// have is the *device's* library, and an empty one of its own is how the
-/// suggestions panel is absent without anybody being asked for a permission.
+/// photo sheet offers nothing from the day without anybody being asked for a
+/// permission.
 ///
-/// A class, and unchecked, because being asked has to stick: the panel reads
-/// where the permission stands again every time the app comes back to the
-/// front, and a library that forgot it had been allowed would offer to look
+/// A class, and unchecked, because being asked has to stick: the sheet reads
+/// where the permission stands again every time it comes up, and a library
+/// that forgot it had been allowed would offer to look
 /// all over again.
 private final class ALibrarySeededByATest: PhotoLibrary, @unchecked Sendable {
     private let taken: [(when: Date, at: Coordinate?)]
@@ -573,7 +574,7 @@ private final class ALibrarySeededByATest: PhotoLibrary, @unchecked Sendable {
 
     /// What the user says, seeded — there is no system alert here to tap, and
     /// there is deliberately none: it belongs to another process, and driving
-    /// it would make every test of this panel a test of that alert.
+    /// it would make every test of this sheet a test of that alert.
     func ask() async -> PhotoLibraryAccess {
         permission.withLock {
             if standing == .undecided { standing = whenAsked }

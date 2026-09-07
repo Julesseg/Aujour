@@ -7,12 +7,13 @@ import UniformTypeIdentifiers
 
 @testable import Aujour
 
-// The suggestions panel's one tap, minus the screen it happens on. Which
-// photographs a day is offered and whether there is a panel at all are decided
-// in Core and tested there against a library that is said rather than read;
-// what is left is what needs a device — that a tapped photograph goes through
-// the same attachment pipeline the picker's does, and comes out as the same
-// markdown in the same folder.
+// One of the day's own photographs tapped on the photo sheet, minus the sheet
+// it happens on. Which photographs a day is offered and whether there are any
+// at all are decided in Core and tested there against a library that is said
+// rather than read; what is left is what needs a device — that a tapped
+// photograph goes through the same attachment pipeline the picker's does, and
+// comes out as the same markdown in the same folder, where the caret was when
+// the key was pressed.
 
 /// Whether this machine's ImageIO can *write* HEIC, which is what a test needs
 /// in order to have one for the library to hand over.
@@ -21,7 +22,7 @@ private let canWriteHEIC = CGImageDestinationCreateWithData(
 ) != nil
 
 @MainActor
-@Suite("A photograph tapped in the suggestions panel")
+@Suite("A photograph tapped on the photo sheet")
 struct SuggestedPhotographTests {
     // The whole of one tap: the file is in the folder under the Attachment
     // Path Template for this day, and the Entry points at it — which is the
@@ -32,60 +33,39 @@ struct SuggestedPhotographTests {
         let day = try await open(EntryEditor(store: store))
         let library = ALibrary(handing: photograph(as: .png))
         let suggestions = PhotoSuggestions(from: library)
-        let photographs = InsertedPhotographs(picking: { _ in nil })
+        let photographs = InsertedPhotographs()
         photographs.adds(to: day)
 
-        let open = OpenEditor(holding: "Walked to the market.")
-        open.coordinator.insertsPhotographs(from: photographs, into: open.textView)
+        let open = OpenEditor(holding: "Walked to the market.", overADay: true)
+        open.cursor(at: 21)
+        let request = try #require(open.coordinator.asksForAPhoto(in: open.textView))
 
-        await photographs.insert(theMarket, from: suggestions)
+        let added = await photographs.insert(theMarket, from: suggestions)
+        request.insert(try #require(added))
 
         let path = "\(AttachmentPathTemplate.default.render(day.day))/\(day.day).png"
         #expect(try await store.fileExists(at: path))
         #expect(open.textView.text == "Walked to the market.\n![](../../\(path))")
-        // Which is what saves it: a suggested picture reaches the Entry the
-        // way a keystroke does.
+        // Which is what saves it: a photograph off the sheet reaches the Entry
+        // the way a keystroke does.
         #expect(open.written == open.textView.text)
         #expect(photographs.problem == nil)
     }
 
-    // Nobody is writing in this day — the panel was tapped over an Entry that
-    // has not been touched — and a text view reports a caret at its very start
-    // whether or not anyone is in it. The picture goes at the end of the day,
-    // which is where the next thing written would go.
-    @Test("goes at the end of a day nobody is writing in")
-    func atTheEndOfADayNobodyIsWritingIn() async throws {
-        let day = try await open(EntryEditor(store: InMemoryJournalStore()))
-        let suggestions = PhotoSuggestions(from: ALibrary(handing: photograph(as: .png)))
-        let photographs = InsertedPhotographs(picking: { _ in nil })
-        photographs.adds(to: day)
-
-        let open = OpenEditor(holding: "# Saturday\n\nWalked to the market.")
-        open.coordinator.insertsPhotographs(from: photographs, into: open.textView)
-        // Where a text view that nobody has touched says its caret is.
-        open.cursor(at: 0)
-
-        await photographs.insert(theMarket, from: suggestions)
-
-        #expect(open.textView.text.hasPrefix("# Saturday\n\nWalked to the market.\n!["))
-    }
-
     // The one edit Aujour makes to somebody's photograph, and the library is
-    // where HEICs come from: an iPhone camera writes them, so a suggested
-    // photograph is one every time.
+    // where HEICs come from: an iPhone camera writes them, so one of the day's
+    // own photographs is one every time.
     @Test("is kept as a JPEG when the library hands over a HEIC", .enabled(if: canWriteHEIC))
     func aHeicFromTheLibrary() async throws {
         let store = InMemoryJournalStore()
         let day = try await open(EntryEditor(store: store))
         let suggestions = PhotoSuggestions(from: ALibrary(handing: photograph(as: .heic)))
-        let photographs = InsertedPhotographs(picking: { _ in nil })
+        let photographs = InsertedPhotographs()
         photographs.adds(to: day)
 
-        let open = OpenEditor(holding: "Milk")
-        open.coordinator.insertsPhotographs(from: photographs, into: open.textView)
+        let added = await photographs.insert(theMarket, from: suggestions)
 
-        await photographs.insert(theMarket, from: suggestions)
-
+        #expect(added != nil)
         let path = "\(AttachmentPathTemplate.default.render(day.day))/\(day.day).jpg"
         #expect(try await store.fileExists(at: path))
     }
@@ -95,12 +75,14 @@ struct SuggestedPhotographTests {
     func undoing() async throws {
         let day = try await open(EntryEditor(store: InMemoryJournalStore()))
         let suggestions = PhotoSuggestions(from: ALibrary(handing: photograph(as: .png)))
-        let photographs = InsertedPhotographs(picking: { _ in nil })
+        let photographs = InsertedPhotographs()
         photographs.adds(to: day)
 
-        let open = OpenEditor(holding: "Milk")
-        open.coordinator.insertsPhotographs(from: photographs, into: open.textView)
-        await photographs.insert(theMarket, from: suggestions)
+        let open = OpenEditor(holding: "Milk", overADay: true)
+        open.cursor(at: 4)
+        let request = try #require(open.coordinator.asksForAPhoto(in: open.textView))
+        let added = await photographs.insert(theMarket, from: suggestions)
+        request.insert(try #require(added))
 
         let undo = try #require(open.textView.undoManager)
         #expect(undo.canUndo)
@@ -117,16 +99,12 @@ struct SuggestedPhotographTests {
     func aPhotographThatWouldNotCome() async throws {
         let day = try await open(EntryEditor(store: InMemoryJournalStore()))
         let suggestions = PhotoSuggestions(from: ALibrary(handing: nil))
-        let photographs = InsertedPhotographs(picking: { _ in nil })
+        let photographs = InsertedPhotographs()
         photographs.adds(to: day)
 
-        let open = OpenEditor(holding: "Milk")
-        open.coordinator.insertsPhotographs(from: photographs, into: open.textView)
+        let added = await photographs.insert(theMarket, from: suggestions)
 
-        await photographs.insert(theMarket, from: suggestions)
-
-        #expect(open.textView.text == "Milk")
-        #expect(open.written == nil)
+        #expect(added == nil)
         #expect(photographs.problem != nil)
     }
 
@@ -134,16 +112,12 @@ struct SuggestedPhotographTests {
     func aFolderThatRefuses() async throws {
         let day = try await open(EntryEditor(store: AFolderThatRefusesAPhotograph()))
         let suggestions = PhotoSuggestions(from: ALibrary(handing: photograph(as: .png)))
-        let photographs = InsertedPhotographs(picking: { _ in nil })
+        let photographs = InsertedPhotographs()
         photographs.adds(to: day)
 
-        let open = OpenEditor(holding: "Milk")
-        open.coordinator.insertsPhotographs(from: photographs, into: open.textView)
+        let added = await photographs.insert(theMarket, from: suggestions)
 
-        await photographs.insert(theMarket, from: suggestions)
-
-        #expect(open.textView.text == "Milk")
-        #expect(open.written == nil)
+        #expect(added == nil)
         #expect(photographs.problem != nil)
     }
 

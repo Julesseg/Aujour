@@ -4,12 +4,12 @@ import UIKit
 
 import AujourCore
 
-/// The user's photo library, as the suggestions panel reads it.
+/// The user's photo library, as the photo sheet reads it.
 ///
 /// PhotoKit's half of ``AujourCore/PhotoLibrary``, and nothing besides: which
-/// photographs belong to the day being written, whether the panel should be
-/// there at all and what a tap does are all decided above this, over a library
-/// that is said rather than read.
+/// photographs belong to the day being written, whether the sheet has any to
+/// offer and what a tap does are all decided above this, over a library that
+/// is said rather than read.
 ///
 /// Stateless, so there is nothing to keep or to keep in step. A `PHFetchResult`
 /// is a query answered lazily against the library's own index, and the image
@@ -22,7 +22,7 @@ import AujourCore
 /// library at all — `.addOnly` lets an app put photographs *in*, which Aujour
 /// never does. Somebody who grants the limited-library subset has granted
 /// access to exactly the photographs they picked, and that is an answer worth
-/// having: the panel offers whichever of them fall on the day, and says
+/// having: the sheet offers whichever of them fall on the day, and says
 /// nothing about the rest.
 struct PhotoKitLibrary: PhotoLibrary {
     var access: PhotoLibraryAccess {
@@ -33,7 +33,7 @@ struct PhotoKitLibrary: PhotoLibrary {
         Self.standing(of: await PHPhotoLibrary.requestAuthorization(for: .readWrite))
     }
 
-    /// Where a permission stands, as the panel means it.
+    /// Where a permission stands, as the sheet means it.
     ///
     /// `.limited` is allowed, deliberately: the user picked out some
     /// photographs and those are the ones Aujour can see, which is a smaller
@@ -102,8 +102,8 @@ struct PhotoKitLibrary: PhotoLibrary {
         wanted.deliveryMode = .opportunistic
         wanted.resizeMode = .fast
         // A thumbnail of a photograph that is only in iCloud is worth waiting
-        // for — it is a hundredth of the photograph, and without it the panel
-        // is a row of grey squares.
+        // for — it is a hundredth of the photograph, and without it the sheet
+        // is a grid of grey squares.
         wanted.isNetworkAccessAllowed = true
 
         // Encoded where PhotoKit hands it over, so that what travels back is
@@ -136,16 +136,17 @@ struct PhotoKitLibrary: PhotoLibrary {
         }
     }
 
-    /// The strip's square at the densest screen Aujour runs on — sharp there
-    /// and everywhere below it, and nowhere near enough to be worth caching.
+    /// The grid's largest square at the densest screen Aujour runs on — sharp
+    /// there and everywhere below it, and nowhere near enough to be worth
+    /// caching.
     ///
     /// In pixels, which is what PhotoKit means by a target size, and derived
-    /// from the points the panel draws rather than guessed: a thumbnail
+    /// from the points the sheet draws rather than guessed: a thumbnail
     /// fetched larger than the square it goes in is a decode and a downscale
-    /// of somebody's whole photograph, once per square in the strip.
+    /// of somebody's whole photograph, once per square in the grid.
     private static let thumbnailSize = CGSize(
-        width: PhotoSuggestionsPanel.square * 3,
-        height: PhotoSuggestionsPanel.square * 3
+        width: PhotoSheet.square * 3,
+        height: PhotoSheet.square * 3
     )
 
     private static func asset(_ photograph: DayPhotograph) -> PHAsset? {
@@ -157,7 +158,7 @@ struct PhotoKitLibrary: PhotoLibrary {
     ///
     /// Opportunistic delivery answers twice — a blurred placeholder, then the
     /// real thing — and a continuation resumed twice is a crash. So the first
-    /// answer is the answer, which for a thumbnail means the panel fills in
+    /// answer is the answer, which for a thumbnail means the grid fills in
     /// fast and for the photograph itself means the only callback there was.
     private static func answered<Value: Sendable>(
         _ request: (@escaping @Sendable (Value?) -> Void) -> Void

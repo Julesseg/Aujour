@@ -21,15 +21,6 @@ struct EntryView: View {
     /// sheet an unanswered placeholder puts up.
     @Environment(\.editorLook) private var look
 
-    /// The day's own photographs, offered under it — read out of the device's
-    /// library for the Journal Day on screen.
-    ///
-    /// Here rather than one per journal, like the pictures and the picker
-    /// above and below it: a day reached from the calendar is pushed on top of
-    /// today and both screens stay alive, so one panel between them would be
-    /// showing the wrong day's photographs the moment the user came back.
-    @State private var suggestions: PhotoSuggestions
-
     /// The pictures this Entry's embeds point at, read out of the same folder
     /// the Entry came from.
     ///
@@ -39,13 +30,23 @@ struct EntryView: View {
     /// be two different photographs.
     @State private var pictures = EmbeddedPictures()
 
-    /// The way a photograph gets into this day: the system picker, and the
-    /// file written into the Journal Root beside the Entry.
+    /// The way a photograph gets into this day: the file written into the
+    /// Journal Root beside the Entry, whichever door of the photo sheet it
+    /// came in by.
     ///
     /// Here for the same reason the pictures are, and pointed at the same
     /// Entry: where a photograph goes is the Attachment Path Template rendered
     /// for *this* day, and what the embed says is a path from *this* Entry.
     @State private var photographs = InsertedPhotographs()
+
+    /// The photo key pressed, while the sheet it put up is on screen — and
+    /// `nil` the rest of the time.
+    ///
+    /// Here rather than inside the editor for the reason the question below
+    /// is: a sheet needs a view hierarchy to come up in, and the editor is a
+    /// text view. What it can do with a key going down is say where the caret
+    /// was, and hand over the way to write an embed there.
+    @State private var photoRequest: PhotoRequest?
 
     /// The unanswered placeholder whose widget was tapped, while it is being
     /// answered — and `nil` the rest of the time, which is nearly always.
@@ -101,9 +102,9 @@ struct EntryView: View {
     /// journals against one that is said rather than found.
     private let places: (any Places)?
 
-    /// The library the suggestions panel reads, held as well as handed to the
-    /// panel because the `{{location}}` widget reads the same one: the
-    /// positions this day's photographs carry are where it says the day was.
+    /// The library the photo sheet reads the day's photographs from, held
+    /// because the `{{location}}` widget reads the same one: the positions
+    /// this day's photographs carry are where it says the day was.
     private let library: (any PhotoLibrary)?
 
     /// Where the sending sheet rises from — the control that offered it, which
@@ -127,11 +128,11 @@ struct EntryView: View {
     /// measures and both of which would have to carry one.
     @Environment(\.journalLayout) private var layout
 
-    /// - Parameter library: where this day's suggested photographs are read
-    ///   from, and where a `{{location}}` widget reads the day's own places
-    ///   from — the device's, unless a test or a preview says otherwise.
-    ///   `nil` is a panel that never appears, which is what a preview and
-    ///   every test of something else want.
+    /// - Parameter library: where the photo sheet reads this day's own
+    ///   photographs from, and where a `{{location}}` widget reads the day's
+    ///   own places from — the device's, unless a test or a preview says
+    ///   otherwise. `nil` is a sheet with the picker alone on it, which is
+    ///   what a preview and every test of something else want.
     ///   - places: where a `{{location}}` widget reads the place from — the
     ///     device's, unless a test or a preview says otherwise. `nil` is a
     ///     widget with nothing on offer, which is a place typed instead.
@@ -153,7 +154,6 @@ struct EntryView: View {
         self.library = library
         _sending = sending
         self.risingFrom = risingFrom
-        _suggestions = State(wrappedValue: PhotoSuggestions(from: library))
     }
 
     /// How wide the day is set: 65 characters of the face it is written in
@@ -228,7 +228,7 @@ struct EntryView: View {
                 MarkdownEditor(
                     text: bodyText,
                     pictures: pictures,
-                    photographs: photographs,
+                    requests: { photoRequest = $0 },
                     asks: { question = $0 },
                     // Drawn quieter until somebody has written this day. A day
                     // with no file is spawned from the Content Template
@@ -288,6 +288,21 @@ struct EntryView: View {
                         for: editor.day
                     )
                 }
+                // The photo key's sheet: the day's own photographs, and under
+                // them the way to the rest of the library. What is chosen
+                // goes where the caret was when the key was pressed, and the
+                // keyboard comes back when the sheet goes — with or without a
+                // photograph, since the commonest thing to do with a sheet is
+                // to put it away again.
+                .sheet(item: $photoRequest) { request in
+                    PhotoSheet(
+                        for: editor.day,
+                        photographsFrom: library,
+                        through: photographs,
+                        inserting: request.insert
+                    )
+                    .onDisappear(perform: request.finished)
+                }
                 // Text that reached the Entry from elsewhere — the day being
                 // opened, or its file having moved on underneath it — is read
                 // afresh. What the screen wrote itself is already read.
@@ -302,10 +317,6 @@ struct EntryView: View {
                 .onChange(of: entryOnScreen, initial: true) {
                     pictures.look(in: editor)
                     photographs.adds(to: editor)
-                    // And the day's own photographs, which are the Journal
-                    // Day's and not today's — a Monday filled in on Friday is
-                    // offered Monday's.
-                    Task { await suggestions.look(for: editor.day) }
                 }
                 // The folder is shared, so a photo an Entry names can arrive
                 // after the Entry did. Coming back to the front is when it is
@@ -313,10 +324,6 @@ struct EntryView: View {
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
                     pictures.lookAgainForWhatWasMissing()
-                    // And the library has moved on too: a photograph taken
-                    // five minutes ago is exactly the one somebody came back
-                    // to write about.
-                    Task { await suggestions.look(for: editor.day) }
                 }
 
             case .unavailable(let error):
@@ -347,24 +354,6 @@ struct EntryView: View {
                         problem: problem,
                         identifier: "photoProblemNotice",
                         acknowledge: photographs.acknowledge
-                    )
-                }
-                // Under the notices and nearest the keyboard, which is where
-                // the thumbs already are — and above nothing at all on the
-                // days it has nothing to offer.
-                //
-                // Only over a day that can be written in. The panel keeps what
-                // it last found, so a folder that stopped opening under an
-                // Entry that was on screen would otherwise leave a strip of
-                // photographs beside the notice saying so — an offer the app
-                // could not keep, since there is no Entry left to add one to.
-                if editor.state.isEditing {
-                    PhotoSuggestionsPanel(
-                        suggestions: suggestions,
-                        insert: { photograph in
-                            Task { await photographs.insert(photograph, from: suggestions) }
-                        },
-                        isAddingOne: photographs.isAddingOne
                     )
                 }
             }

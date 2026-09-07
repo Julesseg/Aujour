@@ -6,11 +6,12 @@ import UniformTypeIdentifiers
 
 @testable import Aujour
 
-// Adding a photograph, minus the one part that is another process's screen.
-// Where the file goes and what the embed says is Core's and is tested there
-// against the paths it comes out as; what is left is what needs a device to
-// answer — what a HEIC becomes, and that pressing the control on the row puts
-// a file in the folder and its embed in the day.
+// Adding a photograph from the library, minus the sheet it is chosen on and
+// the picker that is another process's screen. Where the file goes and what
+// the embed says is Core's and is tested there against the paths it comes
+// out as; what is left is what needs a device to answer — what a HEIC becomes,
+// and that a photograph the picker handed back goes into the folder and its
+// embed where the caret was when the key was pressed.
 
 /// Whether this machine's ImageIO can *write* HEIC, which is what a test needs
 /// in order to have one to hand over. Reading one is a separate question, and
@@ -75,22 +76,24 @@ struct InsertedPhotographsTests {
         #expect(InsertedPhotographs.keeping(Data("not a photograph".utf8)) == nil)
     }
 
-    // MARK: - Pressing the control
+    // MARK: - Pressing the key
 
-    // The whole of it, minus the picker: the file is in the folder, the embed
-    // is at the caret, and the Entry has been told — which is what saves it.
+    // The whole of it, minus the sheet and the picker: the key is pressed,
+    // what the picker handed back is in the folder, the embed is at the caret,
+    // and the Entry has been told — which is what saves it.
     @Test("the file lands in the folder and its embed at the caret")
     func insertingAPhotograph() async throws {
         let store = InMemoryJournalStore()
         let day = try await open(EntryEditor(store: store))
-        let photographs = InsertedPhotographs(picking: { _ in self.photograph(as: .png) })
+        let photographs = InsertedPhotographs()
         photographs.adds(to: day)
 
-        let open = OpenEditor(holding: "Walked to the market.")
-        open.coordinator.photographs = photographs
+        let open = OpenEditor(holding: "Walked to the market.", overADay: true)
         open.cursor(at: 21)
+        let request = try #require(open.coordinator.asksForAPhoto(in: open.textView))
 
-        await open.coordinator.insertAPhotograph(in: open.textView)?.value
+        let added = await photographs.keep(try #require(photograph(as: .png)))
+        request.insert(try #require(added))
 
         let name = "\(day.day).png"
         let path = "\(AttachmentPathTemplate.default.render(day.day))/\(name)"
@@ -112,13 +115,14 @@ struct InsertedPhotographsTests {
     func undoingAPhotograph() async throws {
         let store = InMemoryJournalStore()
         let day = try await open(EntryEditor(store: store))
-        let photographs = InsertedPhotographs(picking: { _ in self.photograph(as: .png) })
+        let photographs = InsertedPhotographs()
         photographs.adds(to: day)
 
-        let open = OpenEditor(holding: "Milk")
-        open.coordinator.photographs = photographs
+        let open = OpenEditor(holding: "Milk", overADay: true)
         open.cursor(at: 4)
-        await open.coordinator.insertAPhotograph(in: open.textView)?.value
+        let request = try #require(open.coordinator.asksForAPhoto(in: open.textView))
+        let added = await photographs.keep(try #require(photograph(as: .png)))
+        request.insert(try #require(added))
 
         let undo = try #require(open.textView.undoManager)
         #expect(undo.canUndo)
@@ -138,37 +142,50 @@ struct InsertedPhotographsTests {
     @Test("a folder that will not take it says so, and writes nothing in the day")
     func aFolderThatRefuses() async throws {
         let day = try await open(EntryEditor(store: AFolderThatRefusesToBeWrittenTo()))
-        let photographs = InsertedPhotographs(picking: { _ in self.photograph(as: .png) })
+        let photographs = InsertedPhotographs()
         photographs.adds(to: day)
 
-        let open = OpenEditor(holding: "Milk")
-        open.coordinator.photographs = photographs
+        let open = OpenEditor(holding: "Milk", overADay: true)
         open.cursor(at: 4)
+        let request = try #require(open.coordinator.asksForAPhoto(in: open.textView))
 
-        await open.coordinator.insertAPhotograph(in: open.textView)?.value
+        let added = await photographs.keep(try #require(photograph(as: .png)))
+        if let added { request.insert(added) }
 
+        #expect(added == nil)
         #expect(open.textView.text == "Milk")
         #expect(open.written == nil)
         #expect(photographs.problem != nil)
     }
 
-    // The picker was put away without choosing anything, which is not a
-    // failure and not a notice — it is the commonest thing that happens after
-    // a picker is opened.
-    @Test("a picker nobody chose from leaves the day exactly as it was")
-    func aPickerNobodyChoseFrom() async throws {
+    // A sheet takes the keyboard with it, and a text view with no keyboard
+    // reports a caret at its very start — so "at the caret" has to mean where
+    // it was when the key went down, however the selection has moved since.
+    @Test("the embed goes where the caret was when the key was pressed")
+    func whereTheCaretWas() async throws {
         let day = try await open(EntryEditor(store: InMemoryJournalStore()))
-        let photographs = InsertedPhotographs(picking: { _ in nil })
+        let photographs = InsertedPhotographs()
         photographs.adds(to: day)
 
-        let open = OpenEditor(holding: "Milk")
-        open.coordinator.photographs = photographs
+        let open = OpenEditor(holding: "Milk", overADay: true)
         open.cursor(at: 4)
+        let request = try #require(open.coordinator.asksForAPhoto(in: open.textView))
+        open.cursor(at: 0)
 
-        await open.coordinator.insertAPhotograph(in: open.textView)?.value
+        let added = await photographs.keep(try #require(photograph(as: .png)))
+        request.insert(try #require(added))
 
-        #expect(open.textView.text == "Milk")
-        #expect(photographs.problem == nil)
+        #expect(open.textView.text.hasPrefix("Milk\n!["))
+    }
+
+    // A sheet with no Entry behind the editor is a sheet with nothing to add
+    // to, so the key does not ask for one.
+    @Test("an editor with no day behind it asks for nothing")
+    func nothingToAskFor() {
+        let open = OpenEditor(holding: "Milk")
+
+        #expect(open.coordinator.asksForAPhoto(in: open.textView) == nil)
+        #expect(open.requested == nil)
     }
 
     // MARK: - The control itself
@@ -180,7 +197,7 @@ struct InsertedPhotographsTests {
         let withoutAnEntry = OpenEditor(holding: "Milk")
         #expect(try !photoControl(of: withoutAnEntry).isEnabled)
 
-        let overADay = OpenEditor(holding: "Milk", addingPhotographs: InsertedPhotographs())
+        let overADay = OpenEditor(holding: "Milk", overADay: true)
         #expect(try photoControl(of: overADay).isEnabled)
     }
 

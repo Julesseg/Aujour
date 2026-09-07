@@ -296,8 +296,9 @@ final class WritingTheDayTests: AujourUITestCase {
     ///
     /// The picker itself is the one part left out — it is another process's
     /// screen, and driving it would make this a test of that screen. So the
-    /// suite says which photograph it means at launch and it goes in through
-    /// the same door the picker's would (`UITestingJournal`).
+    /// suite says which photograph it means at launch, and the sheet's
+    /// library button puts it in through the same door the picker's would
+    /// (`UITestingJournal`).
     func testAPhotographIsInsertedAtTheCaretAndKeptAsAFile() throws {
         let app = launchApp(photograph: "png")
 
@@ -309,6 +310,14 @@ final class WritingTheDayTests: AujourUITestCase {
         let photo = app.buttons["insertPhoto"]
         XCTAssertTrue(photo.waitForExistence(timeout: 10), "the formatting row never appeared")
         photo.tap()
+
+        // A day the camera has nothing from, on a sheet that says so — and
+        // under it the way to the library, which is the door this test is
+        // about.
+        let library = app.buttons["chooseFromLibrary"]
+        XCTAssertTrue(library.waitForExistence(timeout: 10), "the photo sheet never appeared")
+        XCTAssertTrue(app.staticTexts["noPhotoSuggestions"].exists, "the sheet had something to offer from an empty day")
+        library.tap()
 
         // On a line of its own under the sentence, pointed at the file
         // relative to the day holding it.
@@ -370,21 +379,24 @@ final class WritingTheDayTests: AujourUITestCase {
             "the formatting row never appeared"
         )
         app.buttons["insertPhoto"].tap()
+        let library = app.buttons["chooseFromLibrary"]
+        XCTAssertTrue(library.waitForExistence(timeout: 10), "the photo sheet never appeared")
+        library.tap()
 
         // The file still goes where the Attachment Path Template says — the
         // setting decides only how the Entry points at it.
         expect(editor, toHaveValue: "![[\(todaysEntryName()).jpg]]")
     }
 
-    /// The suggestions panel: the library asked for because a finger landed on
-    /// the offer, the day's own photographs behind it, and one tap that writes
+    /// The photo sheet: the library asked for because a finger landed on the
+    /// offer, the day's own photographs behind it, and one tap that writes
     /// one into the folder and points the Entry at it.
     ///
     /// The library itself is the part left out, for the reason the picker is:
     /// a simulator's is empty, and asking a real one would put a system alert
     /// from another process in the middle of a test. So the suite says which
     /// days the camera has something from and everything after that — the day
-    /// query, the panel, the attachment pipeline — is the app's own code
+    /// query, the sheet, the attachment pipeline — is the app's own code
     /// (`UITestingJournal`).
     func testTheDaysPhotographsAreOfferedAndOneTapInsertsOne() throws {
         let app = launchApp(
@@ -394,12 +406,18 @@ final class WritingTheDayTests: AujourUITestCase {
 
         let editor = app.textViews["entryEditor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        editor.tap()
+        editor.typeText("Walked to the market.")
+
+        let key = app.buttons["insertPhoto"]
+        XCTAssertTrue(key.waitForExistence(timeout: 10), "the formatting row never appeared")
+        key.tap()
 
         // Nothing has been asked for yet, and nothing has been read: the
-        // library permission is this panel's alone, and it is asked for
+        // library permission is this sheet's alone, and it is asked for
         // because somebody said to look.
         let offer = app.buttons["showPhotoSuggestions"]
-        XCTAssertTrue(offer.waitForExistence(timeout: 10), "the panel never offered to look")
+        XCTAssertTrue(offer.waitForExistence(timeout: 10), "the sheet never offered to look")
         XCTAssertFalse(
             app.staticTexts["photoSuggestions"].exists,
             "the day's photographs were read before anybody was asked"
@@ -407,21 +425,23 @@ final class WritingTheDayTests: AujourUITestCase {
         offer.tap()
 
         let headline = app.staticTexts["photoSuggestions"]
-        XCTAssertTrue(headline.waitForExistence(timeout: 10), "the panel never filled in")
+        XCTAssertTrue(headline.waitForExistence(timeout: 10), "the sheet never filled in")
         XCTAssertEqual(headline.label, "2 photos from this day")
 
-        editor.tap()
-        editor.typeText("Walked to the market.")
-
         let photo = app.buttons["photoSuggestion0"]
-        XCTAssertTrue(photo.waitForExistence(timeout: 10), "the strip had no photographs in it")
+        XCTAssertTrue(photo.waitForExistence(timeout: 10), "the grid had no photographs in it")
         photo.tap()
 
         // The same pipeline the picker's photograph goes through: under the
         // Attachment Path Template for this day, pointed at relatively, and on
-        // a line of its own after the sentence the caret was in.
+        // a line of its own after the sentence the caret was in when the key
+        // was pressed. And the sheet has gone: it did what it was for.
         let embed = "![](\(todaysPhotograph(named: "jpg")))"
         expect(editor, toHaveValue: "Walked to the market.\n" + embed)
+        XCTAssertTrue(
+            app.buttons["chooseFromLibrary"].waitForNonExistence(timeout: 10),
+            "the sheet stayed up after the photograph went in"
+        )
 
         // And what is in the file is what was on screen — nothing is inserted
         // until the photograph is in the folder.
@@ -434,7 +454,7 @@ final class WritingTheDayTests: AujourUITestCase {
     }
 
     /// A day filled in later is offered *its* photographs, and today is not
-    /// offered them — which is the whole of the panel being about the Journal
+    /// offered them — which is the whole of the sheet being about the Journal
     /// Day rather than about now.
     func testADayFilledInLaterIsOfferedItsOwnPhotographs() throws {
         let yesterday = try XCTUnwrap(dayBeforeToday())
@@ -442,22 +462,35 @@ final class WritingTheDayTests: AujourUITestCase {
             contentTemplate: "# {{title}}\n",
             photoLibrary: entryName(for: yesterday)
         )
-        XCTAssertTrue(
-            app.textViews["entryEditor"].waitForExistence(timeout: 30),
-            "today's entry never appeared"
-        )
+        let today = app.textViews["entryEditor"]
+        XCTAssertTrue(today.waitForExistence(timeout: 30), "today's entry never appeared")
 
-        // Today's camera roll is empty, so today has no panel — even though
-        // the library has a photograph in it.
+        // Today's camera roll is empty, so today's sheet has nothing from the
+        // day — even though the library has a photograph in it.
+        today.tap()
+        let key = app.buttons["insertPhoto"]
+        XCTAssertTrue(key.waitForExistence(timeout: 10), "the formatting row never appeared")
+        key.tap()
+        XCTAssertTrue(
+            app.staticTexts["noPhotoSuggestions"].waitForExistence(timeout: 10),
+            "today's sheet never said it had nothing from the day"
+        )
         XCTAssertFalse(
-            app.staticTexts["photoSuggestions"].waitForExistence(timeout: 3),
+            app.staticTexts["photoSuggestions"].exists,
             "today was offered a photograph from another day"
         )
+        app.buttons["cancelPhoto"].tap()
 
         openTheMonth(app, showing: yesterday)
         let cell = app.buttons["day-\(entryName(for: yesterday))"]
         XCTAssertTrue(cell.waitForExistence(timeout: 10), "yesterday was not on the calendar")
         cell.tap()
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "yesterday's entry never appeared")
+        editor.tap()
+        XCTAssertTrue(key.waitForExistence(timeout: 10), "the formatting row never appeared")
+        key.tap()
 
         let headline = app.staticTexts["photoSuggestions"]
         XCTAssertTrue(
@@ -467,13 +500,13 @@ final class WritingTheDayTests: AujourUITestCase {
         XCTAssertEqual(headline.label, "1 photo from this day")
     }
 
-    /// Saying no costs the panel and nothing else. The photo button above the
-    /// keyboard goes through the system picker, which runs in a process of its
-    /// own and needs no permission at all.
+    /// Saying no costs the day's photographs on the sheet and nothing else.
+    /// The library button under them goes through the system picker, which
+    /// runs in a process of its own and needs no permission at all.
     ///
     /// The library has a photograph from today in it throughout, so what is
     /// being watched is the refusal and not an empty camera roll.
-    func testARefusedLibraryLeavesNoPanelAndTheManualInsertWorking() throws {
+    func testARefusedLibraryLeavesTheLibraryButtonWorking() throws {
         let app = launchApp(
             photograph: "png",
             photoLibrary: todaysEntryName(),
@@ -482,29 +515,38 @@ final class WritingTheDayTests: AujourUITestCase {
 
         let editor = app.textViews["entryEditor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        editor.tap()
+        let key = app.buttons["insertPhoto"]
+        XCTAssertTrue(key.waitForExistence(timeout: 10), "the formatting row never appeared")
+        key.tap()
 
         let offer = app.buttons["showPhotoSuggestions"]
-        XCTAssertTrue(offer.waitForExistence(timeout: 10), "the panel never offered to look")
+        XCTAssertTrue(offer.waitForExistence(timeout: 10), "the sheet never offered to look")
         offer.tap()
 
-        // Absent, and silent with it: they answered the question that was put
-        // to them, and nothing about a photo library belongs in front of
-        // somebody who is writing.
-        XCTAssertFalse(
-            app.staticTexts["photoSuggestions"].waitForExistence(timeout: 3),
-            "a refused library was read anyway"
+        // Nothing from the day, and nothing said about the library: they
+        // answered the question that was put to them, and the answer was no.
+        XCTAssertTrue(
+            app.staticTexts["noPhotoSuggestions"].waitForExistence(timeout: 10),
+            "the sheet never settled after the refusal"
         )
-        // And it does not come back: the way past a refusal is Settings, not
-        // an app that asks again every time the day is opened.
+        XCTAssertFalse(app.staticTexts["photoSuggestions"].exists, "a refused library was read anyway")
         XCTAssertFalse(offer.exists, "a library already refused was offered again")
 
-        // The other door, which never needed the library at all.
-        editor.tap()
-        let photo = app.buttons["insertPhoto"]
-        XCTAssertTrue(photo.waitForExistence(timeout: 10), "the formatting row never appeared")
-        photo.tap()
-
+        // The other door, on the same sheet, which never needed the library
+        // at all.
+        app.buttons["chooseFromLibrary"].tap()
         expect(editor, toHaveValue: "![](\(todaysPhotograph()))")
+
+        // And the offer does not come back: the way past a refusal is
+        // Settings, not an app that asks again every time the key is pressed.
+        XCTAssertTrue(key.waitForExistence(timeout: 10), "the keyboard never came back")
+        key.tap()
+        XCTAssertTrue(
+            app.staticTexts["noPhotoSuggestions"].waitForExistence(timeout: 10),
+            "the sheet never came back"
+        )
+        XCTAssertFalse(offer.exists, "a library refused a moment ago was offered again")
     }
 
     func testATemplateFilePickedAnywhereIsWhatTheNextDayStartsFrom() throws {

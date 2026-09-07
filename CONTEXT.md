@@ -588,27 +588,32 @@ cannot show. That conversion is the one edit Aujour makes to somebody's
 photograph.
 
 ### Photo Suggestions
-The day's own photographs, offered under the day being written: "N photos from
-this day", a strip of thumbnails, and one tap that adds one. What it offers is
-the photographs taken during the Entry's *Journal Day* — midnight to midnight
-where the device is, the same stretch Day Data reads — so a Monday filled in on
-Friday is offered Monday's. A tap goes through the attachment pipeline like any
-other photograph, so the file lands under the Attachment Path Template and the
-Entry points at it in the embed syntax in force.
+The day's own photographs, offered on the sheet the Accessory Row's photo key
+puts up: "N photos from this day", a grid of thumbnails, and one tap that adds
+one. Under them, a button to the rest of the library through the system
+picker. What the grid offers is the photographs taken during the Entry's
+*Journal Day* — midnight to midnight where the device is, the same stretch Day
+Data reads — so a Monday filled in on Friday is offered Monday's. Either door
+goes through the attachment pipeline like any other photograph, so the file
+lands under the Attachment Path Template and the Entry points at it in the
+embed syntax in force, where the caret was when the key was pressed.
 
 Read through a seam, like Day Data and for the same reasons: reading never
 fails and never asks, so a device with no library, a permission refused and a
-day the camera missed all arrive as nothing to offer — which is a panel that is
-simply absent, never a notice and never a journal that would not open.
+day the camera missed all arrive as nothing to offer — which is a sheet with a
+line saying so and the library button under it, never a notice and never a
+journal that would not open. The library is read when the sheet comes up and
+not while the day is being written.
 
 One of the two things in Aujour that ask for the photo library — the
 `{{location}}` Widget asks for it too, to read where the day's photographs were
 taken — and both ask because the user tapped the offer to look, never because a
 day was opened. What the system says when it asks speaks for both, rather than
 leaving the larger claim to the sentence this panel would have asked with.
-Saying no costs the panel and the places from photographs, and nothing else:
-adding a photo from the Accessory Row goes through the system picker, which
-runs in a process of its own and needs no permission at all.
+Saying no costs the day's photographs on the sheet and the places from
+photographs, and nothing else: the sheet's library button goes through the
+system picker, which runs in a process of its own and needs no permission at
+all.
 
 ### Export
 A copy of one Entry, made to leave the app: sent to somebody, filed, or

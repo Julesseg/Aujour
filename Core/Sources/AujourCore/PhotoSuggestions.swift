@@ -8,14 +8,14 @@ import Observation
 /// camera recorded one — where it was taken, and nothing else: what it looks
 /// like needs a screen, and what it weighs needs a download. Both are asked
 /// for by name, later and only for the ones somebody actually wants — a day
-/// can hold two hundred photographs, and a panel that fetched every one of
-/// them to offer them would be a day that took a while to open.
+/// can hold two hundred photographs, and a sheet that fetched every one of
+/// them to offer them would be a sheet that took a while to come up.
 ///
 /// The position is the exception to that, and it is cheap for the same reason
 /// the moment is: both are already in the library's own index beside the name,
 /// so a day's worth of them costs the same one query. What is done with them
 /// is ``PhotographedStop``'s and then ``PlaceSuggestions``'s — never this
-/// panel's, which offers pictures and has no interest in where they were
+/// offer's, which is of pictures and has no interest in where they were
 /// taken.
 public struct DayPhotograph: Hashable, Sendable, Identifiable {
     /// What the library calls it. Opaque here, and handed straight back when
@@ -43,10 +43,10 @@ public struct DayPhotograph: Hashable, Sendable, Identifiable {
 
 /// Whether Aujour may read the user's photo library.
 ///
-/// Three answers rather than a `Bool`, because the panel does something
+/// Three answers rather than a `Bool`, because the sheet does something
 /// different with each: an undecided library is one worth offering to look
-/// in, a refused one is a panel that is not there, and only an allowed one is
-/// ever read.
+/// in, a refused one has nothing from the day to show, and only an allowed
+/// one is ever read.
 public enum PhotoLibraryAccess: Hashable, Sendable {
     /// Nobody has been asked yet.
     case undecided
@@ -58,7 +58,7 @@ public enum PhotoLibraryAccess: Hashable, Sendable {
     case refused
 }
 
-/// The user's photo library, as the suggestions panel sees it.
+/// The user's photo library, as the photo sheet sees it.
 ///
 /// The third seam between the domain and the device, after the Journal Store
 /// and Day Data, and it is shaped by the same two promises:
@@ -66,12 +66,12 @@ public enum PhotoLibraryAccess: Hashable, Sendable {
 /// - **Reading never asks.** ``photographs(during:)`` answers with nothing at
 ///   all where access is anything but granted. Asking is ``ask()``, which
 ///   happens because the user said to look and never because a day was opened
-///   — the library permission is the suggestions panel's alone, and manual
-///   insert through the system picker needs none of it.
+///   — the library permission is the day's own photographs' alone, and the
+///   system picker under them needs none of it.
 /// - **Reading never fails.** A library that is not there, not permitted or
-///   not answering is a day with no photographs to offer, which is a panel
-///   that is simply absent. Nothing about a photo library ever reaches the
-///   user as a journal that would not open (ADR 0001).
+///   not answering is a day with no photographs to offer, which is a sheet
+///   with nothing from the day on it. Nothing about a photo library ever
+///   reaches the user as a journal that would not open (ADR 0001).
 ///
 /// That second promise is about what is *offered*. A photograph somebody has
 /// tapped is a different thing: they asked for it to go in the day, and one
@@ -100,7 +100,7 @@ public protocol PhotoLibrary: Sendable {
     /// is also what an unallowed library answers.
     func photographs(during span: DateInterval) async -> [DayPhotograph]
 
-    /// Something small enough to draw a strip of, or `nil` for one that would
+    /// Something small enough to draw a grid of, or `nil` for one that would
     /// not come.
     func thumbnail(of photograph: DayPhotograph) async -> Data?
 
@@ -110,36 +110,35 @@ public protocol PhotoLibrary: Sendable {
     func contents(of photograph: DayPhotograph) async -> Data?
 }
 
-/// What the editor offers the day on screen: the photographs the device
-/// already holds from it.
+/// What the photo sheet offers the day on screen first: the photographs the
+/// device already holds from it.
 ///
 /// A day is written up in the evening, or a week later, and the pictures of it
-/// are already on the phone — so Aujour offers them where the day is being
-/// written, and adding one is a tap rather than a trip to the picker and back.
-/// Which photographs those are is the only question here, and it has one
-/// answer: the ones taken during the Entry's *Journal Day*, so that a Monday
-/// filled in on Friday is offered Monday's.
+/// are already on the phone — so Aujour offers them at the top of the sheet
+/// the photo key puts up, and adding one is a tap rather than a trip through
+/// the picker. Which photographs those are is the only question here, and it
+/// has one answer: the ones taken during the Entry's *Journal Day*, so that a
+/// Monday filled in on Friday is offered Monday's.
 ///
 /// It holds no pixels and no permission alert. Both are the app's, behind
 /// ``PhotoLibrary`` — which is what lets every rule above be unit-tested on
 /// Linux against a library that is said rather than read.
 ///
-/// ## The panel is absent far more often than it is there
+/// ## Nothing to offer, far more often than something
 ///
-/// Three of the four states of the world show nothing at all: a library the
-/// user refused, a device that will not allow one, and a day with no
-/// photographs in it. None of them is a failure and none of them is said out
-/// loud — a notice about a photo library would be a notice in front of
-/// somebody who is writing, and the photo button on the accessory row goes on
-/// working in every one of them, because the system picker needs no permission
-/// (``AujourCore/Attachment``).
+/// Three of the four states of the world offer nothing from the day: a
+/// library the user refused, a device that will not allow one, and a day with
+/// no photographs in it. None of them is a failure and none of them is a
+/// notice — the sheet says in a line that it has nothing to show, and the
+/// library button under it goes on working in every one of them, because the
+/// system picker needs no permission (``AujourCore/Attachment``).
 @MainActor
 @Observable
 public final class PhotoSuggestions {
-    /// What the panel should be showing.
+    /// What the sheet has to show from the day.
     public enum State: Hashable, Sendable {
-        /// No panel. A refused library, a device with none, or a day the
-        /// library holds nothing from.
+        /// Nothing from the day. A refused library, a device with none, or a
+        /// day the library holds nothing from.
         case nothingToOffer
 
         /// Nobody has been asked about the library yet, so there is something
@@ -160,7 +159,7 @@ public final class PhotoSuggestions {
     /// one the Entry around it is written in.
     @ObservationIgnored private let timeZone: TimeZone
 
-    /// The day the panel is currently about, so that an answer arriving about
+    /// The day the offer is currently about, so that an answer arriving about
     /// a day that has since been left is dropped rather than shown. Opening a
     /// day from the calendar while another is still being read for is exactly
     /// that, and so is an app left open overnight moving on to today.
@@ -176,12 +175,12 @@ public final class PhotoSuggestions {
         self.timeZone = timeZone
     }
 
-    /// Points the panel at a day, and reads the library for it if that is
+    /// Points the offer at a day, and reads the library for it if that is
     /// allowed without asking anybody anything.
     ///
-    /// Called with the day going on screen, and again when the app comes back
-    /// to the front — a photograph taken five minutes ago is exactly the one
-    /// somebody came back to write about.
+    /// Called when the sheet comes up over a day — and never because a day was
+    /// opened, since a library is a thing to read when somebody wants a
+    /// photograph and not while they are writing.
     public func look(for day: JournalDay) async {
         // A different day is a different set of photographs, and the library
         // takes a moment to answer about it — so the last day's go now rather
@@ -189,8 +188,8 @@ public final class PhotoSuggestions {
         // overnight moves on would offer yesterday's photographs over today's
         // Entry, and a tap in that window would put one of them in it.
         //
-        // Only on a *different* day: looking again at the same one — coming
-        // back to the front — must not blink the strip away and back.
+        // Only on a *different* day: looking again at the same one — the
+        // sheet coming up again — must not blink the grid away and back.
         if lookingFor != day { state = .nothingToOffer }
         lookingFor = day
         guard let library else { return offer(.nothingToOffer, for: day) }
@@ -208,9 +207,10 @@ public final class PhotoSuggestions {
     /// Asks for the library, because the user said to look — and shows what is
     /// there if they allowed it.
     ///
-    /// The only thing in Aujour that ever asks for a photo library. A refusal
-    /// leaves the panel absent and says nothing about it: they answered the
-    /// question that was put to them, and the answer was no.
+    /// One of the two things in Aujour that ever ask for a photo library. A
+    /// refusal leaves nothing from the day on the sheet and says nothing about
+    /// the library: they answered the question that was put to them, and the
+    /// answer was no.
     public func askToLook() async {
         guard let library, let day = lookingFor else { return }
 
@@ -239,7 +239,7 @@ public final class PhotoSuggestions {
         // one the user's own photos app draws this day as.
         let found = await library.photographs(during: day.span(in: timeZone))
         // In the order the day took them, however the library answered:
-        // a strip of a day reads left to right the way the day did.
+        // a grid of a day reads left to right the way the day did.
         let inOrder = found.sorted { $0.takenAt < $1.takenAt }
         offer(inOrder.isEmpty ? .nothingToOffer : .offering(inOrder), for: day)
     }

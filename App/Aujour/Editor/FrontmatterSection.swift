@@ -94,10 +94,6 @@ private struct PropertiesCard: View {
                 }
             }
             .background(Palette.cardColor, in: RoundedRectangle(cornerRadius: Rounding.card))
-            .overlay(
-                RoundedRectangle(cornerRadius: Rounding.card)
-                    .strokeBorder(Palette.ruleColor, lineWidth: 1)
-            )
 
             HStack(spacing: Spacing.tight) {
                 if !cut.isShowingSource, cut.offersSource || cut.frontmatter == nil {

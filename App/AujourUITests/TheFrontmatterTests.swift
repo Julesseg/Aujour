@@ -207,7 +207,7 @@ final class TheFrontmatterTests: AujourUITestCase {
 
         let row = app.otherElements["property-created"]
         let name = app.textFields["propertyKey-created"]
-        let picker = app.datePickers["propertyDate-created"]
+        let picker = app.buttons["propertyDate-created"]
         XCTAssertTrue(picker.waitForExistence(timeout: 10), "the date never appeared")
 
         XCTAssertTrue(
@@ -250,15 +250,78 @@ final class TheFrontmatterTests: AujourUITestCase {
 
         let hour = app.datePickers["propertyTime-created"]
         XCTAssertTrue(hour.waitForExistence(timeout: 10), "the hour never appeared")
-        // Five minutes on from where it was, which is a short throw: a wheel
-        // sent right round the clock lands a row or two off often enough to
-        // be a test that fails on a minute nobody chose.
-        driveTheMinutes(of: hour, to: 55, in: app)
+        // Thrown five minutes on from where it was and read back off the
+        // clock rather than dictated: which minute it lands on is not what
+        // this is about, and a wheel lands a row out often enough to be a
+        // test that fails on a minute nobody chose.
+        let landed = throwTheMinutes(of: hour, at: 55, in: app)
+        XCTAssertNotEqual(landed, "50", "the clock never moved")
 
         app.buttons["frontmatterSourceToggle"].tap()
         let source = app.textViews["frontmatterSource"]
         XCTAssertTrue(source.waitForExistence(timeout: 10))
-        expect(source, toHaveValue: "---\ncreated: 2025-09-04T13:55\n---")
+        expect(source, toHaveValue: "---\ncreated: 2025-09-04T13:\(landed)\n---")
+    }
+
+    /// A date is said in words, at every width and in every language: never
+    /// `04/09/2025`, which is what the system's own compact picker falls back
+    /// to when it decides it is short of room.
+    ///
+    /// Asked as "letters and no slashes" rather than against a date spelled
+    /// out here, because the app is running in English and the test process in
+    /// this Mac's own language — a date this test formatted would be the wrong
+    /// one in the right shape.
+    func testADateIsAlwaysSaidInWordsAndNeverInNumbers() throws {
+        for textSize in [nil, "UICTContentSizeCategoryAccessibilityXXXL"] {
+            let app = launchApp(
+                textSize: textSize,
+                todaysEntry: "---\ncreated: 2025-09-04T13:50\nwhen: 2025-09-04\n---\n# A walk\n"
+            )
+            XCTAssertTrue(
+                app.otherElements["frontmatterSection"].waitForExistence(timeout: 30),
+                "the section never appeared"
+            )
+            for key in ["created", "when"] {
+                let said = app.buttons["propertyDate-\(key)"].label
+                XCTAssertFalse(
+                    said.contains("/"), "\(key) was written in numbers at \(textSize ?? "the usual size"): \(said)"
+                )
+                XCTAssertNotNil(
+                    said.rangeOfCharacter(from: .letters),
+                    "\(key) had no month in letters at \(textSize ?? "the usual size"): \(said)"
+                )
+                XCTAssertTrue(said.contains("2025"), "\(key) was said without its year: \(said)")
+            }
+            app.terminate()
+        }
+    }
+
+    /// A day picked out of the calendar behind the pill is written to the
+    /// file — and the hour it was written at is still there afterwards, which
+    /// is the other half of the moment the day's own control does not touch.
+    func testADayPickedOutOfTheCalendarKeepsTheHourItWasWrittenAt() throws {
+        let app = launchApp(todaysEntry: "---\ncreated: 2025-09-04T13:50\n---\n# A walk\n")
+        let pill = app.buttons["propertyDate-created"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the date never appeared")
+        pill.tap()
+
+        let calendar = app.datePickers["propertyCalendar"]
+        XCTAssertTrue(calendar.waitForExistence(timeout: 10), "the calendar never opened")
+        // The fifteenth of the month on screen, which is the one day of it
+        // whose name no other day's and no header's contains.
+        let fifteenth = calendar.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "15")
+        ).firstMatch
+        XCTAssertTrue(fifteenth.waitForExistence(timeout: 10), "the month offered no fifteenth")
+        fifteenth.tap()
+
+        let dismiss = app.buttons["PopoverDismissRegion"]
+        if dismiss.waitForExistence(timeout: 3) { dismiss.tap() }
+
+        app.buttons["frontmatterSourceToggle"].tap()
+        let source = app.textViews["frontmatterSource"]
+        XCTAssertTrue(source.waitForExistence(timeout: 10))
+        expect(source, toHaveValue: "---\ncreated: 2025-09-15T13:50\n---")
     }
 
     /// Types a day in from the top, block and all — the one way a UI test has

@@ -382,49 +382,35 @@ private struct ValueControl: View {
             .accessibilityIdentifier("propertyToggle-\(property.key)")
 
         case .date:
-            DatePicker(
-                "",
-                selection: Binding(
-                    get: { property.value.moment(in: .current) ?? Date() },
-                    set: { cut.set(property.key, to: .date(of: $0, in: .current)) }
-                ),
-                displayedComponents: .date
-            )
-            .labelsHidden()
-            .foregroundStyle(.tint)
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .accessibilityIdentifier("propertyDate-\(property.key)")
+            theDay(writing: { .date(of: $0, in: .current) })
+                .frame(maxWidth: .infinity, alignment: .trailing)
 
         case .dateTime:
-            // Two pickers and not the one that shows both, which is what a
-            // date and a time in a single control draws anyway: a day in a
-            // pill and an hour in a pill beside it. Asked for separately
-            // because the combined control measures the day wrongly wherever
-            // the reader's date is written in numbers — it draws 04/09/2025
-            // in a pill it sized for a shorter month-name date and cuts the
-            // year off. Each of these is a control with one thing to say and
-            // it comes out the width of what it says.
+            // The day and the hour separately, and never the one control that
+            // shows both: it sizes the day for a date it is not going to draw
+            // — 04/09/2025 in a pill it measured for a shorter month-name one
+            // — and cuts the year off wherever the reader's date is written in
+            // numbers. Each of these says one thing and comes out the width of
+            // what it says.
             //
-            // Both write the whole moment: a picker shown only its day hands
-            // back the hour it was given, so the day is set by the one and
+            // Both write the whole moment, so the day is set by the one and
             // the hour by the other and neither loses the other's half.
             //
             // Side by side while the row can hold them both, and the hour
             // under the day where it cannot — which is what the control that
-            // draws them together does at the accessibility sizes, and what
-            // two pills of their own would otherwise run off the screen
-            // rather than do.
+            // draws them together did at the accessibility sizes, and what two
+            // pills of their own would otherwise run off the screen rather
+            // than do.
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: Spacing.close) {
-                    theDay
+                    theDay(writing: { .dateTime(of: $0, in: .current) })
                     theHour
                 }
                 VStack(alignment: .trailing, spacing: Spacing.tight) {
-                    theDay
+                    theDay(writing: { .dateTime(of: $0, in: .current) })
                     theHour
                 }
             }
-            .foregroundStyle(.tint)
             .frame(maxWidth: .infinity, alignment: .trailing)
 
         case .list(let items):
@@ -432,28 +418,128 @@ private struct ValueControl: View {
         }
     }
 
-    /// The day of a date-and-time Property, in a picker of its own.
-    private var theDay: some View {
-        DatePicker("", selection: theMoment, displayedComponents: .date)
-            .labelsHidden()
-            .accessibilityIdentifier("propertyDate-\(property.key)")
+    /// The day of a date Property, said in words and opened as a calendar.
+    ///
+    /// - Parameter writing: what a day picked out of it makes of the value —
+    ///   a date for a date Property, a moment for a date-and-time one.
+    private func theDay(writing value: @escaping (Date) -> Property.Value) -> some View {
+        DayPill(
+            moment: theMoment(writing: value),
+            identifier: "propertyDate-\(property.key)"
+        )
     }
 
-    /// And its hour, in another.
+    /// And the hour of a date-and-time one, in the system's own picker: an
+    /// hour is digits and a colon in every language, so there is nothing here
+    /// for a control to spell one way and measure another.
     private var theHour: some View {
-        DatePicker("", selection: theMoment, displayedComponents: .hourAndMinute)
-            .labelsHidden()
-            .accessibilityIdentifier("propertyTime-\(property.key)")
+        DatePicker(
+            "",
+            selection: theMoment(writing: { .dateTime(of: $0, in: .current) }),
+            displayedComponents: .hourAndMinute
+        )
+        .labelsHidden()
+        .foregroundStyle(.tint)
+        .accessibilityIdentifier("propertyTime-\(property.key)")
     }
 
-    /// The moment a date-and-time Property names, as the two pickers over it
-    /// read and write it: either of them hands back the whole moment, its own
-    /// half changed and the other half as it was given.
-    private var theMoment: Binding<Date> {
+    /// The moment the value names, as the controls over it read and write it:
+    /// either of them hands back the whole moment, its own half changed and
+    /// the other half as it was given.
+    private func theMoment(writing value: @escaping (Date) -> Property.Value) -> Binding<Date> {
         Binding(
             get: { property.value.moment(in: .current) ?? Date() },
-            set: { cut.set(property.key, to: .dateTime(of: $0, in: .current)) }
+            set: { cut.set(property.key, to: value($0)) }
         )
+    }
+}
+
+/// A day, said in words and opened as a calendar.
+///
+/// The words are the app's own (``AujourCore/JournalDay/named(at:withYear:in:locale:)``)
+/// rather than the ones a compact date picker draws, which are whatever it
+/// decides will fit: a month spelled out where it has room and `04/09/2025`
+/// where it has not, and the two swapping between them as a row changes width
+/// or a reader changes language. A journal is read back years later and a date
+/// in it should be the same shape every time — and the shape is the one nobody
+/// has to decode, which is the month in letters.
+///
+/// The reader's own wording of it, and the reader's own order: whether the day
+/// or the month comes first is the device's business and not this app's. Only
+/// the calendar behind it is the system's control, because picking a day out
+/// of a month is a thing iOS already does well.
+extension Locale {
+    /// The reader's own language, which is not the app's.
+    ///
+    /// Aujour is written in English and nothing else, so a French device runs
+    /// it in English and `Locale.current` comes back English with a French
+    /// region — English words in the French order. Which is fine for a label
+    /// the app wrote, and wrong for a date: the system's own controls say the
+    /// months in French on that device, and a date this app spells itself
+    /// would be the one thing on the screen arguing with them.
+    ///
+    /// So the device's own first language, and its region with it, falling
+    /// back to what the app was given where a device has said nothing.
+    static var asTheDeviceIsSet: Locale {
+        preferredLanguages.first.map(Locale.init(identifier:)) ?? .current
+    }
+}
+
+private struct DayPill: View {
+    @Binding var moment: Date
+    let identifier: String
+
+    @State private var isPicking = false
+
+    /// How wide a month of days comes to at the reader's text size — seven
+    /// columns and the padding round them, which is what the system's own
+    /// calendar takes at the usual size.
+    @ScaledMetric(relativeTo: .body) private var monthWide: CGFloat = 320
+
+    var body: some View {
+        Button {
+            isPicking = true
+        } label: {
+            Text(theDay.named(at: .dayAndMonth, withYear: true, locale: .asTheDeviceIsSet))
+                .lettering(.rowLabel)
+                .foregroundStyle(Palette.inkColor)
+                .padding(.horizontal, Spacing.close)
+                .padding(.vertical, Spacing.tight)
+                .background(Palette.fieldStrongColor, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+        .accessibilityValue(theDay.named(at: .spelledOut, withYear: true, locale: .asTheDeviceIsSet))
+        // A popover on the phone too, and not the sheet a popover becomes
+        // there: this is the calendar the pill beside it puts up, and a month
+        // to pick a day out of is not a screenful of anything.
+        .popover(isPresented: $isPicking) {
+            DatePicker("", selection: $moment, displayedComponents: .date)
+                .datePickerStyle(.graphical)
+                .labelsHidden()
+                .padding(Spacing.close)
+                // Told how wide a month is, because a popover offers its
+                // content the width of the thing it hangs off: hung off a
+                // pill, the calendar came up one weekday wide with the rest
+                // of the month cut off it. A floor and not a width, and one
+                // that grows with the reader's text, so that a month asking
+                // for more room than seven columns of digits is given it.
+                .frame(minWidth: min(monthWide, 420))
+                .presentationCompactAdaptation(.popover)
+                .accessibilityIdentifier("propertyCalendar")
+                // A day picked is the whole of what this was opened for, so
+                // it closes on one — which is what the system's own pill does
+                // and what stops the month sitting over the day it just
+                // changed.
+                .onChange(of: moment) { isPicking = false }
+        }
+    }
+
+    /// The day the moment falls on, in the reader's own zone — which is the
+    /// zone the value was written in and is read back in.
+    private var theDay: JournalDay {
+        let parts = Calendar.current.dateComponents([.year, .month, .day], from: moment)
+        return JournalDay(year: parts.year ?? 1, month: parts.month ?? 1, day: parts.day ?? 1)
     }
 }
 

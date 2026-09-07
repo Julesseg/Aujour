@@ -187,6 +187,53 @@ final class TheFrontmatterTests: AujourUITestCase {
         XCTAssertTrue(app.buttons["addFirstProperty"].exists)
     }
 
+    /// A date is read whole or not at all, so when a row runs out of room it
+    /// is the name's column that gives and not the picker.
+    ///
+    /// At the largest text size a date and a time together want more than the
+    /// column a row of this width has left over — and the row that handed the
+    /// name a column of its own regardless drew the difference outside the
+    /// card, with the date cropped or the card's own edge off the side of the
+    /// screen. Asked as containment rather than in points, because how much
+    /// room a picker asks for is the system's business and differs by device,
+    /// by language and by every step of the text size.
+    func testADateKeepsItsWidthWhenTheRowRunsOutOfRoom() throws {
+        let app = launchApp(
+            textSize: "UICTContentSizeCategoryXXXL",
+            todaysEntry: "---\ncreated: 2025-09-04T13:50\nmood: 7\n---\n# A walk\n"
+        )
+        let card = app.otherElements["frontmatterSection"]
+        XCTAssertTrue(card.waitForExistence(timeout: 30), "the section never appeared")
+
+        let row = app.otherElements["property-created"]
+        let name = app.textFields["propertyKey-created"]
+        let picker = app.datePickers["propertyDate-created"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10), "the date never appeared")
+
+        XCTAssertTrue(
+            app.windows.firstMatch.frame.contains(card.frame),
+            "the card \(card.frame) reached off the side of the screen"
+        )
+        XCTAssertEqual(
+            row.frame.width, app.otherElements["property-mood"].frame.width,
+            "the row the date is in is wider than the rows that fit"
+        )
+        XCTAssertTrue(
+            row.frame.contains(picker.frame),
+            "the date \(picker.frame) reached outside its row \(row.frame)"
+        )
+        XCTAssertGreaterThanOrEqual(
+            picker.frame.minX, name.frame.maxX,
+            "the date was drawn over the name it belongs to"
+        )
+        // And the row that had room to spare is untouched: the column is a
+        // column still, and only the row that could not afford one gave it up.
+        XCTAssertGreaterThanOrEqual(
+            app.textFields["propertyKey-mood"].frame.width, name.frame.width,
+            "the name beside a number should be no narrower than the one beside a date"
+        )
+    }
+
     /// Types a day in from the top, block and all — the one way a UI test has
     /// of putting a Frontmatter in a file the next launch will not seed over.
     ///

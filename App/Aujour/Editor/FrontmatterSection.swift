@@ -138,7 +138,7 @@ private struct PropertyRow: View {
     let asks: (PlaceholderQuestion) -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: Spacing.comfortable) {
+        PropertyRowLayout(valueIsIndivisible: property.value.isIndivisible) {
             KeyField(key: property.key) { newKey in cut.rename(property.key, to: newKey) }
             ValueControl(property: property, cut: $cut, asks: asks)
         }
@@ -153,6 +153,157 @@ private struct PropertyRow: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("property-\(property.key)")
         .accessibilityAction(named: "Delete") { cut.delete(property.key) }
+    }
+}
+
+/// The name and the value of one Property, laid out so that the value is
+/// never the one that gives.
+///
+/// A row that hands the name a column of its own and the value whatever is
+/// left is a row that crops the value the first time the two do not both fit
+/// — and a cropped date is not a shorter date, it is a date with its year cut
+/// off. Which happens on nobody's exotic device: a compact date-and-time
+/// picker asks for more room every step the reader turns their text up, and
+/// the Entry it sits over is set to a measure rather than to the window, so
+/// the room it is asking out of does not grow with the screen.
+///
+/// So the name is what yields. It is ``key`` wide wherever the row can afford
+/// it, because a column of names that line up is what makes a stack of rows
+/// read as a table; down to ``narrowestKey`` where it cannot, which is still
+/// a word and still a target for the finger that renames it; and under that
+/// the row is two lines, the name on one and the value under it against the
+/// same trailing edge it sits at when they share a line. A value wider than
+/// the whole row even then is the value's own business — a date picker at the
+/// accessibility sizes breaks its date over the two lines itself.
+///
+/// All of which is only for the values it is true of, which is why the row is
+/// told which it has: a date squeezed loses its year, a sentence squeezed is
+/// still the sentence and scrolls in its field. A row whose value is words
+/// divides exactly as it always did — the name's column, and the rest.
+struct PropertyRowLayout: Layout {
+    /// Whether the value is read whole or not at all, and so is measured
+    /// before the name is handed its column.
+    var valueIsIndivisible = false
+
+    /// How wide the name column is when the row can afford it.
+    static let key: CGFloat = 110
+
+    /// And the narrowest it is squeezed to before the value goes underneath
+    /// instead. A name is held as typed and committed on leaving, so a field
+    /// this wide with more in it than fits is a field that scrolls under the
+    /// caret rather than a name that has lost its end.
+    static let narrowestKey: CGFloat = 56
+
+    /// Between the name and the value beside it.
+    var spacing: CGFloat = Spacing.comfortable
+
+    /// And between the name and the value under it, which is closer than
+    /// that: two lines that are one row.
+    var stackedSpacing: CGFloat = Spacing.tight
+
+    /// How a row this wide divides between a name and a value that wants this
+    /// much of it.
+    struct Division: Equatable {
+        var key: CGFloat
+        var value: CGFloat
+        /// Whether the value is under the name rather than beside it.
+        var isStacked: Bool
+    }
+
+    /// The whole rule, in the one place both the measuring and the placing
+    /// read it from — two passes that divided a row differently would draw a
+    /// value over a name.
+    ///
+    /// - Parameters:
+    ///   - width: how wide the row is.
+    ///   - wanted: how wide the value would be if nothing were pressing on
+    ///     it, which is the number this is all in aid of.
+    static func division(of width: CGFloat, forAValueWanting wanted: CGFloat, spacing: CGFloat)
+        -> Division
+    {
+        let beside = width - spacing
+        if beside - key >= wanted {
+            return Division(key: key, value: beside - key, isStacked: false)
+        }
+        if beside - narrowestKey >= wanted {
+            return Division(key: beside - wanted, value: wanted, isStacked: false)
+        }
+        return Division(key: width, value: width, isStacked: true)
+    }
+
+    /// How much of the row the value is asking for: what it would come out
+    /// at with nothing pressing on it, or nothing at all when it is words —
+    /// which is a value with no claim on the room, and a row divided the way
+    /// it always was.
+    private func widthWanted(by subviews: Subviews) -> CGFloat {
+        valueIsIndivisible ? subviews[1].sizeThatFits(.unspecified).width : 0
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let wanted = widthWanted(by: subviews)
+        // Asked with no width — which is how a row is asked what it would
+        // like to be — the row would like the name beside the whole value.
+        let width = proposal.width ?? Self.key + spacing + wanted
+        let division = Self.division(of: width, forAValueWanting: wanted, spacing: spacing)
+        let key = subviews[0].sizeThatFits(ProposedViewSize(width: division.key, height: nil))
+        let value = subviews[1].sizeThatFits(ProposedViewSize(width: division.value, height: nil))
+        return CGSize(
+            width: width,
+            height: division.isStacked
+                ? key.height + stackedSpacing + value.height
+                : max(key.height, value.height)
+        )
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        let wanted = widthWanted(by: subviews)
+        let division = Self.division(of: bounds.width, forAValueWanting: wanted, spacing: spacing)
+        let key = ProposedViewSize(width: division.key, height: nil)
+        let value = ProposedViewSize(width: division.value, height: nil)
+
+        guard division.isStacked else {
+            subviews[0].place(
+                at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading, proposal: key
+            )
+            subviews[1].place(
+                at: CGPoint(x: bounds.maxX, y: bounds.midY), anchor: .trailing, proposal: value
+            )
+            return
+        }
+        subviews[0].place(
+            at: CGPoint(x: bounds.minX, y: bounds.minY), anchor: .topLeading, proposal: key
+        )
+        subviews[1].place(
+            at: CGPoint(
+                x: bounds.minX,
+                y: bounds.minY + subviews[0].sizeThatFits(key).height + stackedSpacing
+            ),
+            anchor: .topLeading,
+            proposal: value
+        )
+    }
+}
+
+extension Property.Value {
+    /// Whether a squeeze takes something off this value rather than out of
+    /// the middle of it — which is what decides whether the row hands it its
+    /// width before the name's (``PropertyRowLayout``).
+    ///
+    /// A date and a time are read whole: a picker with a hundred points to
+    /// draw them in shows a day and a month and no year, which is not a
+    /// shorter date but the wrong one. Words, numbers and chips are not — a
+    /// field of them scrolls under the caret, and a list wraps onto as many
+    /// lines as it costs.
+    fileprivate var isIndivisible: Bool {
+        switch kind {
+        case .date, .dateTime: true
+        case .text, .number, .checkbox, .list: false
+        }
     }
 }
 
@@ -181,7 +332,6 @@ private struct KeyField: View {
             .onChange(of: key) { draft = key }
             .onSubmit { commit() }
             .onChange(of: isEditing) { if !isEditing { commit() } }
-            .frame(width: 110, alignment: .leading)
             .accessibilityIdentifier("propertyKey-\(key)")
     }
 

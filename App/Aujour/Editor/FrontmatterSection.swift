@@ -396,22 +396,64 @@ private struct ValueControl: View {
             .accessibilityIdentifier("propertyDate-\(property.key)")
 
         case .dateTime:
-            DatePicker(
-                "",
-                selection: Binding(
-                    get: { property.value.moment(in: .current) ?? Date() },
-                    set: { cut.set(property.key, to: .dateTime(of: $0, in: .current)) }
-                ),
-                displayedComponents: [.date, .hourAndMinute]
-            )
-            .labelsHidden()
+            // Two pickers and not the one that shows both, which is what a
+            // date and a time in a single control draws anyway: a day in a
+            // pill and an hour in a pill beside it. Asked for separately
+            // because the combined control measures the day wrongly wherever
+            // the reader's date is written in numbers — it draws 04/09/2025
+            // in a pill it sized for a shorter month-name date and cuts the
+            // year off. Each of these is a control with one thing to say and
+            // it comes out the width of what it says.
+            //
+            // Both write the whole moment: a picker shown only its day hands
+            // back the hour it was given, so the day is set by the one and
+            // the hour by the other and neither loses the other's half.
+            //
+            // Side by side while the row can hold them both, and the hour
+            // under the day where it cannot — which is what the control that
+            // draws them together does at the accessibility sizes, and what
+            // two pills of their own would otherwise run off the screen
+            // rather than do.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Spacing.close) {
+                    theDay
+                    theHour
+                }
+                VStack(alignment: .trailing, spacing: Spacing.tight) {
+                    theDay
+                    theHour
+                }
+            }
             .foregroundStyle(.tint)
             .frame(maxWidth: .infinity, alignment: .trailing)
-            .accessibilityIdentifier("propertyDate-\(property.key)")
 
         case .list(let items):
             ListField(key: property.key, items: items) { cut.set(property.key, to: .list($0)) }
         }
+    }
+
+    /// The day of a date-and-time Property, in a picker of its own.
+    private var theDay: some View {
+        DatePicker("", selection: theMoment, displayedComponents: .date)
+            .labelsHidden()
+            .accessibilityIdentifier("propertyDate-\(property.key)")
+    }
+
+    /// And its hour, in another.
+    private var theHour: some View {
+        DatePicker("", selection: theMoment, displayedComponents: .hourAndMinute)
+            .labelsHidden()
+            .accessibilityIdentifier("propertyTime-\(property.key)")
+    }
+
+    /// The moment a date-and-time Property names, as the two pickers over it
+    /// read and write it: either of them hands back the whole moment, its own
+    /// half changed and the other half as it was given.
+    private var theMoment: Binding<Date> {
+        Binding(
+            get: { property.value.moment(in: .current) ?? Date() },
+            set: { cut.set(property.key, to: .dateTime(of: $0, in: .current)) }
+        )
     }
 }
 

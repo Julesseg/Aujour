@@ -340,6 +340,11 @@ class AujourUITestCase: XCTestCase {
     /// view is a row with nothing inside it yet.
     func theTimeShowing(on picker: XCUIElement, in app: XCUIApplication) -> String {
         scrollTo(picker, in: app)
+        return theTimeShowing(on: picker)
+    }
+
+    /// The same, off a picker that is already where a finger can reach it.
+    func theTimeShowing(on picker: XCUIElement) -> String {
         let face = picker.descendants(matching: .any).firstMatch
         XCTAssertTrue(face.waitForExistence(timeout: 10), "the time picker showed no time")
         return (face.value as? String) ?? ""
@@ -360,6 +365,13 @@ class AujourUITestCase: XCTestCase {
 
     func setTheMinutes(of picker: XCUIElement, to minute: Int, in app: XCUIApplication) {
         scrollTo(picker, in: app)
+        driveTheMinutes(of: picker, to: minute, in: app)
+    }
+
+    /// The same, for a picker that is already where a finger can reach it —
+    /// one in the Frontmatter over a day, which is not on a `Form` and has no
+    /// rows below the fold to be scrolled into being.
+    func driveTheMinutes(of picker: XCUIElement, to minute: Int, in app: XCUIApplication) {
         picker.tap()
 
         let wheels = app.pickerWheels
@@ -410,9 +422,9 @@ class AujourUITestCase: XCTestCase {
         // machine the two are far enough apart to read the minute before last,
         // which is a test failing on a minute nobody chose.
         XCTAssertTrue(
-            waitFor { theTimeShowing(on: picker, in: app).minutesShowing == wanted },
+            waitFor { theTimeShowing(on: picker).minutesShowing == wanted },
             "the clock would not come round to \(wanted) minutes — it is showing "
-                + "\(theTimeShowing(on: picker, in: app))"
+                + "\(theTimeShowing(on: picker))"
         )
     }
 

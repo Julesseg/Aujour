@@ -234,6 +234,33 @@ final class TheFrontmatterTests: AujourUITestCase {
         )
     }
 
+    /// The day and the hour of a date-and-time Property are two controls, and
+    /// each writes its own half of the moment: an hour moved leaves the day
+    /// where it was.
+    ///
+    /// The minutes and never the hour, and read back off the block rather than
+    /// off the screen — the pickers are spelled in the reader's own language
+    /// and the file is spelled in YAML, which is the same in every language.
+    func testMovingTheHourLeavesTheDayWhereItWas() throws {
+        let app = launchApp(todaysEntry: "---\ncreated: 2025-09-04T13:50\n---\n# A walk\n")
+        XCTAssertTrue(
+            app.otherElements["frontmatterSection"].waitForExistence(timeout: 30),
+            "the section never appeared"
+        )
+
+        let hour = app.datePickers["propertyTime-created"]
+        XCTAssertTrue(hour.waitForExistence(timeout: 10), "the hour never appeared")
+        // Five minutes on from where it was, which is a short throw: a wheel
+        // sent right round the clock lands a row or two off often enough to
+        // be a test that fails on a minute nobody chose.
+        driveTheMinutes(of: hour, to: 55, in: app)
+
+        app.buttons["frontmatterSourceToggle"].tap()
+        let source = app.textViews["frontmatterSource"]
+        XCTAssertTrue(source.waitForExistence(timeout: 10))
+        expect(source, toHaveValue: "---\ncreated: 2025-09-04T13:55\n---")
+    }
+
     /// Types a day in from the top, block and all — the one way a UI test has
     /// of putting a Frontmatter in a file the next launch will not seed over.
     ///

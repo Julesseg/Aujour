@@ -12,9 +12,14 @@ import Testing
 //
 // This is the whole of it, stated at the seam where it is decided: a Journal
 // Store is a folder of files, a Path Template says which of them are Entries
-// (ADR 0002), and nothing above either can widen that. It lives in Core
-// rather than in a UI test because it is a claim about the domain, and
-// because it is the one claim a bug in would cost somebody else's writing.
+// (ADR 0002), and nothing above either can widen that. Deleting a day is the
+// operation with the most riding on it, and it is held to the same line: the
+// file the current template names for the day somebody pointed at, and no
+// other.
+//
+// It lives in Core rather than in a UI test because it is a claim about the
+// domain, and because it is the one claim a bug in would cost somebody else's
+// writing.
 
 /// A vault as a user would actually have it — the journal is a corner of it,
 /// and the rest belongs to Obsidian and to them.
@@ -176,6 +181,43 @@ struct VaultSafetyTests {
         await session.expectTheVaultIsUntouched()
     }
 
+    @Test("deleting a day's Entry removes that one file and nothing near it")
+    func deletingAnEntryLeavesTheRestOfTheVaultAlone() async throws {
+        // The operation with the most to lose in somebody else's vault: the
+        // 14th has a sync conflict's copy of itself sitting beside it, named
+        // within a few characters of the Entry.
+        let session = VaultSession()
+        let calendar = session.calendar()
+        await calendar.scan()
+
+        try await calendar.deleteTheEntry(for: JournalDay(year: 2026, month: 3, day: 14))
+
+        #expect(session.store.deletions == ["2026/03/2026-03-14.md"])
+        #expect(session.store.writes.isEmpty)
+        #expect(session.store.moves.isEmpty)
+        #expect(await session.text(at: "2026/03/2026-03-14.md") == nil)
+        #expect(
+            await session.text(at: "2026/03/2026-03-14 (conflicted copy).md")
+                == "Rained all day\n"
+        )
+    }
+
+    @Test("a day the current Path Template does not name is not a day to delete")
+    func deletingUnderAnotherTemplateNeverReachesSomebodyElsesNote() async throws {
+        // The user who came from Obsidian's daily notes: `Daily` holds their
+        // Entries now, and `2026/03` holds files that are not. Deleting the
+        // 1st has to reach the path this template names — which is nothing —
+        // and never the file the old one did.
+        let session = VaultSession(pathTemplate: "[Daily]/YYYY-MM-DD")
+        let calendar = session.calendar()
+        await calendar.scan()
+
+        try await calendar.deleteTheEntry(for: JournalDay(year: 2026, month: 3, day: 1))
+
+        #expect(session.store.deletions == ["Daily/2026-03-01.md"])
+        await session.expectTheVaultIsUntouched()
+    }
+
     @Test("every Entry in the vault reads back as the file has it")
     func entriesReadBackFromTheFilesThatHoldThem() async {
         let session = VaultSession()
@@ -254,9 +296,9 @@ private final class VaultSession {
     }
 }
 
-/// A Journal Store that keeps a record of every write and move made through
-/// it, so a test can say "nothing else was even reached for" rather than only
-/// "nothing else ended up different".
+/// A Journal Store that keeps a record of every write, move and deletion made
+/// through it, so a test can say "nothing else was even reached for" rather
+/// than only "nothing else ended up different".
 ///
 /// The stronger claim is the one that matters here: a write of identical
 /// bytes leaves a file's content alone and still shows up in the user's vault
@@ -269,6 +311,7 @@ private final class RecordingJournalStore: JournalStore, @unchecked Sendable {
 
     private(set) var writes: [(path: String, text: String)] = []
     private(set) var moves: [(from: String, to: String)] = []
+    private(set) var deletions: [String] = []
 
     init(_ files: [String: String]) {
         folder = InMemoryJournalStore(files)
@@ -299,5 +342,10 @@ private final class RecordingJournalStore: JournalStore, @unchecked Sendable {
     func move(from source: String, to destination: String) async throws {
         moves.append((source, destination))
         try await folder.move(from: source, to: destination)
+    }
+
+    func delete(at relativePath: String) async throws {
+        deletions.append(relativePath)
+        try await folder.delete(at: relativePath)
     }
 }

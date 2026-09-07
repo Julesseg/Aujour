@@ -342,6 +342,106 @@ struct MarkdownAccessoryRowTests {
         #expect(keys.allSatisfy { abs($0.bounds.width - $0.bounds.height) < 0.5 })
     }
 
+    // And once the keys have stopped, so does the pane: it is as wide as the
+    // nine of them and not as wide as the screen.
+    //
+    // Because a pane that reaches both edges of an iPad is the bar this row
+    // is not — glass across the top of the keyboard rather than a pill over
+    // the paper. It went wrong silently and intermittently: the pane's edges
+    // and the keys' width were two wishes of the same priority that could not
+    // both come true on a wide row, so Auto Layout picked one, and it picked
+    // the bar on the first keyboard of a session and the pill on every
+    // keyboard after.
+    @Test("on a screen with room to spare the pane stops where the keys do")
+    func wideScreenPanes() throws {
+        for screen in [834.0, 1024.0, 1366.0] as [CGFloat] {
+            let row = aRow { _ in }
+            // Laid out at no width first, which is the life an accessory view
+            // actually has: it is built before the keyboard has said how wide
+            // it is, and the width arrives on a second pass.
+            row.layoutIfNeeded()
+            row.frame = CGRect(
+                x: 0, y: 0, width: screen, height: row.intrinsicContentSize.height
+            )
+            row.layoutIfNeeded()
+
+            let pane = try #require(glass(of: row))
+            let pill = row.convert(pane.bounds, from: pane)
+            let keys = controls(of: row).map { row.convert($0.bounds, from: $0) }
+            let first = try #require(keys.first)
+            let last = try #require(keys.last)
+
+            // The keys are on it, with the same room left of the first as
+            // right of the last — and that room is a gap, not a half of the
+            // screen.
+            let before = first.minX - pill.minX
+            let after = pill.maxX - last.maxX
+            #expect(before > 0)
+            #expect(abs(after - before) <= 1)
+            #expect(after < first.width)
+
+            // So the row goes on past the pane, and what it goes on as is
+            // paper rather than more glass.
+            #expect(row.bounds.width - pill.maxX > first.width)
+
+            // And it is the width, rather than a width: a key with no width
+            // of its own leaves Auto Layout to pick one, and a layout that is
+            // picked is a layout that comes out differently on the next
+            // keyboard than on this one.
+            #expect(unsettled(in: row).isEmpty)
+
+            // The other half of that, which a frame cannot show. The pane's
+            // far edge is a limit and not a position — on a row this wide the
+            // keys are what says where it stops, and the row only says where
+            // it may not go past.
+            //
+            // Asked of the constraint because the frame comes out right here
+            // either way: laid out on its own, an equal-priority tug of war
+            // between the pane's edges and the keys' width settles the same
+            // way every time, and it was only in the keyboard's own window
+            // that it settled differently on the first keyboard of a session
+            // than on the second — a pill over the paper once the row had
+            // been up before, and a bar across the whole iPad the first time.
+            let far = try #require(
+                row.constraints.first { constraint in
+                    constraint.firstItem === pane.superview
+                        && constraint.firstAttribute == .trailing
+                }
+            )
+            #expect(far.relation == .lessThanOrEqual)
+        }
+    }
+
+    // And the other end of it: a row with less room than nine keys can shrink
+    // to, which is a small phone at a large text size. The pane takes every
+    // point there is — the keys running off the edge of it is what the
+    // scroller is there for, and a pane that shrank to them instead would put
+    // the row's own glass in the middle of the screen.
+    //
+    // 200 points is narrower than any phone, and the arithmetic is the same:
+    // nine keys at their floor are wider than the pane can be.
+    @Test("a row too narrow for nine keys is still a pane the width of the row")
+    func narrowScreens() throws {
+        let row = aRow { _ in }
+        row.frame = CGRect(x: 0, y: 0, width: 200, height: row.intrinsicContentSize.height)
+        row.layoutIfNeeded()
+
+        let pane = try #require(glass(of: row))
+        let pill = row.convert(pane.bounds, from: pane)
+
+        // Off both edges by the same inset, and everything between them.
+        #expect(pill.minX > 0)
+        #expect(abs(pill.minX - (row.bounds.width - pill.maxX)) <= 1)
+        #expect(pill.width > row.bounds.width - 2 * pill.minX - 1)
+
+        // The keys keep their floor rather than being squeezed under it, and
+        // the last of them is off the pane, where the scroller can reach it.
+        let keys = controls(of: row)
+        #expect(keys.allSatisfy { $0.bounds.width >= 34 })
+        let photograph = try #require(keys.last)
+        #expect(row.convert(photograph.bounds, from: photograph).maxX > pill.maxX)
+    }
+
     // The row knows there is a photograph control and nothing about what one
     // is: the picker, the file written into the Journal Root and the embed at
     // the caret are `InsertedPhotographs`'s. Handed nothing, the control is on
@@ -396,6 +496,13 @@ struct MarkdownAccessoryRowTests {
             return nil
         }
         return pane(in: row)
+    }
+
+    /// Every view under this one whose frame Auto Layout could have laid out
+    /// somewhere else and been just as right — which is a view laid out
+    /// differently the next time something asks.
+    private func unsettled(in view: UIView) -> [UIView] {
+        (view.hasAmbiguousLayout ? [view] : []) + view.subviews.flatMap { unsettled(in: $0) }
     }
 
     /// Every button on the row, left to right.

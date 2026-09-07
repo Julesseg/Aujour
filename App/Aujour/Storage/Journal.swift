@@ -413,6 +413,57 @@ final class Journal {
         )
     }
 
+    // MARK: - Taking a day back out of the folder
+
+    /// Deletes a day's Entry, after the calendar has asked and been answered.
+    ///
+    /// The one thing in Aujour that takes a file out of the Journal Root. The
+    /// deletion itself is the calendar's, because which file a day *is* is the
+    /// current Path Template's answer and nobody else's (ADR 0002); what is
+    /// here is everything else a day leaving changes, and it is in one place
+    /// rather than in a screen because every one of them is about this folder.
+    ///
+    /// In this order, and the order is the substance of it:
+    ///
+    /// - **Saved first.** A day on screen can have a keystroke in it that has
+    ///   not reached the folder yet, and an autosave that landed a moment after
+    ///   the delete would put the day straight back. What is in flight is
+    ///   flushed while there is still a file for it to land in.
+    /// - **Deleted**, and if that fails nothing below happens: the day is still
+    ///   in the folder, and everything after this is about a day that is not.
+    /// - **Opened again**, because the page over that day is still holding the
+    ///   words the file had, and its next keystroke would write them back.
+    ///   Reopening is what makes it a day nobody has written: spawned from the
+    ///   Content Template, drawn quiet, with nothing behind it — which is now
+    ///   the truth about that day, and which is backfill left ready to go.
+    /// - **Read again**: the folder for the marks, the day for the search
+    ///   index, and the reminder — because a today whose Entry has just been
+    ///   deleted is a today worth nudging about again, and nothing else would
+    ///   ever say so.
+    ///
+    /// - Parameter pageOverIt: the editor on screen over this day, where the
+    ///   day being deleted is the one being written — `nil` for any other day,
+    ///   which has no page to put back.
+    /// - Returns: what went wrong, or `nil` where the day went.
+    func deleteTheEntry(
+        for day: JournalDay,
+        onScreenIn pageOverIt: EntryEditor?
+    ) async -> StorageProblem? {
+        guard let calendar else { return nil }
+
+        await pageOverIt?.save()
+        do {
+            try await calendar.deleteTheEntry(for: day)
+        } catch {
+            return StorageProblem(error)
+        }
+        await pageOverIt?.open()
+        await search?.reindex(day)
+        await calendar.scan()
+        await reconsiderTheDailyReminder()
+        return nil
+    }
+
     // MARK: - Keeping up with the folder
 
     /// Follows what other apps write in the folder, for as long as it is the

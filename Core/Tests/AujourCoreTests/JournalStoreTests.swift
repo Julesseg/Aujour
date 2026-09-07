@@ -155,6 +155,51 @@ struct InMemoryJournalStoreTests {
         }
     }
 
+    @Test("a deleted file leaves the folder, and nothing beside it does")
+    func deletingRemovesOneFile() async throws {
+        let store: any JournalStore = InMemoryJournalStore([
+            "2026/03/2026-03-01.md": "Walked to the market.\n",
+            "2026/03/2026-03-14.md": "Rain all day.\n",
+            "2026/03/2026-03-14_1.md": "A parked divergence.\n",
+        ])
+
+        try await store.delete(at: "2026/03/2026-03-14.md")
+
+        #expect(
+            try await store.listFiles() == [
+                "2026/03/2026-03-01.md",
+                "2026/03/2026-03-14_1.md",
+            ]
+        )
+        #expect(try await store.fileExists(at: "2026/03/2026-03-14.md") == false)
+    }
+
+    @Test("deleting a file that is not there fails, rather than passing quietly")
+    func deletingAMissingFileFails() async throws {
+        // The caller decides whether that is news; the seam says what happened.
+        let store: any JournalStore = InMemoryJournalStore(["day.md": "text"])
+
+        await #expect(throws: JournalStoreError.fileNotFound("missing.md")) {
+            try await store.delete(at: "missing.md")
+        }
+
+        #expect(try await store.listFiles() == ["day.md"])
+    }
+
+    @Test("deleting a folder deletes nothing — a folder is not a file")
+    func deletingAFolderIsRefused() async throws {
+        let store: any JournalStore = InMemoryJournalStore([
+            "2026/03/2026-03-01.md": "Walked to the market.\n",
+            "2026/03/2026-03-14.md": "Rain all day.\n",
+        ])
+
+        await #expect(throws: JournalStoreError.fileNotFound("2026/03")) {
+            try await store.delete(at: "2026/03")
+        }
+
+        #expect(try await store.listFiles().count == 2)
+    }
+
     @Test("attachment bytes survive the round trip untouched")
     func binaryContentRoundTrips() async throws {
         let store: any JournalStore = InMemoryJournalStore()
@@ -253,6 +298,9 @@ struct JournalStorePathTests {
             await #expect(throws: JournalStoreError.invalidPath(path), "moving from \(path)") {
                 try await store.move(from: path, to: "elsewhere.md")
             }
+            await #expect(throws: JournalStoreError.invalidPath(path), "deleting \(path)") {
+                try await store.delete(at: path)
+            }
         }
     }
 
@@ -263,6 +311,9 @@ struct JournalStorePathTests {
         for path in ["../day.md", "2026/../day.md", "2026/./day.md", ".."] {
             await #expect(throws: JournalStoreError.invalidPath(path), "writing \(path)") {
                 try await store.writeText("", at: path)
+            }
+            await #expect(throws: JournalStoreError.invalidPath(path), "deleting \(path)") {
+                try await store.delete(at: path)
             }
         }
     }

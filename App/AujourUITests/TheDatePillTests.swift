@@ -321,6 +321,66 @@ final class TheDatePillTests: AujourUITestCase {
         )
     }
 
+    /// The one thing in Aujour that takes a day out of the folder, driven the
+    /// way anybody would find it: hold a day that has something on it.
+    ///
+    /// The mark is what is asserted afterwards and not the file, because the
+    /// mark is a scan of the folder and nothing else (ADR 0001) — a day that
+    /// reads "Not written" on a grid the app has just re-read is a day whose
+    /// file is gone.
+    func testAWrittenDayIsDeletedByHoldingItOnTheDatePill() throws {
+        // The 1st, for the reason the marks test picks it: it is the one day
+        // of the month that is never in the future, so a folder holding it is
+        // a folder somebody could have written.
+        let written = try XCTUnwrap(dayOfTheMonthOnScreen(1))
+        let app = launchApp(
+            entries: "\(entryName(for: written)) Walked to the market with Robin."
+        )
+
+        openTheMonth(app, showing: written)
+        let cell = app.buttons["day-\(entryName(for: written))"]
+        expect(cell, toHaveValue: "Written")
+
+        deleteTheEntry(on: cell, in: app)
+
+        expect(cell, toHaveValue: "Not written")
+        // And the month is still out: deleting a day is not choosing one, so
+        // there is nothing for the pill to have shut itself over.
+        expect(app.buttons["datePill"], toHaveValue: "Month")
+    }
+
+    /// The other half of the same offer: a day nobody wrote has nothing to
+    /// delete, so holding it asks nothing rather than putting up a button that
+    /// would do nothing.
+    func testHoldingADayNobodyWroteOffersNothing() throws {
+        let written = try XCTUnwrap(dayOfTheMonthOnScreen(1))
+        let unwritten = try XCTUnwrap(dayOfTheMonthOnScreen(2))
+        let app = launchApp(
+            entries: "\(entryName(for: written)) Walked to the market with Robin."
+        )
+
+        openTheMonth(app, showing: unwritten)
+        let cell = app.buttons["day-\(entryName(for: unwritten))"]
+        expect(cell, toHaveValue: "Not written")
+
+        cell.press(forDuration: 1.0)
+
+        XCTAssertFalse(
+            app.buttons["confirmDeleteEntry"].firstMatch.waitForExistence(timeout: 3),
+            "a day with no entry offered to delete one"
+        )
+        // What the press did instead is what the tap at the end of it does:
+        // it opened the day. Nothing came up to swallow that tap, because
+        // there was nothing to ask about — so a finger held on a day with
+        // nothing to delete lands on the day rather than on a button saying
+        // no, which is the right dead end to have.
+        XCTAssertTrue(
+            app.buttons["backToToday"].waitForExistence(timeout: 10),
+            "holding a day with nothing to delete neither asked anything nor opened it"
+        )
+        expect(app.buttons["datePill"], toHaveValue: "Closed")
+    }
+
     /// The claim the pill's own geometry is bounded by: a month is seven
     /// columns across whatever the reader's text size, so at the largest one
     /// the grid still fits between the edges of the screen.

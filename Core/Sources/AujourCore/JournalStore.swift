@@ -17,10 +17,11 @@ import Foundation
 /// rules. Those belong to the App layer's implementation over the user's
 /// chosen folder. What crosses the seam is paths and bytes.
 ///
-/// There is no delete: nothing in v1 removes a file from the Journal Root.
-/// Migration moves, divergence parks, and a journal the user wants smaller is
-/// theirs to prune in Files or Obsidian — the folder outlives the app (ADR
-/// 0001).
+/// One operation takes something away, and it is narrow on purpose: `delete`
+/// removes an Entry a user pointed at and confirmed. Nothing else in Aujour
+/// reaches for it — migration moves, divergence parks — so a folder shared
+/// with an Obsidian vault loses a file only where somebody named the day it
+/// belongs to. The folder outlives the app either way (ADR 0001).
 ///
 /// Operations are `async` because the real store waits: on file coordination,
 /// on iCloud materializing a file, on I/O that must stay off the main thread.
@@ -98,6 +99,25 @@ public protocol JournalStore: Sendable {
     /// the seam rather than a check each caller remembers to make. Moving a
     /// file to where it already is does nothing.
     func move(from source: String, to destination: String) async throws
+
+    /// Removes the file at this path.
+    ///
+    /// The one operation that takes something out of the Journal Root, and it
+    /// is reached for by one thing: a day the user asked to be rid of, named
+    /// on the calendar and confirmed. Everything else that changes the shape
+    /// of the folder moves rather than removes, so a vault full of somebody
+    /// else's notes loses a file only where a person pointed at the day it is.
+    ///
+    /// Throws `JournalStoreError.fileNotFound` when nothing is there, rather
+    /// than succeeding quietly. A caller that asked to remove a day's Entry
+    /// and removed nothing has an idea of the folder that is out of date, and
+    /// whether that is news or nothing is the caller's to decide — the seam
+    /// says what happened and does not soften it.
+    ///
+    /// A file and never a folder. The empty `2026/03` an Entry leaves behind
+    /// is not Aujour's to tidy: the folders in a vault are shaped by more
+    /// than this app, and one of them being empty for a while is not a mess.
+    func delete(at relativePath: String) async throws
 }
 
 extension JournalStore {

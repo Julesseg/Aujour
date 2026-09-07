@@ -36,6 +36,7 @@ enum JournalRootError: Error, Equatable, LocalizedError {
     case readFailed(path: String, reason: String)
     case writeFailed(path: String, reason: String)
     case moveFailed(source: String, destination: String, reason: String)
+    case deleteFailed(path: String, reason: String)
 
     var errorDescription: String? {
         switch self {
@@ -53,6 +54,8 @@ enum JournalRootError: Error, Equatable, LocalizedError {
             "Aujour couldn't save \(path)."
         case .moveFailed(let source, _, _):
             "Aujour couldn't move \(source)."
+        case .deleteFailed(let path, _):
+            "Aujour couldn't delete \(path)."
         }
     }
 
@@ -66,7 +69,7 @@ enum JournalRootError: Error, Equatable, LocalizedError {
             "Nothing has changed — your journal is still where it was. Try picking the folder again."
         case .notDownloaded:
             "Aujour has asked iCloud for it — this usually takes a moment. Nothing has been changed."
-        case .readFailed, .writeFailed, .moveFailed:
+        case .readFailed, .writeFailed, .moveFailed, .deleteFailed:
             "Nothing has been changed. Try again in a moment; if it keeps happening, check that the folder is still where you left it."
         }
     }

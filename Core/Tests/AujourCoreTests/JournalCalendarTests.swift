@@ -53,6 +53,10 @@ private final class FallibleJournalStore: JournalStore, @unchecked Sendable {
 
     var refuseListing: (any Error)?
 
+    /// A folder that will not let go of a file — read-only, a vault mid-sync,
+    /// a permission the user has since taken back.
+    var refuseDeleting: (any Error)?
+
     init(_ files: [String: String] = [:]) {
         folder = InMemoryJournalStore(files)
     }
@@ -80,6 +84,11 @@ private final class FallibleJournalStore: JournalStore, @unchecked Sendable {
 
     func move(from source: String, to destination: String) async throws {
         try await folder.move(from: source, to: destination)
+    }
+
+    func delete(at relativePath: String) async throws {
+        if let refuseDeleting { throw refuseDeleting }
+        try await folder.delete(at: relativePath)
     }
 }
 
@@ -474,6 +483,136 @@ struct JournalCalendarBackfillTests {
 private struct TheDayThatWasRead: DayItemSource {
     func items(during day: DateInterval) async -> [DayItem] {
         [DayItem(title: MomentFormat("YYYY-MM-DD").render(day.start, timeZone: paris))]
+    }
+}
+
+@Suite("Deleting a day's Entry from the calendar")
+@MainActor
+struct JournalCalendarDeletionTests {
+    private static let folder = [
+        "2026/03/2026-03-01.md": "Walked to the market.\n",
+        "2026/03/2026-03-14.md": "Rain all day.\n",
+        "2026/03/2026-03-14_1.md": "A parked divergence.\n",
+        "2026/03/notes.md": "Not an Entry.\n",
+    ]
+
+    /// A clock past the days these tests delete: a day is deleted from the
+    /// journal after it has been written, which is after it has arrived.
+    private let theTwentieth = instant(2026, 3, 20, 9, 30, in: paris)
+
+    @Test("the day's file leaves the folder, and its mark leaves the grid")
+    func theEntryAndTheMarkBothGo() async throws {
+        let session = CalendarSession(files: Self.folder, now: theTwentieth)
+        await session.calendar.scan()
+        #expect(session.calendar.month.cell(14)?.isJournaled == true)
+
+        try await session.calendar.deleteTheEntry(for: JournalDay(year: 2026, month: 3, day: 14))
+
+        #expect(session.calendar.month.cell(14)?.isJournaled == false)
+        #expect(try await session.store.fileExists(at: "2026/03/2026-03-14.md") == false)
+    }
+
+    @Test("nothing but that day's Entry is touched")
+    func onlyTheDaysOwnFileGoes() async throws {
+        let session = CalendarSession(files: Self.folder, now: theTwentieth)
+        await session.calendar.scan()
+
+        try await session.calendar.deleteTheEntry(for: JournalDay(year: 2026, month: 3, day: 14))
+
+        // The day beside it, the parked version of the same day, and the note
+        // that was never an Entry: all still there. A day is one file.
+        #expect(
+            try await session.store.listFiles() == [
+                "2026/03/2026-03-01.md",
+                "2026/03/2026-03-14_1.md",
+                "2026/03/notes.md",
+            ]
+        )
+    }
+
+    @Test("the day is unmarked by a fresh scan too, not only in the grid on screen")
+    func theFolderAgreesAfterwards() async throws {
+        let session = CalendarSession(files: Self.folder, now: theTwentieth)
+        await session.calendar.scan()
+
+        try await session.calendar.deleteTheEntry(for: JournalDay(year: 2026, month: 3, day: 14))
+        await session.calendar.scan()
+
+        #expect(session.calendar.month.days.filter(\.isJournaled).map(\.day.day) == [1])
+    }
+
+    @Test("a day whose file has already gone is not a failure")
+    func aFileThatWentFirstIsNotAFailure() async throws {
+        // Deleted in Obsidian, or on another device, since the last scan. The
+        // asked-for state is the state, so all that is left is the mark.
+        let session = CalendarSession(files: Self.folder, now: theTwentieth)
+        await session.calendar.scan()
+        try await session.store.delete(at: "2026/03/2026-03-14.md")
+
+        try await session.calendar.deleteTheEntry(for: JournalDay(year: 2026, month: 3, day: 14))
+
+        #expect(session.calendar.month.cell(14)?.isJournaled == false)
+    }
+
+    @Test("a folder that will not delete keeps the day marked, and says so")
+    func aRefusalLeavesTheDayWhereItWas() async throws {
+        let session = CalendarSession(files: Self.folder, now: theTwentieth)
+        await session.calendar.scan()
+        session.store.refuseDeleting = JournalStoreError.pathIsAFolder("2026/03")
+
+        await #expect(throws: JournalStoreError.pathIsAFolder("2026/03")) {
+            try await session.calendar.deleteTheEntry(
+                for: JournalDay(year: 2026, month: 3, day: 14)
+            )
+        }
+
+        // The file is still there, so the grid still says so — a mark that
+        // came off a day whose file stayed would be the app disagreeing with
+        // the folder (ADR 0001).
+        #expect(session.calendar.month.cell(14)?.isJournaled == true)
+        #expect(try await session.store.fileExists(at: "2026/03/2026-03-14.md"))
+    }
+
+    @Test("a Path Template that cannot name a day deletes nothing")
+    func anUnusableTemplateDeletesNothing() async throws {
+        let session = CalendarSession(
+            files: Self.folder,
+            settings: JournalSettings(pathTemplate: "YYYY/MM"),
+            now: theTwentieth
+        )
+
+        await #expect(throws: PathTemplateError.self) {
+            try await session.calendar.deleteTheEntry(
+                for: JournalDay(year: 2026, month: 3, day: 14)
+            )
+        }
+
+        #expect(try await session.store.listFiles().count == Self.folder.count)
+    }
+
+    @Test("the day is journaled again once it is written back")
+    func backfillingAfterwardsMarksItAgain() async throws {
+        let session = CalendarSession(
+            files: Self.folder,
+            spawningFrom: "# Day\n",
+            now: theTwentieth
+        )
+        await session.calendar.scan()
+        let day = JournalDay(year: 2026, month: 3, day: 14)
+
+        try await session.calendar.deleteTheEntry(for: day)
+
+        // Which is backfill, arrived at the long way round: the day has no
+        // file, so it opens on the Content Template like any other.
+        let editor = try #require(session.calendar.editor(for: day))
+        await editor.open()
+        #expect(editor.content == "# Day\n")
+        #expect(editor.isUnwritten)
+
+        editor.content = "Rain all day, again.\n"
+        await editor.save()
+        await session.calendar.scan()
+        #expect(session.calendar.month.cell(14)?.isJournaled == true)
     }
 }
 

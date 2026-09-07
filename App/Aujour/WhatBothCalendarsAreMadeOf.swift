@@ -32,10 +32,36 @@ struct DayCell: View {
 
     let pick: () -> Void
 
+    /// What deleting this day's Entry does, and `nil` on a calendar where
+    /// nothing can be deleted.
+    ///
+    /// Behind a press and not a control of its own, because it is the one
+    /// thing on this screen nobody should be able to do by aiming badly: a
+    /// cell is a seventh of a phone wide, seven of them sit in a row, and the
+    /// tap they are all *for* is the way in to writing the day. The press is
+    /// what makes it deliberate; the button that comes up is what makes it
+    /// certain.
+    var deleteTheEntry: (() -> Void)?
+
+    /// Whether the one button is up over this day.
+    ///
+    /// The cell's own and not the calendar's, which is what puts the button
+    /// *on the day*: a confirmation is anchored to the view it was asked from,
+    /// so one owned a whole calendar up the tree comes up pointing at the
+    /// calendar. On an iPhone that is a sheet from the bottom either way and
+    /// the mistake does not show; on an iPad it is a popover, and it showed.
+    @State private var asking = false
+
     private var look: DayCellLook { DayCellLook(day, accent: accent) }
 
     var body: some View {
-        Button(action: pick) {
+        Button {
+            // A finger that has just asked about this day is not a finger
+            // tapping it. The press and the tap are one touch, and the tap end
+            // of it arrives after the button is already up.
+            guard !asking else { return }
+            pick()
+        } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: Rounding.control, style: .continuous)
                     .fill(Color(look.fill))
@@ -75,6 +101,49 @@ struct DayCell: View {
         .accessibilityLabel(day.day.spelledOut(withYear: true))
         .accessibilityValue(day.isJournaled ? "Written" : "Not written")
         .accessibilityAddTraits(day.isBeingWritten ? [.isSelected] : [])
+        // Straight to the asking, rather than through a menu holding one row
+        // that says what the asking says. Two steps to delete a day was the
+        // same sentence twice, and the second is the one that has to be there.
+        //
+        // Simultaneous, which is the only kind of gesture that gets to happen
+        // *while* the finger is still down. The pill's grid is under a drag
+        // that has the first claim on the finger (``DatePillView``), and an
+        // ancestor's claim outranks everything in the rows below it — so a
+        // gesture competing for that finger cannot be settled until the touch
+        // ends, and the button came up on the lift rather than on the press.
+        // One that competes with nothing is answered on time. What it costs is
+        // that the tap still arrives afterwards, which is what `asking` above
+        // is for.
+        //
+        // Always attached rather than branched on, so that a scan arriving
+        // changes what a cell asks and never which cell it is — the same
+        // reason both grids identify their cells by place (`ForEach`). A day
+        // with no Entry has nothing to ask about.
+        .simultaneousGesture(
+            LongPressGesture().onEnded { _ in
+                guard day.isJournaled, deleteTheEntry != nil else { return }
+                asking = true
+            }
+        )
+        // Under the finger, at the moment the button appears — because the
+        // finger is still down, and a press that has done something should be
+        // felt rather than only seen. The system's own answer for a press that
+        // has landed, which is what a long press elsewhere on the phone gives.
+        .sensoryFeedback(.impact(weight: .medium), trigger: asking) { _, asking in
+            asking
+        }
+        // One button, and no words around it. What it does is what it says,
+        // and a title and a paragraph would be the app explaining a thing the
+        // reader is holding their finger on.
+        //
+        // Here on the cell, so that it comes up on the day it is about: a
+        // popover is anchored to whatever asked for it, and a grid is
+        // forty-two squares of two digits, so the day it points at is the only
+        // thing saying which day is about to go.
+        .confirmationDialog("", isPresented: $asking, titleVisibility: .hidden) {
+            Button("Delete Entry", role: .destructive) { deleteTheEntry?() }
+                .accessibilityIdentifier("confirmDeleteEntry")
+        }
     }
 }
 
@@ -142,25 +211,27 @@ struct DayCellLook: Equatable {
     }
 }
 
-/// The sentence under a month, on the two occasions there is one.
+/// The sentence under a month, on the one occasion there is one.
 ///
 /// A grid with no marks on it is four different things (ADR 0001): a folder
 /// nothing has looked in yet, a folder that would not answer, a month a
 /// journal does not reach into, and a journal nobody has written in.
-/// ``JournalCalendar`` tells them apart; only two of them are worth saying
+/// ``JournalCalendar`` tells them apart; only one of them is worth saying
 /// anything about.
 ///
-/// A month a journal does not reach into is not one of them. It is an ordinary
-/// gap — August was quiet — and the grid has already said so by having no
-/// marks on it; a line underneath explaining the same thing in words is the app
-/// narrating what the reader is looking at. Nor is a folder nobody has read
-/// yet, which knows nothing and so says nothing.
+/// Neither empty month is. A month a journal does not reach into is an
+/// ordinary gap — August was quiet — and the grid has already said so by
+/// having no marks on it; a line underneath explaining the same thing in words
+/// is the app narrating what the reader is looking at. A journal nobody has
+/// written in is that same grid on its first morning, and it reads as a
+/// beginning without being told it is one: the days are there, today is
+/// tinted, and tapping one is the only thing a calendar has ever meant. Nor is
+/// a folder nobody has read yet worth a line, which knows nothing and so says
+/// nothing.
 ///
-/// A line and not a page. On the screen this came off it could be a
-/// `ContentUnavailableView` with room around it, and on a pane of glass an inch
-/// tall it cannot — but the beginning of a journal is worth a sentence wherever
-/// it is said, because the grid *is* the way in and somebody who has just
-/// installed the app has no reason to know that.
+/// What is left is the folder that would not answer, which is the only one the
+/// grid gets *wrong* rather than merely leaves quiet: days that were written on
+/// and are not marked. That is worth a note wherever it is said.
 ///
 /// One view for both calendars: what a grid cannot say for itself does not
 /// depend on how wide the window it is in happens to be.
@@ -170,7 +241,7 @@ struct TheGridsOwnSentence: View {
     /// Whether there is a sentence at all — asked before one is built, because
     /// the pill has to open far enough to hold whatever this comes out as.
     static func isThereOne(for calendar: JournalCalendar) -> Bool {
-        calendar.problem != nil || calendar.theJournalIsAtItsBeginning
+        calendar.problem != nil
     }
 
     var body: some View {
@@ -187,29 +258,15 @@ struct TheGridsOwnSentence: View {
             // a month with no marks on it, which is exactly what a journal
             // nobody has written in looks like.
             //
-            // In the system's own face and at the size of a note, which is
-            // what keeps it from reading as the sentence below it: a folder
+            // In the system's own face and at the size of a note: a folder
             // that would not answer is not an Empty State, and the identity
-            // arriving on this panel is not licence to start drawing the two
-            // the same way (`CONTEXT.md`, Empty State).
+            // arriving on this panel is not licence to draw a problem in the
+            // prose voice (`CONTEXT.md`, Empty State).
             Text("Aujour couldn't read your folder, so days you've written may not be marked.")
                 .lettering(.note)
                 .foregroundStyle(Palette.inkMutedColor)
                 .accessibilityIdentifier("indicatorsProblem")
                 .accessibilityLabel(StorageProblem(problem).message)
-        } else if calendar.theJournalIsAtItsBeginning {
-            // The Empty State, in the identity's own aside — the same quiet
-            // prose voice the other two are said in, cut down to a line
-            // because this one is said on an inch of glass rather than on a
-            // page of its own.
-            //
-            // The muted step and not the faint one it used to be drawn in.
-            // This is a sentence, and the faint ink is held to the marker
-            // floor (ADR 0006, and ``Palette/inkFaint``).
-            Text("Your journal starts here. Tap any day up to today and write it.")
-                .lettering(.aside)
-                .foregroundStyle(Palette.inkMutedColor)
-                .accessibilityIdentifier("aJournalNobodyHasWrittenIn")
         }
     }
 }

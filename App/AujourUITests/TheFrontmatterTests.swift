@@ -324,16 +324,17 @@ final class TheFrontmatterTests: AujourUITestCase {
         expect(source, toHaveValue: "---\ncreated: 2025-09-15T13:50\n---")
     }
 
-    /// The hour is still an hour to set after the calendar beside it has been
-    /// up.
+    /// A press outside an open calendar puts it away and is spent doing that:
+    /// the hour it landed on is not opened by it, and is still an hour to set
+    /// afterwards.
     ///
-    /// A finger that lands on the hour while the month is open puts the month
-    /// away and no more, which is what a popover does with the tap that
-    /// dismisses it. What is not the platform's doing is what came next: the
-    /// picker underneath, having been touched while it could not answer,
-    /// never opened again — not on the next tap, not after the calendar had
-    /// been away and back, not after the day around it had been typed in.
-    func testTheHourStillOpensAfterTheCalendarHasBeenUp() throws {
+    /// The card is inside the view the calendar is anchored to, so the touch
+    /// was reaching both — putting the month away and pressing what was under
+    /// it in the same movement. The hour never recovered from that: touched
+    /// while it could not answer, it did not open again, not on the next tap,
+    /// not after the calendar had been away and back, not after the day
+    /// around it had been typed in.
+    func testAPressOutsideTheCalendarOnlyPutsItAway() throws {
         let app = launchApp(todaysEntry: "---\ncreated: 2025-09-04T13:50\n---\n# A walk\n")
         let pill = app.buttons["propertyDate-created"]
         XCTAssertTrue(pill.waitForExistence(timeout: 30), "the date never appeared")
@@ -347,9 +348,14 @@ final class TheFrontmatterTests: AujourUITestCase {
         tapByFrame("propertyTime-created", in: app)
         XCTAssertTrue(
             calendar.waitForNonExistence(timeout: 10),
-            "the tap on the hour did not put the calendar away"
+            "the press on the hour did not put the calendar away"
+        )
+        XCTAssertEqual(
+            app.pickerWheels.count, 0,
+            "the press that put the calendar away was taken by the hour as well"
         )
 
+        // And now the hour is the hour again.
         tapByFrame("propertyTime-created", in: app)
         XCTAssertTrue(
             app.pickerWheels.firstMatch.waitForExistence(timeout: 10),

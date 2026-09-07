@@ -75,6 +75,13 @@ private struct PropertiesCard: View {
     let day: JournalDay
     let asks: (PlaceholderQuestion) -> Void
 
+    /// Which Property's calendar is up, by its name, and `nil` while none is.
+    ///
+    /// The card's and not the pill's, for the two things a pill cannot say on
+    /// its own: that opening one calendar closes another, and that the card
+    /// underneath an open one is not to be pressed (``body``).
+    @State private var dayBeingPicked: String?
+
     var body: some View {
         VStack(alignment: .trailing, spacing: Spacing.tight) {
             VStack(spacing: 0) {
@@ -83,7 +90,12 @@ private struct PropertiesCard: View {
                 } else {
                     ForEach(Array(cut.properties.enumerated()), id: \.element.key) { index, property in
                         if index > 0 { Hairline().padding(.leading, Spacing.comfortable) }
-                        PropertyRow(property: property, cut: $cut, asks: asks)
+                        PropertyRow(
+                            property: property,
+                            cut: $cut,
+                            asks: asks,
+                            dayBeingPicked: $dayBeingPicked
+                        )
                     }
                     if let kind = pending {
                         if !cut.properties.isEmpty {
@@ -123,6 +135,14 @@ private struct PropertiesCard: View {
         }
         .padding(.horizontal, Spacing.comfortable)
         .padding(.top, Spacing.comfortable)
+        // Nothing here is to be pressed while a calendar is up over it. A
+        // popover dismisses on a touch outside itself and the touch is meant
+        // to be spent doing that, but this card is inside the view the
+        // calendar is anchored to and the touch was reaching both — putting
+        // the month away and pressing whatever was under it in the same
+        // movement. The hour picker in particular never recovered: it had
+        // been touched while it could not answer, and it did not open again.
+        .allowsHitTesting(dayBeingPicked == nil)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("frontmatterSection")
     }
@@ -137,10 +157,19 @@ private struct PropertyRow: View {
     @Binding var cut: CutEntry
     let asks: (PlaceholderQuestion) -> Void
 
+    /// Which Property's calendar is up, which is the card's to hold
+    /// (``PropertiesCard/dayBeingPicked``).
+    @Binding var dayBeingPicked: String?
+
     var body: some View {
         PropertyRowLayout(valueIsIndivisible: property.value.isIndivisible) {
             KeyField(key: property.key) { newKey in cut.rename(property.key, to: newKey) }
-            ValueControl(property: property, cut: $cut, asks: asks)
+            ValueControl(
+                property: property,
+                cut: $cut,
+                asks: asks,
+                dayBeingPicked: $dayBeingPicked
+            )
         }
         .padding(.horizontal, Spacing.comfortable)
         .padding(.vertical, Spacing.close)
@@ -347,10 +376,8 @@ private struct ValueControl: View {
     @Binding var cut: CutEntry
     let asks: (PlaceholderQuestion) -> Void
 
-    /// Whether the day's calendar is up. Here rather than inside the pill
-    /// that puts it there, because the hour beside it is built around the
-    /// answer (``theHour``).
-    @State private var isPickingTheDay = false
+    /// Which Property's calendar is up (``PropertiesCard/dayBeingPicked``).
+    @Binding var dayBeingPicked: String?
 
     var body: some View {
         switch property.value {
@@ -430,24 +457,14 @@ private struct ValueControl: View {
     private func theDay(writing value: @escaping (Date) -> Property.Value) -> some View {
         DayPill(
             moment: theMoment(writing: value),
-            identifier: "propertyDate-\(property.key)",
-            isPicking: $isPickingTheDay
+            key: property.key,
+            dayBeingPicked: $dayBeingPicked
         )
     }
 
     /// And the hour of a date-and-time one, in the system's own picker: an
     /// hour is digits and a colon in every language, so there is nothing here
     /// for a control to spell one way and measure another.
-    ///
-    /// Built afresh either side of the calendar being up, which is a plaster
-    /// over the system control and is here because the alternative is a row
-    /// with a dead half in it. A finger that lands on the hour while the
-    /// calendar is open puts the calendar away — a popover takes the tap that
-    /// dismisses it — and the picker underneath, having had a touch it could
-    /// not answer, never opens again: not on the next tap, not after the
-    /// calendar has been away and back, not after the day around it has been
-    /// typed in. Only a new one works, so the hour is a new one every time the
-    /// calendar opens or closes.
     private var theHour: some View {
         DatePicker(
             "",
@@ -457,7 +474,6 @@ private struct ValueControl: View {
         .labelsHidden()
         .foregroundStyle(.tint)
         .accessibilityIdentifier("propertyTime-\(property.key)")
-        .id(isPickingTheDay)
     }
 
     /// The moment the value names, as the controls over it read and write it:
@@ -504,11 +520,21 @@ extension Locale {
 
 private struct DayPill: View {
     @Binding var moment: Date
-    let identifier: String
 
-    /// Whether its calendar is up — the row's state and not this view's,
-    /// because the hour beside it has to hear about it (``ValueControl``).
-    @Binding var isPicking: Bool
+    /// The name of the Property this is the day of — which is how the card
+    /// knows whose calendar is up.
+    let key: String
+
+    /// Which Property's calendar is up (``PropertiesCard/dayBeingPicked``).
+    @Binding var dayBeingPicked: String?
+
+    /// The same, as this pill's own answer to whether it is showing one.
+    private var isPicking: Binding<Bool> {
+        Binding(
+            get: { dayBeingPicked == key },
+            set: { dayBeingPicked = $0 ? key : nil }
+        )
+    }
 
     /// How wide a month of days comes to at the reader's text size — seven
     /// columns and the padding round them, which is what the system's own
@@ -517,7 +543,7 @@ private struct DayPill: View {
 
     var body: some View {
         Button {
-            isPicking = true
+            dayBeingPicked = key
         } label: {
             Text(theDay.named(at: .dayAndMonth, withYear: true, locale: .asTheDeviceIsSet))
                 .lettering(.rowLabel)
@@ -527,12 +553,12 @@ private struct DayPill: View {
                 .background(Palette.fieldStrongColor, in: Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier(identifier)
+        .accessibilityIdentifier("propertyDate-\(key)")
         .accessibilityValue(theDay.named(at: .spelledOut, withYear: true, locale: .asTheDeviceIsSet))
         // A popover on the phone too, and not the sheet a popover becomes
         // there: this is the calendar the pill beside it puts up, and a month
         // to pick a day out of is not a screenful of anything.
-        .popover(isPresented: $isPicking) {
+        .popover(isPresented: isPicking) {
             DatePicker("", selection: $moment, displayedComponents: .date)
                 .datePickerStyle(.graphical)
                 .labelsHidden()
@@ -550,7 +576,7 @@ private struct DayPill: View {
                 // it closes on one — which is what the system's own pill does
                 // and what stops the month sitting over the day it just
                 // changed.
-                .onChange(of: moment) { isPicking = false }
+                .onChange(of: moment) { dayBeingPicked = nil }
         }
     }
 

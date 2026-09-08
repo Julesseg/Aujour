@@ -666,7 +666,6 @@ struct ContentView: View {
                         // words, and the page they are set on is the page. A
                         // day turned here slides across all of it.
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
                         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: {
                             pageWidth = $0
                         }
@@ -689,6 +688,15 @@ struct ContentView: View {
                             settling: { await entryOnScreen?.editor.save() },
                             beside: { theRestOfTheApp(inItsOwnGlass: true) }
                         )
+                        // The page's sides, and neither of its ends. What the
+                        // clip is here for is a day sliding out, which goes
+                        // sideways; a clip that bounded the top as well would
+                        // cut the page off at whatever the page's own frame
+                        // stops at — the bottom of the pill's row inside this
+                        // modifier, the status bar outside it — and a page
+                        // that stops is a page the glass over it has nothing
+                        // of to refract.
+                        .clipShape(ThePageAndNeitherOfItsEnds())
                     }
                     // The calendar names the day, on either window: the pill
                     // does it on a narrow one and the pane beside the page
@@ -984,6 +992,22 @@ extension EnvironmentValues {
 
 private struct JournalLayoutKey: EnvironmentKey {
     static let defaultValue = JournalLayout.page
+}
+
+/// The page from side to side, and as far as anything likes up and down.
+///
+/// A day turned slides sideways off the page and has to be clipped to it, and
+/// nothing about a day needs clipping at its ends: it runs up under the pill
+/// and the status bar at one end and under the keyboard at the other, and all
+/// three of those are things it is meant to be seen through or behind.
+private struct ThePageAndNeitherOfItsEnds: Shape {
+    /// Further than any screen is tall, which is the whole of what "no end"
+    /// has to mean here.
+    private static let pastAnyEnd: CGFloat = 10_000
+
+    func path(in rect: CGRect) -> Path {
+        Path(rect.insetBy(dx: 0, dy: -Self.pastAnyEnd))
+    }
 }
 
 extension EnvironmentValues {

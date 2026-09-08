@@ -1102,6 +1102,60 @@ class AujourUITestCase: XCTestCase {
             .withOffset(CGVector(dx: dx, dy: underTheGlass + dy))
     }
 
+    /// How much of this part of the screen is not the colour the page is —
+    /// ink, in other words, as a fraction of the pixels looked at.
+    ///
+    /// Pixels and not the accessibility tree, because what is being asked
+    /// cannot be asked of the tree: a text view whose frame runs up under the
+    /// pill reports the same frame whether the words behind the glass are
+    /// drawn or clipped away. Only the screen knows.
+    ///
+    /// The page's own colour is read from the rectangle rather than named, so
+    /// this says the same thing in either appearance and under any accent.
+    func inkAcross(_ rect: CGRect, of app: XCUIApplication) -> Double {
+        guard let image = app.screenshot().image.cgImage, rect.width > 1, rect.height > 1
+        else { return 0 }
+
+        let scale = CGFloat(image.width) / app.frame.width
+        let pixels = CGRect(
+            x: rect.minX * scale, y: rect.minY * scale,
+            width: rect.width * scale, height: rect.height * scale
+        )
+        guard let patch = image.cropping(to: pixels) else { return 0 }
+
+        let width = patch.width
+        let height = patch.height
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        guard
+            let context = CGContext(
+                data: &bytes,
+                width: width, height: height,
+                bitsPerComponent: 8, bytesPerRow: width * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        else { return 0 }
+        context.draw(patch, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        // The page's colour, taken as the commonest brightness in the patch:
+        // whatever most of a strip of page is, the rest is what is drawn on
+        // it.
+        var brightnesses: [Int] = []
+        brightnesses.reserveCapacity(width * height)
+        for pixel in stride(from: 0, to: bytes.count, by: 4) {
+            let r = Double(bytes[pixel]), g = Double(bytes[pixel + 1]), b = Double(bytes[pixel + 2])
+            brightnesses.append(Int((0.299 * r + 0.587 * g + 0.114 * b).rounded()))
+        }
+        var howMany: [Int: Int] = [:]
+        for one in brightnesses { howMany[one / 8, default: 0] += 1 }
+        let page = (howMany.max { $0.value < $1.value }?.key ?? 31) * 8
+
+        // Far enough from the page to be something on it, rather than the
+        // shadow under a pane or the antialiasing at its edge.
+        let ink = brightnesses.count { abs($0 - page) > 48 }
+        return Double(ink) / Double(brightnesses.count)
+    }
+
     func drag(_ element: XCUIElement, by distance: CGFloat) {
         let from = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         from.press(

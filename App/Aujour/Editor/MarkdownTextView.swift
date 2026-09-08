@@ -52,6 +52,28 @@ final class MarkdownTextView: UITextView {
     /// The section, once there is one to show.
     private var header: UIHostingController<FrontmatterSection>?
 
+    override init(frame: CGRect, textContainer: NSTextContainer?) {
+        super.init(frame: frame, textContainer: textContainer)
+        // Where the row above the keyboard is, is the keyboard's to say, and
+        // how much room the page keeps below its words is the row's. Neither
+        // of them moves this view, so neither of them would lay it out again
+        // on its own.
+        for moment in [
+            UIResponder.keyboardDidShowNotification,
+            UIResponder.keyboardDidChangeFrameNotification,
+            UIResponder.keyboardDidHideNotification,
+        ] {
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(setNeedsLayout), name: moment, object: nil
+            )
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("MarkdownTextView is not loaded from a nib")
+    }
+
     /// Whether the header is the tucked-away control rather than the section.
     private var isTucked = false
 
@@ -66,6 +88,35 @@ final class MarkdownTextView: UITextView {
 
     /// How tall the header came out last time it was measured.
     private var headerHeight: CGFloat = 0
+
+    /// How much of the bottom of the page the row above the keyboard covers.
+    ///
+    /// Room the page keeps below its last line, and the mirror of the room it
+    /// keeps above its first: the row is a pane over the words rather than a
+    /// floor under them, so a day scrolled to its end would come to rest with
+    /// its last line beneath the glass and nowhere further to go.
+    ///
+    /// Measured against the row where it actually is rather than read off a
+    /// height: the row is as tall as the reader's text size makes it, it
+    /// carries the home indicator's room when it is docked above a hardware
+    /// keyboard, and on a layout where the page already stops above it there
+    /// is nothing over the words and the answer is nought.
+    private var roomForTheRowOverThePage: CGFloat {
+        guard window != nil, let row = inputAccessoryView, row.window != nil else { return 0 }
+        return Self.room(
+            below: convert(bounds, to: nil),
+            coveredBy: row.convert(row.bounds, to: nil)
+        )
+    }
+
+    /// How far a pane over the page reaches up into what the page is showing.
+    ///
+    /// Two rectangles and no view, so that the one thing here that is a rule
+    /// rather than a wiring can be asked without a keyboard on screen to ask
+    /// it of.
+    static func room(below page: CGRect, coveredBy pane: CGRect) -> CGFloat {
+        max(0, page.maxY - pane.minY)
+    }
 
     /// Whether the last layout was one with the control pulled into view, and
     /// `nil` where the page is to be laid out afresh rather than moved.
@@ -284,6 +335,7 @@ final class MarkdownTextView: UITextView {
 
         var inset = baseInset
         inset.top += inTheText
+        inset.bottom += roomForTheRowOverThePage
         if textContainerInset != inset {
             let moved = inset.top - textContainerInset.top
             textContainerInset = inset

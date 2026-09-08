@@ -1073,6 +1073,35 @@ class AujourUITestCase: XCTestCase {
     }
 
     /// Pulls something down (or up, for a negative distance) and lets go.
+    /// A point in the day's own words, in points from where its first
+    /// character goes.
+    ///
+    /// Not from the corner of the text view, which is a different place: the
+    /// page runs the whole height of the screen and up under the pill's
+    /// glass, so its corner is behind the pill and a point measured from
+    /// there lands in the band a reader scrolls words *into* rather than on
+    /// the line they are reading.
+    ///
+    /// What the suite can see of that room is the pill, and the one part of
+    /// it the pill does not show is the eight points its row leaves
+    /// underneath it — the identity's `Spacing.close`, which is the same gap
+    /// it leaves above. Spelled here because the suite drives the app from
+    /// another target and imports nothing from it.
+    ///
+    /// A window with no pill on it is a window whose page starts at its own
+    /// corner, and takes the offset as it comes.
+    func inTheDaysWords(
+        of editor: XCUIElement,
+        in app: XCUIApplication,
+        dx: CGFloat,
+        dy: CGFloat
+    ) -> XCUICoordinate {
+        let pill = app.buttons["datePill"]
+        let underTheGlass = pill.exists ? pill.frame.maxY - editor.frame.minY + 8 : 0
+        return editor.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: dx, dy: underTheGlass + dy))
+    }
+
     func drag(_ element: XCUIElement, by distance: CGFloat) {
         let from = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         from.press(

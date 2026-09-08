@@ -16,6 +16,42 @@ final class TheDatePillTests: AujourUITestCase {
     // arithmetic, and a synthesized drag is the wrong instrument for
     // arithmetic.
 
+    /// The day's page runs the height of the screen, under the pill rather
+    /// than up to it — and its first line still rests clear of the glass.
+    ///
+    /// The pill is glass, and glass over a page that stopped where the glass
+    /// began would have nothing to refract: a reader scrolling a long day up
+    /// would watch the words meet a hard edge and vanish. Both halves are
+    /// geometry a running app is the only place to read — where the text view
+    /// starts, and where the first character lands inside it.
+    ///
+    /// The invitation over a day nobody has written is what stands in for that
+    /// first character: it is drawn exactly where the typing will start
+    /// (``MarkdownEditor/whereTheFirstCharacterGoes``), which makes it the one
+    /// thing on an empty page whose position can be asked for.
+    func testTheDaysWordsRunUpUnderThePillsGlass() throws {
+        let app = launchApp()
+
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+
+        XCTAssertLessThan(
+            editor.frame.minY, pill.frame.minY,
+            "the page begins below the pill rather than running up behind it — "
+                + "the page is at \(editor.frame) and the pill at \(pill.frame)"
+        )
+
+        let invitation = app.staticTexts["aBlankPage"]
+        XCTAssertTrue(invitation.waitForExistence(timeout: 10), "the empty day said nothing")
+        XCTAssertGreaterThan(
+            invitation.frame.minY, pill.frame.maxY,
+            "the day's first line is under the glass at rest — "
+                + "it is at \(invitation.frame) and the pill at \(pill.frame)"
+        )
+    }
+
     func testTheDatePillOpensAndGoesBetweenTheWeekAndTheMonth() throws {
         let app = launchApp()
         let pill = app.buttons["datePill"]

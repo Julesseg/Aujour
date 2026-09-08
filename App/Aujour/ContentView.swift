@@ -986,6 +986,30 @@ private struct JournalLayoutKey: EnvironmentKey {
     static let defaultValue = JournalLayout.page
 }
 
+extension EnvironmentValues {
+    /// Whether a notice has taken the top of the page for itself.
+    ///
+    /// The day's words run up under the pill's glass, which is why the editor
+    /// fills the screen (``MarkdownTextView/roomForTheGlass``). A notice is
+    /// the one thing up there that is not glass: it is a pane the reader has
+    /// to be able to reach — a file to open, a cross to dismiss — and a page
+    /// laid over it would take those taps for itself, because a text view is
+    /// a real view and a SwiftUI button drawn behind one never sees a finger.
+    ///
+    /// So while a notice is up, the page starts under it instead of running
+    /// behind it. Which is what the page did everywhere before the words were
+    /// let up under the glass, and is what a notice is for: it has the top of
+    /// the page until it is answered.
+    var aNoticeHasTheTopOfThePage: Bool {
+        get { self[ANoticeHasTheTopOfThePageKey.self] }
+        set { self[ANoticeHasTheTopOfThePageKey.self] = newValue }
+    }
+}
+
+private struct ANoticeHasTheTopOfThePageKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 extension View {
     /// Says, above a day's Entry, that another version of that day was kept
     /// beside it.
@@ -1003,8 +1027,8 @@ extension View {
         for day: JournalDay,
         in accent: Accent
     ) -> some View {
-        safeAreaInset(edge: .top) {
-            let parked = journal.parkedFiles(from: day)
+        let parked = journal.parkedFiles(from: day)
+        return safeAreaInset(edge: .top) {
             if !parked.isEmpty {
                 ParkedFilesNotice(
                     files: parked,
@@ -1020,6 +1044,9 @@ extension View {
                 )
             }
         }
+        // And the page under it starts below it rather than running up behind
+        // it, for as long as it is up.
+        .environment(\.aNoticeHasTheTopOfThePage, !parked.isEmpty)
     }
 }
 

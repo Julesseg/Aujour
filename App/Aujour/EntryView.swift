@@ -30,6 +30,24 @@ struct EntryView: View {
     /// be two different photographs.
     @State private var pictures = EmbeddedPictures()
 
+    /// How much of the top of this page is under chrome — the pill's glass on
+    /// a narrow window, the bar on a wide one — as measured rather than as
+    /// agreed.
+    @State private var chromeAboveThePage: CGFloat = 0
+
+    /// Whether a notice has the top of the page, in which case the words do
+    /// not run up under it: they start below it, and this page is laid out
+    /// the way every page was before the glass had anything to refract
+    /// (``EnvironmentValues/aNoticeHasTheTopOfThePage``).
+    @Environment(\.aNoticeHasTheTopOfThePage) private var aNoticeHasTheTop
+
+    /// The room the day's first line keeps clear above itself while the rest
+    /// of the day scrolls up behind the glass — and nothing, on a page a
+    /// notice has the top of, which is a page that does not go up there.
+    private var roomForTheGlass: CGFloat {
+        aNoticeHasTheTop ? 0 : chromeAboveThePage
+    }
+
     /// The way a photograph gets into this day: the file written into the
     /// Journal Root beside the Entry, whichever door of the photo sheet it
     /// came in by.
@@ -251,24 +269,41 @@ struct EntryView: View {
                         return reading.body
                     },
                     identifier: "entryEditor",
-                    label: "Entry for \(editor.day.spelledOut())"
+                    label: "Entry for \(editor.day.spelledOut())",
+                    roomForTheGlass: roomForTheGlass
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Up under the pill and the bar, rather than stopping where
+                // they do. The chrome over a day is glass, and glass is only
+                // glass over something: a page laid out beneath it would meet
+                // it at a hard edge and show nothing through it. What keeps
+                // the first line clear of it is the room the editor holds
+                // above its own text, which is `roomForTheGlass` and is this
+                // same measurement handed down.
+                .ignoresSafeArea(.container, edges: aNoticeHasTheTop ? [] : .top)
                 // Nothing to type into until there is a day to type into: a
                 // keystroke that landed before the file was read would be
                 // written over by it.
                 .allowsHitTesting(editor.state.isEditing)
+                // Held off the top by the room the words are held off it by:
+                // what this is over is the page, and the page begins under
+                // the glass.
                 .overlay {
                     if !editor.state.isEditing {
                         ProgressView("Opening \(editor.day.spelledOut())")
                             .accessibilityIdentifier("openingEntry")
+                            .padding(.top, roomForTheGlass)
                     }
                 }
                 // A day with nothing in it yet, said as the invitation it is
                 // rather than left as a grey rectangle. Only once it has been
                 // read: every day is empty for the moment before that.
                 .overlay(alignment: .topLeading) {
-                    if editor.state.isEditing, editor.content.isEmpty { ABlankPage() }
+                    if editor.state.isEditing, editor.content.isEmpty {
+                        // The glass's room on top of the editor's own inset,
+                        // which is what the first character sits under too.
+                        ABlankPage().padding(.top, roomForTheGlass)
+                    }
                 }
                 // Answering writes plain markdown where the token stood, and
                 // cancelling writes nothing at all — so an unanswered
@@ -338,6 +373,14 @@ struct EntryView: View {
         // of what is left.
         .frame(maxWidth: measure, maxHeight: .infinity)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // What the page has above it: the status bar, and the pill's row on a
+        // narrow window or the navigation bar on a wide one. Measured rather
+        // than agreed, because the pill is one row at one text size and two at
+        // another — and read here, where the safe area is still the page's,
+        // before the editor inside goes up under it.
+        .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: {
+            chromeAboveThePage = $0
+        }
         // Along the bottom rather than over the text: something that could not
         // be written must be impossible to miss, and equally impossible to be
         // stopped by — the words are still on screen and still being typed.

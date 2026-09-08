@@ -68,5 +68,32 @@ that is where an unreachable template belongs, not in the editor.
   bookmark already makes, and the way to avoid it is to keep the template in
   the journal folder — which the screen says.
 - Aujour now reads one file that is not an Entry, an Attachment or a Parked
-  File, and may read one outside the Journal Root entirely. It still writes
-  none: the template is read-only, and only because the user pointed at it.
+  File, and may read one outside the Journal Root entirely — see the amendment
+  below for the one time it writes to it.
+
+## Amendment — the Template page edits the file in place
+
+Date: 2026-09-08
+
+The Template setting is where a user goes when the template is wrong, and
+until now the page could only say which file it was: fixing a heading meant
+leaving Aujour, opening whatever app keeps that file, and finding it. So the
+page shows the file's markdown in a text area under the two rows, raw — no
+rendering, no prettifying, no closing of a half-typed brace — and saves it back
+where it lies, through whichever of the two ways above the file is reached by.
+
+This is the only write Aujour makes to a template, and the only write it makes
+outside the Journal Root at all. It happens because somebody typed into the
+file they pointed at; a spawn still only ever reads. Nothing is copied and no
+setting changes — the file stays where they keep it, and Obsidian goes on being
+the other way to edit it.
+
+Two things follow from the file being the user's rather than Aujour's:
+
+- **A file that cannot be read is not offered for editing.** An empty text area
+  over a file that failed to read is a template the next save would wipe out,
+  so the page says it cannot reach the file and shows no editor at all.
+- **The save is a tap, never an autosave.** The entry autosaves because words
+  are lost otherwise (ADR 0001); a template does not, because it is a file
+  somebody else's app may have open, and rewriting it between keystrokes is not
+  Aujour's to do.

@@ -605,6 +605,55 @@ final class WritingTheDayTests: AujourUITestCase {
         expect(editor, toHaveValue: "")
     }
 
+    func testTheTemplateFileIsEditedOnItsOwnPageAndTheNextDayStartsFromTheEdit() throws {
+        // A template in the journal folder, which is where a daily-notes setup
+        // keeps one — and, on this page, a file the user can change without
+        // leaving Aujour to go and find it in Obsidian.
+        let app = launchApp(contentTemplate: "## Morning\n")
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        expect(editor, toHaveValue: "## Morning\n")
+
+        openSettings(app)
+        openTheTemplate(in: app)
+
+        // The file itself, raw: what it says and nothing rendered, prettified
+        // or filled in for it.
+        let template = app.textViews["contentTemplateText"]
+        XCTAssertTrue(
+            template.waitForExistence(timeout: 10),
+            "the template file never appeared to be edited"
+        )
+        expect(template, toHaveValue: "## Morning\n")
+
+        // Nothing to save until something is typed: this is the user's file,
+        // and a page that offered to rewrite it untouched would be offering to
+        // do nothing.
+        let save = app.buttons["saveContentTemplate"]
+        XCTAssertTrue(save.exists, "the page offered no way to save the file")
+        XCTAssertFalse(save.isEnabled, "a file nobody has touched was offered for saving")
+
+        giveTheKeyboardTo(template, in: app)
+        template.typeText("## Evening\n")
+        XCTAssertTrue(save.isEnabled, "an edited file could not be saved")
+        save.tap()
+
+        // Read back from the file rather than from what is still on screen:
+        // the page is left and opened again, and what it shows the second time
+        // came off the disk.
+        backToTheSettings(in: app)
+        openTheTemplate(in: app)
+        expect(app.textViews["contentTemplateText"], toHaveValue: "## Morning\n## Evening\n")
+
+        backToTheSettings(in: app)
+        app.buttons["Done"].tap()
+
+        // And today, which nobody has written in, is what the file now says: a
+        // day that is a rendering of the template is rendered again once the
+        // template changes.
+        expect(editor, toHaveValue: "## Morning\n## Evening\n")
+    }
+
     func testTheRolloverHourChosenIsTheOneStillInForceAfterARelaunch() throws {
         let app = launchApp()
         openSettings(app)

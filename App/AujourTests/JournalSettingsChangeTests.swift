@@ -159,6 +159,113 @@ struct JournalSettingsChangeTests {
         }
     }
 
+    @Test("a template inside the folder is read, edited in place, and spawned from again")
+    func aTemplateInsideTheFolderIsRewrittenWhereItLies() async throws {
+        try await withAJournal { aujour in
+            try aujour.root.seed("## Morning\n", at: "templates/Daily.md")
+            await aujour.journal.open()
+            await aujour.journal.useAsTheContentTemplate(
+                aujour.root.appending(path: "templates/Daily.md")
+            )
+
+            // What the Template page puts in the text area: the file's own
+            // markdown, tokens and all, read afresh rather than remembered.
+            let asItReads = await aujour.journal.theContentTemplateAsItReads()
+            #expect(asItReads == "## Morning\n")
+
+            let problem = await aujour.journal.rewriteTheContentTemplate(
+                "## Morning\n\n## Evening\n"
+            )
+
+            #expect(problem == nil)
+            // The user's own file, changed where it lies — there is no copy in
+            // Aujour to change instead (ADR 0005).
+            let written = try String(
+                contentsOf: aujour.root.appending(path: "templates/Daily.md"),
+                encoding: .utf8
+            )
+            #expect(written == "## Morning\n\n## Evening\n")
+            // And today, which nobody has written, is spawned from the edit —
+            // a day that is a rendering of this file is a day that has to be
+            // rendered again.
+            #expect(aujour.journal.today?.content == "## Morning\n\n## Evening\n")
+        }
+    }
+
+    @Test("a template outside the folder is edited in place too, through its bookmark")
+    func aTemplateOutsideTheFolderIsRewrittenThroughItsBookmark() async throws {
+        try await withAJournal { aujour in
+            try aujour.folders.seed("# {{title}}\n", at: "Notes/Daily.md")
+            await aujour.journal.open()
+            await aujour.journal.useAsTheContentTemplate(
+                aujour.folders.appending(path: "Notes/Daily.md")
+            )
+
+            let asItReads = await aujour.journal.theContentTemplateAsItReads()
+            #expect(asItReads == "# {{title}}\n")
+
+            let problem = await aujour.journal.rewriteTheContentTemplate(
+                "# {{title}}\n\nWoke at {{time}}.\n"
+            )
+
+            #expect(problem == nil)
+            // Written back through the same bookmark it is read through, and
+            // to the file where the user keeps it — the one write Aujour makes
+            // outside the Journal Root, and only because they typed it.
+            let written = try String(
+                contentsOf: aujour.folders.appending(path: "Notes/Daily.md"),
+                encoding: .utf8
+            )
+            #expect(written == "# {{title}}\n\nWoke at {{time}}.\n")
+            // Still a bookmark and still nothing the iPad is told about
+            // (ADR 0003): editing the file changed no setting.
+            #expect(aujour.bookmark.isSet)
+            #expect(aujour.settings.settings.contentTemplateFile.isEmpty)
+        }
+    }
+
+    @Test("a template rewritten while a day has words never replaces them")
+    func wordsAreNeverReplacedByARewrittenTemplate() async throws {
+        try await withAJournal { aujour in
+            try aujour.root.seed("## Morning\n", at: "templates/Daily.md")
+            await aujour.journal.open()
+            await aujour.journal.useAsTheContentTemplate(
+                aujour.root.appending(path: "templates/Daily.md")
+            )
+            let today = try #require(aujour.journal.today)
+            today.content = "Walked to the market.\n"
+
+            let problem = await aujour.journal.rewriteTheContentTemplate("## Evening\n")
+
+            #expect(problem == nil)
+            // Saved on the way through and read back from the file, as every
+            // settings change here does it: the journal reopens around the
+            // edit, and a day that has words has a file by then.
+            #expect(aujour.journal.today?.content == "Walked to the market.\n")
+            let written = try String(
+                contentsOf: aujour.root.appending(path: PathTemplate.default.render(today.day)),
+                encoding: .utf8
+            )
+            #expect(written == "Walked to the market.\n")
+        }
+    }
+
+    @Test("with no template there is nothing to read and nothing to write")
+    func thereIsNothingToRewriteWithoutATemplate() async throws {
+        try await withAJournal { aujour in
+            await aujour.journal.open()
+
+            let asItReads = await aujour.journal.theContentTemplateAsItReads()
+            #expect(asItReads == nil)
+
+            // Said rather than silently written somewhere: a save that appears
+            // to do nothing is the one outcome a user would repeat.
+            let problem = await aujour.journal.rewriteTheContentTemplate("## Morning\n")
+            #expect(problem != nil)
+            #expect(aujour.journal.today?.content == "")
+        }
+    }
+
     @Test("the Rollover Hour changes which day is being written, and the entries stay put")
     func theDayFollowsTheRolloverHour() async throws {
         try await withAJournal { aujour in

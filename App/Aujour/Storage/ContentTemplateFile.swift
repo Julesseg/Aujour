@@ -26,6 +26,12 @@ import AujourCore
 /// Read at the moment a day is spawned and never cached: the file is the
 /// user's, edited in whatever app they like, and what they changed this
 /// morning is what tomorrow starts from.
+///
+/// Written only when the user edits it on the Template page, and then back
+/// where it lies, through whichever of the two ways it is reached by. That is
+/// the one write Aujour makes outside the Journal Root, and it happens because
+/// somebody typed into the file they pointed at — never on a spawn, which
+/// still only ever reads (ADR 0005).
 struct ContentTemplateFile: ContentTemplateSource {
     /// Where the template sits inside the Journal Root, if that is where it
     /// sits — the synced half.
@@ -47,6 +53,47 @@ struct ContentTemplateFile: ContentTemplateSource {
         guard !insideTheFolder.isEmpty, let folder else { return nil }
         return try? await folder.readText(at: insideTheFolder)
     }
+
+    /// Puts the edited template back in the file it came from.
+    ///
+    /// Down the same two roads as reading it, and in the same order, so that
+    /// the file being written is the one the page was showing: the bookmark
+    /// first, then the path inside the folder.
+    ///
+    /// Throws rather than failing soft, alone among the things done to a
+    /// template. A spawn that cannot read the file has somewhere to go — a
+    /// blank page, which is a day the user can still write in — and a save
+    /// that did not happen has nowhere at all: the words are on screen and
+    /// nowhere else, so the screen has to be told (ADR 0001).
+    func write(_ markdown: String) async throws {
+        if elsewhere.isSet {
+            try elsewhere.write(markdown)
+            return
+        }
+        guard !insideTheFolder.isEmpty, let folder else {
+            throw TheTemplateCannotBeSaved(name: nil)
+        }
+        try await folder.writeText(markdown, at: insideTheFolder)
+    }
+}
+
+/// A template the user edited that could not be put back.
+///
+/// Said in the two sentences every storage failure here is said in: what
+/// happened, and that the words are still on screen. The file is outside the
+/// Journal Root or there is no folder open at all, so `JournalRootError` —
+/// which is about paths inside a folder — has nothing to say about it.
+struct TheTemplateCannotBeSaved: LocalizedError {
+    /// The file's own name, where there is one to say.
+    let name: String?
+
+    var errorDescription: String? {
+        "Aujour couldn't save \(name ?? "your template file")."
+    }
+
+    var recoverySuggestion: String? {
+        "Your changes are still here. Try again in a moment — the file may have been renamed, moved, or on a drive that isn't plugged in."
+    }
 }
 
 /// A template file outside the Journal Root, remembered between launches.
@@ -54,9 +101,9 @@ struct ContentTemplateFile: ContentTemplateSource {
 /// The same bargain the chosen journal folder makes (`CustomJournalRoot`): the
 /// picker hands over a URL the app may use only while it says it is using it,
 /// and a bookmark is the only thing that outlives the launch. The right is
-/// taken for the length of one read and given straight back — a template is
-/// read for a moment when a day is spawned, not held open the way a folder
-/// being journaled into is.
+/// taken for the length of one read — or of one save — and given straight
+/// back: a template is reached for a moment when a day is spawned, not held
+/// open the way a folder being journaled into is.
 ///
 /// It reaches the world through the two closures that keep the bookmark, so a
 /// test relaunches the app by making a second one over the same storage.
@@ -104,11 +151,60 @@ struct BookmarkedTemplateFile: Sendable {
         return try? String(contentsOf: resolved.file, encoding: .utf8)
     }
 
+    /// Puts edited markdown back into the file, where it lies.
+    ///
+    /// The only write Aujour makes outside the Journal Root, and it happens
+    /// for one reason: the user typed into this file on the Template page.
+    /// Nothing else touches it — a spawn still only reads (ADR 0005).
+    ///
+    /// Coordinated for replacing, as every other write this app makes is, so
+    /// that Obsidian or the file provider on the other side is told the file
+    /// is about to change rather than finding it changed underneath.
+    func write(_ markdown: String) throws {
+        guard let resolved = resolve() else { throw TheTemplateCannotBeSaved(name: nil) }
+        let scoped = resolved.file.startAccessingSecurityScopedResource()
+        defer { if scoped { resolved.file.stopAccessingSecurityScopedResource() } }
+
+        // Rewritten while there is something to rewrite it from, exactly as a
+        // read does: a stale bookmark still resolves, and this is the warning
+        // that next time it may not.
+        if resolved.isStale, let refreshed = try? resolved.file.bookmarkData() {
+            rememberBookmark(refreshed)
+        }
+
+        let contents = Data(markdown.utf8)
+        var outcome: (any Error)?
+        var refused: NSError?
+        NSFileCoordinator().coordinate(
+            writingItemAt: resolved.file,
+            options: .forReplacing,
+            error: &refused
+        ) { file in
+            do {
+                // Atomically first, so a save interrupted mid-write leaves the
+                // template the user had rather than half of two. It writes its
+                // replacement beside the file, which is a folder this app was
+                // never given — only the file itself — so where the sandbox
+                // refuses, the plain write is what is left, and a template
+                // that saves is worth more than one that cannot.
+                do {
+                    try contents.write(to: file, options: .atomic)
+                } catch {
+                    try contents.write(to: file)
+                }
+            } catch {
+                outcome = error
+            }
+        }
+        if let refused { throw refused }
+        if let outcome { throw outcome }
+    }
+
     /// Remembers a file the user just picked, for every launch after this one.
     ///
-    /// The file is only ever read. Nothing is copied out of it and nothing is
-    /// written back — it is the user's file, in the user's folder, and
-    /// Aujour's whole claim on it is that days start from what it says.
+    /// Nothing is copied. The file stays where they keep it, and Aujour's
+    /// whole claim on it is that days start from what it says — and that the
+    /// Template page can edit it in place.
     func remember(_ file: URL) {
         // The picker's URL is one the app may reach only while it says it is
         // reaching it — and making the bookmark counts as reaching it.

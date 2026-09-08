@@ -91,7 +91,10 @@ bookmark this device holds alone. Placeholders use Obsidian's `{{name}}` /
 `{{name:FORMAT}}` syntax; the Obsidian core set is supported verbatim so an
 Obsidian daily-note template is pointed at unchanged, and Aujour-specific
 placeholders (e.g. {{events}}) extend the same syntax. No template, or one
-that cannot be read, is a blank page.
+that cannot be read, is a blank page. The Template setting shows a readable
+one's markdown raw and saves an edit back to the file where it lies — the only
+write Aujour makes to a template, and the only one it makes outside the
+Journal Root.
 
 ### Spawn
 Starting a Journal Day's Entry from the Content Template: the template

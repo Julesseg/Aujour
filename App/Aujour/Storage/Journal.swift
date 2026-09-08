@@ -947,6 +947,49 @@ final class Journal {
         }
     }
 
+    /// The template file as it reads right now — what the Template page puts
+    /// in front of the user to edit.
+    ///
+    /// Read afresh every time the page is opened, and never held: the file is
+    /// the user's, and Obsidian may have been in it since (ADR 0005). `nil`
+    /// where there is no template, or where the file cannot be read — which
+    /// the page shows as a file it cannot reach rather than as an empty one,
+    /// because an empty text area over an unreadable file is a template the
+    /// next save would wipe out.
+    func theContentTemplateAsItReads() async -> String? {
+        guard contentTemplateName != nil else { return nil }
+        return await template?.markdown()
+    }
+
+    /// Puts what the user typed on the Template page back into the file.
+    ///
+    /// The same order every settings change here goes in, and for the same
+    /// reasons: today's words are written where they currently belong first,
+    /// because the journal reopens around this — and it reopens because a day
+    /// nobody has written is a rendering of this file, so an edited template
+    /// is a today that has to be spawned again to still be true. A day that
+    /// has words has a file by then and is re-read rather than respawned, so
+    /// nothing anybody wrote is touched.
+    ///
+    /// - Returns: what went wrong, or `nil` where the file was written.
+    func rewriteTheContentTemplate(_ markdown: String) async -> StorageProblem? {
+        guard let template, contentTemplateName != nil else {
+            return StorageProblem(TheTemplateCannotBeSaved(name: contentTemplateName))
+        }
+        if let unsaved = await saveWhatIsOnScreenWhereItBelongsNow() {
+            return StorageProblem(unsaved)
+        }
+
+        do {
+            try await template.write(markdown)
+        } catch {
+            return StorageProblem(error)
+        }
+
+        await open()
+        return nil
+    }
+
     /// Where a picked file sits inside the journal folder, or `nil` for one
     /// that sits outside it.
     ///

@@ -666,7 +666,6 @@ struct ContentView: View {
                         // words, and the page they are set on is the page. A
                         // day turned here slides across all of it.
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
                         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: {
                             pageWidth = $0
                         }
@@ -689,6 +688,15 @@ struct ContentView: View {
                             settling: { await entryOnScreen?.editor.save() },
                             beside: { theRestOfTheApp(inItsOwnGlass: true) }
                         )
+                        // The page's sides, and neither of its ends. What the
+                        // clip is here for is a day sliding out, which goes
+                        // sideways; a clip that bounded the top as well would
+                        // cut the page off at whatever the page's own frame
+                        // stops at — the bottom of the pill's row inside this
+                        // modifier, the status bar outside it — and a page
+                        // that stops is a page the glass over it has nothing
+                        // of to refract.
+                        .clipShape(ThePageAndNeitherOfItsEnds())
                     }
                     // The calendar names the day, on either window: the pill
                     // does it on a narrow one and the pane beside the page
@@ -986,6 +994,46 @@ private struct JournalLayoutKey: EnvironmentKey {
     static let defaultValue = JournalLayout.page
 }
 
+/// The page from side to side, and as far as anything likes up and down.
+///
+/// A day turned slides sideways off the page and has to be clipped to it, and
+/// nothing about a day needs clipping at its ends: it runs up under the pill
+/// and the status bar at one end and under the keyboard at the other, and all
+/// three of those are things it is meant to be seen through or behind.
+private struct ThePageAndNeitherOfItsEnds: Shape {
+    /// Further than any screen is tall, which is the whole of what "no end"
+    /// has to mean here.
+    private static let pastAnyEnd: CGFloat = 10_000
+
+    func path(in rect: CGRect) -> Path {
+        Path(rect.insetBy(dx: 0, dy: -Self.pastAnyEnd))
+    }
+}
+
+extension EnvironmentValues {
+    /// Whether a notice has taken the top of the page for itself.
+    ///
+    /// The day's words run up under the pill's glass, which is why the editor
+    /// fills the screen (``MarkdownTextView/roomForTheGlass``). A notice is
+    /// the one thing up there that is not glass: it is a pane the reader has
+    /// to be able to reach — a file to open, a cross to dismiss — and a page
+    /// laid over it would take those taps for itself, because a text view is
+    /// a real view and a SwiftUI button drawn behind one never sees a finger.
+    ///
+    /// So while a notice is up, the page starts under it instead of running
+    /// behind it. Which is what the page did everywhere before the words were
+    /// let up under the glass, and is what a notice is for: it has the top of
+    /// the page until it is answered.
+    var aNoticeHasTheTopOfThePage: Bool {
+        get { self[ANoticeHasTheTopOfThePageKey.self] }
+        set { self[ANoticeHasTheTopOfThePageKey.self] = newValue }
+    }
+}
+
+private struct ANoticeHasTheTopOfThePageKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 extension View {
     /// Says, above a day's Entry, that another version of that day was kept
     /// beside it.
@@ -1003,8 +1051,8 @@ extension View {
         for day: JournalDay,
         in accent: Accent
     ) -> some View {
-        safeAreaInset(edge: .top) {
-            let parked = journal.parkedFiles(from: day)
+        let parked = journal.parkedFiles(from: day)
+        return safeAreaInset(edge: .top) {
             if !parked.isEmpty {
                 ParkedFilesNotice(
                     files: parked,
@@ -1020,6 +1068,9 @@ extension View {
                 )
             }
         }
+        // And the page under it starts below it rather than running up behind
+        // it, for as long as it is up.
+        .environment(\.aNoticeHasTheTopOfThePage, !parked.isEmpty)
     }
 }
 

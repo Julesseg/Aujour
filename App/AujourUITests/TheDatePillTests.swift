@@ -16,6 +16,108 @@ final class TheDatePillTests: AujourUITestCase {
     // arithmetic, and a synthesized drag is the wrong instrument for
     // arithmetic.
 
+    /// A day scrolled up goes behind the pill rather than stopping at it — and
+    /// its first line still rests clear of the glass while it is at rest.
+    ///
+    /// The pill is glass, and glass over a page that ended where the glass
+    /// began has nothing to refract: a reader scrolling a long day up would
+    /// watch the words meet a hard edge and vanish.
+    ///
+    /// Asked of the screen and not of the tree, because the tree cannot answer
+    /// it: a text view laid out up under the pill reports the same frame
+    /// whether the words up there are drawn or clipped away, and clipped away
+    /// is exactly what they were. What is looked at is the strip of row
+    /// between the pill and the menu beside it — page, at rest, and full of
+    /// the words going past once the day has been scrolled.
+    func testADayScrolledUpGoesBehindThePillsGlass() throws {
+        let words = (1...80)
+            .map { "Line \($0) — the quick brown fox jumps over the lazy dog." }
+            .joined(separator: "\n")
+        let app = launchApp(todaysEntry: words + "\n")
+
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        let more = app.buttons["moreActions"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "the menu never appeared")
+
+        XCTAssertLessThan(
+            editor.frame.minY, pill.frame.minY,
+            "the page begins below the pill rather than running up behind it — "
+                + "the page is at \(editor.frame) and the pill at \(pill.frame)"
+        )
+
+        // Two strips of the top of the screen, and the day has to reach both:
+        // the pill's own row, between the pill and the menu, and the band
+        // above the pill, which is the status bar's.
+        let alongsideThePill = CGRect(
+            x: pill.frame.maxX + 4,
+            y: pill.frame.minY,
+            width: more.frame.minX - pill.frame.maxX - 8,
+            height: pill.frame.height
+        )
+        let aboveThePill = CGRect(
+            x: app.frame.width * 0.3,
+            y: 0,
+            width: app.frame.width * 0.3,
+            height: pill.frame.minY - 2
+        )
+
+        let besideAtRest = inkAcross(alongsideThePill, of: app)
+        XCTAssertLessThan(
+            besideAtRest, 0.02,
+            "something is drawn beside the pill on a day at its top — \(besideAtRest) of it"
+        )
+        // Nothing is asked of the band above the pill at rest, because what is
+        // up there is not the app's: a phone with a Dynamic Island puts the
+        // clock off to one side and this band is empty, and one without puts
+        // it in the middle and this band is the clock. What both have in
+        // common is that the clock does not move when the day does — so what
+        // the day reaching up there looks like is the *difference*, and the
+        // reading at rest is the ground it is measured from.
+        let aboveAtRest = inkAcross(aboveThePill, of: app)
+
+        _ = scrollContent(of: editor, in: app, by: -140)
+
+        let besideScrolled = inkAcross(alongsideThePill, of: app)
+        XCTAssertGreaterThan(
+            besideScrolled, 0.05,
+            "the day stopped at the pill rather than going up behind it: the row "
+                + "beside the pill is still bare — \(besideScrolled) of it is ink"
+        )
+        let aboveScrolled = inkAcross(aboveThePill, of: app)
+        XCTAssertGreaterThan(
+            aboveScrolled - aboveAtRest, 0.05,
+            "the day stopped under the status bar rather than running up behind "
+                + "it — the band above the pill went from \(aboveAtRest) ink to "
+                + "\(aboveScrolled), and scrolling a day through it should put "
+                + "far more there than that"
+        )
+    }
+
+    /// The first line of a day rests clear of the glass, so that a day nobody
+    /// has scrolled reads as a page and not as words half under a pane.
+    ///
+    /// The invitation over a day nobody has written stands in for that first
+    /// character: it is drawn exactly where the typing will start
+    /// (``MarkdownEditor/whereTheFirstCharacterGoes``), which makes it the one
+    /// thing on an empty page whose position can be asked for.
+    func testTheFirstLineOfADayRestsClearOfThePill() throws {
+        let app = launchApp()
+
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
+
+        let invitation = app.staticTexts["aBlankPage"]
+        XCTAssertTrue(invitation.waitForExistence(timeout: 30), "the empty day said nothing")
+        XCTAssertGreaterThan(
+            invitation.frame.minY, pill.frame.maxY,
+            "the day's first line is under the glass at rest — "
+                + "it is at \(invitation.frame) and the pill at \(pill.frame)"
+        )
+    }
+
     func testTheDatePillOpensAndGoesBetweenTheWeekAndTheMonth() throws {
         let app = launchApp()
         let pill = app.buttons["datePill"]

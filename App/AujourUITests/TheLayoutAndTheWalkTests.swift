@@ -517,7 +517,7 @@ final class TheLayoutAndTheWalkTests: AujourUITestCase {
 
         XCTAssertTrue(editor.waitForExistence(timeout: 10), "the day went away with the pill")
         editor.tap()
-        let quiet = try brightness(of: editor)
+        let quiet = try brightness(ofTheWordsIn: editor, of: app)
 
         // One character in and straight back out: the day says exactly what it
         // said, and it is no longer a day nobody has written.
@@ -531,7 +531,7 @@ final class TheLayoutAndTheWalkTests: AujourUITestCase {
         // the keystrokes land milliseconds apart and the quiet never comes.
         editor.typeText("x" + XCUIKeyboardKey.delete.rawValue)
         expect(editor, toHaveValue: spawned)
-        let written = try brightness(of: editor)
+        let written = try brightness(ofTheWordsIn: editor, of: app)
 
         XCTAssertGreaterThan(
             abs(quiet - written), 0.01,

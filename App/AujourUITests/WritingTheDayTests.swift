@@ -169,10 +169,10 @@ final class WritingTheDayTests: AujourUITestCase {
         // drawing rather than a view: there is nothing in the hierarchy to
         // find, and nothing was added to the text to find either (ADR 0001).
         //
-        // In points from the corner rather than as a fraction of the editor,
-        // whose height is whatever the keyboard has left of the screen.
-        editor.coordinate(withNormalizedOffset: .zero)
-            .withOffset(CGVector(dx: 24, dy: 23))
+        // In points into the day's words rather than as a fraction of the
+        // editor, whose height is whatever the keyboard has left of the
+        // screen — and whose corner is up behind the pill's glass.
+        inTheDaysWords(of: editor, in: app, dx: 24, dy: 23)
             .tap()
         expect(editor, toHaveValue: "- [x] Milk\n- [ ] Bread")
 

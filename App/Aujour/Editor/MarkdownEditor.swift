@@ -83,6 +83,15 @@ struct MarkdownEditor: UIViewRepresentable {
     let identifier: String
     let label: String
 
+    /// How much of the top of the page the glass over it takes — the date
+    /// pill and the row it sits in.
+    ///
+    /// Handed down rather than measured here. The text view fills the page
+    /// from edge to edge so that the words pass behind the pill as they are
+    /// scrolled up, which leaves the room the pill needs the screen's to say
+    /// and not the editor's (``MarkdownTextView/roomForTheGlass``).
+    var roomForTheGlass: CGFloat = 0
+
     /// The typeface the day is written in and the colour the app is drawn in,
     /// both of them this device's own choice (ADR 0003). Out of the
     /// environment rather than handed down: between the settings that hold
@@ -98,8 +107,9 @@ struct MarkdownEditor: UIViewRepresentable {
     /// that.
     private static let lineFragmentPadding: CGFloat = 5
 
-    /// Where an Entry's first character lands, measured from this view's own
-    /// top-left.
+    /// Where an Entry's first character lands, measured from the top-left of
+    /// the page — which is under the glass, so a view drawn over the editor
+    /// adds ``roomForTheGlass`` to the vertical of it as the text does.
     ///
     /// Published because a view drawn *over* the editor — the prompt on a day
     /// nobody has written yet — has to start in the same place, and the two
@@ -144,6 +154,7 @@ struct MarkdownEditor: UIViewRepresentable {
         textView.delegate = context.coordinator
         textView.backgroundColor = .clear
         textView.baseInset = Self.textInset
+        textView.roomForTheGlass = roomForTheGlass
         // Set rather than left at the default, so that the number a view drawn
         // over the text lines itself up by is one this file decides.
         container.lineFragmentPadding = Self.lineFragmentPadding
@@ -199,8 +210,9 @@ struct MarkdownEditor: UIViewRepresentable {
         context.coordinator.requests = requests
         context.coordinator.caretSettled = caretSettled
         textView.accessibilityLabel = label
-        if let section, let textView = textView as? MarkdownTextView {
-            textView.shows(section, tucked: sectionIsTucked)
+        if let textView = textView as? MarkdownTextView {
+            textView.roomForTheGlass = roomForTheGlass
+            if let section { textView.shows(section, tucked: sectionIsTucked) }
         }
 
         guard let storage = textView.textStorage as? MarkdownTextStorage else { return }

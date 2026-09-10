@@ -1073,6 +1073,96 @@ class AujourUITestCase: XCTestCase {
     }
 
     /// Pulls something down (or up, for a negative distance) and lets go.
+    /// A point in the day's own words, in points from where its first
+    /// character goes.
+    ///
+    /// Not from the corner of the text view, which is a different place: the
+    /// page runs the whole height of the screen and up under the pill's
+    /// glass, so its corner is behind the pill and a point measured from
+    /// there lands in the band a reader scrolls words *into* rather than on
+    /// the line they are reading.
+    ///
+    /// What the suite can see of that room is the pill, and the one part of
+    /// it the pill does not show is the eight points its row leaves
+    /// underneath it — the identity's `Spacing.close`, which is the same gap
+    /// it leaves above. Spelled here because the suite drives the app from
+    /// another target and imports nothing from it.
+    ///
+    /// A window with no pill on it is a window whose page starts at its own
+    /// corner, and takes the offset as it comes.
+    func inTheDaysWords(
+        of editor: XCUIElement,
+        in app: XCUIApplication,
+        dx: CGFloat,
+        dy: CGFloat
+    ) -> XCUICoordinate {
+        editor.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: dx, dy: underTheGlass(of: editor, in: app) + dy))
+    }
+
+    /// How far down the text view its words begin: the band at its top that
+    /// is behind the status bar and the pill's row rather than on the page.
+    ///
+    /// Nought on a window with no pill, whose page starts at its own corner.
+    func underTheGlass(of editor: XCUIElement, in app: XCUIApplication) -> CGFloat {
+        let pill = app.buttons["datePill"]
+        return pill.exists ? pill.frame.maxY - editor.frame.minY + 8 : 0
+    }
+
+    /// How much of this part of the screen is not the colour the page is —
+    /// ink, in other words, as a fraction of the pixels looked at.
+    ///
+    /// Pixels and not the accessibility tree, because what is being asked
+    /// cannot be asked of the tree: a text view whose frame runs up under the
+    /// pill reports the same frame whether the words behind the glass are
+    /// drawn or clipped away. Only the screen knows.
+    ///
+    /// The page's own colour is read from the rectangle rather than named, so
+    /// this says the same thing in either appearance and under any accent.
+    func inkAcross(_ rect: CGRect, of app: XCUIApplication) -> Double {
+        guard let image = app.screenshot().image.cgImage, rect.width > 1, rect.height > 1
+        else { return 0 }
+
+        let scale = CGFloat(image.width) / app.frame.width
+        let pixels = CGRect(
+            x: rect.minX * scale, y: rect.minY * scale,
+            width: rect.width * scale, height: rect.height * scale
+        )
+        guard let patch = image.cropping(to: pixels) else { return 0 }
+
+        let width = patch.width
+        let height = patch.height
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        guard
+            let context = CGContext(
+                data: &bytes,
+                width: width, height: height,
+                bitsPerComponent: 8, bytesPerRow: width * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        else { return 0 }
+        context.draw(patch, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        // The page's colour, taken as the commonest brightness in the patch:
+        // whatever most of a strip of page is, the rest is what is drawn on
+        // it.
+        var brightnesses: [Int] = []
+        brightnesses.reserveCapacity(width * height)
+        for pixel in stride(from: 0, to: bytes.count, by: 4) {
+            let r = Double(bytes[pixel]), g = Double(bytes[pixel + 1]), b = Double(bytes[pixel + 2])
+            brightnesses.append(Int((0.299 * r + 0.587 * g + 0.114 * b).rounded()))
+        }
+        var howMany: [Int: Int] = [:]
+        for one in brightnesses { howMany[one / 8, default: 0] += 1 }
+        let page = (howMany.max { $0.value < $1.value }?.key ?? 31) * 8
+
+        // Far enough from the page to be something on it, rather than the
+        // shadow under a pane or the antialiasing at its edge.
+        let ink = brightnesses.count { abs($0 - page) > 48 }
+        return Double(ink) / Double(brightnesses.count)
+    }
+
     func drag(_ element: XCUIElement, by distance: CGFloat) {
         let from = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         from.press(
@@ -1160,8 +1250,40 @@ class AujourUITestCase: XCTestCase {
         // The animation between two appearances, which a screenshot taken
         // mid-way through would catch half of.
         Thread.sleep(forTimeInterval: 1)
+        return try brightness(of: try XCTUnwrap(element.screenshot().image.cgImage))
+    }
 
-        let drawn = try XCTUnwrap(element.screenshot().image.cgImage)
+    /// How bright a day's words came out — the page from where its first line
+    /// goes, and not the whole of the text view.
+    ///
+    /// Not the same thing any more. The text view runs the height of the
+    /// screen, up behind the status bar and the pill's row, and what is drawn
+    /// up there — the clock, the pill, the glass — is the same on every day
+    /// and says nothing about the words. Averaged in with them, it dilutes
+    /// whatever difference the words were there to show.
+    func brightness(ofTheWordsIn editor: XCUIElement, of app: XCUIApplication) throws -> Double {
+        Thread.sleep(forTimeInterval: 1)
+        let top = underTheGlass(of: editor, in: app)
+        let words = CGRect(
+            x: editor.frame.minX,
+            y: editor.frame.minY + top,
+            width: editor.frame.width,
+            height: editor.frame.height - top
+        )
+        let screen = try XCTUnwrap(app.screenshot().image.cgImage)
+        let scale = CGFloat(screen.width) / app.frame.width
+        let patch = try XCTUnwrap(
+            screen.cropping(
+                to: CGRect(
+                    x: words.minX * scale, y: words.minY * scale,
+                    width: words.width * scale, height: words.height * scale
+                )
+            )
+        )
+        return try brightness(of: patch)
+    }
+
+    private func brightness(of drawn: CGImage) throws -> Double {
         var grey: UInt8 = 0
         let onePixel = try XCTUnwrap(
             CGContext(

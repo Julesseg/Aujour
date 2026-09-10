@@ -1096,10 +1096,17 @@ class AujourUITestCase: XCTestCase {
         dx: CGFloat,
         dy: CGFloat
     ) -> XCUICoordinate {
+        editor.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: dx, dy: underTheGlass(of: editor, in: app) + dy))
+    }
+
+    /// How far down the text view its words begin: the band at its top that
+    /// is behind the status bar and the pill's row rather than on the page.
+    ///
+    /// Nought on a window with no pill, whose page starts at its own corner.
+    func underTheGlass(of editor: XCUIElement, in app: XCUIApplication) -> CGFloat {
         let pill = app.buttons["datePill"]
-        let underTheGlass = pill.exists ? pill.frame.maxY - editor.frame.minY + 8 : 0
-        return editor.coordinate(withNormalizedOffset: .zero)
-            .withOffset(CGVector(dx: dx, dy: underTheGlass + dy))
+        return pill.exists ? pill.frame.maxY - editor.frame.minY + 8 : 0
     }
 
     /// How much of this part of the screen is not the colour the page is —
@@ -1243,8 +1250,40 @@ class AujourUITestCase: XCTestCase {
         // The animation between two appearances, which a screenshot taken
         // mid-way through would catch half of.
         Thread.sleep(forTimeInterval: 1)
+        return try brightness(of: try XCTUnwrap(element.screenshot().image.cgImage))
+    }
 
-        let drawn = try XCTUnwrap(element.screenshot().image.cgImage)
+    /// How bright a day's words came out — the page from where its first line
+    /// goes, and not the whole of the text view.
+    ///
+    /// Not the same thing any more. The text view runs the height of the
+    /// screen, up behind the status bar and the pill's row, and what is drawn
+    /// up there — the clock, the pill, the glass — is the same on every day
+    /// and says nothing about the words. Averaged in with them, it dilutes
+    /// whatever difference the words were there to show.
+    func brightness(ofTheWordsIn editor: XCUIElement, of app: XCUIApplication) throws -> Double {
+        Thread.sleep(forTimeInterval: 1)
+        let top = underTheGlass(of: editor, in: app)
+        let words = CGRect(
+            x: editor.frame.minX,
+            y: editor.frame.minY + top,
+            width: editor.frame.width,
+            height: editor.frame.height - top
+        )
+        let screen = try XCTUnwrap(app.screenshot().image.cgImage)
+        let scale = CGFloat(screen.width) / app.frame.width
+        let patch = try XCTUnwrap(
+            screen.cropping(
+                to: CGRect(
+                    x: words.minX * scale, y: words.minY * scale,
+                    width: words.width * scale, height: words.height * scale
+                )
+            )
+        )
+        return try brightness(of: patch)
+    }
+
+    private func brightness(of drawn: CGImage) throws -> Double {
         var grey: UInt8 = 0
         let onePixel = try XCTUnwrap(
             CGContext(

@@ -48,11 +48,9 @@ final class TheDatePillTests: AujourUITestCase {
                 + "the page is at \(editor.frame) and the pill at \(pill.frame)"
         )
 
-        // Two strips of the top of the screen, both of them bare page while
-        // the day is at its top and both full of it once the day has moved:
-        // the pill's own row, between the pill and the menu; and the band
-        // above the pill, which is the status bar's, taken up the middle
-        // where the clock and the icons are not.
+        // Two strips of the top of the screen, and the day has to reach both:
+        // the pill's own row, between the pill and the menu, and the band
+        // above the pill, which is the status bar's.
         let alongsideThePill = CGRect(
             x: pill.frame.maxX + 4,
             y: pill.frame.minY,
@@ -63,7 +61,7 @@ final class TheDatePillTests: AujourUITestCase {
             x: app.frame.width * 0.3,
             y: 0,
             width: app.frame.width * 0.3,
-            height: pill.frame.minY - 4
+            height: pill.frame.minY - 2
         )
 
         let besideAtRest = inkAcross(alongsideThePill, of: app)
@@ -71,11 +69,14 @@ final class TheDatePillTests: AujourUITestCase {
             besideAtRest, 0.02,
             "something is drawn beside the pill on a day at its top — \(besideAtRest) of it"
         )
+        // Nothing is asked of the band above the pill at rest, because what is
+        // up there is not the app's: a phone with a Dynamic Island puts the
+        // clock off to one side and this band is empty, and one without puts
+        // it in the middle and this band is the clock. What both have in
+        // common is that the clock does not move when the day does — so what
+        // the day reaching up there looks like is the *difference*, and the
+        // reading at rest is the ground it is measured from.
         let aboveAtRest = inkAcross(aboveThePill, of: app)
-        XCTAssertLessThan(
-            aboveAtRest, 0.02,
-            "something is drawn above the pill on a day at its top — \(aboveAtRest) of it"
-        )
 
         _ = scrollContent(of: editor, in: app, by: -140)
 
@@ -87,9 +88,11 @@ final class TheDatePillTests: AujourUITestCase {
         )
         let aboveScrolled = inkAcross(aboveThePill, of: app)
         XCTAssertGreaterThan(
-            aboveScrolled, 0.05,
+            aboveScrolled - aboveAtRest, 0.05,
             "the day stopped under the status bar rather than running up behind "
-                + "it — \(aboveScrolled) of that band is ink"
+                + "it — the band above the pill went from \(aboveAtRest) ink to "
+                + "\(aboveScrolled), and scrolling a day through it should put "
+                + "far more there than that"
         )
     }
 

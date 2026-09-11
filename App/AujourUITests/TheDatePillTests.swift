@@ -77,22 +77,26 @@ final class TheDatePillTests: AujourUITestCase {
     /// A day scrolled up runs on under the status bar, and softens into the
     /// system's edge effect there rather than running through the clock.
     ///
-    /// Two readings of the same band, because the day has to be there *and*
-    /// be softened. A page that stopped at the status bar — `clipped()` on it
-    /// did exactly that once — leaves the band bare; a text view that UIKit
-    /// was never told the status bar is over draws the words past the clock
-    /// as sharp as anywhere else. So the band gains ink as faint as a
-    /// softened word, and no ink as strong as a written one.
+    /// Two readings, because the day has to be there *and* be softened. A
+    /// page that stopped at the status bar — `clipped()` on it did exactly
+    /// that once — leaves the status bar bare; a text view that UIKit was
+    /// never told the status bar is over draws the words past the clock as
+    /// sharp as anywhere else. So the status bar gains ink as faint as a
+    /// softened word, and its top half no ink as strong as a written one.
     ///
-    /// The top half of the status bar, because the effect is graded: it
-    /// takes the words away at the top of the screen and gives them back by
-    /// the status bar's lower edge, which on a phone without a Dynamic Island
-    /// is twenty points down. One paragraph and not lines, so that every row
-    /// of it runs the width of the page: a line that wraps leaves a row of
-    /// two words at one side, and a band that caught that row would read as
-    /// bare whatever was over it. And measured as a difference from the
-    /// reading at rest, because the clock is in that band on a phone without
-    /// a Dynamic Island, and it does not move when the day does.
+    /// The top half for the second, because the effect is graded: it takes
+    /// the words away at the top of the screen and gives them back by the
+    /// status bar's lower edge, which on a phone without a Dynamic Island is
+    /// twenty points down. The whole of it for the first, because the top
+    /// half of an iPad's is a band so short and so softened that it can fall
+    /// between two rows of a day and read as bare.
+    ///
+    /// One paragraph and not lines, so that every row of it runs the width of
+    /// the page: a line that wraps leaves a row of two words at one side, and
+    /// a band that caught that row would read as bare whatever was over it.
+    /// And measured as a difference from the reading at rest, because the
+    /// clock is in that band on a phone without a Dynamic Island, and it does
+    /// not move when the day does.
     func testADayScrolledUpSoftensUnderTheStatusBar() throws {
         let words = Array(repeating: "The quick brown fox jumps over the lazy dog.", count: 120)
             .joined(separator: " ")
@@ -104,14 +108,14 @@ final class TheDatePillTests: AujourUITestCase {
         XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
 
         // The pill sits its own spacing under the status bar.
-        let statusBar = pill.frame.minY - 8
-        let underTheClock = CGRect(
+        let statusBar = CGRect(
             x: app.frame.width * 0.3,
             y: 0,
             width: app.frame.width * 0.3,
-            height: statusBar / 2
+            height: pill.frame.minY - 8
         )
-        let faintAtRest = inkAcross(underTheClock, of: app, asFaintAs: 12)
+        let underTheClock = statusBar.divided(atDistance: statusBar.height / 2, from: .minYEdge).slice
+        let faintAtRest = inkAcross(statusBar, of: app, asFaintAs: 12)
         let sharpAtRest = inkAcross(underTheClock, of: app)
 
         // Twice, so that the day is well up under the status bar and not just
@@ -119,12 +123,12 @@ final class TheDatePillTests: AujourUITestCase {
         _ = scrollContent(of: editor, in: app, by: -140)
         _ = scrollContent(of: editor, in: app, by: -140)
 
-        let faint = inkAcross(underTheClock, of: app, asFaintAs: 12) - faintAtRest
+        let faint = inkAcross(statusBar, of: app, asFaintAs: 12) - faintAtRest
         XCTAssertGreaterThan(
             faint, 0.05,
             "the day stopped under the status bar rather than running up behind "
-                + "it — scrolling a day through the band under the clock put "
-                + "\(faint) of even the faintest ink there"
+                + "it — scrolling a day through the status bar put \(faint) of "
+                + "even the faintest ink there"
         )
         let sharp = inkAcross(underTheClock, of: app) - sharpAtRest
         XCTAssertLessThan(

@@ -1591,3 +1591,5 @@ extension XCUIElement {
         (value as? String)?.hasPrefix(option) == true
     }
 }
+
+// A no-op line for a CI baseline run of the UI suite on main. Not for merge.

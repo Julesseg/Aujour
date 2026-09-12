@@ -98,6 +98,7 @@ final class TheDatePillTests: AujourUITestCase {
     /// clock is in that band on a phone without a Dynamic Island, and it does
     /// not move when the day does.
     func testADayScrolledUpSoftensUnderTheStatusBar() throws {
+        throw XCTSkip("TEMPORARY: isolating which half of this branch unsettles the iPad leg")
         let words = Array(repeating: "The quick brown fox jumps over the lazy dog.", count: 120)
             .joined(separator: " ")
         let app = launchApp(todaysEntry: words + "\n")

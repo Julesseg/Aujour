@@ -52,8 +52,46 @@ final class MarkdownTextView: UITextView {
     /// The section, once there is one to show.
     private var header: UIHostingController<FrontmatterSection>?
 
+    /// The band of the page the status bar is over, which is where the words
+    /// going up under it soften into the system's edge effect rather than run
+    /// through the clock.
+    ///
+    /// The effect is the scroll view's own, and UIKit draws it only where
+    /// something is registered as being over that edge. A bar would register
+    /// itself; the status bar is over this view only because the page ignores
+    /// the safe area to get under the glass, and the safe area stops at the
+    /// representable — the text view's own is nothing, so there is nothing
+    /// there for UIKit to find. So the band says it instead, from inside the
+    /// page, and is kept at the top of what the page is showing as it scrolls.
+    ///
+    /// The status bar and not the pill's row as well. The pill is glass, and
+    /// what it refracts is the words going by behind it; an effect reaching
+    /// down that far would blur them before the glass had them.
+    private let underTheStatusBar = UIView()
+
     override init(frame: CGRect, textContainer: NSTextContainer?) {
         super.init(frame: frame, textContainer: textContainer)
+        // Soft, so the words fade into the status bar. A hard edge would draw
+        // a line under it, which is a bar the page does not have.
+        topEdgeEffect.style = .soft
+        // An empty label, because the interaction shapes the effect around the
+        // elements in its container — labels, images, glass, controls — and a
+        // bare view is no element, so a band of nothing but a view gets no
+        // effect at all. A label with no text is the least that counts, and
+        // it spans the band.
+        let element = UILabel()
+        element.frame = underTheStatusBar.bounds
+        element.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        underTheStatusBar.addSubview(element)
+        let edge = UIScrollEdgeElementContainerInteraction()
+        edge.scrollView = self
+        edge.edge = .top
+        underTheStatusBar.addInteraction(edge)
+        // Over the page and not part of it: a finger up there is the page's,
+        // and VoiceOver has nothing to say about a band of nothing.
+        underTheStatusBar.isUserInteractionEnabled = false
+        underTheStatusBar.accessibilityElementsHidden = true
+        addSubview(underTheStatusBar)
         // Where the row above the keyboard is, is the keyboard's to say, and
         // how much room the page keeps below its words is the row's. Neither
         // of them moves this view, so neither of them would lay it out again
@@ -116,6 +154,35 @@ final class MarkdownTextView: UITextView {
     /// it of.
     static func room(below page: CGRect, coveredBy pane: CGRect) -> CGFloat {
         max(0, page.maxY - pane.minY)
+    }
+
+    /// How far a pane over the top of the screen reaches down into what the
+    /// page is showing: the mirror of ``room(below:coveredBy:)``, for the
+    /// status bar.
+    static func room(above page: CGRect, coveredBy pane: CGRect) -> CGFloat {
+        max(0, pane.maxY - page.minY)
+    }
+
+    /// Keeps the band under the status bar at the top of what the page is
+    /// showing, and as deep as the status bar reaches into it.
+    ///
+    /// Read off the window, where the status bar is, rather than off this
+    /// view's safe area, which is nothing (``underTheStatusBar``). And nought
+    /// on a page that stops below it — the one a notice has the top of —
+    /// which is a page with nothing under the clock to soften.
+    private func placesTheBandUnderTheStatusBar() {
+        var reach: CGFloat = 0
+        if let window {
+            let statusBar = CGRect(
+                x: 0, y: 0, width: window.bounds.width, height: window.safeAreaInsets.top
+            )
+            reach = Self.room(above: convert(bounds, to: nil), coveredBy: statusBar)
+        }
+        // At the top of the bounds and not of the content: a scroll view is
+        // laid out again every time it moves, so this is the band staying put
+        // while the words go up through it.
+        let band = CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: reach)
+        if underTheStatusBar.frame != band { underTheStatusBar.frame = band }
     }
 
     /// Whether the last layout was one with the control pulled into view, and
@@ -233,6 +300,7 @@ final class MarkdownTextView: UITextView {
     override func layoutSubviews() {
         super.layoutSubviews()
         placeHeader()
+        placesTheBandUnderTheStatusBar()
     }
 
     override func didMoveToWindow() {

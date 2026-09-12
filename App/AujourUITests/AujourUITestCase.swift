@@ -1119,7 +1119,12 @@ class AujourUITestCase: XCTestCase {
     ///
     /// The page's own colour is read from the rectangle rather than named, so
     /// this says the same thing in either appearance and under any accent.
-    func inkAcross(_ rect: CGRect, of app: XCUIApplication) -> Double {
+    ///
+    /// - Parameter faintest: how far from the page's brightness a pixel has to
+    ///   be to count. The default is words as they are written; a fainter
+    ///   reading also counts words that are there but softened, which is what
+    ///   they are under the status bar.
+    func inkAcross(_ rect: CGRect, of app: XCUIApplication, asFaintAs faintest: Int = 48) -> Double {
         guard let image = app.screenshot().image.cgImage, rect.width > 1, rect.height > 1
         else { return 0 }
 
@@ -1158,8 +1163,9 @@ class AujourUITestCase: XCTestCase {
         let page = (howMany.max { $0.value < $1.value }?.key ?? 31) * 8
 
         // Far enough from the page to be something on it, rather than the
-        // shadow under a pane or the antialiasing at its edge.
-        let ink = brightnesses.count { abs($0 - page) > 48 }
+        // shadow under a pane or the antialiasing at its edge — at the
+        // default, anyway.
+        let ink = brightnesses.count { abs($0 - page) > faintest }
         return Double(ink) / Double(brightnesses.count)
     }
 

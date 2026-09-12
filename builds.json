@@ -1,0 +1,32 @@
+[
+  {
+    "pr": 128,
+    "title": "test(ci): a baseline run of the UI suite on an untouched main",
+    "sha": "1f17093",
+    "time": "2026-09-12T15:21:55.898Z"
+  },
+  {
+    "pr": 127,
+    "title": "fix(editor): a day scrolled up softens under the status bar rather than running through the clock",
+    "sha": "4601d1d",
+    "time": "2026-09-11T18:47:12.522Z"
+  },
+  {
+    "pr": 126,
+    "title": "fix(editor): the day's words run under the pill's glass and clear the keyboard's row",
+    "sha": "d6c40b5",
+    "time": "2026-09-10T17:27:23.908Z"
+  },
+  {
+    "pr": 125,
+    "title": "feat(template): the Template page edits the file itself",
+    "sha": "9428f3c",
+    "time": "2026-09-08T12:14:03.626Z"
+  },
+  {
+    "pr": 124,
+    "title": "style(frontmatter): the Properties card sits on its fill, without a border",
+    "sha": "7f8de1f",
+    "time": "2026-09-07T19:12:19.687Z"
+  }
+]

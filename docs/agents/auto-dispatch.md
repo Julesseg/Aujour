@@ -23,10 +23,11 @@ Two workflows split detection from execution:
    is still running on the Mac, in which case it spawns nothing (see below).
    The `/label-and-implement-with-pr` skill carries the workflow instructions —
    claim the issue with the `agent-dispatched` label, run `/implement` to build
-   it per AGENTS.md, then merge the base branch in, push, and open a PR that
-   closes the issue. `--detach` means the session runs under the Paseo daemon
-   and outlives the (short) runner job; the worktree flags keep the session
-   off the clone's own checkout.
+   it per AGENTS.md, build a screenshot report with `/ui-report` when the change
+   is user-visible, merge the base branch in, push, open a PR that closes the
+   issue, then hand that PR to `/babysit-pr` (see below). `--detach` means the
+   session runs under the Paseo daemon and outlives the (short) runner job; the
+   worktree flags keep the session off the clone's own checkout.
 
    That skill ships in this repo, at `.claude/skills/`, alongside a mirror of
    the maintainer's personal skill set. The personal copies under
@@ -40,6 +41,21 @@ Two workflows split detection from execution:
    of a file something else rewrites goes stale without anyone noticing, and
    they are machine tooling rather than project workflow. Leave them out on
    every re-sync.
+
+### After the PR opens
+
+The session does not end at `gh pr create`. `/babysit-pr` keeps it alive,
+watching the PR: it fixes CI failures the branch caused, reruns flaky checks
+(three per SHA), acts on review comments (fixing, or replying with an `[agent]`
+prefix when it disagrees or needs an answer), and rebases onto `main` whenever
+the branch conflicts with it or falls behind it. It stops when the PR is
+merged or closed, when a blocker needs a human (it says so in a PR comment),
+or after 24 hours. Between polls the watcher blocks on GitHub, so an idle
+watch costs almost nothing; but each babysitting session is a live Paseo
+agent until it stops.
+
+The `agent-dispatched` label stays on throughout, and after the babysitter
+stops with the PR still open: the issue is in flight until the PR closes it.
 
 ### Who applies `agent-dispatched`
 
@@ -201,19 +217,20 @@ resolve fails the run before any session exists.
   label, by contrast, is created automatically on first dispatch — the
   dispatcher creates it ahead of the session that will apply it.
 - **Keep the `/label-and-implement-with-pr` skill** at
-  `.claude/skills/label-and-implement-with-pr/`, along with the `/implement`
-  skill it calls. The dispatch prompt is just
+  `.claude/skills/label-and-implement-with-pr/`, along with the `/implement`,
+  `/ui-report`, and `/babysit-pr` skills it calls. The dispatch prompt is just
   `/label-and-implement-with-pr issue #<N>`, so the skill is what actually
   tells the session how to work — including claiming the issue with the
   `agent-dispatched` label and opening the PR. Without it a dispatched session
   receives an unresolvable slash command.
 
-  `/implement` must **not** carry `disable-model-invocation: true`, unlike most
-  of its siblings in the mirrored set. `/label-and-implement-with-pr` reaches it
-  through the Skill tool rather than a user prompt, which is exactly what that
-  flag refuses; with it set, every dispatched session hits the refusal halfway
-  through and falls back to improvising against AGENTS.md. Keep the flag off in
-  both the repo copy and the personal one, or a re-sync reintroduces it.
+  `/implement`, `/ui-report`, and `/babysit-pr` must **not** carry
+  `disable-model-invocation: true`, unlike most of their siblings in the
+  mirrored set. `/label-and-implement-with-pr` reaches them through the Skill
+  tool rather than a user prompt, which is exactly what that flag refuses; with
+  it set, every dispatched session hits the refusal halfway through and falls
+  back to improvising against AGENTS.md. Keep the flag off in both the repo
+  copies and the personal ones, or a re-sync reintroduces it.
 - **Use the `## Blocked by` convention** in issue bodies. The dispatcher parses
   `- #N` bullets under that exact heading:
 

@@ -239,7 +239,8 @@ both stay green.
 2. **Keep the `/label-and-implement-with-pr` skill** at
    `.claude/skills/label-and-implement-with-pr/` — the dispatch prompt is
    just `/label-and-implement-with-pr issue #<N>`, so the skill is what tells
-   the session how to work: claim the issue, call `/implement`, open the PR.
+   the session how to work: claim the issue, call `/implement`, open the PR,
+   and babysit it until it merges.
    Shipped in this repo, mirrored from the maintainer's personal skill set.
 3. **Register a self-hosted macOS runner** (repo → Settings → Actions →
    Runners) on a Mac with the Paseo daemon running and `gh` + `claude` logged

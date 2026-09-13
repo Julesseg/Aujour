@@ -236,11 +236,12 @@ both stay green.
    under a `## Blocked by` heading in issue bodies — that's what the dispatcher
    scans for. An issue with no blockers qualifies too, and starts on the next
    issue close or a manual run of `unblock-dispatch.yml`.
-2. **Keep the `/label-and-implement-with-pr` skill** at
-   `.claude/skills/label-and-implement-with-pr/` — the dispatch prompt is
-   just `/label-and-implement-with-pr issue #<N>`, so the skill is what tells
-   the session how to work: claim the issue, call `/implement`, open the PR.
-   Shipped in this repo, mirrored from the maintainer's personal skill set.
+2. **Keep the `/label-and-implement-with-pr` skill installed on the runner
+   Mac** (`~/.claude/skills/`) — the dispatch prompt is just
+   `/label-and-implement-with-pr issue #<N>`, so the skill is what tells the
+   session how to work: claim the issue, call `/implement`, open the PR, and
+   babysit it until it merges. Sessions run on that Mac and use its skills;
+   nothing ships in this repo.
 3. **Register a self-hosted macOS runner** (repo → Settings → Actions →
    Runners) on a Mac with the Paseo daemon running and `gh` + `claude` logged
    in.

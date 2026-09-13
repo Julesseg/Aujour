@@ -1,0 +1,32 @@
+[
+  {
+    "pr": 129,
+    "title": "feat(agents): babysit the PR and report UI changes after dispatch",
+    "sha": "30d880e",
+    "time": "2026-09-13T18:57:58.436Z"
+  },
+  {
+    "pr": 130,
+    "title": "fix(claude): tell local Linux sessions apart from cloud ones",
+    "sha": "d062831",
+    "time": "2026-09-13T18:29:02.410Z"
+  },
+  {
+    "pr": 127,
+    "title": "fix(editor): a day scrolled up softens under the status bar rather than running through the clock",
+    "sha": "62b4abf",
+    "time": "2026-09-12T17:12:04.050Z"
+  },
+  {
+    "pr": 128,
+    "title": "test(ci): a baseline run of the UI suite on an untouched main",
+    "sha": "1f17093",
+    "time": "2026-09-12T15:21:55.898Z"
+  },
+  {
+    "pr": 126,
+    "title": "fix(editor): the day's words run under the pill's glass and clear the keyboard's row",
+    "sha": "d6c40b5",
+    "time": "2026-09-10T17:27:23.908Z"
+  }
+]

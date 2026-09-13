@@ -89,6 +89,7 @@ implementing an issue.
 Whether the box you are on can run the UI suite at all is **environment-
 specific**, so it is not stated here as a flat fact — a `SessionStart` hook
 (`.claude/hooks/platform-guidance.sh`) reports it per session: cloud/web
-sessions run on Linux with no iOS simulator and cannot build the `App/` target
-or run XCUITest; a developer's Mac has Xcode and *can* run the suite locally,
-though doing so is slow and optional. Follow whatever that hook tells you.
+sessions and local Linux machines have no iOS simulator and cannot build the
+`App/` target or run XCUITest; a developer's Mac has Xcode and *can* run the
+suite locally, though doing so is slow and optional. Follow whatever that hook
+tells you.

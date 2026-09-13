@@ -291,8 +291,10 @@ Full walkthrough, scope rules, the in-flight cap, and the optional variables:
   (Linux), asynchronously installs the Swift 6.0.3 toolchain so `cd Core &&
   swift test` works there. No-op on a local Mac.
 - **`platform-guidance.sh`** (SessionStart) — tells the agent whether this
-  machine can run the XCUITest suite (a Mac with Xcode can; a Linux container
-  cannot — CI is the gate there).
+  machine can run the XCUITest suite (a Mac with Xcode can; a Linux box —
+  cloud container or local machine — cannot, so CI is the gate there). On a
+  local Linux machine it also reports whether a Swift toolchain is installed
+  for `swift test`.
 
 `AGENTS.md` carries the matching conventions (commit/PR-title format, "always
 implement the UI, let CI verify it"). Customize both for your project.

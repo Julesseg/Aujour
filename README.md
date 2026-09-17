@@ -8,7 +8,7 @@ identity (`Aujour` / `com.julesseguin.aujour`) that one script swaps for yours.
 
 - **Two-layer architecture** — `Core/` is a pure SwiftPM package holding all
   business logic (testable with `swift test` on any platform, including Linux
-  CI and Claude Code web containers); `App/` is a thin SwiftUI target with an
+  CI and remote agent environments); `App/` is a thin SwiftUI target with an
   XCUITest suite on top.
 - **CI on every PR** (`.github/workflows/ci.yml`) — Core unit tests on a Linux
   container (fast, no Mac needed) + the app's own tests on a macOS runner, with
@@ -25,14 +25,13 @@ identity (`Aujour` / `com.julesseguin.aujour`) that one script swaps for yours.
   Shares the signing certificate with the PR-build pipeline (see below).
 - **Auto-dispatched agent sessions** (`.github/workflows/unblock-dispatch.yml`
   + `agent-implement.yml`) — `ready-for-agent` issues that nothing blocks each
-  get a detached [Paseo](https://paseo.sh) Claude Code session spawned on a
+  get a background [Paseo](https://paseo.sh) agent session spawned on a
   self-hosted Mac runner to implement them, re-scanned whenever a merged PR
   closes an issue or you kick the workflow off by hand. Dormant until you set
   up the runner (see below) — PR and issue events stay green meanwhile.
-- **Claude Code setup** (`.claude/`) — Conventional Commits enforced by a
-  PreToolUse hook, a SessionStart hook that installs a Swift toolchain in web
-  containers so `swift test` works there, and per-environment guidance about
-  where the UI tests can run.
+- **Agent setup** (`.agents/` plus native adapters) enforces Conventional
+  Commits, installs a Swift toolchain in remote Linux environments, and adds
+  platform guidance about where UI tests can run.
 
 ## Quick start
 
@@ -64,7 +63,9 @@ App/<Name>UITests/    XCUITest acceptance suite (runs in CI on every PR)
                       + unblock-dispatch.yml / agent-implement.yml (agent auto-dispatch)
 ci/                   assemble-build-history.mjs + pipeline docs (ci/README.md)
 docs/agents/          auto-dispatch setup (self-hosted runner + Paseo)
-.claude/              Claude Code hooks & settings
+.agents/              Shared agent hooks
+.claude/ .codex/      Native Claude Code and Codex adapters
+.pi/ .opencode/       Native Pi and OpenCode adapters
 scripts/rename.sh     placeholder → your identity
 ```
 
@@ -145,7 +146,7 @@ and profile at runtime — nothing else to copy.
    the gate (a ~1-second failure, no steps run). Fix at *Settings →
    Environments → github-pages → Deployment branches and tags*: choose **No
    restriction**, or keep *Selected branches* and add a rule matching your PR
-   branch names (e.g. `claude/*`).
+   branch names (e.g. `agent/*`).
 
 The `build-history` branch appears automatically on the first successful
 publish. It's a derived store — force-pushed every run so multi-MB `.ipa`
@@ -227,7 +228,7 @@ attached to the run as an artifact (7-day retention). A misformatted tag (not
 ## Enabling agent auto-dispatch (one-time)
 
 The auto-dispatch pipeline (`unblock-dispatch.yml` + `agent-implement.yml`)
-spawns a detached [Paseo](https://paseo.sh) Claude Code session per ready
+spawns a background [Paseo](https://paseo.sh) agent session per ready
 issue. Until you complete this setup, `unblock-dispatch.yml` runs on issue
 events but finds nothing to dispatch, and `agent-implement.yml` never runs —
 both stay green.
@@ -236,29 +237,28 @@ both stay green.
    under a `## Blocked by` heading in issue bodies — that's what the dispatcher
    scans for. An issue with no blockers qualifies too, and starts on the next
    issue close or a manual run of `unblock-dispatch.yml`.
-2. **Keep the `/label-and-implement-with-pr` skill installed on the runner
-   Mac** (`~/.claude/skills/`) — the dispatch prompt is just
-   `/label-and-implement-with-pr issue #<N>`, so the skill is what tells the
-   session how to work: claim the issue, call `/implement`, open the PR, and
-   babysit it until it merges. Sessions run on that Mac and use its skills;
-   nothing ships in this repo.
+2. **Keep the `label-and-implement-with-pr` skill installed on the runner
+   Mac** under `~/.agents/skills`, with the `implement`, `ui-report`, and
+   `babysit-pr` skills it uses. The workflow asks the selected agent to invoke
+   that skill for the issue.
 3. **Register a self-hosted macOS runner** (repo → Settings → Actions →
-   Runners) on a Mac with the Paseo daemon running and `gh` + `claude` logged
-   in.
-4. **Set one required repository Actions variable** (*Settings → Secrets and
+   Runners) on a Mac with the Paseo daemon running, `gh` authenticated, and the
+   selected Paseo provider available.
+4. **Set three required repository Actions variables** (*Settings → Secrets and
    variables → Actions → Variables* — a variable, not a secret):
 
    | Variable | Value |
    | --- | --- |
    | `PASEO_PROJECT_DIR` | Absolute path of this repo's clone on the runner Mac; agent sessions spawn git worktrees off it |
+   | `PASEO_PROVIDER` | Paseo provider for unattended sessions |
+   | `PASEO_MODEL` | Model exposed by that provider |
 
    The clone needs to be able to `git fetch origin` unattended as the runner's
    user — the spawn step refreshes it so each session branches off the current
    `origin/main` rather than the clone's own stale `main`.
 
-   Four more are optional: `PASEO_MODEL`, `PASEO_THINKING`, `PASEO_MODE`, and
-   `PASEO_BASE` override the pinned defaults (Opus 5, high effort, bypass mode,
-   `origin/main`).
+   `PASEO_THINKING`, `PASEO_MODE`, and `PASEO_BASE` are optional. No provider,
+   model, thinking, or permission-mode default is selected by the workflow.
 
 Full walkthrough, scope rules, the in-flight cap, and the optional variables:
 [`docs/agents/auto-dispatch.md`](docs/agents/auto-dispatch.md).
@@ -280,19 +280,20 @@ Full walkthrough, scope rules, the in-flight cap, and the optional variables:
 - Workflows read the app identity from one `env:` block each (`APP_NAME`,
   `BUNDLE_ID`), which `rename.sh` rewrites.
 
-## Claude Code integration
+## Agent integration
 
-`.claude/settings.json` wires three hooks:
+Shared hooks live under `.agents/hooks`. Claude Code, Codex, Pi, and OpenCode
+use thin native adapters for the same behavior:
 
-- **`validate-commit-msg.py`** (PreToolUse) — blocks `git commit` unless the
+- **`validate-commit-msg.py`** blocks `git commit` unless the
   subject follows Conventional Commits. Deliberately permissive: merges,
   reverts, amends, and messages it can't parse statically pass through.
-- **`session-start.sh`** (SessionStart) — on Claude Code web containers
+- **`session-start.sh`** on remote Linux environments
   (Linux), asynchronously installs the Swift 6.0.3 toolchain so `cd Core &&
   swift test` works there. No-op on a local Mac.
-- **`platform-guidance.sh`** (SessionStart) — tells the agent whether this
+- **`platform-guidance.sh`** tells the agent whether this
   machine can run the XCUITest suite (a Mac with Xcode can; a Linux box —
-  cloud container or local machine — cannot, so CI is the gate there). On a
+  remote environment or local machine — cannot, so CI is the gate there). On a
   local Linux machine it also reports whether a Swift toolchain is installed
   for `swift test`.
 

@@ -49,12 +49,12 @@ import UIKit
 /// that reached both edges would read as part of the keyboard rather than as
 /// something the app put there.
 ///
-/// So the trailing inset is how close to the edge the second pane may come and
-/// not where it sits. A phone has less room than ten keys want and the panes
-/// take all of it; an iPad has more, the keys stop at square, and the panes
-/// stop with them rather than going on as glass nobody is going to press. An
-/// accessory view is as wide as the keyboard is, and across an iPad's keyboard
-/// that is the bar this row is not.
+/// So the trailing inset is where the second pane sits. A phone has less room
+/// than ten keys want and the panes take all of it; an iPad has more, the
+/// formatting pane stops with its square
+/// keys, and Suggestions sits at the far edge with paper between them. An
+/// accessory view is as wide as the keyboard is, but neither pane becomes the
+/// bar this row is not.
 ///
 /// It is the platform's own glass, tinted to `Palette.glass`, rather than the
 /// blur-and-paint the design file spells out in CSS. The mock is a web page
@@ -311,18 +311,15 @@ final class MarkdownAccessoryRow: UIInputView {
         laysOut(formatting, onTheStrip: strip)
         lays(suggestions, onThePaneApart: apart)
 
-        // How far the second pane may reach, rather than how far it does: a
-        // phone has less room than ten keys want and the two panes take all of
-        // it, an iPad has more and they stop at the keys. Said as an edge the
-        // pane keeps off rather than an edge it meets, because an accessory
-        // view is as wide as the keyboard, and a pill drawn to the far side of
-        // an iPad's keyboard is the bar this row is not.
+        // Suggestions stays at the far edge: beside the formatting pane on a
+        // phone, and across the spare paper from it on an iPad. It is still a
+        // pill the width of one key, not glass stretched across that distance.
         //
         // Breakable, and it breaks once: an accessory view is built before
         // anything has told it how wide it is, and two panes and a gap inset
         // from both edges of nothing at all do not fit.
         let far = apart.trailingAnchor.constraint(
-            lessThanOrEqualTo: safeAreaLayoutGuide.trailingAnchor, constant: -Self.inset
+            equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -Self.inset
         )
         far.priority = .required - 1
 
@@ -332,11 +329,11 @@ final class MarkdownAccessoryRow: UIInputView {
             strip.leadingAnchor.constraint(
                 equalTo: safeAreaLayoutGuide.leadingAnchor, constant: Self.inset
             ),
-            // The gap between the panes is the gap they keep off the screen's
-            // own edges: two panes set apart by less than that would read as
-            // one pane with a seam in it.
+            // At least the screen-edge gap between the panes: on a phone that
+            // is all the room there is, while an iPad leaves its spare paper
+            // here instead of stretching either pill across it.
             apart.leadingAnchor.constraint(
-                equalTo: strip.trailingAnchor, constant: Self.inset
+                greaterThanOrEqualTo: strip.trailingAnchor, constant: Self.inset
             ),
             far,
         ] + [strip, apart].flatMap { pill in

@@ -327,17 +327,9 @@ struct MarkdownAccessoryRowTests {
         #expect(keys.allSatisfy { abs($0.bounds.width - $0.bounds.height) < 0.5 })
     }
 
-    // And once the keys have stopped, so does the pane: it is as wide as the
-    // nine of them and not as wide as the screen.
-    //
-    // Because a pane that reaches both edges of an iPad is the bar this row
-    // is not — glass across the top of the keyboard rather than a pill over
-    // the paper. It went wrong silently and intermittently: the pane's edges
-    // and the keys' width were two wishes of the same priority that could not
-    // both come true on a wide row, so Auto Layout picked one, and it picked
-    // the bar on the first keyboard of a session and the pill on every
-    // keyboard after.
-    @Test("on a screen with room to spare the pane stops where the keys do")
+    // The formatting pane stops with its keys, while Suggestions stays at the
+    // far edge of the keyboard with the spare iPad paper between them.
+    @Test("on a wide screen Suggestions sits at the far edge")
     func wideScreenPanes() throws {
         for screen in [834.0, 1024.0, 1366.0] as [CGFloat] {
             let row = aRow { _ in }
@@ -370,11 +362,12 @@ struct MarkdownAccessoryRowTests {
             #expect(abs(after - before) <= 1)
             #expect(after < first.width)
 
-            // So the row goes on past the pane, and what it goes on as is
-            // paper rather than more glass.
+            // So the row goes on past the formatting pane as paper, with the
+            // one-key Suggestions pane against the far edge.
             let apartFrame = row.convert(apart.bounds, from: apart)
-            #expect(apartFrame.minX > pill.maxX)
-            #expect(row.bounds.width - apartFrame.maxX > first.width)
+            #expect(apartFrame.minX - pill.maxX > first.width)
+            #expect(row.bounds.width - apartFrame.maxX > 0)
+            #expect(row.bounds.width - apartFrame.maxX < first.width)
 
             // And it is the width, rather than a width: a key with no width
             // of its own leaves Auto Layout to pick one, and a layout that is
@@ -382,25 +375,15 @@ struct MarkdownAccessoryRowTests {
             // keyboard than on this one.
             #expect(unsettled(in: row).isEmpty)
 
-            // The other half of that, which a frame cannot show. The pane's
-            // far edge is a limit and not a position — on a row this wide the
-            // keys are what says where it stops, and the row only says where
-            // it may not go past.
-            //
-            // Asked of the constraint because the frame comes out right here
-            // either way: laid out on its own, an equal-priority tug of war
-            // between the pane's edges and the keys' width settles the same
-            // way every time, and it was only in the keyboard's own window
-            // that it settled differently on the first keyboard of a session
-            // than on the second — a pill over the paper once the row had
-            // been up before, and a bar across the whole iPad the first time.
+            // The far edge is a position, not merely a limit: this is what
+            // keeps the pane there in the keyboard's own window too.
             let far = try #require(
                 row.constraints.first { constraint in
                     constraint.firstItem === apart.superview
                         && constraint.firstAttribute == .trailing
                 }
             )
-            #expect(far.relation == .lessThanOrEqual)
+            #expect(far.relation == .equal)
         }
     }
 

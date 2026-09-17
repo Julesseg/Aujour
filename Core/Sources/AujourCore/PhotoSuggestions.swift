@@ -58,7 +58,7 @@ public enum PhotoLibraryAccess: Hashable, Sendable {
     case refused
 }
 
-/// The user's photo library, as the photo sheet sees it.
+/// The user's photo library, as Suggestions sees it.
 ///
 /// The third seam between the domain and the device, after the Journal Store
 /// and Day Data, and it is shaped by the same two promises:
@@ -66,8 +66,8 @@ public enum PhotoLibraryAccess: Hashable, Sendable {
 /// - **Reading never asks.** ``photographs(during:)`` answers with nothing at
 ///   all where access is anything but granted. Asking is ``ask()``, which
 ///   happens because the user said to look and never because a day was opened
-///   — the library permission is the day's own photographs' alone, and the
-///   system picker under them needs none of it.
+///   — the library permission is the day's own photographs' alone; the photo
+///   key's system picker needs none of it.
 /// - **Reading never fails.** A library that is not there, not permitted or
 ///   not answering is a day with no photographs to offer, which is a sheet
 ///   with nothing from the day on it. Nothing about a photo library ever
@@ -110,13 +110,13 @@ public protocol PhotoLibrary: Sendable {
     func contents(of photograph: DayPhotograph) async -> Data?
 }
 
-/// What the photo sheet offers the day on screen first: the photographs the
+/// What Suggestions offers the day on screen first: the photographs the
 /// device already holds from it.
 ///
 /// A day is written up in the evening, or a week later, and the pictures of it
-/// are already on the phone — so Aujour offers them at the top of the sheet
-/// the photo key puts up, and adding one is a tap rather than a trip through
-/// the picker. Which photographs those are is the only question here, and it
+/// are already on the phone — so Aujour offers them at the top of Suggestions,
+/// and adding one is a tap rather than a trip through the picker. Which
+/// photographs those are is the only question here, and it
 /// has one answer: the ones taken during the Entry's *Journal Day*, so that a
 /// Monday filled in on Friday is offered Monday's.
 ///
@@ -129,9 +129,9 @@ public protocol PhotoLibrary: Sendable {
 /// Three of the four states of the world offer nothing from the day: a
 /// library the user refused, a device that will not allow one, and a day with
 /// no photographs in it. None of them is a failure and none of them is a
-/// notice — the sheet says in a line that it has nothing to show, and the
-/// library button under it goes on working in every one of them, because the
-/// system picker needs no permission (``AujourCore/Attachment``).
+/// notice — Suggestions says in a line that it has nothing to show. The photo
+/// key keeps working in every one of them, because the system picker needs no
+/// permission (``AujourCore/Attachment``).
 @MainActor
 @Observable
 public final class PhotoSuggestions {

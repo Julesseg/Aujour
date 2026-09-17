@@ -42,9 +42,11 @@ final class OpenEditor {
     /// what the screen would be showing a sheet for.
     private(set) var asked: PlaceholderQuestion?
 
-    /// The photo key pressed, still waiting on a photograph — what the screen
-    /// would be showing the photo sheet for.
+    /// The photo key pressed, still waiting on the system picker.
     private(set) var requested: PhotoRequest?
+
+    /// The Suggestions key pressed, still waiting on its sheet.
+    private(set) var suggested: SuggestionsRequest?
 
     /// - Parameter overADay: whether there is an Entry behind the editor for
     ///   a photograph to be written beside, for the tests that press the photo
@@ -84,9 +86,10 @@ final class OpenEditor {
         coordinator.asks = { [weak self] question in self?.asked = question }
         if overADay {
             coordinator.requests = { [weak self] request in self?.requested = request }
+            coordinator.suggests = { [weak self] request in self?.suggested = request }
         }
         coordinator.answersTaps(in: textView)
-        coordinator.formats(in: textView, offeringPhotos: overADay, accent: styling.box)
+        coordinator.formats(in: textView, overADay: overADay, accent: styling.box)
 
         storage.setSource(source)
         layoutManager.ensureLayout(for: container)

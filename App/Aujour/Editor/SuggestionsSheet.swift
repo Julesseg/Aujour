@@ -1,57 +1,53 @@
-import PhotosUI
 import SwiftUI
 import UIKit
 
 import AujourCore
 
-/// The photo key pressed, and the way back into the Entry for what it brings.
+/// The Suggestions key pressed, and the way back into the Entry for what is
+/// tapped on the sheet it puts up.
 ///
-/// The key is pressed on a text view and the photograph is chosen on a sheet,
-/// which are two different worlds — so what crosses between them is this:
-/// where the caret was when the key went down, folded into a closure that
-/// puts an embed there, and a word for when the sheet has gone. Nothing about
-/// the Entry, the file or the cursor travels with it, and the closure is the
-/// editor's own so that a photograph goes in through the same door a ticked
-/// box does — one edit, one undo step, saved as typing is.
-///
-/// ``PlaceholderQuestion``'s twin, and shaped like it for the same reason.
-struct PhotoRequest: Identifiable {
+/// ``PhotoRequest``'s twin, and shaped like it for the same reason: the key is
+/// pressed on a text view and the tapping happens on a sheet, so what crosses
+/// between them is where the caret was, folded into a closure that writes
+/// its attachment there, and a word for when the sheet has gone.
+struct SuggestionsRequest: Identifiable {
     /// New for every press, so that pressing the key twice puts the sheet up
     /// twice.
     let id = UUID()
 
-    /// Writes the embed into the Entry where the caret was when the key was
-    /// pressed — not where it is now, because a sheet takes the keyboard with
-    /// it and a text view with no keyboard reports no caret worth having.
+    /// Writes this photograph into the Entry where the caret was when the key
+    /// was pressed.
     let insert: (Attachment) -> Void
 
-    /// The sheet has gone, with or without a photograph. Somebody who pressed
-    /// a key above the keyboard was writing, and the keyboard is asked back.
+    /// The sheet has gone, with or without anything written. Somebody who
+    /// pressed a key above the keyboard was writing, and the keyboard is asked
+    /// back.
     let finished: () -> Void
 }
 
-/// The sheet the photo key puts up: the day's own photographs, and under them
-/// the way to the rest of the library.
+/// The sheet the Suggestions key puts up: the day's own material, offered to
+/// be written into it.
 ///
 /// A journal is written in the evening about a day that is already on the
-/// phone in pictures, so the shortest way between the two comes first: what
-/// the camera has from this Journal Day, one tap each. The system picker is
-/// under it for everything else — a photograph from another day, one somebody
-/// was sent — and for a library Aujour was never allowed to read, since the
-/// picker runs in a process of its own and needs no permission at all.
+/// phone — in pictures, in the calendar, in what the list said — so the
+/// shortest way between the two is a sheet of that day's own things, one tap
+/// each. Everything on it is an insertion, which is why it is reached from the
+/// row above the keyboard and nowhere else: an insertion needs a caret, and a
+/// day being read has none.
+///
+/// One section per kind, drawn only where there is something to offer, and one
+/// line for the whole sheet where there is nothing in any of them. The
+/// photographs are what M1 has; the day's events and its reminders come next,
+/// and arrive as two more sections under this one.
 ///
 /// The sheet holds no rules. Which photographs belong to the day, whether
 /// there is anything to offer and what asking for the library means are
-/// ``AujourCore/PhotoSuggestions``'s, unit-tested on Linux; what a chosen
-/// photograph becomes on its way into the folder is ``InsertedPhotographs``'s.
-/// What is here is the grid, the words for a count, and the picker.
-///
-/// Either door ends the same way: the photograph is in the folder and its
-/// embed in the day, and the sheet goes. It goes on a failure too, because
-/// what went wrong is said under the day (``EntryView``) and a notice behind
-/// a sheet is a notice nobody reads.
-struct PhotoSheet: View {
-    /// The Journal Day being written about, whose photographs are offered — a
+/// ``AujourCore/PhotoSuggestions``'s, unit-tested on Linux; what a tapped
+/// photograph becomes on its way into the folder is ``InsertedPhotographs``'s;
+/// where the markdown lands is the editor's (``SuggestionsRequest``). What is
+/// here is the grid, the words for a count, and the offer to look.
+struct SuggestionsSheet: View {
+    /// The Journal Day being written about, whose material is offered — a
     /// Monday filled in on Friday is offered Monday's.
     let day: JournalDay
 
@@ -59,8 +55,8 @@ struct PhotoSheet: View {
     /// photograph is already on its way.
     let photographs: InsertedPhotographs
 
-    /// Where the embed goes once the photograph is in the folder — the
-    /// request's own closure, which knows where the caret was.
+    /// Where a tapped photograph goes — the request's own closure, which knows
+    /// where the caret was.
     let insert: (Attachment) -> Void
 
     /// The day's photographs, read out of the library for the day on screen.
@@ -68,21 +64,15 @@ struct PhotoSheet: View {
     /// looked at and not while the day is being written.
     @State private var suggestions: PhotoSuggestions
 
-    /// Whether the system picker is up over this sheet.
-    @State private var isPickingFromTheLibrary = false
-
-    /// What the picker handed back, while it is being read.
-    @State private var pickedFromTheLibrary: PhotosPickerItem?
-
     @Environment(\.dismiss) private var dismiss
 
     /// - Parameters:
-    ///   - day: the Journal Day whose photographs are offered.
-    ///   - library: where they are read from. `nil` is a sheet with no
-    ///     library behind it — the picker alone, which is what a preview and
-    ///     a test of something else want.
-    ///   - photographs: the way a chosen photograph reaches the folder.
-    ///   - insert: the way its embed reaches the Entry.
+    ///   - day: the Journal Day whose material is offered.
+    ///   - library: where its photographs are read from. `nil` is a sheet with
+    ///     no library behind it — nothing from the day, ever, which is what a
+    ///     preview and a test of something else want.
+    ///   - photographs: the way a tapped photograph reaches the folder.
+    ///   - insert: the way a photograph reaches the Entry.
     init(
         for day: JournalDay,
         photographsFrom library: (any PhotoLibrary)?,
@@ -98,30 +88,23 @@ struct PhotoSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                fromThisDay
-
-                Section {
-                    Button("Choose from Library", systemImage: "photo.on.rectangle") {
-                        chooseFromTheLibrary()
-                    }
-                    .accessibilityIdentifier("chooseFromLibrary")
-                }
-                .settingsRows()
+                thePhotographs
+                nothingAtAll
             }
             // The sheet's own paper rather than the system's grouped grey, and
             // the rows on the identity's card — the same ground the place
             // widget's list stands on (`PlaceWidget`), so that one sheet looks
             // like one app whichever key put it up.
             .scrollContentBackground(.hidden)
-            .navigationTitle("Add a Photo")
+            .navigationTitle("Suggestions")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                        .accessibilityIdentifier("cancelPhoto")
+                        .accessibilityIdentifier("cancelSuggestions")
                 }
             }
-            // Dimmed while one is on its way. A photograph that is only in
+            // Dimmed while a photograph is on its way. One that is only in
             // iCloud takes seconds to come down, and a grid that looked
             // exactly the same throughout would be one somebody taps again —
             // the taps are refused underneath this too (``InsertedPhotographs``),
@@ -132,47 +115,51 @@ struct PhotoSheet: View {
         // Read when the sheet comes up and not before: the library is asked
         // about one day, at the moment somebody wants its photographs.
         .task(id: day) { await suggestions.look(for: day) }
-        // The system's own picker, put up from here rather than from the
-        // Entry behind, because a sheet cannot present anything while another
-        // is covering it. The photograph as the library has it, rather than a
-        // copy the system has already converted: which formats a journal
-        // folder keeps is Aujour's own decision, and it should be the same one
-        // whichever door a photograph came in by.
-        .photosPicker(
-            isPresented: $isPickingFromTheLibrary,
-            selection: $pickedFromTheLibrary,
-            matching: .images,
-            preferredItemEncoding: .current
-        )
-        .onChange(of: pickedFromTheLibrary) { _, picked in
-            guard let picked else { return }
-            Task { await add(fromTheLibrary: picked) }
-        }
         // Half the screen to begin with, and draggable to all of it: a day at
         // the seaside is two hundred photographs, and a sheet that could only
         // ever be half is one nobody can reach the bottom of.
         .presentationDetents([.medium, .large])
         .sheetChrome()
-        .accessibilityIdentifier("photoSheet")
+        .accessibilityIdentifier("suggestionsSheet")
+    }
+
+    // MARK: - Nothing to suggest
+
+    /// The one line the sheet says about itself, and only where every section
+    /// has come up empty and there is nothing left to ask about.
+    ///
+    /// Once for the whole sheet rather than once per section: a day with no
+    /// photographs has no photograph section rather than a sentence saying so,
+    /// and only a day with nothing in any of them says so (`CONTEXT.md`,
+    /// **Suggestions**).
+    @ViewBuilder private var nothingAtAll: some View {
+        if suggestions.state == .nothingToOffer {
+            Section {
+                Text("Nothing to suggest from this day.")
+                    .foregroundStyle(Palette.inkMutedColor)
+                    .accessibilityIdentifier("nothingToSuggest")
+            }
+            .settingsRows()
+        }
     }
 
     // MARK: - The day's own photographs
 
-    /// The day's photographs, the offer to look for them, or a word that
-    /// there are none to show — whichever the library's standing allows.
-    @ViewBuilder private var fromThisDay: some View {
+    /// The day's photographs, or the offer to look for them — and nothing at
+    /// all where the library is refused, this device has none, or the camera
+    /// missed the day.
+    ///
+    /// The one thing always drawn is the offer: a permission nobody has been
+    /// asked about is a button in the words of the thing it would read, and
+    /// tapping it is what asks — never opening the day, and never opening the
+    /// sheet.
+    @ViewBuilder private var thePhotographs: some View {
         switch suggestions.state {
         case .nothingToOffer:
-            // A refused library, a device with none and a day the camera
-            // missed all come to the same absence. Said in a line rather than
-            // left as a gap, because a finger asked for a photo and the top
-            // of the sheet is where the day's would have been.
-            Section {
-                Text("Nothing to show from this day.")
-                    .foregroundStyle(Palette.inkMutedColor)
-                    .accessibilityIdentifier("noPhotoSuggestions")
-            }
-            .settingsRows()
+            // Said once for the sheet, by `nothingAtAll` above, and not here:
+            // a section that drew its own absence would be a sentence about
+            // photographs on a day whose meetings are the thing on offer.
+            EmptyView()
 
         case .couldLook:
             // The one place in Aujour that asks for a photo library besides
@@ -241,42 +228,17 @@ struct PhotoSheet: View {
     /// a row: three across a phone, more across a sheet on an iPad.
     private static let narrowest: CGFloat = 96
 
-    // MARK: - Either door
+    // MARK: - One tap
 
     /// One tap on one of the day's photographs, and everything after it.
+    ///
+    /// A photograph closes the sheet: it did what it was for. It closes on a
+    /// failure too, because what went wrong is said under the day
+    /// (``EntryView``) and a notice behind a sheet is a notice nobody reads.
+    /// It stays only when nothing happened at all, which leaves the way to try
+    /// again where it was.
     private func add(_ photograph: DayPhotograph) async {
-        finished(with: await photographs.insert(photograph, from: suggestions))
-    }
-
-    /// The other door: the system picker, or — in a UI test — the photograph
-    /// the suite said it meant at launch, through the same pipeline. The
-    /// picker is another process's screen, and driving it would make a test
-    /// of the app into a test of that screen (`UITestingJournal`).
-    private func chooseFromTheLibrary() {
-        if let asked = UITestingJournal.photographToInsert() {
-            Task { finished(with: await photographs.keep(asked)) }
-        } else {
-            isPickingFromTheLibrary = true
-        }
-    }
-
-    /// What the picker handed back, into the folder.
-    ///
-    /// A photograph that would not be read goes no further and says nothing:
-    /// a picker only hands back images, so this is the defensive answer
-    /// rather than a case anybody meets.
-    private func add(fromTheLibrary picked: PhotosPickerItem) async {
-        pickedFromTheLibrary = nil
-        guard let contents = try? await picked.loadTransferable(type: Data.self) else { return }
-        finished(with: await photographs.keep(contents))
-    }
-
-    /// The photograph is in the folder, or the reason it is not has been set:
-    /// either way the sheet has done what it can, and goes.
-    ///
-    /// It stays only when nothing happened at all — a photograph the picker
-    /// could not read — which leaves the way to try again where it was.
-    private func finished(with attachment: Attachment?) {
+        let attachment = await photographs.insert(photograph, from: suggestions)
         if let attachment { insert(attachment) }
         guard attachment != nil || photographs.problem != nil else { return }
         dismiss()

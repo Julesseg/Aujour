@@ -178,6 +178,92 @@ struct InsertedPhotographsTests {
         #expect(open.textView.text.hasPrefix("Milk\n!["))
     }
 
+    // An iCloud photograph can still be coming down after its picker has
+    // closed and the keyboard has returned. A second visit must neither lose
+    // its photograph nor borrow the first visit's caret.
+    @Test("two quick picker visits keep both photographs at their own carets")
+    func overlappingPickerVisits() async throws {
+        let day = try await open(EntryEditor(store: InMemoryJournalStore()))
+        let photographs = InsertedPhotographs()
+        photographs.adds(to: day)
+        let contents = try #require(photograph(as: .png))
+
+        let editor = OpenEditor(holding: "One\nTwo", overADay: true)
+        editor.cursor(at: 0)
+        let firstRequest = try #require(editor.coordinator.asksForAPhoto(in: editor.textView))
+
+        editor.cursor(at: 7)
+        let secondRequest = try #require(editor.coordinator.asksForAPhoto(in: editor.textView))
+
+        let insertions = PhotoPickerInsertions()
+        insertions.append(
+            loading: { await Task.yield(); return contents },
+            through: photographs,
+            inserting: firstRequest.insert
+        )
+        insertions.append(
+            loading: { contents },
+            through: photographs,
+            inserting: secondRequest.insert
+        )
+        await insertions.waitUntilIdle()
+
+        #expect(editor.textView.text.hasPrefix("!["))
+        #expect(editor.textView.text.contains("\nOne\nTwo\n!["))
+        #expect(editor.textView.text.components(separatedBy: "![").count == 3)
+    }
+
+    // The keyboard is back while an iCloud photograph downloads, so typing
+    // can replace the characters its saved caret stood in. The photograph
+    // belongs at the replacement boundary, not at the old numeric offset.
+    @Test("an edit across the saved caret keeps the photograph at that edit")
+    func editingAcrossTheSavedCaret() async throws {
+        let day = try await open(EntryEditor(store: InMemoryJournalStore()))
+        let photographs = InsertedPhotographs()
+        photographs.adds(to: day)
+
+        let editor = OpenEditor(holding: "Milk tea", overADay: true)
+        editor.cursor(at: 4)
+        let request = try #require(editor.coordinator.asksForAPhoto(in: editor.textView))
+
+        let deletion = NSRange(location: 0, length: 5)
+        #expect(
+            editor.coordinator.textView(
+                editor.textView,
+                shouldChangeTextIn: deletion,
+                replacementText: ""
+            )
+        )
+        editor.textView.textStorage.replaceCharacters(in: deletion, with: "")
+        editor.coordinator.textViewDidChange(editor.textView)
+
+        let added = await photographs.keep(try #require(photograph(as: .png)))
+        request.insert(try #require(added))
+
+        #expect(editor.textView.text.hasPrefix("!["))
+        #expect(editor.textView.text.hasSuffix("\ntea"))
+    }
+
+    @Test("a whole-body change keeps a saved caret on the same words")
+    func replacingTheBodyUnderTheSavedCaret() async throws {
+        let day = try await open(EntryEditor(store: InMemoryJournalStore()))
+        let photographs = InsertedPhotographs()
+        photographs.adds(to: day)
+
+        let editor = OpenEditor(holding: "Two", overADay: true)
+        editor.cursor(at: 3)
+        let request = try #require(editor.coordinator.asksForAPhoto(in: editor.textView))
+
+        editor.coordinator.shiftInsertionAnchors(by: 4, inside: 7)
+        editor.storage.setSource("One\nTwo")
+        editor.coordinator.textSettled(in: editor.textView)
+
+        let added = await photographs.keep(try #require(photograph(as: .png)))
+        request.insert(try #require(added))
+
+        #expect(editor.textView.text.hasPrefix("One\nTwo\n!["))
+    }
+
     // A sheet with no Entry behind the editor is a sheet with nothing to add
     // to, so the key does not ask for one.
     @Test("an editor with no day behind it asks for nothing")

@@ -267,7 +267,14 @@ source per data placeholder, each answering a stretch of wall-clock time with
 the day's items — a title, and the hour it sits at where it has one. The
 second seam between the domain and the device, and the Journal Store's
 opposite number: the domain asks what a day held and never learns whether the
-answer came from EventKit, from a fake, or from nowhere.
+answer came from EventKit, from a fake, or from nowhere. An item may also
+carry the hour it ended and the colour its calendar is drawn in, which are
+for Suggestions to show and never reach the file: what a data placeholder
+writes is the title and the hour it began, and nothing else.
+
+The seam can also say where a permission stands without asking for it —
+undecided, allowed or refused — because Suggestions draws a different thing
+for each: an offer to look, the day's items, or nothing at all.
 
 Reading through it cannot fail, which is the whole of its shape. A permission
 the user refused, a device with no such data and a genuinely empty day all
@@ -523,8 +530,16 @@ not understood, which is the truth about what the template did.
 
 ### Accessory Row
 The formatting bar above the keyboard: headings, bold and italic, lists,
-checkboxes, indenting, and a photograph. On screen exactly while an Entry is
-being written in, and gone with the keyboard — a day being read has neither.
+checkboxes, indenting, and a photograph, on one pane of glass — and beside it,
+on a pane of its own, the key to Suggestions. Two panes because they are two
+kinds of key: the strip rewrites the characters under the cursor, and the one
+apart from it opens a sheet. On screen exactly while an Entry is being
+written in, and gone with the keyboard — a day being read has neither.
+
+The strip gives way before the second pane does. Where a phone is too narrow
+for both, the strip's keys scroll under its own curve and the Suggestions key
+stays where it is, since a key put outside the strip so that it is always in
+reach is not one to scroll out of it.
 
 Every control is a shortcut for markdown the user could have typed by hand, so
 each one is a rewrite of the characters that are already there and the Entry is
@@ -590,23 +605,63 @@ iPhone camera writes and what the same folder opened on a Windows laptop
 cannot show. That conversion is the one edit Aujour makes to somebody's
 photograph.
 
+### Suggestions
+The day's own material, offered to be written into it: the photographs the
+device holds from the Journal Day, the day's calendar events, and the day's
+reminders, each in a section of one sheet the Accessory Row's suggestions key
+puts up. Everything on it is an insertion, which is why it is reached from the
+row above the keyboard and nowhere else — an insertion needs a caret, and a
+day being read has none.
+
+Three sections, drawn only where there is something to offer: a day with no
+photographs has no photograph section rather than a sentence saying so, and
+only a day with nothing in any of the three says so, once. The one thing
+always drawn is an offer to look: a permission nobody has been asked about is
+a button in the words of the thing it would read, and tapping it is what asks
+— never opening the day, and never opening the sheet.
+
+What a tap writes is what the day already knows how to write. A photograph
+goes in as an Attachment, exactly as one from the photo key does. An event or
+a reminder goes in as the one line `{{events}}` or `{{reminders}}` would have
+written for it — the same Journal Setting's prefix, done marker and time
+format — on a line of its own, at the caret as it stood when the key was
+pressed, and never over a selection. An event tapped from the sheet and an
+event spawned from the Content Template are the same characters in the file.
+
+A photograph closes the sheet, the way the photo key's does. An event or a
+reminder does not: a day is four meetings, and the sheet stays up with the
+ones written in ticked, each new tap landing after the last, so that they come
+out as one list in the order the day happened. A ticked row is inert — tapping
+it neither writes the line again nor takes it out, because taking words out
+of a day is not something a tick should do. The ticks are the sheet's memory
+of this one opening and nothing more: nothing is read back out of the Entry
+to work out what is already in it, so a sheet put away and brought up again
+offers the whole day afresh, and a meeting can be written in twice by somebody
+who asks twice.
+
+Events are a timeline: what the day held without an hour first, then the day
+in order, each with the hour it began and ended and the colour of the
+calendar it is from — never the calendar's name. Reminders are a checklist,
+the way the device shows them everywhere else: a box per row, ticked where the
+day saw it through, and the hour it was due where it had one. Which reminders
+are the day's is `{{reminders}}`'s own answer — due that day and not done, or
+done that day — and a done one is written with the done marker.
+
+What is offered is the Entry's *Journal Day*: midnight to midnight where the
+device is, the stretch Day Data reads, so a Monday filled in on Friday is
+offered Monday's photographs, Monday's meetings and what Monday's list held.
+
 ### Photo Suggestions
-The day's own photographs, offered on the sheet the Accessory Row's photo key
-puts up: "N photos from this day", a grid of thumbnails, and one tap that adds
-one. Under them, a button to the rest of the library through the system
-picker. What the grid offers is the photographs taken during the Entry's
-*Journal Day* — midnight to midnight where the device is, the same stretch Day
-Data reads — so a Monday filled in on Friday is offered Monday's. Either door
-goes through the attachment pipeline like any other photograph, so the file
-lands under the Attachment Path Template and the Entry points at it in the
-embed syntax in force, where the caret was when the key was pressed.
+The photograph section of Suggestions: "N photos from this day", a grid of
+thumbnails, and one tap that adds one. The library is read when the sheet
+comes up and not while the day is being written, and only the day's
+photographs are offered — the rest of the library is the photo key's, which
+opens the system picker directly.
 
 Read through a seam, like Day Data and for the same reasons: reading never
 fails and never asks, so a device with no library, a permission refused and a
-day the camera missed all arrive as nothing to offer — which is a sheet with a
-line saying so and the library button under it, never a notice and never a
-journal that would not open. The library is read when the sheet comes up and
-not while the day is being written.
+day the camera missed all arrive as nothing to offer — never a notice and
+never a journal that would not open.
 
 One of the two things in Aujour that ask for the photo library — the
 `{{location}}` Widget asks for it too, to read where the day's photographs were
@@ -614,9 +669,8 @@ taken — and both ask because the user tapped the offer to look, never because 
 day was opened. What the system says when it asks speaks for both, rather than
 leaving the larger claim to the sentence this panel would have asked with.
 Saying no costs the day's photographs on the sheet and the places from
-photographs, and nothing else: the sheet's library button goes through the
-system picker, which runs in a process of its own and needs no permission at
-all.
+photographs, and nothing else: the photo key goes through the system picker,
+which runs in a process of its own and needs no permission at all.
 
 ### Export
 A copy of one Entry, made to leave the app: sent to somebody, filed, or

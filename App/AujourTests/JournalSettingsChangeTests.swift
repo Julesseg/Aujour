@@ -422,6 +422,8 @@ private struct ADayOfItems: DayItemSource {
 
     init(_ items: [DayItem]) { self.items = items }
 
+    var access: DayDataAccess { .allowed }
+
     func items(during day: DateInterval) async -> [DayItem] { items }
 }
 

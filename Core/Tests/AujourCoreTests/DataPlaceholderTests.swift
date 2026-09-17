@@ -17,12 +17,17 @@ private final class ADayOfItems: DayItemSource, @unchecked Sendable {
     private var askedAbout: DateInterval?
     private var timesPrepared = 0
 
-    init(_ items: [DayItem]) {
+    /// Where the permission stands, as the test said it does.
+    let access: DayDataAccess
+
+    init(_ items: [DayItem], access: DayDataAccess = .allowed) {
         self.answer = { _ in items }
+        self.access = access
     }
 
     init(answering answer: @escaping @Sendable (DateInterval) -> [DayItem]) {
         self.answer = answer
+        self.access = .allowed
     }
 
     func items(during day: DateInterval) async -> [DayItem] {
@@ -55,6 +60,8 @@ private final class ASourceThatWaits: DayItemSource, @unchecked Sendable {
         self.arrived = arrived
         self.letGo = letGo
     }
+
+    var access: DayDataAccess { .allowed }
 
     func items(during day: DateInterval) async -> [DayItem] {
         arrived()
@@ -446,6 +453,96 @@ struct DataPlaceholderFormatTests {
         )
     }
 
+    // An end and a colour are for Suggestions to draw and never for the
+    // file: what a placeholder writes is the title and the hour it began,
+    // and nothing else — so a day drawn on the sheet and the same day
+    // spawned from the template are the same characters.
+    @Test("an item's end and colour never reach the markdown")
+    func endsAndColoursAreNeverWritten() {
+        let drawn = [
+            DayItem(
+                title: "Standup", time: at(9, 30), end: at(10),
+                color: DayItemColor(red: 1, green: 0, blue: 0)
+            ),
+            DayItem(title: "Bank holiday", color: DayItemColor(red: 0, green: 0, blue: 1)),
+        ]
+
+        for placeholder in DataPlaceholder.allCases {
+            let format = DataPlaceholderFormat.default(for: placeholder)
+            #expect(
+                format.render(drawn, timeZone: paris, locale: english)
+                    == format.render(items, timeZone: paris, locale: english)
+            )
+        }
+    }
+
+    @Test("an item has no end and no colour unless it was given them")
+    func endAndColourDefaultToNone() {
+        let plain = DayItem(title: "Standup", time: at(9, 30))
+        #expect(plain.end == nil)
+        #expect(plain.color == nil)
+        #expect(DayItem(named: "Standup")?.end == nil)
+        #expect(DayItem(named: "Standup")?.color == nil)
+
+        let drawn = DayItem(
+            named: "Standup", at: at(9, 30), ending: at(10),
+            color: DayItemColor(red: 0.5, green: 0.25, blue: 0)
+        )
+        #expect(drawn?.end == at(10))
+        #expect(drawn?.color == DayItemColor(red: 0.5, green: 0.25, blue: 0))
+    }
+
+    // The sheet writes one item where a spawn writes the day, and the two
+    // are the same characters because the day is written one line at a time
+    // by the same rule.
+    @Test("one item is the one line the whole day would have held for it")
+    func oneItemIsOneLineOfTheDay() {
+        let day = [
+            DayItem(title: "Book the train", time: at(8), isDone: true),
+            DayItem(title: "Call the dentist", time: at(11)),
+            DayItem(title: "Water the plants"),
+        ]
+
+        for placeholder in DataPlaceholder.allCases {
+            let format = DataPlaceholderFormat.default(for: placeholder)
+            let lines = day.map { format.line(for: $0, timeZone: paris, locale: english) }
+            #expect(
+                lines.joined(separator: "\n")
+                    == format.render(day, timeZone: paris, locale: english)
+            )
+        }
+
+        let reminders = DataPlaceholderFormat.default(for: .reminders)
+        #expect(reminders.line(for: day[0], timeZone: paris, locale: english) == "- [x] 08:00 Book the train")
+        #expect(reminders.line(for: day[1], timeZone: paris, locale: english) == "- [ ] 11:00 Call the dentist")
+        #expect(reminders.line(for: day[2], timeZone: paris, locale: english) == "- [ ] Water the plants")
+    }
+
+    @Test("one item's line is written in the setting's own prefix and time format")
+    func oneItemsLineFollowsTheSetting() {
+        let standup = DayItem(title: "Standup", time: at(9, 30))
+
+        #expect(
+            DataPlaceholderFormat(linePrefix: "* ", timeFormat: MomentFormat("h:mm a"))
+                .line(for: standup, timeZone: paris, locale: english)
+                == "* 9:30 am Standup"
+        )
+        #expect(
+            DataPlaceholderFormat(timeFormat: nil)
+                .line(for: standup, timeZone: paris, locale: english)
+                == "- Standup"
+        )
+        #expect(
+            DataPlaceholderFormat(linePrefix: "* ", donePrefix: "* ✓ ")
+                .line(for: DayItem(title: "Standup", isDone: true), timeZone: paris, locale: english)
+                == "* ✓ Standup"
+        )
+        #expect(
+            DataPlaceholderFormat().line(for: DayItem(title: "Two\nlines"), timeZone: paris, locale: english)
+                == "- Two lines"
+        )
+    }
+
     @Test("the day's items can be put in the order the day happened in")
     func itemsSortThroughTheDay() {
         let unordered = [
@@ -463,6 +560,30 @@ struct DataPlaceholderFormatTests {
         #expect(DayItem(named: "   \n ") == nil)
         // And a name with room around it is written without it.
         #expect(DayItem(named: "  Standup  ")?.title == "Standup")
+    }
+}
+
+// Where a permission stands is read and never asked for: the sheet draws a
+// different thing for each answer, and drawing a sheet is not a reason to
+// put a system alert in front of anybody.
+@Suite("Where a data placeholder's permission stands")
+struct DayDataAccessTests {
+    @Test("a source says where its permission stands without being asked to prepare")
+    func accessIsReadWithoutPreparing() {
+        for standing in [DayDataAccess.undecided, .allowed, .refused] {
+            let source = ADayOfItems([], access: standing)
+
+            #expect(DayData([.events: source]).access(for: .events) == standing)
+            #expect(source.preparations == 0)
+        }
+    }
+
+    // Nothing was asked and nothing answered: a device with no such data,
+    // which is a permission no button could change.
+    @Test("a placeholder with no source at all is one this device cannot read")
+    func noSourceIsRefused() {
+        #expect(DayData().access(for: .reminders) == .refused)
+        #expect(DayData([.events: ADayOfItems([])]).access(for: .reminders) == .refused)
     }
 }
 

@@ -40,10 +40,37 @@ public struct DayItem: Hashable, Sendable {
     /// writes those lines the same either way.
     public var isDone: Bool
 
-    public init(title: String, time: Date? = nil, isDone: Bool = false) {
+    /// Where in the day it ended, or `nil` for something with no such hour
+    /// in this day — an all-day event, a meeting that runs on past midnight,
+    /// a reminder — and never without a ``time``: what the day held without
+    /// an hour it began at is not given an hour it ended at either.
+    ///
+    /// For Suggestions to draw and never for the file: what a data
+    /// placeholder writes is the title and the hour it began, and nothing
+    /// else, so a day drawn on the sheet and the same day spawned from the
+    /// Content Template are the same characters.
+    public var end: Date?
+
+    /// The colour the calendar it is from — or the list, for a reminder — is
+    /// drawn in on this device, or `nil` where nothing said.
+    ///
+    /// Carried for the same reason as ``end`` and under the same rule: shown,
+    /// never written. The calendar's *name* is not carried at all — the sheet
+    /// draws the colour and never the name.
+    public var color: DayItemColor?
+
+    public init(
+        title: String,
+        time: Date? = nil,
+        end: Date? = nil,
+        isDone: Bool = false,
+        color: DayItemColor? = nil
+    ) {
         self.title = title
         self.time = time
         self.isDone = isDone
+        self.end = end
+        self.color = color
     }
 
     /// An item, or nothing at all for one with no name.
@@ -51,10 +78,34 @@ public struct DayItem: Hashable, Sendable {
     /// For a source reading somebody's calendar, where a nameless event is a
     /// real thing to find: written out, it would be a bullet with nothing
     /// after it — a line in a journal saying only that a line was written.
-    public init?(named title: String?, at time: Date? = nil, isDone: Bool = false) {
+    public init?(
+        named title: String?,
+        at time: Date? = nil,
+        ending end: Date? = nil,
+        isDone: Bool = false,
+        color: DayItemColor? = nil
+    ) {
         let named = (title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !named.isEmpty else { return nil }
-        self.init(title: named, time: time, isDone: isDone)
+        self.init(title: named, time: time, end: end, isDone: isDone, color: color)
+    }
+}
+
+/// A colour as a screen draws it: three sRGB components, each from 0 to 1.
+///
+/// Core's own shape for it rather than the platform's, because Core has no
+/// platform: what a calendar is drawn in is a fact about the device that the
+/// seam carries across, and it has to be a fact `swift test` can hold on
+/// Linux. A screen turns it into whatever it draws with.
+public struct DayItemColor: Hashable, Sendable {
+    public var red: Double
+    public var green: Double
+    public var blue: Double
+
+    public init(red: Double, green: Double, blue: Double) {
+        self.red = red
+        self.green = green
+        self.blue = blue
     }
 }
 
@@ -90,6 +141,14 @@ extension Array where Element == DayItem {
 /// appear because a calendar was unreachable. Everything that goes wrong down
 /// there arrives here as an empty day.
 public protocol DayItemSource: Sendable {
+    /// Where the permission behind this source stands, without asking for it.
+    ///
+    /// Read and never asked: Suggestions draws a different thing for each
+    /// answer — an offer to look, the day's items, or nothing at all — and
+    /// drawing a sheet is not a reason to put a system alert in front of
+    /// anybody. Asking is ``prepare()``.
+    var access: DayDataAccess { get }
+
     /// The items this source has for a stretch of the day.
     ///
     /// Answers, and answers promptly, whatever the state of the permission
@@ -113,6 +172,24 @@ public protocol DayItemSource: Sendable {
 extension DayItemSource {
     /// Most sources need nothing asked for.
     public func prepare() async {}
+}
+
+/// Whether Aujour may read what a ``DayItemSource`` reads.
+///
+/// Three answers rather than a `Bool`, for the reason ``PhotoLibraryAccess``
+/// has three: an undecided calendar is one worth offering to look in, a
+/// refused one has nothing from the day to show, and only an allowed one is
+/// ever read.
+public enum DayDataAccess: Hashable, Sendable {
+    /// Nobody has been asked yet.
+    case undecided
+
+    /// Aujour may read it — all of it, and nothing less: an app allowed only
+    /// to *add* to a calendar cannot read the day, and counts as refused.
+    case allowed
+
+    /// The user said no, or this device does not allow it at all.
+    case refused
 }
 
 // MARK: - Showing what a format would write
@@ -257,12 +334,24 @@ public struct DataPlaceholderFormat: Hashable, Sendable {
     /// knows about lines and not about calendars.
     public func render(_ items: [DayItem], timeZone: TimeZone, locale: Locale) -> String {
         guard !items.isEmpty else { return whenEmpty }
-        return items.map { item in
-            (item.isDone ? donePrefix : linePrefix)
-                + time(of: item, timeZone: timeZone, locale: locale)
-                + oneLine(item.title)
-        }
-        .joined(separator: "\n")
+        return items.map { line(for: $0, timeZone: timeZone, locale: locale) }
+            .joined(separator: "\n")
+    }
+
+    /// The one line the placeholder would have written for this item.
+    ///
+    /// What Suggestions writes when one of the day's items is tapped, and
+    /// what ``render(_:timeZone:locale:)`` writes the whole day with, one
+    /// item at a time — so an event tapped from the sheet and the same event
+    /// spawned from the Content Template are the same characters in the file,
+    /// and the two cannot drift.
+    ///
+    /// Only the title and the hour it began: an item's end and colour are for
+    /// the sheet to draw and never reach the markdown.
+    public func line(for item: DayItem, timeZone: TimeZone, locale: Locale) -> String {
+        (item.isDone ? donePrefix : linePrefix)
+            + time(of: item, timeZone: timeZone, locale: locale)
+            + oneLine(item.title)
     }
 
     private func time(of item: DayItem, timeZone: TimeZone, locale: Locale) -> String {
@@ -351,6 +440,16 @@ public struct DayData: Sendable {
                 group.addTask { await source.prepare() }
             }
         }
+    }
+
+    /// Where one placeholder's permission stands, without asking for it.
+    ///
+    /// A placeholder with no source at all is refused rather than undecided:
+    /// there is nothing to ask, so an offer to look would be a button that
+    /// could not change the answer — and a device with no such data is what
+    /// refused already means.
+    public func access(for placeholder: DataPlaceholder) -> DayDataAccess {
+        sources[placeholder]?.access ?? .refused
     }
 
     /// What one placeholder renders as for the Entry being spawned.

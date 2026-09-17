@@ -900,6 +900,8 @@ struct AutosaveTimingTests {
 private struct ADayInTheCalendar: DayItemSource {
     var holding: [String]? = nil
 
+    var access: DayDataAccess { .allowed }
+
     func items(during day: DateInterval) async -> [DayItem] {
         if let holding {
             return holding.map { DayItem(title: $0) }

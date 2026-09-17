@@ -156,36 +156,13 @@ public struct Attachment: Hashable, Sendable {
 extension Attachment {
     /// The edit that writes this embed into an Entry with the cursor here.
     ///
-    /// On a line of its own, which is what a picture in a day is: line breaks
-    /// are added only where there is not one already, so a caret on the empty
-    /// line the return key just made writes no blank lines around it.
-    ///
-    /// Nothing is taken out. A selection is not replaced the way typing over
-    /// one is — the picture goes in after it — because nobody adding a
-    /// photograph meant to delete the words they had selected, and no words
-    /// are ever silently discarded (`v1-decisions.md`).
-    ///
-    /// The cursor is left after the picture, where the next sentence goes.
+    /// On a line of its own, which is what a picture in a day is, and placed
+    /// by the one rule everything on a line of its own is placed by
+    /// (``MarkdownEdit/onItsOwnLine(_:in:at:)``): after a selection rather
+    /// than over it, with no blank lines around it, and the cursor left after
+    /// the picture, where the next sentence goes.
     public func insertion(into source: String, at selection: NSRange) -> MarkdownEdit {
-        let text = source as NSString
-        // A caret reported past the end of the day is about a version of it
-        // that has been replaced since — the end of the Entry is where the
-        // picture goes, rather than an exception in front of somebody who is
-        // writing.
-        let caret = min(max(selection.upperBound, 0), text.length)
-
-        let onALineAlready = caret == 0 || text.character(at: caret - 1) == 0x0A
-        let restOfTheLine = caret < text.length && text.character(at: caret) != 0x0A
-        let replacement = (onALineAlready ? "" : "\n") + embed + (restOfTheLine ? "\n" : "")
-
-        return MarkdownEdit(
-            range: NSRange(location: caret, length: 0),
-            replacement: replacement,
-            selection: NSRange(
-                location: caret + (replacement as NSString).length,
-                length: 0
-            )
-        )
+        .onItsOwnLine(embed, in: source, at: selection)
     }
 }
 

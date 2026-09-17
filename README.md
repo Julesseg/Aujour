@@ -65,7 +65,7 @@ ci/                   assemble-build-history.mjs + pipeline docs (ci/README.md)
 docs/agents/          auto-dispatch setup (self-hosted runner + Paseo)
 .agents/              Shared agent hooks
 .claude/ .codex/      Native Claude Code and Codex adapters
-.pi/ .opencode/       Native Pi and OpenCode adapters
+.pi/                   Native Pi adapter
 scripts/rename.sh     placeholder → your identity
 ```
 
@@ -282,7 +282,7 @@ Full walkthrough, scope rules, the in-flight cap, and the optional variables:
 
 ## Agent integration
 
-Shared hooks live under `.agents/hooks`. Claude Code, Codex, Pi, and OpenCode
+Shared hooks live under `.agents/hooks`. Claude Code, Codex, and Pi
 use thin native adapters for the same behavior:
 
 - **`validate-commit-msg.py`** blocks `git commit` unless the

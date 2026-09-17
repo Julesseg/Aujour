@@ -523,6 +523,8 @@ private struct ADaySeededByATest: DayItemSource {
         self.lines = (seeded ?? "").split(whereSeparator: \.isNewline)
     }
 
+    var access: DayDataAccess { .allowed }
+
     func items(during day: DateInterval) async -> [DayItem] {
         lines.map { line in
             let clock = line.prefix(5)

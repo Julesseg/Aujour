@@ -54,6 +54,51 @@ public struct MarkdownEdit: Equatable, Sendable {
     }
 }
 
+extension MarkdownEdit {
+    /// The edit that puts `markdown` into an Entry on a line of its own, at
+    /// the caret.
+    ///
+    /// The one rule for anything that goes into a day as a line — a
+    /// photograph's embed, a meeting's line from Suggestions — so that they
+    /// are placed by one reading of "at the caret" and not two. Line breaks
+    /// are added only where there is not one already, so a caret on the
+    /// empty line the return key just made writes no blank lines around it.
+    ///
+    /// Nothing is taken out. A selection is not replaced the way typing over
+    /// one is — the line goes in after it — because nobody adding a line
+    /// meant to delete the words they had selected, and no words are ever
+    /// silently discarded (`v1-decisions.md`).
+    ///
+    /// The cursor is left after the line, where the next one goes: which is
+    /// what lets four meetings tapped one after another come out as one
+    /// list, each landing after the last.
+    public static func onItsOwnLine(
+        _ markdown: String,
+        in source: String,
+        at selection: NSRange
+    ) -> MarkdownEdit {
+        let text = source as NSString
+        // A caret reported past the end of the day is about a version of it
+        // that has been replaced since — the end of the Entry is where the
+        // line goes, rather than an exception in front of somebody who is
+        // writing.
+        let caret = min(max(selection.upperBound, 0), text.length)
+
+        let onALineAlready = caret == 0 || text.character(at: caret - 1) == 0x0A
+        let restOfTheLine = caret < text.length && text.character(at: caret) != 0x0A
+        let replacement = (onALineAlready ? "" : "\n") + markdown + (restOfTheLine ? "\n" : "")
+
+        return MarkdownEdit(
+            range: NSRange(location: caret, length: 0),
+            replacement: replacement,
+            selection: NSRange(
+                location: caret + (replacement as NSString).length,
+                length: 0
+            )
+        )
+    }
+}
+
 extension EntryMarkdown {
     /// The edit that ticks or unticks the box on the line `index` is on, or
     /// `nil` when nothing on that line is a box.

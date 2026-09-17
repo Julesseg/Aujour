@@ -481,6 +481,8 @@ struct JournalCalendarBackfillTests {
 /// A source that answers with the date it was asked about, so that a spawned
 /// Entry says which day the calendar was read for.
 private struct TheDayThatWasRead: DayItemSource {
+    var access: DayDataAccess { .allowed }
+
     func items(during day: DateInterval) async -> [DayItem] {
         [DayItem(title: MomentFormat("YYYY-MM-DD").render(day.start, timeZone: paris))]
     }

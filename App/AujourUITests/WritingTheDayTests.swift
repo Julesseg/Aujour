@@ -733,7 +733,7 @@ final class WritingTheDayTests: AujourUITestCase {
         expect(editor, toHaveValue: "Notes\n- 09:30 Standup\n- 14:00 Dentist")
 
         let photo = app.buttons["photoSuggestion0"]
-        XCTAssertTrue(photo.exists, "the photograph was not offered after the events")
+        scrollTo(photo, in: app)
         photo.tap()
         let embed = "![](\(todaysPhotograph(named: "jpg")))"
         expect(editor, toHaveValue: "Notes\n- 09:30 Standup\n- 14:00 Dentist\n" + embed)

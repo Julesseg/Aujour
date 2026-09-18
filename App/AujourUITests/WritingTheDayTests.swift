@@ -760,6 +760,89 @@ final class WritingTheDayTests: AujourUITestCase {
         )
     }
 
+    func testTheDaysRemindersAreAChecklistAndTapsMakeOneList() throws {
+        let app = launchApp(reminders: "09:30 Buy bread\n[x] 18:00 Call the dentist")
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        editor.tap()
+        editor.typeText("Notes")
+        app.buttons["openSuggestions"].tap()
+
+        let reminders = app.staticTexts["reminderSuggestions"]
+        XCTAssertTrue(reminders.waitForExistence(timeout: 10), "the Reminders section never appeared")
+        XCTAssertEqual(reminders.label, "Reminders")
+
+        let bread = app.buttons["reminderSuggestion0"]
+        let dentist = app.buttons["reminderSuggestion1"]
+        XCTAssertTrue(bread.exists)
+        XCTAssertTrue(dentist.exists)
+        XCTAssertTrue(bread.label.contains(onTheClock(hour: 9, minute: 30)))
+        XCTAssertTrue(dentist.label.contains("Done"), "a completed reminder was shown as unfinished")
+
+        bread.tap()
+        XCTAssertTrue(app.buttons["cancelSuggestions"].exists, "the sheet closed after a reminder was inserted")
+        XCTAssertTrue(bread.label.contains("Inserted"), "the inserted reminder was not ticked")
+        expect(editor, toHaveValue: "Notes\n- [ ] 09:30 Buy bread")
+
+        bread.tap()
+        expect(editor, toHaveValue: "Notes\n- [ ] 09:30 Buy bread")
+
+        dentist.tap()
+        expect(editor, toHaveValue: "Notes\n- [ ] 09:30 Buy bread\n- [x] 18:00 Call the dentist")
+
+        dentist.tap()
+        expect(editor, toHaveValue: "Notes\n- [ ] 09:30 Buy bread\n- [x] 18:00 Call the dentist")
+
+        app.buttons["cancelSuggestions"].tap()
+        XCTAssertTrue(app.buttons["openSuggestions"].waitForExistence(timeout: 10))
+        app.buttons["openSuggestions"].tap()
+        let reopenedBread = app.buttons["reminderSuggestion0"]
+        XCTAssertTrue(reopenedBread.waitForExistence(timeout: 10))
+        XCTAssertFalse(reopenedBread.label.contains("Inserted"), "a reminder stayed ticked after reopening")
+    }
+
+    func testUndecidedRemindersAreOnlyReadAfterTheirOfferIsTapped() throws {
+        let app = launchApp(reminders: "09:30 Buy bread", remindersAccess: "undecided")
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        editor.tap()
+        app.buttons["openSuggestions"].tap()
+
+        let offer = app.buttons["showReminderSuggestions"]
+        XCTAssertTrue(offer.waitForExistence(timeout: 10), "the sheet never offered to look")
+        XCTAssertFalse(app.staticTexts["reminderSuggestions"].exists, "reminders were read before asking")
+        offer.tap()
+
+        XCTAssertTrue(
+            app.buttons["reminderSuggestion0"].waitForExistence(timeout: 10),
+            "the checklist did not replace the permission offer"
+        )
+        XCTAssertTrue(app.buttons["cancelSuggestions"].exists, "asking for reminders closed the sheet")
+    }
+
+    func testRefusedAndEmptyDaysDrawNoRemindersSection() throws {
+        let refused = launchApp(reminders: "09:30 Buy bread", remindersAccess: "refused")
+        let editor = refused.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        editor.tap()
+        refused.buttons["openSuggestions"].tap()
+
+        XCTAssertTrue(refused.staticTexts["nothingToSuggest"].waitForExistence(timeout: 10))
+        XCTAssertFalse(refused.staticTexts["reminderSuggestions"].exists)
+        XCTAssertFalse(refused.buttons["showReminderSuggestions"].exists)
+
+        refused.terminate()
+        let empty = launchApp()
+        let emptyEditor = empty.textViews["entryEditor"]
+        XCTAssertTrue(emptyEditor.waitForExistence(timeout: 30), "today's entry never appeared")
+        emptyEditor.tap()
+        empty.buttons["openSuggestions"].tap()
+
+        XCTAssertTrue(empty.staticTexts["nothingToSuggest"].waitForExistence(timeout: 10))
+        XCTAssertFalse(empty.staticTexts["reminderSuggestions"].exists)
+        XCTAssertFalse(empty.buttons["showReminderSuggestions"].exists)
+    }
+
     func testUndecidedEventsAreOnlyReadAfterTheirOfferIsTapped() throws {
         let app = launchApp(events: "09:30-10:30 Standup", eventsAccess: "undecided")
         let editor = app.textViews["entryEditor"]

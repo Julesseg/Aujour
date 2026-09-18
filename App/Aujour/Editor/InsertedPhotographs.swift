@@ -16,12 +16,11 @@ import UniformTypeIdentifiers
 ///
 /// ## Two doors, one pipeline
 ///
-/// A photograph is chosen on the sheet the photo key puts up (``PhotoSheet``),
-/// and it arrives either as one of the day's own, handed over by the library,
-/// or as whatever the system picker came back with. From there on the two are
-/// the same photograph: converted where a vault could not hold it, written
-/// under the Attachment Path Template for this Entry's Journal Day, and
-/// answered as the embed to put at the caret — which is the sheet's to place,
+/// A photograph is chosen either in the system picker the photo key puts up or
+/// from the day's own photographs on ``SuggestionsSheet``. From there on the
+/// two are the same photograph: converted where a vault could not hold it,
+/// written under the Attachment Path Template for this Entry's Journal Day,
+/// and answered as the embed to put at the caret — which is the sheet's to place,
 /// since where the caret was is a thing only the editor knew.
 ///
 /// ## Only one of those doors asks for anything

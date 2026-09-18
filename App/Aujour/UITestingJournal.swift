@@ -27,7 +27,7 @@ import AujourCore
 ///   the resolving, the formatting, the spawn — is the app's own code. A
 ///   UI-test journal never reaches EventKit at all, which is also what keeps
 ///   a permission alert from another process out of the middle of a test.
-/// - **A day's photographs.** The photo sheet reads the device's photo
+/// - **A day's photographs.** Suggestions reads the device's photo
 ///   library, which in a simulator is empty and behind a system alert nothing
 ///   in the suite can answer. So the test says which days the camera has
 ///   something from, and everything after that — which of them belong to the
@@ -201,7 +201,7 @@ enum UITestingJournal {
     /// line as `YYYY-MM-DD` — or `YYYY-MM-DD HH:mm` for one taken at an hour
     /// the test cares about. One photograph each, drawn rather than carried.
     ///
-    /// Which photographs a day is offered is the whole of the photo sheet's
+    /// Which photographs a day is offered is the whole of Suggestions'
     /// grid, so a test says them by the day they were taken on: that is how
     /// "today's photographs" and "the photographs of a day filled in later"
     /// are two different claims rather than the same one twice.
@@ -543,7 +543,7 @@ private struct ADaySeededByATest: DayItemSource {
 ///
 /// Always built, even when the test seeded nothing — what a UI test must not
 /// have is the *device's* library, and an empty one of its own is how the
-/// photo sheet offers nothing from the day without anybody being asked for a
+/// Suggestions offers nothing from the day without anybody being asked for a
 /// permission.
 ///
 /// A class, and unchecked, because being asked has to stick: the sheet reads

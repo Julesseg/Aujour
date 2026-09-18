@@ -28,16 +28,25 @@ struct MarkdownEditor: UIViewRepresentable {
     /// which Entry is not a thing a text view knows.
     let pictures: EmbeddedPictures
 
-    /// Puts up the sheet a photograph is chosen on, because the photo key was
-    /// pressed. What that looks like is a sheet, and a sheet is put up where
-    /// there is a view hierarchy to put it in — which is the screen the day
-    /// is on, not the text view the key is over. What travels is where the
-    /// caret was, folded into the request (``PhotoRequest``).
+    /// Puts up the system picker a photograph is chosen in, because the photo
+    /// key was pressed. A picker is a presentation, and a presentation is put
+    /// up where there is a view hierarchy to put it in — which is the screen
+    /// the day is on, not the text view the key is over. What travels is where
+    /// the caret was, folded into the request (``PhotoRequest``).
     ///
     /// `nil` leaves the key on the row and not offered, which is what a text
     /// view with no Entry behind it — a preview, a test of the formatting
     /// controls — has to show.
     let requests: ((PhotoRequest) -> Void)?
+
+    /// Puts up the Suggestions sheet, because the Suggestions key was pressed
+    /// — the same arrangement as the photo key above, and for the same reason.
+    /// What travels is where the caret was, folded into the request
+    /// (``SuggestionsRequest``).
+    ///
+    /// `nil` on the same rule: an insertion needs a caret, and a text view
+    /// with no Entry behind it has nothing to insert into.
+    let suggests: ((SuggestionsRequest) -> Void)?
 
     /// Asks an unanswered placeholder's question, because a finger landed on
     /// its widget. What that looks like is a sheet, and a sheet is put up
@@ -184,11 +193,10 @@ struct MarkdownEditor: UIViewRepresentable {
 
         context.coordinator.asks = asks
         context.coordinator.requests = requests
+        context.coordinator.suggests = suggests
         context.coordinator.caretSettled = caretSettled
         context.coordinator.answersTaps(in: textView)
-        context.coordinator.formats(
-            in: textView, offeringPhotos: requests != nil, accent: styling.box
-        )
+        context.coordinator.formats(in: textView, overADay: requests != nil, accent: styling.box)
         storage.setSource(text)
         context.coordinator.textSettled(in: textView)
         if let section { textView.shows(section, tucked: sectionIsTucked) }
@@ -208,6 +216,7 @@ struct MarkdownEditor: UIViewRepresentable {
         context.coordinator.text = $text
         context.coordinator.asks = asks
         context.coordinator.requests = requests
+        context.coordinator.suggests = suggests
         context.coordinator.caretSettled = caretSettled
         textView.accessibilityLabel = label
         if let textView = textView as? MarkdownTextView {
@@ -254,11 +263,12 @@ struct MarkdownEditor: UIViewRepresentable {
 
         let caret = textView.selectedRange
         let shifted = CutEntry.caretShift(from: textView.text, to: text)
+        let length = (text as NSString).length
+        context.coordinator.shiftInsertionAnchors(by: shifted, inside: length)
         storage.setSource(text)
         context.coordinator.textSettled(in: textView)
         // Wherever it was, if there is still a there: a version arriving from
         // iCloud can be shorter than the one on screen.
-        let length = (text as NSString).length
         textView.selectedRange = NSRange(
             location: min(max(caret.location + shifted, 0), length), length: 0
         )
@@ -276,6 +286,26 @@ struct MarkdownEditor: UIViewRepresentable {
     /// Carries what was typed back to the Entry, and where the cursor is back
     /// to the storage.
     final class Coordinator: NSObject, UITextViewDelegate {
+        /// A caret kept while a picker or sheet is away from the editor.
+        /// Reference-shaped so edits can move it before its request returns.
+        private final class InsertionAnchor {
+            var position: Int
+
+            init(_ selection: NSRange) {
+                position = selection.upperBound
+            }
+        }
+
+        /// The coordinator must move every pending anchor, but must not keep a
+        /// cancelled picker or sheet alive forever.
+        private final class WeakInsertionAnchor {
+            weak var value: InsertionAnchor?
+
+            init(_ value: InsertionAnchor) {
+                self.value = value
+            }
+        }
+
         var text: Binding<String>
 
         /// Puts an unanswered placeholder's question in front of the user.
@@ -322,6 +352,13 @@ struct MarkdownEditor: UIViewRepresentable {
         /// captured, because the row is built once and this struct is rebuilt
         /// on every keystroke.
         var requests: ((PhotoRequest) -> Void)?
+
+        /// The same, for the Suggestions key.
+        var suggests: ((SuggestionsRequest) -> Void)?
+
+        /// Carets waiting for an asynchronous insertion, held weakly so a
+        /// cancelled presentation drops its own without any cleanup message.
+        private var insertionAnchors: [WeakInsertionAnchor] = []
 
         init(text: Binding<String>) {
             self.text = text
@@ -411,22 +448,29 @@ struct MarkdownEditor: UIViewRepresentable {
         ///
         /// The text view's own `inputAccessoryView`, which is the whole of how
         /// it comes and goes with the keyboard — see ``MarkdownAccessoryRow``.
-        /// The row is handed two ways of saying what was pressed and nothing
+        /// The row is handed the ways of saying what was pressed and nothing
         /// else: what a control writes is Core's, and where it writes it is
-        /// this text view's. The photo key is the one that is not punctuation,
-        /// and it is offered exactly when there is an Entry behind this editor
-        /// for a photograph to be written beside.
+        /// this text view's. The two keys that are not punctuation — the
+        /// photograph and Suggestions — are offered exactly when there is an
+        /// Entry behind this editor, because both of them are an insertion and
+        /// an insertion needs a caret.
         func formats(
             in textView: UITextView,
-            offeringPhotos: Bool,
+            overADay: Bool,
             accent: UIColor
         ) {
             textView.inputAccessoryView = MarkdownAccessoryRow(
                 accent: accent,
-                insertPhoto: offeringPhotos
+                insertPhoto: overADay
                     ? { [weak self, weak textView] in
                         guard let self, let textView else { return }
                         asksForAPhoto(in: textView)
+                    }
+                    : nil,
+                openSuggestions: overADay
+                    ? { [weak self, weak textView] in
+                        guard let self, let textView else { return }
+                        asksForSuggestions(in: textView)
                     }
                     : nil
             ) { [weak self, weak textView] command in
@@ -446,36 +490,73 @@ struct MarkdownEditor: UIViewRepresentable {
             (textView.inputAccessoryView as? MarkdownAccessoryRow)?.accent = accent
         }
 
-        /// Asks the screen for the photo sheet, and says where in the day
-        /// whatever is chosen on it goes.
+        /// Asks the screen for the system photo picker, and says where in the
+        /// day whatever is chosen in it goes.
         ///
         /// The caret is read now rather than when the photograph arrives: a
-        /// sheet is another screen, and it takes the keyboard and the first
+        /// picker is another screen, and it takes the keyboard and the first
         /// responder with it — so "at the caret" has to mean where the cursor
         /// was when the key was pressed. The keyboard is asked back when the
-        /// sheet goes, whatever happened on it, because somebody who pressed
+        /// picker goes, whatever happened in it, because somebody who pressed
         /// a key above the keyboard was writing — and the commonest outcome of
-        /// opening a sheet is closing it again.
+        /// opening a picker is closing it again.
         ///
         /// The embed goes in through the same door a tapped control goes
         /// through, so the picture is one undo step and the Entry saves it as
         /// typing.
         ///
         /// Internal, and answering with the request it made, so that a test
-        /// can press the key and stand in for the sheet.
+        /// can press the key and stand in for the picker.
         @discardableResult
         func asksForAPhoto(in textView: UITextView) -> PhotoRequest? {
             guard let requests else { return nil }
-            let caret = textView.selectedRange
+            let caret = insertionAnchor(at: textView.selectedRange)
 
             let request = PhotoRequest(
                 insert: { [weak self, weak textView] attachment in
                     guard let self, let textView else { return }
-                    apply(attachment.insertion(into: textView.text, at: caret), in: textView)
+                    apply(
+                        attachment.insertion(
+                            into: textView.text,
+                            at: NSRange(location: caret.position, length: 0)
+                        ),
+                        in: textView
+                    )
                 },
                 finished: { [weak textView] in textView?.becomeFirstResponder() }
             )
             requests(request)
+            return request
+        }
+
+        /// Asks the screen for the Suggestions sheet, and says where in the
+        /// day whatever is tapped on it goes.
+        ///
+        /// The caret is read when the key is pressed, for the reason the photo
+        /// key's is: the sheet takes the keyboard and the first responder with
+        /// it, and a text view with neither reports no caret worth having.
+        ///
+        /// Internal, and answering with the request it made, so that a test can
+        /// press the key and stand in for the sheet.
+        @discardableResult
+        func asksForSuggestions(in textView: UITextView) -> SuggestionsRequest? {
+            guard let suggests else { return nil }
+            let caret = insertionAnchor(at: textView.selectedRange)
+
+            let request = SuggestionsRequest(
+                insert: { [weak self, weak textView] attachment in
+                    guard let self, let textView else { return }
+                    apply(
+                        attachment.insertion(
+                            into: textView.text,
+                            at: NSRange(location: caret.position, length: 0)
+                        ),
+                        in: textView
+                    )
+                },
+                finished: { [weak textView] in textView?.becomeFirstResponder() }
+            )
+            suggests(request)
             return request
         }
 
@@ -525,6 +606,7 @@ struct MarkdownEditor: UIViewRepresentable {
                 return
             }
 
+            moveInsertionAnchors(along: edit)
             textView.textStorage.replaceCharacters(in: edit.range, with: edit.replacement)
             textSettled(in: textView)
             // Where the edit says, or back where it was. Ticking a box and
@@ -553,6 +635,44 @@ struct MarkdownEditor: UIViewRepresentable {
             textView.undoManager?.registerUndo(withTarget: self) { [weak textView] coordinator in
                 guard let textView else { return }
                 coordinator.apply(inverse, in: textView)
+            }
+        }
+
+        /// Remembers a caret for something that will return asynchronously.
+        private func insertionAnchor(at selection: NSRange) -> InsertionAnchor {
+            insertionAnchors.removeAll { $0.value == nil }
+            let anchor = InsertionAnchor(selection)
+            insertionAnchors.append(WeakInsertionAnchor(anchor))
+            return anchor
+        }
+
+        /// Keeps pending insertions attached to the same characters as edits
+        /// happen before them. This includes an earlier photograph finishing
+        /// while a later one is still downloading.
+        private func moveInsertionAnchors(along edit: MarkdownEdit) {
+            let replacementLength = (edit.replacement as NSString).length
+            insertionAnchors.removeAll { anchor in
+                guard let value = anchor.value else { return true }
+                if edit.range.upperBound <= value.position {
+                    value.position += replacementLength - edit.range.length
+                } else if edit.range.location < value.position {
+                    // The characters the caret belonged to were replaced.
+                    // Its surviving meaning is immediately after what took
+                    // their place, rather than an offset into unrelated text.
+                    value.position = edit.range.location + replacementLength
+                }
+                return false
+            }
+        }
+
+        /// Moves pending insertions with a whole-body replacement that added
+        /// or removed characters at the top, and keeps them inside the body
+        /// if an outside edit made it shorter.
+        func shiftInsertionAnchors(by shift: Int, inside length: Int) {
+            insertionAnchors.removeAll { anchor in
+                guard let value = anchor.value else { return true }
+                value.position = min(max(value.position + shift, 0), length)
+                return false
             }
         }
 
@@ -589,6 +709,7 @@ struct MarkdownEditor: UIViewRepresentable {
             else { return }
             let selection = textView.selectedRange
             let shift = CutEntry.caretShift(from: textView.text, to: body)
+            shiftInsertionAnchors(by: shift, inside: (body as NSString).length)
             storage.setSource(body)
             textSettled(in: textView)
             // The typing that made the block is not undoable now that the
@@ -655,6 +776,9 @@ struct MarkdownEditor: UIViewRepresentable {
                 let edit = MarkdownReturn.edit(textView.text, over: range)
             else {
                 changeIsAPaste = (text as NSString).length > 1
+                moveInsertionAnchors(
+                    along: MarkdownEdit(range: range, replacement: text)
+                )
                 return true
             }
 

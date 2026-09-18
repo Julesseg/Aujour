@@ -4,7 +4,7 @@ import UIKit
 
 import AujourCore
 
-/// The user's photo library, as the photo sheet reads it.
+/// The user's photo library, as Suggestions reads it.
 ///
 /// PhotoKit's half of ``AujourCore/PhotoLibrary``, and nothing besides: which
 /// photographs belong to the day being written, whether the sheet has any to
@@ -145,8 +145,8 @@ struct PhotoKitLibrary: PhotoLibrary {
     /// fetched larger than the square it goes in is a decode and a downscale
     /// of somebody's whole photograph, once per square in the grid.
     private static let thumbnailSize = CGSize(
-        width: PhotoSheet.square * 3,
-        height: PhotoSheet.square * 3
+        width: SuggestionsSheet.square * 3,
+        height: SuggestionsSheet.square * 3
     )
 
     private static func asset(_ photograph: DayPhotograph) -> PHAsset? {

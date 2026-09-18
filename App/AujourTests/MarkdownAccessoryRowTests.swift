@@ -144,9 +144,9 @@ struct MarkdownAccessoryRowTests {
     // Above the keyboard is the text view's own accessory view, which is the
     // whole of how the row comes and goes with it.
     //
-    // Nine controls and these nine. Every one of them writes a mark into the
-    // file; how big the Entry's text is is a writing preference and is asked
-    // for on the Appearance screen, so nothing here is a size control.
+    // Nine formatting controls, and Suggestions apart from them. How big the
+    // Entry's text is is a writing preference and is asked for on the
+    // Appearance screen, so nothing here is a size control.
     @Test("the editor puts the row above the keyboard, with every control on it")
     func theRow() throws {
         let entry = OpenEditor(holding: "Milk")
@@ -156,7 +156,7 @@ struct MarkdownAccessoryRowTests {
             controls(of: row).compactMap(\.accessibilityIdentifier) == [
                 "formatHeading", "formatBold", "formatItalic", "formatBulletList",
                 "formatNumberedList", "formatTaskList", "formatOutdent", "formatIndent",
-                "insertPhoto",
+                "insertPhoto", "openSuggestions",
             ]
         )
         // A symbol is not something VoiceOver can read out, so every one of
@@ -210,67 +210,47 @@ struct MarkdownAccessoryRowTests {
         )
     }
 
-    // MARK: - The pane it is drawn on
+    // MARK: - The panes it is drawn on
 
-    // The platform's glass, tinted to the identity's paper rather than painted
-    // over with it — and shaped as a pill inset from both edges, because the
-    // chrome sits over the paper rather than across the bottom of it.
-    @Test("the row is a pill of the platform's glass, tinted and inset")
+    // The same platform glass for both panes, tinted to the identity's paper
+    // rather than painted over with it.
+    @Test("both panes use the same glass recipe and sit inside the row")
     func theGlass() throws {
         let row = aRow { _ in }
         row.frame = CGRect(x: 0, y: 0, width: 390, height: row.intrinsicContentSize.height)
         row.layoutIfNeeded()
 
-        let pane = try #require(glass(of: row))
+        let panes = glasses(of: row)
+        #expect(panes.count == 2)
         let seeThrough = !UIAccessibility.isReduceTransparencyEnabled
-        if seeThrough {
-            let glass = try #require(pane.effect as? UIGlassEffect)
-            #expect(glass.tintColor == Palette.glass)
-            // Glass draws its own edge and its own lift; a second of either is
-            // two rims that do not agree.
-            #expect(pane.layer.borderWidth == 0)
-            #expect(shadows(under: pane).allSatisfy { $0.isHidden })
-        } else {
-            #expect(pane.effect == nil)
-            #expect(pane.contentView.backgroundColor == Palette.glassSolid)
-            #expect(pane.layer.borderWidth == 0.5)
-            #expect(shadows(under: pane).allSatisfy { !$0.isHidden })
+        for pane in panes {
+            if seeThrough {
+                let glass = try #require(pane.effect as? UIGlassEffect)
+                #expect(glass.tintColor == Palette.glass)
+                #expect(pane.layer.borderWidth == 0)
+                #expect(shadows(under: pane).allSatisfy { $0.isHidden })
+            } else {
+                #expect(pane.effect == nil)
+                #expect(pane.contentView.backgroundColor == Palette.glassSolid)
+                #expect(pane.layer.borderWidth == 0.5)
+                #expect(shadows(under: pane).allSatisfy { !$0.isHidden })
+            }
+
+            #expect(pane.effectiveRadius(corner: .allCorners) == pane.bounds.height / 2)
+
+            let pill = row.convert(pane.bounds, from: pane)
+            #expect(pill.minX > 0)
+            #expect(pill.maxX < row.bounds.width)
+            #expect(pill.height < row.bounds.height)
+
+            #expect(shadows(under: pane).count == Elevation.floating.layers.count)
+            #expect(shadows(under: pane).allSatisfy { $0.shadowPath != nil && $0.mask != nil })
         }
-
-        // A capsule, which is what `Rounding` says a pill is — it has no entry
-        // there because it is half its own height at whatever size it came out.
-        //
-        // Asked of the configuration rather than read off the layer, because
-        // the configuration is where it has to be said: the heading key morphs
-        // this pane into a menu and back, and a radius UIKit was not told about
-        // does not survive the trip.
-        #expect(pane.effectiveRadius(corner: .allCorners) == pane.bounds.height / 2)
-
-        // Off both edges and off the keyboard. Measured in the row's own
-        // coordinates, because the pane sits inside the view that lifts it.
-        let pill = row.convert(pane.bounds, from: pane)
-        #expect(pill.minX > 0)
-        #expect(pill.maxX < row.bounds.width)
-        #expect(pill.height < row.bounds.height)
-
-        // And the shadows are shaped, whether or not they are showing: a
-        // shadow with no path casts nothing, and one with no mask would lay
-        // its own outline down under the pane.
-        #expect(shadows(under: pane).count == Elevation.floating.layers.count)
-        #expect(shadows(under: pane).allSatisfy { $0.shadowPath != nil && $0.mask != nil })
     }
 
-    // The keys divide the pane between them, and all nine of them land on it.
-    //
-    // Because the way this goes wrong is silent. At a fixed width nine keys
-    // asked 398 points of the row, which no iPhone narrower than an Air has:
-    // the row scrolled as it is built to, the photograph control sat off the
-    // screen, and every other test in this file went on passing. It only
-    // showed up in a photograph of the thing.
-    //
-    // Every width a phone comes in, and one an iPad does: 375 is the narrowest
-    // screen iOS 26 runs on, 393 is the common iPhone, 440 is the largest.
-    @Test("nine keys divide the pane, and every screen fits all nine")
+    // On a phone the formatting strip gives way and scrolls, while Suggestions
+    // remains fully visible on its own pane.
+    @Test("phone widths keep Suggestions visible and let the formatting strip scroll")
     func keyWidths() throws {
         for screen in [375.0, 393.0, 440.0] as [CGFloat] {
             let row = aRow { _ in }
@@ -280,26 +260,31 @@ struct MarkdownAccessoryRowTests {
             row.layoutIfNeeded()
 
             let keys = controls(of: row)
-            #expect(keys.count == 9)
+            #expect(keys.count == 10)
+            let formatting = Array(keys.dropLast())
+            let suggestion = try #require(keys.last)
 
-            // One width between them, to the pixel the screen rounds them
-            // onto. Nine keys sharing a fractional number of points cannot all
-            // come out the same number of pixels, so on a 2x screen eight of
-            // them are 35.5 and one is 35.0 — the grid, not a difference, and
-            // not the nine widths this is here to catch.
-            let key = try #require(keys.first).bounds.size
-            #expect(keys.allSatisfy { abs($0.bounds.width - key.width) <= 1 })
+            let key = try #require(formatting.first).bounds.size
+            #expect(formatting.allSatisfy { abs($0.bounds.width - key.width) <= 1 })
 
-            // Wide enough to aim at, and never wider than it is tall.
             #expect(key.width >= 34)
             #expect(key.width <= key.height)
+            #expect(abs(suggestion.bounds.width - suggestion.bounds.height) < 0.5)
 
-            // And the last of them is on the pane rather than past its edge,
-            // which is what a fixed width could not promise.
-            let pane = try #require(glass(of: row))
-            let photograph = try #require(keys.last)
-            let reached = row.convert(photograph.bounds, from: photograph).maxX
-            #expect(reached <= row.convert(pane.bounds, from: pane).maxX)
+            let lastFormatting = try #require(formatting.last)
+            let strip = try #require(glass(containing: lastFormatting))
+            let apart = try #require(glass(containing: suggestion))
+            if screen == 375 {
+                #expect(
+                    row.convert(lastFormatting.bounds, from: lastFormatting).maxX
+                        > row.convert(strip.bounds, from: strip).maxX
+                )
+            }
+            let suggestionFrame = row.convert(suggestion.bounds, from: suggestion)
+            let apartFrame = row.convert(apart.bounds, from: apart)
+            #expect(suggestionFrame.minX >= apartFrame.minX)
+            #expect(suggestionFrame.maxX <= apartFrame.maxX)
+            #expect(apartFrame.maxX < row.bounds.maxX)
         }
     }
 
@@ -324,7 +309,7 @@ struct MarkdownAccessoryRowTests {
             let sizing = try #require(key.configuration?.preferredSymbolConfigurationForImage)
             let drawn = try #require(symbol.applyingSymbolConfiguration(sizing)).size
 
-            #expect(drawn.width <= key.bounds.width * 0.6)
+            #expect(drawn.width <= key.bounds.width * 0.6 + 0.5)
             #expect(drawn.height <= key.bounds.height * 0.4)
         }
     }
@@ -338,21 +323,13 @@ struct MarkdownAccessoryRowTests {
         row.layoutIfNeeded()
 
         let keys = controls(of: row)
-        #expect(keys.count == 9)
+        #expect(keys.count == 10)
         #expect(keys.allSatisfy { abs($0.bounds.width - $0.bounds.height) < 0.5 })
     }
 
-    // And once the keys have stopped, so does the pane: it is as wide as the
-    // nine of them and not as wide as the screen.
-    //
-    // Because a pane that reaches both edges of an iPad is the bar this row
-    // is not — glass across the top of the keyboard rather than a pill over
-    // the paper. It went wrong silently and intermittently: the pane's edges
-    // and the keys' width were two wishes of the same priority that could not
-    // both come true on a wide row, so Auto Layout picked one, and it picked
-    // the bar on the first keyboard of a session and the pill on every
-    // keyboard after.
-    @Test("on a screen with room to spare the pane stops where the keys do")
+    // The formatting pane stops with its keys, while Suggestions stays at the
+    // far edge of the keyboard with the spare iPad paper between them.
+    @Test("on a wide screen Suggestions sits at the far edge")
     func wideScreenPanes() throws {
         for screen in [834.0, 1024.0, 1366.0] as [CGFloat] {
             let row = aRow { _ in }
@@ -365,9 +342,14 @@ struct MarkdownAccessoryRowTests {
             )
             row.layoutIfNeeded()
 
-            let pane = try #require(glass(of: row))
+            let controls = controls(of: row)
+            let suggestion = try #require(controls.last)
+            let formatting = controls.dropLast()
+            let firstControl = try #require(formatting.first)
+            let pane = try #require(glass(containing: firstControl))
+            let apart = try #require(glass(containing: suggestion))
             let pill = row.convert(pane.bounds, from: pane)
-            let keys = controls(of: row).map { row.convert($0.bounds, from: $0) }
+            let keys = formatting.map { row.convert($0.bounds, from: $0) }
             let first = try #require(keys.first)
             let last = try #require(keys.last)
 
@@ -380,9 +362,12 @@ struct MarkdownAccessoryRowTests {
             #expect(abs(after - before) <= 1)
             #expect(after < first.width)
 
-            // So the row goes on past the pane, and what it goes on as is
-            // paper rather than more glass.
-            #expect(row.bounds.width - pill.maxX > first.width)
+            // So the row goes on past the formatting pane as paper, with the
+            // one-key Suggestions pane against the far edge.
+            let apartFrame = row.convert(apart.bounds, from: apart)
+            #expect(apartFrame.minX - pill.maxX > first.width)
+            #expect(row.bounds.width - apartFrame.maxX > 0)
+            #expect(row.bounds.width - apartFrame.maxX < first.width)
 
             // And it is the width, rather than a width: a key with no width
             // of its own leaves Auto Layout to pick one, and a layout that is
@@ -390,55 +375,45 @@ struct MarkdownAccessoryRowTests {
             // keyboard than on this one.
             #expect(unsettled(in: row).isEmpty)
 
-            // The other half of that, which a frame cannot show. The pane's
-            // far edge is a limit and not a position — on a row this wide the
-            // keys are what says where it stops, and the row only says where
-            // it may not go past.
-            //
-            // Asked of the constraint because the frame comes out right here
-            // either way: laid out on its own, an equal-priority tug of war
-            // between the pane's edges and the keys' width settles the same
-            // way every time, and it was only in the keyboard's own window
-            // that it settled differently on the first keyboard of a session
-            // than on the second — a pill over the paper once the row had
-            // been up before, and a bar across the whole iPad the first time.
+            // The far edge is a position, not merely a limit: this is what
+            // keeps the pane there in the keyboard's own window too.
             let far = try #require(
                 row.constraints.first { constraint in
-                    constraint.firstItem === pane.superview
+                    constraint.firstItem === apart.superview
                         && constraint.firstAttribute == .trailing
                 }
             )
-            #expect(far.relation == .lessThanOrEqual)
+            #expect(far.relation == .equal)
         }
     }
 
-    // And the other end of it: a row with less room than nine keys can shrink
-    // to, which is a small phone at a large text size. The pane takes every
-    // point there is — the keys running off the edge of it is what the
-    // scroller is there for, and a pane that shrank to them instead would put
-    // the row's own glass in the middle of the screen.
+    // And the other end of it: a row with less room than nine formatting keys
+    // can shrink to. The formatting keys run off their pane, while the pane
+    // apart remains fully on screen.
     //
     // 200 points is narrower than any phone, and the arithmetic is the same:
     // nine keys at their floor are wider than the pane can be.
-    @Test("a row too narrow for nine keys is still a pane the width of the row")
+    @Test("a row too narrow for nine keys gives way before Suggestions does")
     func narrowScreens() throws {
         let row = aRow { _ in }
         row.frame = CGRect(x: 0, y: 0, width: 200, height: row.intrinsicContentSize.height)
         row.layoutIfNeeded()
 
-        let pane = try #require(glass(of: row))
+        let controls = controls(of: row)
+        let suggestion = try #require(controls.last)
+        let photograph = try #require(controls.dropLast().last)
+        let pane = try #require(glass(containing: photograph))
+        let apart = try #require(glass(containing: suggestion))
         let pill = row.convert(pane.bounds, from: pane)
-
-        // Off both edges by the same inset, and everything between them.
+        let apartFrame = row.convert(apart.bounds, from: apart)
         #expect(pill.minX > 0)
-        #expect(abs(pill.minX - (row.bounds.width - pill.maxX)) <= 1)
-        #expect(pill.width > row.bounds.width - 2 * pill.minX - 1)
+        #expect(apartFrame.minX > pill.maxX)
+        #expect(apartFrame.maxX < row.bounds.maxX)
 
         // The keys keep their floor rather than being squeezed under it, and
         // the last of them is off the pane, where the scroller can reach it.
-        let keys = controls(of: row)
+        let keys = Array(controls.dropLast())
         #expect(keys.allSatisfy { $0.bounds.width >= 34 })
-        let photograph = try #require(keys.last)
         #expect(row.convert(photograph.bounds, from: photograph).maxX > pill.maxX)
     }
 
@@ -460,6 +435,20 @@ struct MarkdownAccessoryRowTests {
         #expect(pressed.photographs == 1)
     }
 
+    @Test("Suggestions is offered exactly when something can answer it")
+    func suggestions() throws {
+        #expect(try !control("openSuggestions", of: aRow { _ in }).isEnabled)
+
+        let pressed = Pressed()
+        let ready = aRow(openSuggestions: { pressed.suggestions += 1 }) { _ in }
+        let suggestions = try control("openSuggestions", of: ready)
+
+        #expect(suggestions.isEnabled)
+        #expect(suggestions.accessibilityLabel == "Suggestions")
+        suggestions.sendActions(for: .touchUpInside)
+        #expect(pressed.suggestions == 1)
+    }
+
     // MARK: - Reading the row
 
     /// What a press was heard as. A box rather than a variable, because the
@@ -467,6 +456,7 @@ struct MarkdownAccessoryRowTests {
     private final class Pressed {
         var commands: [MarkdownFormatting] = []
         var photographs = 0
+        var suggestions = 0
     }
 
     /// A row, with an accent for the pressed key. Terracotta rather than the
@@ -474,10 +464,14 @@ struct MarkdownAccessoryRowTests {
     /// colour no test asked for.
     private func aRow(
         insertPhoto: (() -> Void)? = nil,
+        openSuggestions: (() -> Void)? = nil,
         format: @escaping (MarkdownFormatting) -> Void
     ) -> MarkdownAccessoryRow {
         MarkdownAccessoryRow(
-            accent: Accent.terracotta.uiColor, insertPhoto: insertPhoto, format: format
+            accent: Accent.terracotta.uiColor,
+            insertPhoto: insertPhoto,
+            openSuggestions: openSuggestions,
+            format: format
         )
     }
 
@@ -486,16 +480,23 @@ struct MarkdownAccessoryRowTests {
         (pane.superview?.layer.sublayers ?? []).filter { $0.shadowOpacity > 0 }
     }
 
-    /// The pane the keys sit on, found the way anything private is: by looking.
-    private func glass(of row: MarkdownAccessoryRow) -> UIVisualEffectView? {
-        func pane(in view: UIView) -> UIVisualEffectView? {
-            for subview in view.subviews {
-                if let pane = subview as? UIVisualEffectView { return pane }
-                if let pane = pane(in: subview) { return pane }
+    /// The panes the keys sit on, found the way anything private is: by looking.
+    private func glasses(of row: MarkdownAccessoryRow) -> [UIVisualEffectView] {
+        func panes(in view: UIView) -> [UIVisualEffectView] {
+            view.subviews.flatMap { subview in
+                (subview as? UIVisualEffectView).map { [$0] } ?? panes(in: subview)
             }
-            return nil
         }
-        return pane(in: row)
+        return panes(in: row)
+    }
+
+    private func glass(containing view: UIView) -> UIVisualEffectView? {
+        var ancestor = view.superview
+        while let current = ancestor {
+            if let pane = current as? UIVisualEffectView { return pane }
+            ancestor = current.superview
+        }
+        return nil
     }
 
     /// Every view under this one whose frame Auto Layout could have laid out

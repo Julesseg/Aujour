@@ -3,7 +3,7 @@ import Testing
 
 @testable import AujourCore
 
-// What the photo sheet's offer has to get right is which photographs belong
+// What Suggestions' offer has to get right is which photographs belong
 // to the day on screen, and when there is nothing to offer at all. Both are
 // decided here, over a library said rather than read — the pixels and the
 // permission alert are the app's, and neither is a thing this module has ever
@@ -108,8 +108,8 @@ struct PhotoSuggestionsTests {
     }
 
     // The acceptance criterion, and the whole of what a refusal costs: nothing
-    // from the day, no notice, and a library button on the sheet that works
-    // exactly as it did — the picker needs no permission at all.
+    // from the day and no notice. The separate photo key still works exactly
+    // as it did — the picker needs no permission at all.
     @Test("a refusal leaves nothing to offer and nothing said about it")
     func aRefusal() async {
         let library = ALibrary(

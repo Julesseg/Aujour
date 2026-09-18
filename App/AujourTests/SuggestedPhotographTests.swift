@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 
 @testable import Aujour
 
-// One of the day's own photographs tapped on the photo sheet, minus the sheet
+// One of the day's own photographs tapped on Suggestions, minus the sheet
 // it happens on. Which photographs a day is offered and whether there are any
 // at all are decided in Core and tested there against a library that is said
 // rather than read; what is left is what needs a device — that a tapped
@@ -22,7 +22,7 @@ private let canWriteHEIC = CGImageDestinationCreateWithData(
 ) != nil
 
 @MainActor
-@Suite("A photograph tapped on the photo sheet")
+@Suite("A photograph tapped on Suggestions")
 struct SuggestedPhotographTests {
     // The whole of one tap: the file is in the folder under the Attachment
     // Path Template for this day, and the Entry points at it — which is the
@@ -38,7 +38,7 @@ struct SuggestedPhotographTests {
 
         let open = OpenEditor(holding: "Walked to the market.", overADay: true)
         open.cursor(at: 21)
-        let request = try #require(open.coordinator.asksForAPhoto(in: open.textView))
+        let request = try #require(open.coordinator.asksForSuggestions(in: open.textView))
 
         let added = await photographs.insert(theMarket, from: suggestions)
         request.insert(try #require(added))
@@ -80,7 +80,7 @@ struct SuggestedPhotographTests {
 
         let open = OpenEditor(holding: "Milk", overADay: true)
         open.cursor(at: 4)
-        let request = try #require(open.coordinator.asksForAPhoto(in: open.textView))
+        let request = try #require(open.coordinator.asksForSuggestions(in: open.textView))
         let added = await photographs.insert(theMarket, from: suggestions)
         request.insert(try #require(added))
 

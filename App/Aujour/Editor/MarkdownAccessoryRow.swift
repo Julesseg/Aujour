@@ -2,7 +2,8 @@ import AujourCore
 import UIKit
 
 /// The formatting bar above the keyboard: headings, bold and italic, lists,
-/// checkboxes, indenting, and a photograph.
+/// checkboxes, indenting, and a photograph — and beside it, on a pane of its
+/// own, the key to Suggestions.
 ///
 /// Markdown is written with punctuation, and punctuation is where a phone
 /// keyboard is slowest — `#`, `*` and `[` are two taps and a shifted layout
@@ -25,19 +26,34 @@ import UIKit
 /// no row — which is the same rule live preview draws by, and leaves a day
 /// being read as a document with nothing over it.
 ///
-/// ## The pane it is drawn on
+/// ## Two panes, and which of them gives way
 ///
-/// A pill of glass floating over the words, inset from both edges and lifted
-/// off the keyboard, rather than a bar filling the width: the identity's
-/// chrome sits *over* the paper and lets it show through, and a row that
-/// reached both edges would read as part of the keyboard rather than as
+/// Two because they are two kinds of key: the strip rewrites the characters
+/// under the cursor, and the one apart from it opens a sheet. A key put
+/// outside the strip so that it is always in reach is not one to scroll out
+/// of it — so where a phone is too narrow for both, the strip's keys scroll
+/// under its own curve and the Suggestions key stays where it is.
+///
+/// Which is the whole of the arithmetic below. The strip is as wide as its
+/// keys want to be, up to whatever is left once the second pane and the gap
+/// between them have been taken out; past that the keys keep their floor and
+/// run off the edge of the strip, where the scroller can reach them. On an
+/// iPhone that is every width there is: nine keys at their floor and one key
+/// beside them are wider than a phone, and only the largest fits all ten.
+///
+/// ## The pane they are drawn on
+///
+/// A pill of glass floating over the words, inset from the leading edge and
+/// lifted off the keyboard, rather than a bar filling the width: the
+/// identity's chrome sits *over* the paper and lets it show through, and a row
+/// that reached both edges would read as part of the keyboard rather than as
 /// something the app put there.
 ///
-/// So the inset is how close to the edges it may come and not where it sits.
-/// A phone has less room than nine keys want, and the pill takes all of it;
-/// an iPad has more, the keys stop at square, and the pill stops with them
-/// rather than going on as glass nobody is going to press. An accessory view
-/// is as wide as the keyboard is, and across an iPad's keyboard that is the
+/// So the trailing inset is where the second pane sits. A phone has less room
+/// than ten keys want and the panes take all of it; an iPad has more, the
+/// formatting pane stops with its square
+/// keys, and Suggestions sits at the far edge with paper between them. An
+/// accessory view is as wide as the keyboard is, but neither pane becomes the
 /// bar this row is not.
 ///
 /// It is the platform's own glass, tinted to `Palette.glass`, rather than the
@@ -78,6 +94,15 @@ final class MarkdownAccessoryRow: UIInputView {
     /// is not ready.
     private let insertPhoto: (() -> Void)?
 
+    /// What the Suggestions key does — the sheet of the day's own material,
+    /// which is the screen's to put up and not a text view's
+    /// (``SuggestionsSheet``).
+    ///
+    /// `nil` on the same rule the photograph is: an insertion needs a caret,
+    /// and a row over a text view with no Entry behind it has nothing to
+    /// insert into. The key is there and is not offered.
+    private let openSuggestions: (() -> Void)?
+
     /// The app's own colour, which is what a key fills with under a thumb.
     ///
     /// Handed in rather than read off `tintColor`, because an accessory view
@@ -92,11 +117,15 @@ final class MarkdownAccessoryRow: UIInputView {
         }
     }
 
-    /// The pane of glass the keys sit on, which rounds and lifts itself.
-    private let pill = GlassPill()
+    /// The pane the formatting keys sit on, which rounds and lifts itself.
+    private let strip = GlassPill()
 
-    /// Every key, in the order they sit in — held so that the accent moving
-    /// can reach them without a walk back down the view tree.
+    /// The pane the Suggestions key sits on, alone — the same glass, and a
+    /// pane of its own because it is the other kind of key.
+    private let apart = GlassPill()
+
+    /// Every key on either pane, in the order they sit in — held so that the
+    /// accent moving can reach them without a walk back down the view tree.
     private var controls: [UIButton] = []
 
     /// The floor and the ceiling on how wide a key is, and the width a key
@@ -106,13 +135,19 @@ final class MarkdownAccessoryRow: UIInputView {
     private var wideKeys: [NSLayoutConstraint] = []
     private var roomyKeys: [NSLayoutConstraint] = []
 
+    /// How wide the Suggestions key is, which is square and stays square: it
+    /// is the one key nothing squeezes, since the strip is what gives way.
+    private var keyApart: NSLayoutConstraint?
+
     init(
         accent: UIColor,
         insertPhoto: (() -> Void)? = nil,
+        openSuggestions: (() -> Void)? = nil,
         format: @escaping (MarkdownFormatting) -> Void
     ) {
         self.accent = accent
         self.insertPhoto = insertPhoto
+        self.openSuggestions = openSuggestions
         self.format = format
         super.init(
             frame: CGRect(x: 0, y: 0, width: 0, height: MarkdownAccessoryRow.rowHeight),
@@ -198,11 +233,11 @@ final class MarkdownAccessoryRow: UIInputView {
 
     /// The narrowest a key is allowed to get.
     ///
-    /// Nine keys and one pane: at any width this file picks, nine of them are
-    /// wider than a phone, and the one that goes over the edge is the last —
-    /// the photograph. So the keys divide the pane between them instead, one
-    /// width, whatever the room turns out to be, and this is the floor under
-    /// that.
+    /// Nine keys and the room a tenth has taken beside them: at any width this
+    /// file picks, nine of them are wider than a phone, and the ones that go
+    /// over the edge are the last — the indents and the photograph. So the keys
+    /// divide the strip between them instead, one width, whatever the room
+    /// turns out to be, and this is the floor under that.
     ///
     /// It is less than the 44 a control standing on its own would take,
     /// because the height is what carries the target here: these are keys in
@@ -227,54 +262,114 @@ final class MarkdownAccessoryRow: UIInputView {
     /// appearance, because a ring is a `CGColor` and those do not turn by
     /// themselves, and Reduce Transparency, because a reader can ask for it
     /// while looking at this row.
+    /// Both panes, because they are the same pane twice: the second one is a
+    /// pane of glass for the same reason the first is, and a reader who turns
+    /// translucency off is owed the same answer from each.
     @objc private func drawTheGlass() {
-        guard !UIAccessibility.isReduceTransparencyEnabled else {
-            // No pane, so the pill has to be a surface by itself: the opaque
-            // colour glass averages to, and the ring and the lift it would
-            // otherwise have got from the glass.
-            pill.pane.effect = nil
-            pill.pane.contentView.backgroundColor = Palette.glassSolid
-            pill.pane.layer.borderWidth = 0.5
-            pill.pane.layer.borderColor =
-                Palette.glassRing.resolvedColor(with: traitCollection).cgColor
-            pill.lifted(true)
-            return
+        for pill in [strip, apart] {
+            guard !UIAccessibility.isReduceTransparencyEnabled else {
+                // No pane, so the pill has to be a surface by itself: the
+                // opaque colour glass averages to, and the ring and the lift
+                // it would otherwise have got from the glass.
+                pill.pane.effect = nil
+                pill.pane.contentView.backgroundColor = Palette.glassSolid
+                pill.pane.layer.borderWidth = 0.5
+                pill.pane.layer.borderColor =
+                    Palette.glassRing.resolvedColor(with: traitCollection).cgColor
+                pill.lifted(true)
+                continue
+            }
+
+            // The platform's own glass, tinted to the identity's paper rather
+            // than painted over with it: a cream at `.62` laid on top of a
+            // blur is a cream, and the pane stops being a pane.
+            let glass = UIGlassEffect(style: .regular)
+            glass.tintColor = Palette.glass
+            pill.pane.effect = glass
+            pill.pane.contentView.backgroundColor = .clear
+
+            // Glass draws its own edge and its own shadow, and a second of
+            // either is not twice as convincing — it is two rims that do not
+            // agree.
+            pill.pane.layer.borderWidth = 0
+            pill.lifted(false)
         }
-
-        // The platform's own glass, tinted to the identity's paper rather than
-        // painted over with it: a cream at `.62` laid on top of a blur is a
-        // cream, and the pane stops being a pane.
-        let glass = UIGlassEffect(style: .regular)
-        glass.tintColor = Palette.glass
-        pill.pane.effect = glass
-        pill.pane.contentView.backgroundColor = .clear
-
-        // Glass draws its own edge and its own shadow, and a second of either
-        // is not twice as convincing — it is two rims that do not agree.
-        pill.pane.layer.borderWidth = 0
-        pill.lifted(false)
     }
 
     // MARK: - The controls
 
     private func layOutControls() {
-        controls = buttons()
-        let keys = UIStackView(arrangedSubviews: controls)
-        keys.axis = .horizontal
-        keys.spacing = Spacing.tight
+        let formatting = buttons()
+        let suggestions = suggestions()
+        controls = formatting + [suggestions]
+
+        // The formatting pane first and the Suggestions pane second, which is
+        // the order a hand reaches them in and the order anything reading the
+        // row comes to them in — VoiceOver, and a test walking the buttons.
+        addSubview(strip)
+        addSubview(apart)
+        laysOut(formatting, onTheStrip: strip)
+        lays(suggestions, onThePaneApart: apart)
+
+        // Suggestions stays at the far edge: beside the formatting pane on a
+        // phone, and across the spare paper from it on an iPad. It is still a
+        // pill the width of one key, not glass stretched across that distance.
+        //
+        // Breakable, and it breaks once: an accessory view is built before
+        // anything has told it how wide it is, and two panes and a gap inset
+        // from both edges of nothing at all do not fit.
+        let far = apart.trailingAnchor.constraint(
+            equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -Self.inset
+        )
+        far.priority = .required - 1
+
+        NSLayoutConstraint.activate([
+            // Inset from the leading edge and off the keyboard: panes over the
+            // paper rather than a bar across the bottom of it.
+            strip.leadingAnchor.constraint(
+                equalTo: safeAreaLayoutGuide.leadingAnchor, constant: Self.inset
+            ),
+            // At least the screen-edge gap between the panes: on a phone that
+            // is all the room there is, while an iPad leaves its spare paper
+            // here instead of stretching either pill across it.
+            apart.leadingAnchor.constraint(
+                greaterThanOrEqualTo: strip.trailingAnchor, constant: Self.inset
+            ),
+            far,
+        ] + [strip, apart].flatMap { pill in
+            [
+                pill.topAnchor.constraint(equalTo: topAnchor, constant: Self.padding),
+                pill.bottomAnchor.constraint(
+                    equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -Self.padding
+                ),
+            ]
+        })
+    }
+
+    /// The formatting keys, on the pane they divide between them.
+    ///
+    /// Its width is the one thing on this row that gives way. The keys want to
+    /// be square and the pane wants to be as wide as the keys; where that will
+    /// not fit beside the second pane, the pane is cut to what is left and the
+    /// keys keep their floor and run off the edge of it, which is what the
+    /// scroller is here for.
+    private func laysOut(_ keys: [UIButton], onTheStrip strip: GlassPill) {
+        let row = UIStackView(arrangedSubviews: keys)
+        row.axis = .horizontal
+        row.spacing = Spacing.tight
         // One width between them, whatever that width comes out as: a key is
         // aimed at by where it sits in the row, and nine keys of nine widths
         // would be nine positions to learn instead of one strip.
-        keys.distribution = .fillEqually
-        keys.translatesAutoresizingMaskIntoConstraints = false
+        row.distribution = .fillEqually
+        row.translatesAutoresizingMaskIntoConstraints = false
 
         // The two ends of that one width. What a key comes out at between
         // them is the pane's to say, and it says it through the constraint at
         // the bottom of this method.
-        narrowKeys = controls.map {
+        narrowKeys = keys.map {
             $0.widthAnchor.constraint(greaterThanOrEqualToConstant: Self.narrowestKey)
         }
-        wideKeys = controls.map {
+        wideKeys = keys.map {
             $0.widthAnchor.constraint(lessThanOrEqualToConstant: Self.widestKey)
         }
         // And what a key comes out at when nothing is pushing on it, which is
@@ -284,91 +379,105 @@ final class MarkdownAccessoryRow: UIInputView {
         // has stopped saying it — anywhere between the floor and the ceiling
         // would satisfy every other constraint here, and a width nine keys
         // are free to pick is a width they can pick differently.
-        roomyKeys = controls.map { $0.widthAnchor.constraint(equalToConstant: Self.widestKey) }
+        roomyKeys = keys.map { $0.widthAnchor.constraint(equalToConstant: Self.widestKey) }
         for key in roomyKeys { key.priority = .defaultHigh }
         NSLayoutConstraint.activate(narrowKeys + wideKeys + roomyKeys)
 
-        // Scrolled, for the one case the keys cannot divide their way out of:
-        // a narrow phone with its text turned up, where nine keys at their
-        // floor are wider than the pane. A row that simply ran off the edge
-        // would be a row whose last controls do not exist.
+        // Scrolled, for the case the keys cannot divide their way out of: any
+        // phone but the widest, where nine keys at their floor and the second
+        // pane beside them are wider than the row. A strip that simply ran off
+        // the edge would be a strip whose last controls do not exist.
         let scroller = UIScrollView()
         scroller.translatesAutoresizingMaskIntoConstraints = false
         scroller.showsHorizontalScrollIndicator = false
-        scroller.addSubview(keys)
+        // Named, because on a phone the last of these keys begins off the pane
+        // and the only way to it is a swipe — which a UI test has to make, and
+        // cannot make without something to make it on.
+        scroller.accessibilityIdentifier = "formattingKeys"
+        scroller.addSubview(row)
 
-        pill.translatesAutoresizingMaskIntoConstraints = false
-        pill.pane.contentView.addSubview(scroller)
-        addSubview(pill)
+        strip.translatesAutoresizingMaskIntoConstraints = false
+        strip.pane.contentView.addSubview(scroller)
 
-        // How far the pane may reach, rather than how far it does: a phone
-        // has less room than nine keys want and the pane takes all of it, an
-        // iPad has more and the pane stops at the keys. Said as an edge the
-        // pane keeps off rather than an edge it meets, because an accessory
-        // view is as wide as the keyboard, and a pill drawn to the far side
-        // of an iPad's keyboard is the bar this row is not.
+        // As wide as the keys are, which is what turns `fillEqually` into a
+        // width: on an iPad the keys are as wide as a key gets and the pane is
+        // only as wide as the nine of them.
         //
-        // Breakable, and it breaks once: an accessory view is built before
-        // anything has told it how wide it is, and a pane inset from both
-        // edges of nothing at all is a pane of negative width.
-        let trailing = pill.trailingAnchor.constraint(
-            lessThanOrEqualTo: safeAreaLayoutGuide.trailingAnchor, constant: -Self.inset
-        )
-        trailing.priority = .required - 1
-
-        let fill = keys.widthAnchor.constraint(
+        // The lowest priority on the row, because it is what gives: on every
+        // phone but the widest, nine keys at their floor and the Suggestions
+        // key beside them want more than there is, and then the pane takes
+        // what room is left over and the keys run off the edge of it.
+        let fill = row.widthAnchor.constraint(
             equalTo: scroller.frameLayoutGuide.widthAnchor, constant: -Self.padding * 2
         )
-        fill.priority = .required - 1
+        fill.priority = .required - 2
 
         NSLayoutConstraint.activate([
-            // Inset from both edges and off the keyboard: a pane over the
-            // paper rather than a bar across the bottom of it.
-            pill.leadingAnchor.constraint(
-                equalTo: safeAreaLayoutGuide.leadingAnchor, constant: Self.inset
-            ),
-            trailing,
-            pill.topAnchor.constraint(equalTo: topAnchor, constant: Self.padding),
-            pill.bottomAnchor.constraint(
-                equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -Self.padding
+            // Never narrower than one key and the room around it, whatever the
+            // row has been told its width is — which at the moment it is built
+            // is nothing at all, and a pane cut to what is left of nothing is a
+            // pane of negative width.
+            strip.widthAnchor.constraint(
+                greaterThanOrEqualToConstant: Self.narrowestKey + Self.padding * 2
             ),
 
             // Edge to edge across the pane, so the keys scroll under its own
             // curve rather than stopping short of it; held off the top and
             // bottom, so a pressed key's fill never reaches the rim.
-            scroller.leadingAnchor.constraint(equalTo: pill.pane.contentView.leadingAnchor),
-            scroller.trailingAnchor.constraint(equalTo: pill.pane.contentView.trailingAnchor),
+            scroller.leadingAnchor.constraint(equalTo: strip.pane.contentView.leadingAnchor),
+            scroller.trailingAnchor.constraint(equalTo: strip.pane.contentView.trailingAnchor),
             scroller.topAnchor.constraint(
-                equalTo: pill.pane.contentView.topAnchor, constant: Self.padding
+                equalTo: strip.pane.contentView.topAnchor, constant: Self.padding
             ),
             scroller.bottomAnchor.constraint(
-                equalTo: pill.pane.contentView.bottomAnchor, constant: -Self.padding
+                equalTo: strip.pane.contentView.bottomAnchor, constant: -Self.padding
             ),
 
             // The same gap the keys have above and below them; the pane's own
             // curve is what holds the first key off its edge.
-            keys.leadingAnchor.constraint(
+            row.leadingAnchor.constraint(
                 equalTo: scroller.contentLayoutGuide.leadingAnchor, constant: Self.padding
             ),
-            keys.trailingAnchor.constraint(
+            row.trailingAnchor.constraint(
                 equalTo: scroller.contentLayoutGuide.trailingAnchor, constant: -Self.padding
             ),
-            keys.topAnchor.constraint(equalTo: scroller.contentLayoutGuide.topAnchor),
-            keys.bottomAnchor.constraint(equalTo: scroller.contentLayoutGuide.bottomAnchor),
-            keys.heightAnchor.constraint(equalTo: scroller.frameLayoutGuide.heightAnchor),
+            row.topAnchor.constraint(equalTo: scroller.contentLayoutGuide.topAnchor),
+            row.bottomAnchor.constraint(equalTo: scroller.contentLayoutGuide.bottomAnchor),
+            row.heightAnchor.constraint(equalTo: scroller.frameLayoutGuide.heightAnchor),
 
-            // The keys and the pane are the same width, which is what turns
-            // `fillEqually` into a width. Read either way round, and it is
-            // read both: on a phone the pane is what there is and the keys
-            // share it out; on an iPad the keys are as wide as a key gets and
-            // the pane is only as wide as the nine of them.
-            //
-            // Breakable, for the one case neither reading covers — a small
-            // phone at a large text size, where nine keys at their floor are
-            // wider than the pane can be. Then this is what gives, the pane
-            // takes what room the row has, and the keys run off the edge of
-            // it, which is what the scroller is here for.
             fill,
+        ])
+    }
+
+    /// The Suggestions key, on the pane it has to itself.
+    ///
+    /// Square and pinned there, with no scroller and nothing to divide: this is
+    /// the key the strip gives way for, and a pane the width of one key is a
+    /// pane every phone has room for.
+    private func lays(_ key: UIButton, onThePaneApart apart: GlassPill) {
+        key.translatesAutoresizingMaskIntoConstraints = false
+        apart.translatesAutoresizingMaskIntoConstraints = false
+        apart.pane.contentView.addSubview(key)
+
+        let square = key.widthAnchor.constraint(equalToConstant: Self.widestKey)
+        keyApart = square
+
+        NSLayoutConstraint.activate([
+            square,
+            // The same room around it the strip's keys have around theirs, so
+            // that two panes of one height come out of one arithmetic.
+            key.leadingAnchor.constraint(
+                equalTo: apart.pane.contentView.leadingAnchor, constant: Self.padding
+            ),
+            key.trailingAnchor.constraint(
+                equalTo: apart.pane.contentView.trailingAnchor, constant: -Self.padding
+            ),
+            key.topAnchor.constraint(
+                equalTo: apart.pane.contentView.topAnchor, constant: Self.padding
+            ),
+            key.bottomAnchor.constraint(
+                equalTo: apart.pane.contentView.bottomAnchor, constant: -Self.padding
+            ),
         ])
     }
 
@@ -378,9 +487,10 @@ final class MarkdownAccessoryRow: UIInputView {
         for key in narrowKeys { key.constant = Self.narrowestKey }
         for key in wideKeys { key.constant = Self.widestKey }
         for key in roomyKeys { key.constant = Self.widestKey }
+        keyApart?.constant = Self.widestKey
     }
 
-    /// The row, left to right: what a line is, then what a word is, then the
+    /// The strip, left to right: what a line is, then what a word is, then the
     /// lists, then where the line sits, then the one thing that is not
     /// punctuation at all.
     private func buttons() -> [UIButton] {
@@ -444,6 +554,24 @@ final class MarkdownAccessoryRow: UIInputView {
             [weak self] in self?.insertPhoto?()
         }
         button.isEnabled = insertPhoto != nil
+        return button
+    }
+
+    /// The key to Suggestions, which is the whole of the second pane.
+    ///
+    /// A lightbulb, because what it opens is an offer rather than a command:
+    /// the day's own photographs, meetings and list, waiting to be written in.
+    /// Spelled in a word as well as a symbol, like every other key here — a
+    /// mark on glass is nothing a screen reader can read out.
+    ///
+    /// Only the affordance. What is on the sheet, and what a tap on it writes,
+    /// is ``SuggestionsSheet``'s and Core's; a key above a keyboard cannot put
+    /// up a sheet, and does not try.
+    private func suggestions() -> UIButton {
+        let button = button("lightbulb", "Suggestions", "openSuggestions") {
+            [weak self] in self?.openSuggestions?()
+        }
+        button.isEnabled = openSuggestions != nil
         return button
     }
 

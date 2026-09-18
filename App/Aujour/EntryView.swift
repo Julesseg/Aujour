@@ -49,7 +49,7 @@ struct EntryView: View {
     }
 
     /// The way a photograph gets into this day: the file written into the
-    /// Journal Root beside the Entry, whichever door of the photo sheet it
+    /// Journal Root beside the Entry, whichever of the two photo doors it
     /// came in by.
     ///
     /// Here for the same reason the pictures are, and pointed at the same
@@ -57,14 +57,22 @@ struct EntryView: View {
     /// for *this* day, and what the embed says is a path from *this* Entry.
     @State private var photographs = InsertedPhotographs()
 
-    /// The photo key pressed, while the sheet it put up is on screen — and
-    /// `nil` the rest of the time.
+    /// The photo key pressed, while the system picker it put up is on screen
+    /// — and `nil` the rest of the time.
     ///
     /// Here rather than inside the editor for the reason the question below
     /// is: a sheet needs a view hierarchy to come up in, and the editor is a
     /// text view. What it can do with a key going down is say where the caret
     /// was, and hand over the way to write an embed there.
     @State private var photoRequest: PhotoRequest?
+
+    /// The Suggestions key pressed, while its sheet is on screen — and `nil`
+    /// the rest of the time.
+    ///
+    /// Kept separately from the photo request because these keys now open two
+    /// different things: the whole library in the system picker, and the
+    /// Journal Day's own material in Aujour's sheet.
+    @State private var suggestionsRequest: SuggestionsRequest?
 
     /// The unanswered placeholder whose widget was tapped, while it is being
     /// answered — and `nil` the rest of the time, which is nearly always.
@@ -120,7 +128,7 @@ struct EntryView: View {
     /// journals against one that is said rather than found.
     private let places: (any Places)?
 
-    /// The library the photo sheet reads the day's photographs from, held
+    /// The library Suggestions reads the day's photographs from, held
     /// because the `{{location}}` widget reads the same one: the positions
     /// this day's photographs carry are where it says the day was.
     private let library: (any PhotoLibrary)?
@@ -146,11 +154,11 @@ struct EntryView: View {
     /// measures and both of which would have to carry one.
     @Environment(\.journalLayout) private var layout
 
-    /// - Parameter library: where the photo sheet reads this day's own
+    /// - Parameter library: where Suggestions reads this day's own
     ///   photographs from, and where a `{{location}}` widget reads the day's
     ///   own places from — the device's, unless a test or a preview says
-    ///   otherwise. `nil` is a sheet with the picker alone on it, which is
-    ///   what a preview and every test of something else want.
+    ///   otherwise. `nil` is Suggestions with no photographs to offer, which
+    ///   is what a preview and every test of something else want.
     ///   - places: where a `{{location}}` widget reads the place from — the
     ///     device's, unless a test or a preview says otherwise. `nil` is a
     ///     widget with nothing on offer, which is a place typed instead.
@@ -247,6 +255,7 @@ struct EntryView: View {
                     text: bodyText,
                     pictures: pictures,
                     requests: { photoRequest = $0 },
+                    suggests: { suggestionsRequest = $0 },
                     asks: { question = $0 },
                     // Drawn quieter until somebody has written this day. A day
                     // with no file is spawned from the Content Template
@@ -323,14 +332,16 @@ struct EntryView: View {
                         for: editor.day
                     )
                 }
-                // The photo key's sheet: the day's own photographs, and under
-                // them the way to the rest of the library. What is chosen
-                // goes where the caret was when the key was pressed, and the
-                // keyboard comes back when the sheet goes — with or without a
-                // photograph, since the commonest thing to do with a sheet is
-                // to put it away again.
-                .sheet(item: $photoRequest) { request in
-                    PhotoSheet(
+                // The photo key goes straight to the system picker. What it
+                // hands back goes through the same attachment pipeline as a
+                // photograph from Suggestions, and the picker modifier asks
+                // the keyboard back when it goes.
+                .thePhotoPicker(for: $photoRequest, through: photographs)
+                // The Journal Day's own material is on the Suggestions key's
+                // sheet. What is tapped goes where the caret was when the key
+                // was pressed, and cancelling asks the keyboard back.
+                .sheet(item: $suggestionsRequest) { request in
+                    SuggestionsSheet(
                         for: editor.day,
                         photographsFrom: library,
                         through: photographs,

@@ -203,14 +203,8 @@ struct SuggestionsSheet: View {
             let timed = timeline.timed
 
             Section {
-                if !allDay.isEmpty {
-                    Text("All day")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Palette.inkMutedColor)
-                        .accessibilityIdentifier("allDayEvents")
-                    ForEach(Array(allDay.enumerated()), id: \.offset) { index, item in
-                        eventRow(item, at: index)
-                    }
+                ForEach(Array(allDay.enumerated()), id: \.offset) { index, item in
+                    eventRow(item, at: index)
                 }
                 ForEach(Array(timed.enumerated()), id: \.offset) { index, item in
                     eventRow(item, at: allDay.count + index)
@@ -240,11 +234,9 @@ struct SuggestionsSheet: View {
                     .accessibilityHidden(true)
                 Text(item.title)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                if let time = item.time {
-                    Text(timeRange(starting: time, ending: item.end))
-                        .foregroundStyle(Palette.inkMutedColor)
-                        .monospacedDigit()
-                }
+                Text(eventTime(for: item))
+                    .foregroundStyle(Palette.inkMutedColor)
+                    .monospacedDigit()
                 if inserted {
                     Image(systemName: "checkmark")
                         .foregroundStyle(Color.accentColor)
@@ -268,10 +260,14 @@ struct SuggestionsSheet: View {
     }
 
     private func eventLabel(for item: DayItem, inserted: Bool) -> String {
-        let time = item.time.map { timeRange(starting: $0, ending: item.end) }
-        return [item.title, time, inserted ? "Inserted" : nil]
+        return [item.title, eventTime(for: item), inserted ? "Inserted" : nil]
             .compactMap { $0 }
             .joined(separator: ", ")
+    }
+
+    private func eventTime(for item: DayItem) -> String {
+        guard let time = item.time else { return "All day" }
+        return timeRange(starting: time, ending: item.end)
     }
 
     private func lookForEvents() async {

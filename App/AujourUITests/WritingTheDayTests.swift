@@ -707,7 +707,6 @@ final class WritingTheDayTests: AujourUITestCase {
         let events = app.staticTexts["eventSuggestions"]
         XCTAssertTrue(events.waitForExistence(timeout: 10), "the Events section never appeared")
         XCTAssertEqual(events.label, "Events")
-        XCTAssertEqual(app.staticTexts["allDayEvents"].label, "All day")
 
         let allDay = app.buttons["eventSuggestion0"]
         let standup = app.buttons["eventSuggestion1"]
@@ -715,6 +714,7 @@ final class WritingTheDayTests: AujourUITestCase {
         XCTAssertTrue(allDay.exists)
         XCTAssertTrue(standup.exists)
         XCTAssertTrue(dentist.exists)
+        XCTAssertTrue(allDay.label.contains("All day"))
         XCTAssertTrue(standup.label.contains(onTheClock(hour: 9, minute: 30)))
         XCTAssertTrue(standup.label.contains(onTheClock(hour: 10, minute: 30)))
 

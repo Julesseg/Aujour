@@ -554,6 +554,18 @@ struct DataPlaceholderFormatTests {
         #expect(unordered.throughTheDay().map(\.title) == ["Morning", "Evening", "All day"])
     }
 
+    @Test("a timeline puts what held the day before its timed part")
+    func aTimelinePutsAllDayFirst() {
+        let timeline = DayItemTimeline([
+            DayItem(title: "Evening", time: at(18)),
+            DayItem(title: "Bank holiday"),
+            DayItem(title: "Morning", time: at(9)),
+        ])
+
+        #expect(timeline.allDay.map(\.title) == ["Bank holiday"])
+        #expect(timeline.timed.map(\.title) == ["Morning", "Evening"])
+    }
+
     @Test("a nameless item is no item at all")
     func namelessItemsAreNotItems() {
         #expect(DayItem(named: nil) == nil)
@@ -584,6 +596,19 @@ struct DayDataAccessTests {
     func noSourceIsRefused() {
         #expect(DayData().access(for: .reminders) == .refused)
         #expect(DayData([.events: ADayOfItems([])]).access(for: .reminders) == .refused)
+    }
+
+    @Test("the sheet reads one source's items for the Journal Day without asking")
+    func itemsForASuggestionAreReadWithoutPreparing() async {
+        let source = ADayOfItems([DayItem(title: "Standup", time: at(9))])
+        let data = DayData([.events: source])
+        let day = march1.span(in: paris)
+
+        let items = await data.items(for: .events, during: day)
+
+        #expect(items.map(\.title) == ["Standup"])
+        #expect(source.span == day)
+        #expect(source.preparations == 0)
     }
 }
 

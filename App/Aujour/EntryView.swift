@@ -133,6 +133,11 @@ struct EntryView: View {
     /// this day's photographs carry are where it says the day was.
     private let library: (any PhotoLibrary)?
 
+    /// The journal's day-data seam and formatting settings. EntryView hands
+    /// them to Suggestions; the sheet never reaches EventKit or settings on
+    /// its own, and previews remain a view with no device behind it.
+    private let journal: Journal?
+
     /// Where the sending sheet rises from — the control that offered it, which
     /// belongs to the screen above. `nil` for a preview, which has no bar and
     /// no namespace to name one in.
@@ -172,12 +177,14 @@ struct EntryView: View {
         editor: EntryEditor,
         photographsFrom library: (any PhotoLibrary)? = nil,
         placesFrom places: (any Places)? = nil,
+        journal: Journal? = nil,
         sending: Binding<ADayToSend?> = .constant(nil),
         risingFrom: Namespace.ID? = nil
     ) {
         self.editor = editor
         self.places = places
         self.library = library
+        self.journal = journal
         _sending = sending
         self.risingFrom = risingFrom
     }
@@ -345,7 +352,20 @@ struct EntryView: View {
                         for: editor.day,
                         photographsFrom: library,
                         through: photographs,
-                        inserting: request.insert
+                        inserting: request.insert,
+                        insertingLine: request.insertLine,
+                        eventsFrom: { day in
+                            guard let journal else { return [] }
+                            return await journal.suggestions(for: .events, on: day)
+                        },
+                        eventAccess: {
+                            journal?.accessToSuggestions(for: .events) ?? .refused
+                        },
+                        preparingEvents: {
+                            await journal?.prepareSuggestions(for: .events)
+                        },
+                        formattingEventsWith: journal?.howItIsWritten(.events)
+                            ?? .default(for: .events)
                     )
                     .onDisappear(perform: request.finished)
                 }

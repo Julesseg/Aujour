@@ -69,7 +69,8 @@ class AujourUITestCase: XCTestCase {
     ///     sheet's offer to look; `refuses` for somebody who says no to it;
     ///     `refused` for somebody who said no some launch ago.
     ///   - events: what the day being spawned holds in the calendar, one per
-    ///     line as `HH:mm Title` — or `Title` for something with no hour. The
+    ///     line as `HH:mm-HH:mm Title` — or `Title` for something with no
+    ///     hour. The
     ///     simulator's own calendar is empty and unaskable, so this is the
     ///     only way a data placeholder has anything to render.
     ///   - reminders: the same, for the day's reminders.
@@ -99,6 +100,7 @@ class AujourUITestCase: XCTestCase {
         photoLibrary: String? = nil,
         photoLibraryAccess: String? = nil,
         events: String? = nil,
+        eventsAccess: String? = nil,
         reminders: String? = nil,
         places: String? = nil,
         placesAccess: String? = nil,
@@ -161,6 +163,9 @@ class AujourUITestCase: XCTestCase {
         }
         if let events {
             app.launchEnvironment["AUJOUR_UITEST_EVENTS"] = events
+        }
+        if let eventsAccess {
+            app.launchEnvironment["AUJOUR_UITEST_EVENTS_ACCESS"] = eventsAccess
         }
         if let reminders {
             app.launchEnvironment["AUJOUR_UITEST_REMINDERS"] = reminders

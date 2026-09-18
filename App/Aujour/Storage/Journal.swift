@@ -1046,6 +1046,25 @@ final class Journal {
         settings.dataPlaceholders[placeholder]
     }
 
+    /// The day's items for the Suggestions sheet, read through the same seam
+    /// a Content Template uses. A sheet is about the Entry's Journal Day, not
+    /// the instant somebody happened to open it.
+    func suggestions(for placeholder: DataPlaceholder, on day: JournalDay) async -> [DayItem] {
+        await dayData.items(for: placeholder, during: day.span(in: .current))
+    }
+
+    /// Where a Suggestions section's permission stands, without asking. The
+    /// sheet uses this to choose between its offer, its rows, and no section.
+    func accessToSuggestions(for placeholder: DataPlaceholder) -> DayDataAccess {
+        dayData.access(for: placeholder)
+    }
+
+    /// Asks for the data a Suggestions section reads, only after its offer was
+    /// tapped. A denied or already decided permission stays decided.
+    func prepareSuggestions(for placeholder: DataPlaceholder) async {
+        await dayData.prepare(for: [placeholder])
+    }
+
     /// Changes how a data placeholder writes itself from here on.
     ///
     /// Nothing already in the folder is rewritten, and there is nothing to

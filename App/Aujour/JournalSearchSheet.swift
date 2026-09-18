@@ -95,6 +95,7 @@ struct JournalSearchSheet: View {
                     editor: opened.editor,
                     photographsFrom: journal.photoLibrary,
                     placesFrom: journal.places,
+                    journal: journal,
                     sending: $sending,
                     risingFrom: sheets
                 )

@@ -685,6 +685,130 @@ final class WritingTheDayTests: AujourUITestCase {
         )
     }
 
+    /// Events are offered as the day held them: the all-day part first, then
+    /// the timeline, and a tap writes one setting-shaped line without taking
+    /// the sheet or the keyboard away.
+    func testTheDaysEventsAreATimelineAndTapsMakeOneList() throws {
+        let app = launchApp(
+            photograph: "jpg",
+            photoLibrary: todaysEntryName(),
+            events: "Bank holiday\n09:30-10:30 Standup\n14:00-15:00 Dentist"
+        )
+
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        editor.tap()
+        editor.typeText("Notes")
+
+        let key = app.buttons["openSuggestions"]
+        XCTAssertTrue(key.waitForExistence(timeout: 10), "the formatting row never appeared")
+        key.tap()
+
+        let events = app.staticTexts["eventSuggestions"]
+        XCTAssertTrue(events.waitForExistence(timeout: 10), "the Events section never appeared")
+        XCTAssertEqual(events.label, "Events")
+        XCTAssertEqual(app.staticTexts["allDayEvents"].label, "All day")
+
+        let allDay = app.buttons["eventSuggestion0"]
+        let standup = app.buttons["eventSuggestion1"]
+        let dentist = app.buttons["eventSuggestion2"]
+        XCTAssertTrue(allDay.exists)
+        XCTAssertTrue(standup.exists)
+        XCTAssertTrue(dentist.exists)
+        XCTAssertTrue(standup.label.contains(onTheClock(hour: 9, minute: 30)))
+        XCTAssertTrue(standup.label.contains(onTheClock(hour: 10, minute: 30)))
+
+        standup.tap()
+        XCTAssertTrue(
+            app.buttons["cancelSuggestions"].exists,
+            "the sheet closed after an event was inserted"
+        )
+        XCTAssertTrue(standup.label.contains("Inserted"), "the inserted event was not ticked")
+        expect(editor, toHaveValue: "Notes\n- 09:30 Standup")
+
+        standup.tap()
+        expect(editor, toHaveValue: "Notes\n- 09:30 Standup")
+
+        dentist.tap()
+        expect(editor, toHaveValue: "Notes\n- 09:30 Standup\n- 14:00 Dentist")
+
+        let photo = app.buttons["photoSuggestion0"]
+        XCTAssertTrue(photo.exists, "the photograph was not offered after the events")
+        photo.tap()
+        let embed = "![](\(todaysPhotograph(named: "jpg")))"
+        expect(editor, toHaveValue: "Notes\n- 09:30 Standup\n- 14:00 Dentist\n" + embed)
+        XCTAssertTrue(
+            app.buttons["cancelSuggestions"].waitForNonExistence(timeout: 10),
+            "the sheet stayed up after the photograph went in"
+        )
+
+        XCTAssertTrue(key.waitForExistence(timeout: 10), "the keyboard never returned")
+        editor.typeText(" afterwards")
+        expect(
+            editor,
+            toHaveValue: "Notes\n- 09:30 Standup\n- 14:00 Dentist\n" + embed + " afterwards"
+        )
+
+        key.tap()
+        XCTAssertTrue(
+            app.buttons["eventSuggestion1"].waitForExistence(timeout: 10),
+            "the day was not offered again after reopening the sheet"
+        )
+        XCTAssertFalse(
+            app.buttons["eventSuggestion1"].label.contains("Inserted"),
+            "an event stayed ticked after the sheet was reopened"
+        )
+    }
+
+    func testUndecidedEventsAreOnlyReadAfterTheirOfferIsTapped() throws {
+        let app = launchApp(events: "09:30-10:30 Standup", eventsAccess: "undecided")
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        editor.tap()
+        app.buttons["openSuggestions"].tap()
+
+        let offer = app.buttons["showEventSuggestions"]
+        XCTAssertTrue(offer.waitForExistence(timeout: 10), "the sheet never offered to look")
+        XCTAssertFalse(app.staticTexts["eventSuggestions"].exists, "events were read before asking")
+        offer.tap()
+
+        XCTAssertTrue(
+            app.buttons["eventSuggestion0"].waitForExistence(timeout: 10),
+            "the timeline did not replace the permission offer"
+        )
+        XCTAssertFalse(offer.exists, "an allowed calendar was offered again")
+    }
+
+    func testRefusedEventsDrawNoEventsSection() throws {
+        let app = launchApp(events: "09:30-10:30 Standup", eventsAccess: "refused")
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        editor.tap()
+        app.buttons["openSuggestions"].tap()
+
+        XCTAssertTrue(
+            app.staticTexts["nothingToSuggest"].waitForExistence(timeout: 10),
+            "the empty sheet never settled"
+        )
+        XCTAssertFalse(app.staticTexts["eventSuggestions"].exists, "a refused calendar drew a section")
+        XCTAssertFalse(app.buttons["showEventSuggestions"].exists, "a refused calendar was offered again")
+    }
+
+    func testAnEmptyDayDrawsNoEventsSection() throws {
+        let app = launchApp()
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
+        editor.tap()
+        app.buttons["openSuggestions"].tap()
+
+        XCTAssertTrue(
+            app.staticTexts["nothingToSuggest"].waitForExistence(timeout: 10),
+            "the empty sheet never settled"
+        )
+        XCTAssertFalse(app.staticTexts["eventSuggestions"].exists, "an empty day drew an events section")
+        XCTAssertFalse(app.buttons["showEventSuggestions"].exists, "an empty day was asked for again")
+    }
+
     /// The reminder is off until somebody chooses a time, and what they choose
     /// is what this device goes on doing.
     ///

@@ -34,6 +34,27 @@ struct JournalStorageTests {
         }
     }
 
+    @Test("Suggestions reads the Entry's Journal Day without prompting")
+    func eventSuggestionsReadTheDayTheyAreAbout() async throws {
+        try await withTemporaryFolder { folders in
+            let iCloud = folders.appending(path: "iCloud/Documents", directoryHint: .isDirectory)
+            let events = EventsForSuggestions([DayItem(title: "Standup")])
+            let journal = Journal(
+                locator: .test(iCloudDocuments: iCloud, folders: folders),
+                settings: .inMemory(),
+                templateElsewhere: .unpicked,
+                dayData: DayData([.events: events])
+            )
+            let day = JournalDay(year: 2026, month: 3, day: 1)
+
+            let offered = await journal.suggestions(for: .events, on: day)
+
+            #expect(offered.map(\.title) == ["Standup"])
+            #expect(events.read == day.span(in: .current))
+            #expect(events.preparations == 0)
+        }
+    }
+
     @Test("a folder that already holds a journal opens with it, not over it")
     func anExistingJournalIsFoundWhereItWasLeft() async throws {
         try await withTemporaryFolder { folders in
@@ -291,6 +312,29 @@ struct JournalStorageTests {
                 == JournalRoot.Location.aujoursOwn(.iCloudDrive).name(onDevice: "iPhone")
         )
     }
+}
+
+/// A calendar the Journal reads through in a focused app-hosted test. It
+/// records both its day and whether opening Suggestions accidentally asked.
+private final class EventsForSuggestions: DayItemSource, @unchecked Sendable {
+    private let answer: [DayItem]
+    private let lock = NSLock()
+    private var readDay: DateInterval?
+    private var timesPrepared = 0
+
+    init(_ items: [DayItem]) { self.answer = items }
+
+    var access: DayDataAccess { .allowed }
+
+    func items(during day: DateInterval) async -> [DayItem] {
+        lock.withLock { readDay = day }
+        return answer
+    }
+
+    func prepare() async { lock.withLock { timesPrepared += 1 } }
+
+    var read: DateInterval? { lock.withLock { readDay } }
+    var preparations: Int { lock.withLock { timesPrepared } }
 }
 
 /// Waits for the Entry on screen to say something, up to a deadline.

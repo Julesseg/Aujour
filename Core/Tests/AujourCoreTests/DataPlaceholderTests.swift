@@ -14,7 +14,7 @@ private let english = Locale(identifier: "en_US_POSIX")
 private final class ADayOfItems: DayItemSource, @unchecked Sendable {
     private let answer: @Sendable (DateInterval) -> [DayItem]
     private let lock = NSLock()
-    private var askedAbout: DateInterval?
+    private var askedAbout: [DateInterval] = []
     private var timesPrepared = 0
 
     /// Where the permission stands, as the test said it does.
@@ -31,7 +31,7 @@ private final class ADayOfItems: DayItemSource, @unchecked Sendable {
     }
 
     func items(during day: DateInterval) async -> [DayItem] {
-        lock.withLock { askedAbout = day }
+        lock.withLock { askedAbout.append(day) }
         return answer(day)
     }
 
@@ -39,7 +39,8 @@ private final class ADayOfItems: DayItemSource, @unchecked Sendable {
         lock.withLock { timesPrepared += 1 }
     }
 
-    var span: DateInterval? { lock.withLock { askedAbout } }
+    var span: DateInterval? { lock.withLock { askedAbout.last } }
+    var spans: [DateInterval] { lock.withLock { askedAbout } }
     var preparations: Int { lock.withLock { timesPrepared } }
 }
 
@@ -124,6 +125,28 @@ struct DataPlaceholderSpawnTests {
         // The one with no time of its own loses the space a clock would have
         // left behind it.
         #expect(rendered == "- [ ] 11:00 Call the plumber\n- [ ] Renew the passport")
+    }
+
+    @Test("Suggestions and {{reminders}} read the same reminder source")
+    func reminderSuggestionsReadWhatThePlaceholderWrites() async {
+        let items = [
+            DayItem(title: "Buy bread", time: at(18)),
+            DayItem(title: "Call the dentist", time: at(9), isDone: true),
+        ]
+        let source = ADayOfItems(answering: { span in
+            span == march1.span(in: paris) ? items : []
+        })
+        let data = DayData([.reminders: source])
+
+        let offered = await data.items(for: .reminders, during: march1.span(in: paris))
+        let rendered = await ContentTemplate("{{reminders}}").render(at: spawn(), reading: data)
+
+        #expect(offered == items)
+        #expect(source.spans == [march1.span(in: paris), march1.span(in: paris)])
+        #expect(
+            rendered == DataPlaceholderFormat.default(for: .reminders)
+                .render(offered, timeZone: paris, locale: english)
+        )
     }
 
     @Test("both placeholders resolve in one spawn, each from its own source")

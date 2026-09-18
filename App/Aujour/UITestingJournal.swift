@@ -77,6 +77,7 @@ enum UITestingJournal {
     /// The events permission's standing before a UI test opens the sheet, and
     /// the answer an undecided test gives when it taps its offer.
     static let eventsAccessKey = "AUJOUR_UITEST_EVENTS_ACCESS"
+    static let remindersAccessKey = "AUJOUR_UITEST_REMINDERS_ACCESS"
 
     /// The places around the device, one per line as `Name` — or
     /// `Name | Region` for one whose row says where it is. In the order they
@@ -337,7 +338,9 @@ enum UITestingJournal {
             .events: ADaySeededByATest(
                 environment[eventsKey], access: environment[eventsAccessKey]
             ),
-            .reminders: ADaySeededByATest(environment[remindersKey]),
+            .reminders: ADaySeededByATest(
+                environment[remindersKey], access: environment[remindersAccessKey]
+            ),
         ])
     }
 
@@ -519,9 +522,10 @@ enum UITestingJournal {
 /// A day's events or reminders, said at launch instead of read from the
 /// device.
 ///
-/// Written as lines — `09:30-10:30 Standup`, or `Bank holiday` for something
-/// the day holds without an hour — and dated onto whichever day is being
-/// spawned, so one seeding serves today's Entry and a backfill alike.
+/// Written as lines — `09:30-10:30 Standup`, `[x] 18:00 Buy bread`, or `Bank
+/// holiday` for something the day holds without an hour — and dated onto
+/// whichever day is being spawned, so one seeding serves today's Entry and a
+/// backfill alike.
 private final class ADaySeededByATest: DayItemSource, @unchecked Sendable {
     let lines: [Substring]
     private let permission = NSLock()
@@ -549,15 +553,19 @@ private final class ADaySeededByATest: DayItemSource, @unchecked Sendable {
 
     func items(during day: DateInterval) async -> [DayItem] {
         lines.map { line in
-            let clock = line.prefix(5)
+            let done = line.hasPrefix("[x] ")
+            let item = done ? line.dropFirst(4) : line
+            let clock = item.prefix(5)
             guard clock.count == 5, clock.dropFirst(2).first == ":",
                 let hour = Int(clock.prefix(2)), let minute = Int(clock.suffix(2))
             else {
                 return DayItem(
-                    title: String(line), color: DayItemColor(red: 0.2, green: 0.45, blue: 0.85)
+                    title: String(item),
+                    isDone: done,
+                    color: DayItemColor(red: 0.2, green: 0.45, blue: 0.85)
                 )
             }
-            let remainder = line.dropFirst(5)
+            let remainder = item.dropFirst(5)
             let endClock = remainder.first == "-" ? remainder.dropFirst().prefix(5) : nil
             let end = endClock.flatMap { endClock -> Date? in
                 guard endClock.count == 5, endClock.dropFirst(2).first == ":",
@@ -572,6 +580,7 @@ private final class ADaySeededByATest: DayItemSource, @unchecked Sendable {
                 title: String(title.drop(while: { $0 == " " })),
                 time: day.start.addingTimeInterval(TimeInterval(hour * 3600 + minute * 60)),
                 end: end,
+                isDone: done,
                 color: DayItemColor(red: 0.2, green: 0.45, blue: 0.85)
             )
         }

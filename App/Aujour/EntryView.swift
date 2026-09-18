@@ -365,7 +365,19 @@ struct EntryView: View {
                             await journal?.prepareSuggestions(for: .events)
                         },
                         formattingEventsWith: journal?.howItIsWritten(.events)
-                            ?? .default(for: .events)
+                            ?? .default(for: .events),
+                        remindersFrom: { day in
+                            guard let journal else { return [] }
+                            return await journal.suggestions(for: .reminders, on: day)
+                        },
+                        reminderAccess: {
+                            journal?.accessToSuggestions(for: .reminders) ?? .refused
+                        },
+                        preparingReminders: {
+                            await journal?.prepareSuggestions(for: .reminders)
+                        },
+                        formattingRemindersWith: journal?.howItIsWritten(.reminders)
+                            ?? .default(for: .reminders)
                     )
                     .onDisappear(perform: request.finished)
                 }

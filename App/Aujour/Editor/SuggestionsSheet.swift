@@ -75,6 +75,13 @@ struct SuggestionsSheet: View {
     let prepareEvents: () async -> Void
     let eventFormat: DataPlaceholderFormat
 
+    /// The day's reminders, permission standing, and permission request. Like
+    /// events, these arrive from the Journal so this view never reads EventKit.
+    let remindersFrom: (JournalDay) async -> [DayItem]
+    let reminderAccess: () -> DayDataAccess
+    let prepareReminders: () async -> Void
+    let reminderFormat: DataPlaceholderFormat
+
     /// The day's photographs, read out of the library for the day on screen.
     /// Made with the sheet and gone with it: the library is read when it is
     /// looked at and not while the day is being written.
@@ -82,11 +89,18 @@ struct SuggestionsSheet: View {
 
     /// The event section's answer for this one opening. Like the photograph
     /// section, it is read when the sheet comes up and not while typing.
-    @State private var eventState = EventSuggestionsState.checking
+    @State private var eventState = DaySuggestionsState.checking
+
+    /// The reminder section's answer for this one opening.
+    @State private var reminderState = DaySuggestionsState.checking
 
     /// Rows written during this opening. The Entry is never read back: closing
     /// the sheet forgets these, and reopening offers the day afresh.
     @State private var insertedEventIndices: Set<Int> = []
+
+    /// The sheet's own insertion record. It is distinct from a reminder that
+    /// had already been completed on its day.
+    @State private var insertedReminderIndices: Set<Int> = []
 
     @Environment(\.dismiss) private var dismiss
 
@@ -106,7 +120,11 @@ struct SuggestionsSheet: View {
         eventsFrom: @escaping (JournalDay) async -> [DayItem] = { _ in [] },
         eventAccess: @escaping () -> DayDataAccess = { .refused },
         preparingEvents: @escaping () async -> Void = {},
-        formattingEventsWith eventFormat: DataPlaceholderFormat = .default(for: .events)
+        formattingEventsWith eventFormat: DataPlaceholderFormat = .default(for: .events),
+        remindersFrom: @escaping (JournalDay) async -> [DayItem] = { _ in [] },
+        reminderAccess: @escaping () -> DayDataAccess = { .refused },
+        preparingReminders: @escaping () async -> Void = {},
+        formattingRemindersWith reminderFormat: DataPlaceholderFormat = .default(for: .reminders)
     ) {
         self.day = day
         self.photographs = photographs
@@ -116,6 +134,10 @@ struct SuggestionsSheet: View {
         self.eventAccess = eventAccess
         self.prepareEvents = preparingEvents
         self.eventFormat = eventFormat
+        self.remindersFrom = remindersFrom
+        self.reminderAccess = reminderAccess
+        self.prepareReminders = preparingReminders
+        self.reminderFormat = reminderFormat
         _suggestions = State(wrappedValue: PhotoSuggestions(from: library))
     }
 
@@ -123,6 +145,7 @@ struct SuggestionsSheet: View {
         NavigationStack {
             List {
                 theEvents
+                theReminders
                 thePhotographs
                 nothingAtAll
             }
@@ -151,6 +174,7 @@ struct SuggestionsSheet: View {
         // about one day, at the moment somebody wants its photographs.
         .task(id: day) { await suggestions.look(for: day) }
         .task(id: day) { await lookForEvents() }
+        .task(id: day) { await lookForReminders() }
         // Half the screen to begin with, and draggable to all of it: a day at
         // the seaside is two hundred photographs, and a sheet that could only
         // ever be half is one nobody can reach the bottom of.
@@ -169,7 +193,10 @@ struct SuggestionsSheet: View {
     /// and only a day with nothing in any of them says so (`CONTEXT.md`,
     /// **Suggestions**).
     @ViewBuilder private var nothingAtAll: some View {
-        if suggestions.state == .nothingToOffer && eventState == .nothingToOffer {
+        if suggestions.state == .nothingToOffer,
+            eventState == .nothingToOffer,
+            reminderState == .nothingToOffer
+        {
             Section {
                 Text("Nothing to suggest from this day.")
                     .foregroundStyle(Palette.inkMutedColor)
@@ -198,7 +225,8 @@ struct SuggestionsSheet: View {
             }
             .settingsRows()
 
-        case .offering(let timeline):
+        case .offering(let events):
+            let timeline = DayItemTimeline(events)
             let allDay = timeline.allDay
             let timed = timeline.timed
 
@@ -248,8 +276,8 @@ struct SuggestionsSheet: View {
         .accessibilityLabel(eventLabel(for: item, inserted: inserted))
     }
 
-    private func colour(of item: DayItem) -> Color {
-        guard let colour = item.color else { return .clear }
+    private func colour(of item: DayItem, defaultingTo fallback: Color = .clear) -> Color {
+        guard let colour = item.color else { return fallback }
         return Color(red: colour.red, green: colour.green, blue: colour.blue)
     }
 
@@ -278,13 +306,104 @@ struct SuggestionsSheet: View {
             eventState = .nothingToOffer
         case .allowed:
             let found = await eventsFrom(day)
-            eventState = found.isEmpty ? .nothingToOffer : .offering(DayItemTimeline(found))
+            eventState = found.isEmpty ? .nothingToOffer : .offering(found)
         }
     }
 
     private func askToLookAtEvents() async {
         await prepareEvents()
         await lookForEvents()
+    }
+
+    // MARK: - The day's reminders
+
+    /// Reminders are a checklist in the source's order, which keeps their
+    /// individual insertions in the same order `{{reminders}}` would write.
+    @ViewBuilder private var theReminders: some View {
+        switch reminderState {
+        case .checking, .nothingToOffer:
+            EmptyView()
+
+        case .couldLook:
+            Section {
+                Button("Show reminders from this day", systemImage: "checklist") {
+                    Task { await askToLookAtReminders() }
+                }
+                .accessibilityIdentifier("showReminderSuggestions")
+            }
+            .settingsRows()
+
+        case .offering(let reminders):
+            Section {
+                ForEach(Array(reminders.enumerated()), id: \.offset) { index, item in
+                    reminderRow(item, at: index)
+                }
+            } header: {
+                Text("Reminders")
+                    .textCase(nil)
+                    .accessibilityIdentifier("reminderSuggestions")
+            }
+            .settingsRows()
+        }
+    }
+
+    /// The leading box says whether this reminder was already done. The
+    /// trailing tick only says this opening has inserted its line.
+    private func reminderRow(_ item: DayItem, at index: Int) -> some View {
+        let inserted = insertedReminderIndices.contains(index)
+        return Button {
+            guard !inserted else { return }
+            insertLine(reminderFormat.line(for: item, timeZone: .current, locale: .current))
+            insertedReminderIndices.insert(index)
+        } label: {
+            HStack(spacing: Spacing.close) {
+                Image(systemName: item.isDone ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(colour(of: item, defaultingTo: .secondary))
+                    .accessibilityHidden(true)
+                Text(item.title)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let time = item.time {
+                    Text(time.formatted(Date.FormatStyle(date: .omitted, time: .shortened)))
+                        .foregroundStyle(Palette.inkMutedColor)
+                        .monospacedDigit()
+                }
+                if inserted {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Color.accentColor)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+        .accessibilityIdentifier("reminderSuggestion\(index)")
+        .accessibilityLabel(reminderLabel(for: item, inserted: inserted))
+    }
+
+    private func reminderLabel(for item: DayItem, inserted: Bool) -> String {
+        [
+            item.isDone ? "Done" : "Not done",
+            item.title,
+            item.time.map { $0.formatted(Date.FormatStyle(date: .omitted, time: .shortened)) },
+            inserted ? "Inserted" : nil,
+        ]
+        .compactMap { $0 }
+        .joined(separator: ", ")
+    }
+
+    private func lookForReminders() async {
+        switch reminderAccess() {
+        case .undecided:
+            reminderState = .couldLook
+        case .refused:
+            reminderState = .nothingToOffer
+        case .allowed:
+            let found = await remindersFrom(day)
+            reminderState = found.isEmpty ? .nothingToOffer : .offering(found)
+        }
+    }
+
+    private func askToLookAtReminders() async {
+        await prepareReminders()
+        await lookForReminders()
     }
 
     // MARK: - The day's own photographs
@@ -389,13 +508,12 @@ struct SuggestionsSheet: View {
     }
 }
 
-/// What this opening of the Suggestions sheet knows about the day's events.
-/// The state starts empty until the sheet has read the permission standing,
-/// which keeps opening it from becoming a permission prompt.
-private enum EventSuggestionsState: Equatable {
+/// What one data section knows during this opening of Suggestions. It starts
+/// empty until the sheet reads permission, so opening the sheet never asks.
+private enum DaySuggestionsState: Equatable {
     case checking
     case couldLook
-    case offering(DayItemTimeline)
+    case offering([DayItem])
     case nothingToOffer
 }
 

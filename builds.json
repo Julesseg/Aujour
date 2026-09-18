@@ -1,0 +1,32 @@
+[
+  {
+    "pr": 140,
+    "title": "feat(suggestions): add the day's reminders checklist",
+    "sha": "7363b9c",
+    "time": "2026-09-18T13:17:19.696Z"
+  },
+  {
+    "pr": 139,
+    "title": "feat(suggestions): add the day’s events timeline",
+    "sha": "0955d06",
+    "time": "2026-09-18T09:23:44.066Z"
+  },
+  {
+    "pr": 137,
+    "title": "chore: make agent configuration client-neutral",
+    "sha": "ef10e40",
+    "time": "2026-09-17T20:19:32.224Z"
+  },
+  {
+    "pr": 138,
+    "title": "feat(editor): add Suggestions pane and direct photo picker",
+    "sha": "895296b",
+    "time": "2026-09-17T16:52:37.264Z"
+  },
+  {
+    "pr": 136,
+    "title": "feat(core): the seams Suggestions reads through",
+    "sha": "a6ac688",
+    "time": "2026-09-17T07:55:32.077Z"
+  }
+]

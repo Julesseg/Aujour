@@ -128,6 +128,29 @@ extension Array where Element == DayItem {
     }
 }
 
+/// One day's items arranged for Suggestions' event timeline.
+///
+/// A timeline begins with what the day held without an hour, then continues
+/// with the timed part in the order it began. This is domain presentation
+/// logic rather than a SwiftUI concern, so every screen that draws the day's
+/// events agrees on what "the day in order" means.
+public struct DayItemTimeline: Hashable, Sendable {
+    /// Items without a start hour in the source's order.
+    public let allDay: [DayItem]
+
+    /// Items with a start hour, earliest first.
+    public let timed: [DayItem]
+
+    public init(_ items: [DayItem]) {
+        allDay = items.filter { $0.time == nil }
+        timed = items.compactMap { item in
+            item.time.map { (time: $0, item: item) }
+        }
+        .sorted { $0.time < $1.time }
+        .map(\.item)
+    }
+}
+
 /// Where one data placeholder's items come from.
 ///
 /// The seam between the domain and the device: Core decides which stretch of
@@ -450,6 +473,16 @@ public struct DayData: Sendable {
     /// refused already means.
     public func access(for placeholder: DataPlaceholder) -> DayDataAccess {
         sources[placeholder]?.access ?? .refused
+    }
+
+    /// The items one source has for a Journal Day, for Suggestions to draw.
+    ///
+    /// Reading is deliberately the same no-prompt operation a template uses:
+    /// the sheet can offer an undecided permission, but never makes the
+    /// system alert appear simply because it was opened.
+    public func items(for placeholder: DataPlaceholder, during day: DateInterval) async -> [DayItem] {
+        guard let source = sources[placeholder] else { return [] }
+        return await source.items(during: day)
     }
 
     /// What one placeholder renders as for the Entry being spawned.

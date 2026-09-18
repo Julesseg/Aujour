@@ -554,6 +554,17 @@ struct MarkdownEditor: UIViewRepresentable {
                         in: textView
                     )
                 },
+                insertLine: { [weak self, weak textView] line in
+                    guard let self, let textView else { return }
+                    apply(
+                        .onItsOwnLine(
+                            line,
+                            in: textView.text,
+                            at: NSRange(location: caret.position, length: 0)
+                        ),
+                        in: textView
+                    )
+                },
                 finished: { [weak textView] in textView?.becomeFirstResponder() }
             )
             suggests(request)

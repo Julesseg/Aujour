@@ -357,6 +357,7 @@ struct ContentView: View {
                 editor: onScreen.editor,
                 photographsFrom: journal.photoLibrary,
                 placesFrom: journal.places,
+                journal: journal,
                 sending: $sending,
                 risingFrom: sheets
             )

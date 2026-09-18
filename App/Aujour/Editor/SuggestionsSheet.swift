@@ -19,6 +19,11 @@ struct SuggestionsRequest: Identifiable {
     /// was pressed.
     let insert: (Attachment) -> Void
 
+    /// Writes one line of the day's data at that same caret. The editor owns
+    /// the shared on-its-own-line placement rule, so pictures and events stay
+    /// in one contiguous insertion list.
+    let insertLine: (String) -> Void
+
     /// The sheet has gone, with or without anything written. Somebody who
     /// pressed a key above the keyboard was writing, and the keyboard is asked
     /// back.
@@ -59,10 +64,29 @@ struct SuggestionsSheet: View {
     /// where the caret was.
     let insert: (Attachment) -> Void
 
+    /// Where an event's rendered line goes — the same request anchor a
+    /// photograph uses, so later taps stay adjacent.
+    let insertLine: (String) -> Void
+
+    /// The day's events, permission standing, and permission request. The
+    /// Journal hands these over so this view reads no device service itself.
+    let eventsFrom: (JournalDay) async -> [DayItem]
+    let eventAccess: () -> DayDataAccess
+    let prepareEvents: () async -> Void
+    let eventFormat: DataPlaceholderFormat
+
     /// The day's photographs, read out of the library for the day on screen.
     /// Made with the sheet and gone with it: the library is read when it is
     /// looked at and not while the day is being written.
     @State private var suggestions: PhotoSuggestions
+
+    /// The event section's answer for this one opening. Like the photograph
+    /// section, it is read when the sheet comes up and not while typing.
+    @State private var eventState = EventSuggestionsState.checking
+
+    /// Rows written during this opening. The Entry is never read back: closing
+    /// the sheet forgets these, and reopening offers the day afresh.
+    @State private var insertedEventIndices: Set<Int> = []
 
     @Environment(\.dismiss) private var dismiss
 
@@ -77,17 +101,28 @@ struct SuggestionsSheet: View {
         for day: JournalDay,
         photographsFrom library: (any PhotoLibrary)?,
         through photographs: InsertedPhotographs,
-        inserting insert: @escaping (Attachment) -> Void
+        inserting insert: @escaping (Attachment) -> Void,
+        insertingLine: @escaping (String) -> Void,
+        eventsFrom: @escaping (JournalDay) async -> [DayItem] = { _ in [] },
+        eventAccess: @escaping () -> DayDataAccess = { .refused },
+        preparingEvents: @escaping () async -> Void = {},
+        formattingEventsWith eventFormat: DataPlaceholderFormat = .default(for: .events)
     ) {
         self.day = day
         self.photographs = photographs
         self.insert = insert
+        self.insertLine = insertingLine
+        self.eventsFrom = eventsFrom
+        self.eventAccess = eventAccess
+        self.prepareEvents = preparingEvents
+        self.eventFormat = eventFormat
         _suggestions = State(wrappedValue: PhotoSuggestions(from: library))
     }
 
     var body: some View {
         NavigationStack {
             List {
+                theEvents
                 thePhotographs
                 nothingAtAll
             }
@@ -115,6 +150,7 @@ struct SuggestionsSheet: View {
         // Read when the sheet comes up and not before: the library is asked
         // about one day, at the moment somebody wants its photographs.
         .task(id: day) { await suggestions.look(for: day) }
+        .task(id: day) { await lookForEvents() }
         // Half the screen to begin with, and draggable to all of it: a day at
         // the seaside is two hundred photographs, and a sheet that could only
         // ever be half is one nobody can reach the bottom of.
@@ -133,7 +169,7 @@ struct SuggestionsSheet: View {
     /// and only a day with nothing in any of them says so (`CONTEXT.md`,
     /// **Suggestions**).
     @ViewBuilder private var nothingAtAll: some View {
-        if suggestions.state == .nothingToOffer {
+        if suggestions.state == .nothingToOffer && eventState == .nothingToOffer {
             Section {
                 Text("Nothing to suggest from this day.")
                     .foregroundStyle(Palette.inkMutedColor)
@@ -141,6 +177,114 @@ struct SuggestionsSheet: View {
             }
             .settingsRows()
         }
+    }
+
+    // MARK: - The day's events
+
+    /// Events are a timeline: what the day held without an hour first, then
+    /// the timed part in start order. Calendar names never cross the Day Data
+    /// seam, so there is only the calendar's colour to draw beside each row.
+    @ViewBuilder private var theEvents: some View {
+        switch eventState {
+        case .checking, .nothingToOffer:
+            EmptyView()
+
+        case .couldLook:
+            Section {
+                Button("Show events from this day", systemImage: "calendar") {
+                    Task { await askToLookAtEvents() }
+                }
+                .accessibilityIdentifier("showEventSuggestions")
+            }
+            .settingsRows()
+
+        case .offering(let timeline):
+            let allDay = timeline.allDay
+            let timed = timeline.timed
+
+            Section {
+                ForEach(Array(allDay.enumerated()), id: \.offset) { index, item in
+                    eventRow(item, at: index)
+                }
+                ForEach(Array(timed.enumerated()), id: \.offset) { index, item in
+                    eventRow(item, at: allDay.count + index)
+                }
+            } header: {
+                Text("Events")
+                    .textCase(nil)
+                    .accessibilityIdentifier("eventSuggestions")
+            }
+            .settingsRows()
+        }
+    }
+
+    /// One event's row, which remains available to VoiceOver after it has
+    /// been written but is inert after its one insertion.
+    private func eventRow(_ item: DayItem, at index: Int) -> some View {
+        let inserted = insertedEventIndices.contains(index)
+        return Button {
+            guard !inserted else { return }
+            insertLine(eventFormat.line(for: item, timeZone: .current, locale: .current))
+            insertedEventIndices.insert(index)
+        } label: {
+            HStack(spacing: Spacing.close) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(colour(of: item))
+                    .frame(width: 4, height: 30)
+                    .accessibilityHidden(true)
+                Text(item.title)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(eventTime(for: item))
+                    .foregroundStyle(Palette.inkMutedColor)
+                    .monospacedDigit()
+                if inserted {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Color.accentColor)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+        .accessibilityIdentifier("eventSuggestion\(index)")
+        .accessibilityLabel(eventLabel(for: item, inserted: inserted))
+    }
+
+    private func colour(of item: DayItem) -> Color {
+        guard let colour = item.color else { return .clear }
+        return Color(red: colour.red, green: colour.green, blue: colour.blue)
+    }
+
+    private func timeRange(starting start: Date, ending end: Date?) -> String {
+        let beginning = start.formatted(Date.FormatStyle(date: .omitted, time: .shortened))
+        guard let end else { return beginning }
+        return "\(beginning) – \(end.formatted(Date.FormatStyle(date: .omitted, time: .shortened)))"
+    }
+
+    private func eventLabel(for item: DayItem, inserted: Bool) -> String {
+        return [item.title, eventTime(for: item), inserted ? "Inserted" : nil]
+            .compactMap { $0 }
+            .joined(separator: ", ")
+    }
+
+    private func eventTime(for item: DayItem) -> String {
+        guard let time = item.time else { return "All day" }
+        return timeRange(starting: time, ending: item.end)
+    }
+
+    private func lookForEvents() async {
+        switch eventAccess() {
+        case .undecided:
+            eventState = .couldLook
+        case .refused:
+            eventState = .nothingToOffer
+        case .allowed:
+            let found = await eventsFrom(day)
+            eventState = found.isEmpty ? .nothingToOffer : .offering(DayItemTimeline(found))
+        }
+    }
+
+    private func askToLookAtEvents() async {
+        await prepareEvents()
+        await lookForEvents()
     }
 
     // MARK: - The day's own photographs
@@ -243,6 +387,16 @@ struct SuggestionsSheet: View {
         guard attachment != nil || photographs.problem != nil else { return }
         dismiss()
     }
+}
+
+/// What this opening of the Suggestions sheet knows about the day's events.
+/// The state starts empty until the sheet has read the permission standing,
+/// which keeps opening it from becoming a permission prompt.
+private enum EventSuggestionsState: Equatable {
+    case checking
+    case couldLook
+    case offering(DayItemTimeline)
+    case nothingToOffer
 }
 
 /// One square in the grid: the photograph, and the tap that puts it in the

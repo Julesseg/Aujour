@@ -69,10 +69,14 @@ enum UITestingJournal {
     static let contentTemplateFile = "templates/Daily.md"
 
     /// What the day being spawned held, one item per line, as
-    /// `HH:mm Title` — or just `Title` for one the day holds without an hour.
-    /// Read for whichever day is spawned, so a backfill gets them too.
+    /// `HH:mm-HH:mm Title` — or just `Title` for one the day holds without an
+    /// hour. Read for whichever day is spawned, so a backfill gets them too.
     static let eventsKey = "AUJOUR_UITEST_EVENTS"
     static let remindersKey = "AUJOUR_UITEST_REMINDERS"
+
+    /// The events permission's standing before a UI test opens the sheet, and
+    /// the answer an undecided test gives when it taps its offer.
+    static let eventsAccessKey = "AUJOUR_UITEST_EVENTS_ACCESS"
 
     /// The places around the device, one per line as `Name` — or
     /// `Name | Region` for one whose row says where it is. In the order they
@@ -330,7 +334,9 @@ enum UITestingJournal {
     /// permission.
     private static func dayData(from environment: [String: String]) -> DayData {
         DayData([
-            .events: ADaySeededByATest(environment[eventsKey]),
+            .events: ADaySeededByATest(
+                environment[eventsKey], access: environment[eventsAccessKey]
+            ),
             .reminders: ADaySeededByATest(environment[remindersKey]),
         ])
     }
@@ -513,27 +519,60 @@ enum UITestingJournal {
 /// A day's events or reminders, said at launch instead of read from the
 /// device.
 ///
-/// Written as lines — `09:30 Standup`, or `Bank holiday` for something the day
-/// holds without an hour — and dated onto whichever day is being spawned, so
-/// one seeding serves today's Entry and a backfill alike.
-private struct ADaySeededByATest: DayItemSource {
+/// Written as lines — `09:30-10:30 Standup`, or `Bank holiday` for something
+/// the day holds without an hour — and dated onto whichever day is being
+/// spawned, so one seeding serves today's Entry and a backfill alike.
+private final class ADaySeededByATest: DayItemSource, @unchecked Sendable {
     let lines: [Substring]
+    private let permission = NSLock()
+    private var standing: DayDataAccess
+    private let whenAsked: DayDataAccess
 
-    init(_ seeded: String?) {
+    init(_ seeded: String?, access: String? = nil) {
         self.lines = (seeded ?? "").split(whereSeparator: \.isNewline)
+        self.standing =
+            switch access {
+            case "undecided", "refuses": .undecided
+            case "refused": .refused
+            default: .allowed
+            }
+        self.whenAsked = access == "refuses" ? .refused : .allowed
     }
 
-    var access: DayDataAccess { .allowed }
+    var access: DayDataAccess { permission.withLock { standing } }
+
+    func prepare() async {
+        permission.withLock {
+            if standing == .undecided { standing = whenAsked }
+        }
+    }
 
     func items(during day: DateInterval) async -> [DayItem] {
         lines.map { line in
             let clock = line.prefix(5)
             guard clock.count == 5, clock.dropFirst(2).first == ":",
                 let hour = Int(clock.prefix(2)), let minute = Int(clock.suffix(2))
-            else { return DayItem(title: String(line)) }
+            else {
+                return DayItem(
+                    title: String(line), color: DayItemColor(red: 0.2, green: 0.45, blue: 0.85)
+                )
+            }
+            let remainder = line.dropFirst(5)
+            let endClock = remainder.first == "-" ? remainder.dropFirst().prefix(5) : nil
+            let end = endClock.flatMap { endClock -> Date? in
+                guard endClock.count == 5, endClock.dropFirst(2).first == ":",
+                    let hour = Int(endClock.prefix(2)), let minute = Int(endClock.suffix(2))
+                else { return nil }
+                return day.start.addingTimeInterval(TimeInterval(hour * 3600 + minute * 60))
+            }
+            let title = end == nil
+                ? remainder
+                : remainder.dropFirst(6)
             return DayItem(
-                title: String(line.dropFirst(5).drop(while: { $0 == " " })),
-                time: day.start.addingTimeInterval(TimeInterval(hour * 3600 + minute * 60))
+                title: String(title.drop(while: { $0 == " " })),
+                time: day.start.addingTimeInterval(TimeInterval(hour * 3600 + minute * 60)),
+                end: end,
+                color: DayItemColor(red: 0.2, green: 0.45, blue: 0.85)
             )
         }
     }

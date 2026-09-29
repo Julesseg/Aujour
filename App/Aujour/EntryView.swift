@@ -289,6 +289,14 @@ struct EntryView: View {
                     roomForTheGlass: roomForTheGlass
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // A blank day speaks on the first line of the text view.
+                // Keep this overlay inside the same safe-area adjustment as
+                // the editor, or the top inset lands on it twice.
+                .overlay(alignment: .topLeading) {
+                    if editor.state.isEditing, editor.content.isEmpty {
+                        ABlankPage().padding(.top, roomForTheGlass)
+                    }
+                }
                 // Up under the pill and the bar, rather than stopping where
                 // they do. The chrome over a day is glass, and glass is only
                 // glass over something: a page laid out beneath it would meet
@@ -309,16 +317,6 @@ struct EntryView: View {
                         ProgressView("Opening \(editor.day.spelledOut())")
                             .accessibilityIdentifier("openingEntry")
                             .padding(.top, roomForTheGlass)
-                    }
-                }
-                // A day with nothing in it yet, said as the invitation it is
-                // rather than left as a grey rectangle. Only once it has been
-                // read: every day is empty for the moment before that.
-                .overlay(alignment: .topLeading) {
-                    if editor.state.isEditing, editor.content.isEmpty {
-                        // The glass's room on top of the editor's own inset,
-                        // which is what the first character sits under too.
-                        ABlankPage().padding(.top, roomForTheGlass)
                     }
                 }
                 // Answering writes plain markdown where the token stood, and

@@ -1,0 +1,32 @@
+[
+  {
+    "pr": 142,
+    "title": "feat(identity): add Turn and show it while the journal opens",
+    "sha": "a734a3b",
+    "time": "2026-09-30T12:55:37.847Z"
+  },
+  {
+    "pr": 141,
+    "title": "fix(editor): align empty-page prompt with writing line",
+    "sha": "b8c24ed",
+    "time": "2026-09-30T09:16:38.303Z"
+  },
+  {
+    "pr": 140,
+    "title": "feat(suggestions): add the day's reminders checklist",
+    "sha": "7363b9c",
+    "time": "2026-09-18T13:17:19.696Z"
+  },
+  {
+    "pr": 139,
+    "title": "feat(suggestions): add the day’s events timeline",
+    "sha": "0955d06",
+    "time": "2026-09-18T09:23:44.066Z"
+  },
+  {
+    "pr": 137,
+    "title": "chore: make agent configuration client-neutral",
+    "sha": "ef10e40",
+    "time": "2026-09-17T20:19:32.224Z"
+  }
+]

@@ -667,10 +667,11 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
             "yesterday's entry never reopened — the screen is showing: "
                 + app.staticTexts.allElementsBoundByIndex.map { $0.label }.joined(separator: " / ")
         )
-        let written = try XCTUnwrap(editor.value as? String)
+        // The text view exists while its file is still opening. Give that
+        // read time to finish before treating an empty value as lost writing.
         XCTAssertTrue(
-            written.contains("Filled in the next morning."),
-            "expected yesterday's words to have been written to its file, got: \(written)"
+            waitFor { (editor.value as? String)?.contains("Filled in the next morning.") == true },
+            "expected yesterday's words to have been written to its file, got: \(editor.value as? String ?? "")"
         )
     }
 }

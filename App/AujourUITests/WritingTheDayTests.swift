@@ -7,6 +7,32 @@ import XCTest
 // has just installed Aujour is looking at a journal folder that exists and at
 // today's Entry, and what they type into it is in a file afterwards.
 final class WritingTheDayTests: AujourUITestCase {
+    func testBlankPageInvitationSitsOnTheFirstWritingLine() throws {
+        let app = launchApp(layout: nil)
+
+        let editor = app.textViews["entryEditor"]
+        let invitation = app.staticTexts["aBlankPage"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30))
+        XCTAssertTrue(invitation.waitForExistence(timeout: 30))
+
+        // The first writing line rests under the pill's row or the wide
+        // layout's navigation bar, plus the text view's 12-point inset.
+        let pill = app.buttons["datePill"]
+        let chromeBottom: CGFloat
+        if pill.exists {
+            chromeBottom = pill.frame.maxY + 8
+        } else {
+            let bar = app.navigationBars.firstMatch
+            XCTAssertTrue(bar.exists, "the wide page has no navigation bar")
+            chromeBottom = bar.frame.maxY
+        }
+        let firstLine = max(editor.frame.minY, chromeBottom) + 12
+        XCTAssertEqual(
+            invitation.frame.minY, firstLine, accuracy: 12,
+            "the invitation at \(invitation.frame.minY) is away from the first writing line at \(firstLine)"
+        )
+    }
+
     func testAFreshInstallFindsAJournalFolderWithoutBeingConfigured() throws {
         // Deliberately without a folder of its own: this is the claim about
         // an install nobody has configured, so it has to be the app's own

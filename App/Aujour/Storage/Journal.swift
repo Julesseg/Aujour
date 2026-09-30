@@ -54,8 +54,8 @@ struct NoJournalIsOpen: LocalizedError {
 @Observable
 final class Journal {
     enum State: Equatable {
-        /// Finding the folder. Asking iCloud for the container is slow the
-        /// first time on a device, so this is a state and not a blink.
+        /// Finding the folder and reading today's Entry. Asking iCloud for
+        /// the container can be slow; the page appears when its read finishes.
         case opening
         /// Journaling, into a folder holding this many Entries — or `nil` for
         /// a Path Template that cannot say which files are Entries, where the
@@ -354,7 +354,6 @@ final class Journal {
             )
             folder = opened.folder
             parking = DivergenceParking(store: opened.store, versions: versions)
-            state = .open(opened.root, entryCount: opened.entryCount)
             // Before the Entry is read, so that what is read is the version
             // that won the day's path: a divergence that arrived while the app
             // was closed is settled on the way in, not shown and then swapped
@@ -372,6 +371,10 @@ final class Journal {
                 for: ContentTemplate(await template.markdown() ?? "").dataPlaceholders
             )
             await editor.open()
+            // A folder alone is not a ready page. Publish both together,
+            // including an Entry's read failure so its recovery UI can appear.
+            // No minimum splash duration: this is the last required read.
+            state = .open(opened.root, entryCount: opened.entryCount)
             keepUpWith(opened.folder.changes)
         } catch {
             store = nil

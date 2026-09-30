@@ -627,15 +627,14 @@ struct ContentView: View {
             Group {
                 switch journal.state {
                 case .opening where thePageBeingLeft == nil:
-                    ProgressView("Opening your journal")
-                        .accessibilityIdentifier("openingJournal")
-                        .navigationTitle("Aujour")
+                    JournalLaunchView()
+                        .toolbar(.hidden, for: .navigationBar)
 
                 // The journal, and the journal opening again with the page it
                 // is leaving still drawn — the same layout, over the calendar
                 // and editor that were on screen, with the cover coming in
-                // over all of it. The title and the spinner the first opening
-                // shows were exactly the flash this had to cross.
+                // over all of it. The launch screen belongs to the first
+                // opening; reopening keeps the page already on screen.
                 case .open, .opening:
                     // The month down one side on a window with room for it,
                     // and nothing at all on a window without — and the day's

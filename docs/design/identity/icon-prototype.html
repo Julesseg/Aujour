@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aujour · icon fold prototypes</title>
+  <style>
+    :root { color-scheme: light; --ink:#241f1b; --muted:#756d64; --paper:#f6f2ec; --desk:#eae6df; --accent:#7b6a52; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:var(--desk); color:var(--ink); font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { max-width:1080px; margin:auto; padding:46px 32px 116px; }
+    .eyebrow { color:var(--accent); text-transform:uppercase; letter-spacing:.15em; font-size:11px; font-weight:700; }
+    h1 { margin:8px 0 9px; font-family:Georgia,serif; font-weight:400; font-size:clamp(32px,5vw,55px); letter-spacing:-.045em; line-height:1.05; }
+    .intro { max-width:630px; color:var(--muted); margin:0 0 38px; }
+    .stage { display:grid; grid-template-columns:minmax(240px,1fr) minmax(260px,1fr); gap:clamp(28px,6vw,86px); align-items:center; }
+    .hero-well { min-height:470px; display:grid; place-items:center; background:#d8d3cb; border-radius:32px; background-image:linear-gradient(145deg,#e3ded7,#d2ccc3); }
+    .hero-icon { width:min(74%,340px); filter:drop-shadow(0 20px 24px rgba(36,31,27,.17)) drop-shadow(0 3px 3px rgba(36,31,27,.12)); }
+    svg.icon { display:block; width:100%; height:auto; }
+    .detail { max-width:440px; }
+    .index { font:600 12px ui-monospace,Menlo,monospace; color:var(--accent); letter-spacing:.07em; }
+    h2 { margin:8px 0 12px; font:400 clamp(31px,4vw,45px)/1.08 Georgia,serif; letter-spacing:-.04em; }
+    .thesis { font:18px/1.5 Georgia,serif; max-width:420px; }
+    .detail p:last-child { color:var(--muted); }
+    .scale-label { margin-top:27px; color:var(--accent); font-size:11px; text-transform:uppercase; letter-spacing:.13em; font-weight:700; }
+    .scale-row { display:flex; gap:23px; align-items:end; margin-top:14px; }
+    .scale { display:flex; flex-direction:column; gap:7px; align-items:center; color:var(--muted); font:11px ui-monospace,Menlo,monospace; }
+    .scale .icon { filter:drop-shadow(0 3px 5px rgba(36,31,27,.17)); }
+    .size-96 { width:96px!important; } .size-60 { width:60px!important; } .size-32 { width:32px!important; }
+    .choices { border-top:1px solid rgba(36,31,27,.15); display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:42px; padding-top:24px; }
+    .choice { border:1px solid rgba(36,31,27,.16); border-radius:16px; background:rgba(255,252,247,.6); padding:12px; display:flex; align-items:center; gap:13px; text-align:left; color:var(--ink); cursor:pointer; font:inherit; }
+    .choice[aria-pressed="true"] { border-color:var(--accent); background:#fffcf7; box-shadow:0 0 0 2px rgba(123,106,82,.14); }
+    .choice:hover { background:#fffcf7; }
+    .choice .icon { width:52px; flex:none; }
+    .choice strong { display:block; font-weight:600; font-size:13px; }
+    .choice small { display:block; color:var(--muted); font-size:11px; }
+    .source { margin-top:28px; color:var(--muted); font-size:12px; }
+    .switcher { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:10; display:flex; align-items:center; gap:8px; padding:7px; border-radius:99px; background:var(--ink); color:#fff; box-shadow:0 10px 30px rgba(36,31,27,.25); white-space:nowrap; }
+    .switcher button { border:0; border-radius:50%; width:36px; height:36px; background:rgba(255,255,255,.14); color:inherit; cursor:pointer; font-size:21px; line-height:1; }
+    .switcher button:hover { background:rgba(255,255,255,.25); }
+    .switcher span { min-width:178px; text-align:center; font-size:12px; font-weight:600; }
+    @media(max-width:700px) { main{padding:30px 18px 110px} .stage{grid-template-columns:1fr;gap:28px} .hero-well{min-height:330px} .hero-icon{width:230px} .choices{grid-template-columns:1fr} .choice .icon{width:44px} }
+  </style>
+</head>
+<body>
+  <!-- Three throwaway variants of the app icon, switchable via ?variant=A|B|C. The icon's own bounds are the page. -->
+  <main>
+    <div class="eyebrow">Aujour · design prototype</div>
+    <h1>What if the icon is the page?</h1>
+    <p class="intro">Three interpretations of the lift in “Logo 1.svg”. The large view shows the fold; the smaller views show whether the movement survives at home screen size.</p>
+    <p class="source"><a href="icon-refinements-prototype.html">New: three refinements of option A →</a></p>
+    <div class="stage">
+      <div class="hero-well"><div id="hero" class="hero-icon"></div></div>
+      <div class="detail">
+        <div id="index" class="index"></div>
+        <h2 id="title"></h2>
+        <p id="thesis" class="thesis"></p>
+        <p id="note"></p>
+        <div class="scale-label">At icon size</div>
+        <div id="scales" class="scale-row"></div>
+      </div>
+    </div>
+    <div id="choices" class="choices" aria-label="Icon variants"></div>
+    <p class="source">Starting point: the open page outline and rising dark fold in <strong>Logo 1.svg</strong>. These are sketches for choosing a direction, not app assets.</p>
+  </main>
+  <div class="switcher" aria-label="Prototype switcher">
+    <button id="previous" aria-label="Previous variant">‹</button>
+    <span id="switch-label"></span>
+    <button id="next" aria-label="Next variant">›</button>
+  </div>
+  <script>
+    const variants = {
+      A: {
+        title:'The sweep',
+        thesis:'The lower edge moves like the source drawing: a broad curl rises from the bottom left and climbs toward the right side.',
+        note:'The dark underside carries the gesture. There is no second page drawn inside the icon.',
+        art:`<svg class="icon" viewBox="0 0 1024 1024" role="img" aria-label="Cream page with a broad dark fold rising toward the right">
+          <defs><clipPath id="clip-a"><rect width="1024" height="1024" rx="224"/></clipPath></defs>
+          <g clip-path="url(#clip-a)">
+            <rect width="1024" height="1024" fill="#f6f2ec"/>
+            <path d="M0 1024 C250 981 458 912 589 770 C707 641 795 520 1024 486 V1024Z" fill="#241f1b"/>
+            <path d="M0 1024 C253 1008 482 949 624 814 C756 688 815 540 1024 486 C869 500 773 548 687 653 C515 865 284 949 0 1024Z" fill="#ab9982"/>
+          </g></svg>`
+      },
+      B: {
+        title:'The turned corner',
+        thesis:'A single bottom corner folds back into the page. The turning point, rather than the whole bottom edge, becomes the mark.',
+        note:'A quieter paper object: cream face, warm reverse, and one sharp ink crease.',
+        art:`<svg class="icon" viewBox="0 0 1024 1024" role="img" aria-label="Cream page with its bottom right corner turned upward">
+          <defs><clipPath id="clip-b"><rect width="1024" height="1024" rx="224"/></clipPath><linearGradient id="fold-b" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#dccfba"/><stop offset="1" stop-color="#9e886e"/></linearGradient></defs>
+          <g clip-path="url(#clip-b)">
+            <rect width="1024" height="1024" fill="#f6f2ec"/>
+            <path d="M1024 512 C877 560 793 668 753 780 C721 869 630 966 497 1024 H1024Z" fill="#241f1b"/>
+            <path d="M497 1024 C691 991 859 873 954 707 C985 652 1009 584 1024 512 V1024Z" fill="url(#fold-b)"/>
+            <path d="M497 1024 C705 964 848 862 943 705 C981 642 1007 578 1024 512" fill="none" stroke="#241f1b" stroke-width="17" stroke-linecap="round"/>
+            <path d="M626 1024 C809 958 939 830 1024 688" fill="none" stroke="#f5ebdb" stroke-width="11" opacity=".65"/>
+          </g></svg>`
+      },
+      C: {
+        title:'The lifted tip',
+        thesis:'The upper corner comes forward instead. The page still fills the icon, but the curl opens a pocket of ink at the top.',
+        note:'This tests whether the gesture reads more clearly when the lifted corner sits away from the home screen label.',
+        art:`<svg class="icon" viewBox="0 0 1024 1024" role="img" aria-label="Cream page with its upper right tip lifting to show a dark pocket">
+          <defs><clipPath id="clip-c"><rect width="1024" height="1024" rx="224"/></clipPath><linearGradient id="fold-c" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e9dfd1"/><stop offset="1" stop-color="#a18d76"/></linearGradient></defs>
+          <g clip-path="url(#clip-c)">
+            <rect width="1024" height="1024" fill="#241f1b"/>
+            <path d="M0 0 H700 C715 142 809 278 1024 392 V1024 H0Z" fill="#f6f2ec"/>
+            <path d="M700 0 C730 143 837 302 1024 392 C1012 256 960 115 868 0Z" fill="url(#fold-c)"/>
+            <path d="M700 0 C730 143 837 302 1024 392" fill="none" stroke="#241f1b" stroke-width="18" stroke-linecap="round"/>
+            <path d="M784 0 C833 142 918 241 1024 308" fill="none" stroke="#fffaf2" stroke-width="10" opacity=".7"/>
+          </g></svg>`
+      }
+    };
+    const keys=Object.keys(variants);
+    const icon=(key)=>variants[key].art;
+    const $=(id)=>document.getElementById(id);
+    function render(key, updateUrl=true) {
+      if(!variants[key]) key='A';
+      const v=variants[key];
+      $('hero').innerHTML=icon(key);
+      $('index').textContent=`${key} / 03`;
+      $('title').textContent=v.title;
+      $('thesis').textContent=v.thesis;
+      $('note').textContent=v.note;
+      $('switch-label').textContent=`${key} · ${v.title}`;
+      $('scales').innerHTML=[96,60,32].map(n=>`<div class="scale"><div class="size-${n}">${icon(key)}</div><span>${n}px</span></div>`).join('');
+      $('choices').innerHTML=keys.map(k=>`<button class="choice" data-key="${k}" aria-pressed="${k===key}">${icon(k)}<span><strong>${k} · ${variants[k].title}</strong><small>${k===key?'Viewing':'View this direction'}</small></span></button>`).join('');
+      if(updateUrl){ const url=new URL(location.href); url.searchParams.set('variant',key); history.replaceState(null,'',url); }
+    }
+    function step(amount){ const current=new URL(location.href).searchParams.get('variant')||'A'; render(keys[(keys.indexOf(current)+amount+keys.length)%keys.length]); }
+    $('previous').addEventListener('click',()=>step(-1));
+    $('next').addEventListener('click',()=>step(1));
+    $('choices').addEventListener('click',e=>{ const button=e.target.closest('[data-key]'); if(button) render(button.dataset.key); });
+    addEventListener('keydown',e=>{ if(e.target.matches('input,textarea,[contenteditable]')) return; if(e.key==='ArrowLeft') step(-1); if(e.key==='ArrowRight') step(1); });
+    addEventListener('popstate',()=>render(new URL(location.href).searchParams.get('variant'),false));
+    render(new URL(location.href).searchParams.get('variant'),false);
+  </script>
+</body>
+</html>

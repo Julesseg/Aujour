@@ -1,0 +1,495 @@
+{
+  "renderer": {
+    "bundle-version": "129",
+    "short-bundle-version": "27.0"
+  },
+  "tintStrength": 0.7,
+  "tints": {
+    "copper": 0.08,
+    "green": 0.5,
+    "blue": 0.62,
+    "violet": 0.82
+  },
+  "renders": [
+    {
+      "file": "26-Default.png",
+      "generation": 26,
+      "appearance": "Default",
+      "tint": null,
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "26-Default-60.png",
+      "generation": 26,
+      "appearance": "Default",
+      "tint": null,
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "26-Default-32.png",
+      "generation": 26,
+      "appearance": "Default",
+      "tint": null,
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "26-Dark.png",
+      "generation": 26,
+      "appearance": "Dark",
+      "tint": null,
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "26-Dark-60.png",
+      "generation": 26,
+      "appearance": "Dark",
+      "tint": null,
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "26-Dark-32.png",
+      "generation": 26,
+      "appearance": "Dark",
+      "tint": null,
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedLight-copper.png",
+      "generation": 26,
+      "appearance": "TintedLight",
+      "tint": "copper",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "26-TintedLight-copper-60.png",
+      "generation": 26,
+      "appearance": "TintedLight",
+      "tint": "copper",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedLight-copper-32.png",
+      "generation": 26,
+      "appearance": "TintedLight",
+      "tint": "copper",
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedLight-green.png",
+      "generation": 26,
+      "appearance": "TintedLight",
+      "tint": "green",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "26-TintedLight-green-60.png",
+      "generation": 26,
+      "appearance": "TintedLight",
+      "tint": "green",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedLight-green-32.png",
+      "generation": 26,
+      "appearance": "TintedLight",
+      "tint": "green",
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedLight-blue.png",
+      "generation": 26,
+      "appearance": "TintedLight",
+      "tint": "blue",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "26-TintedLight-blue-60.png",
+      "generation": 26,
+      "appearance": "TintedLight",
+      "tint": "blue",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedLight-blue-32.png",
+      "generation": 26,
+      "appearance": "TintedLight",
+      "tint": "blue",
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedLight-violet.png",
+      "generation": 26,
+      "appearance": "TintedLight",
+      "tint": "violet",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "26-TintedLight-violet-60.png",
+      "generation": 26,
+      "appearance": "TintedLight",
+      "tint": "violet",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedLight-violet-32.png",
+      "generation": 26,
+      "appearance": "TintedLight",
+      "tint": "violet",
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedDark-copper.png",
+      "generation": 26,
+      "appearance": "TintedDark",
+      "tint": "copper",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "26-TintedDark-copper-60.png",
+      "generation": 26,
+      "appearance": "TintedDark",
+      "tint": "copper",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedDark-copper-32.png",
+      "generation": 26,
+      "appearance": "TintedDark",
+      "tint": "copper",
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedDark-green.png",
+      "generation": 26,
+      "appearance": "TintedDark",
+      "tint": "green",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "26-TintedDark-green-60.png",
+      "generation": 26,
+      "appearance": "TintedDark",
+      "tint": "green",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedDark-green-32.png",
+      "generation": 26,
+      "appearance": "TintedDark",
+      "tint": "green",
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedDark-blue.png",
+      "generation": 26,
+      "appearance": "TintedDark",
+      "tint": "blue",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "26-TintedDark-blue-60.png",
+      "generation": 26,
+      "appearance": "TintedDark",
+      "tint": "blue",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedDark-blue-32.png",
+      "generation": 26,
+      "appearance": "TintedDark",
+      "tint": "blue",
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedDark-violet.png",
+      "generation": 26,
+      "appearance": "TintedDark",
+      "tint": "violet",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "26-TintedDark-violet-60.png",
+      "generation": 26,
+      "appearance": "TintedDark",
+      "tint": "violet",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "26-TintedDark-violet-32.png",
+      "generation": 26,
+      "appearance": "TintedDark",
+      "tint": "violet",
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "27-Default.png",
+      "generation": 27,
+      "appearance": "Default",
+      "tint": null,
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "27-Default-60.png",
+      "generation": 27,
+      "appearance": "Default",
+      "tint": null,
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "27-Default-32.png",
+      "generation": 27,
+      "appearance": "Default",
+      "tint": null,
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "27-Dark.png",
+      "generation": 27,
+      "appearance": "Dark",
+      "tint": null,
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "27-Dark-60.png",
+      "generation": 27,
+      "appearance": "Dark",
+      "tint": null,
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "27-Dark-32.png",
+      "generation": 27,
+      "appearance": "Dark",
+      "tint": null,
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedLight-copper.png",
+      "generation": 27,
+      "appearance": "TintedLight",
+      "tint": "copper",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "27-TintedLight-copper-60.png",
+      "generation": 27,
+      "appearance": "TintedLight",
+      "tint": "copper",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedLight-copper-32.png",
+      "generation": 27,
+      "appearance": "TintedLight",
+      "tint": "copper",
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedLight-green.png",
+      "generation": 27,
+      "appearance": "TintedLight",
+      "tint": "green",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "27-TintedLight-green-60.png",
+      "generation": 27,
+      "appearance": "TintedLight",
+      "tint": "green",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedLight-green-32.png",
+      "generation": 27,
+      "appearance": "TintedLight",
+      "tint": "green",
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedLight-blue.png",
+      "generation": 27,
+      "appearance": "TintedLight",
+      "tint": "blue",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "27-TintedLight-blue-60.png",
+      "generation": 27,
+      "appearance": "TintedLight",
+      "tint": "blue",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedLight-blue-32.png",
+      "generation": 27,
+      "appearance": "TintedLight",
+      "tint": "blue",
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedLight-violet.png",
+      "generation": 27,
+      "appearance": "TintedLight",
+      "tint": "violet",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "27-TintedLight-violet-60.png",
+      "generation": 27,
+      "appearance": "TintedLight",
+      "tint": "violet",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedLight-violet-32.png",
+      "generation": 27,
+      "appearance": "TintedLight",
+      "tint": "violet",
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedDark-copper.png",
+      "generation": 27,
+      "appearance": "TintedDark",
+      "tint": "copper",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "27-TintedDark-copper-60.png",
+      "generation": 27,
+      "appearance": "TintedDark",
+      "tint": "copper",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedDark-copper-32.png",
+      "generation": 27,
+      "appearance": "TintedDark",
+      "tint": "copper",
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedDark-green.png",
+      "generation": 27,
+      "appearance": "TintedDark",
+      "tint": "green",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "27-TintedDark-green-60.png",
+      "generation": 27,
+      "appearance": "TintedDark",
+      "tint": "green",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedDark-green-32.png",
+      "generation": 27,
+      "appearance": "TintedDark",
+      "tint": "green",
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedDark-blue.png",
+      "generation": 27,
+      "appearance": "TintedDark",
+      "tint": "blue",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "27-TintedDark-blue-60.png",
+      "generation": 27,
+      "appearance": "TintedDark",
+      "tint": "blue",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedDark-blue-32.png",
+      "generation": 27,
+      "appearance": "TintedDark",
+      "tint": "blue",
+      "points": 32,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedDark-violet.png",
+      "generation": 27,
+      "appearance": "TintedDark",
+      "tint": "violet",
+      "points": 512,
+      "scale": 1
+    },
+    {
+      "file": "27-TintedDark-violet-60.png",
+      "generation": 27,
+      "appearance": "TintedDark",
+      "tint": "violet",
+      "points": 60,
+      "scale": 2
+    },
+    {
+      "file": "27-TintedDark-violet-32.png",
+      "generation": 27,
+      "appearance": "TintedDark",
+      "tint": "violet",
+      "points": 32,
+      "scale": 2
+    }
+  ]
+}

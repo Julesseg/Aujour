@@ -703,6 +703,7 @@ struct MarkdownEditor: UIViewRepresentable {
             )
             storage(of: textView)?.cursor = cursorIfSomebodyIsWriting(in: textView)
             settle(in: textView)
+            (textView as? MarkdownTextView)?.revealsSelectionAfterLayout()
         }
 
         /// Tells the Entry where the caret has come to rest, and shows what
@@ -764,6 +765,7 @@ struct MarkdownEditor: UIViewRepresentable {
             let pasted = changeIsAPaste
             changeIsAPaste = false
             settle(in: textView, afterAPaste: pasted)
+            (textView as? MarkdownTextView)?.revealsSelectionAfterLayout()
         }
 
         /// Opens the next item when a return lands in a list, in place of the
@@ -813,6 +815,7 @@ struct MarkdownEditor: UIViewRepresentable {
             // with the text, a moment from now.
             guard textView.textStorage.length == settledLength else { return }
             settle(in: textView)
+            (textView as? MarkdownTextView)?.revealsSelectionAfterLayout()
         }
 
         /// Where the cursor is, as live preview means it: where the caret is
@@ -827,6 +830,7 @@ struct MarkdownEditor: UIViewRepresentable {
         func textViewDidBeginEditing(_ textView: UITextView) {
             storage(of: textView)?.cursor = textView.selectedRange
             settle(in: textView, caret: textView.selectedRange.location)
+            (textView as? MarkdownTextView)?.revealsSelectionAfterLayout()
         }
 
         /// The keyboard going down, and with it the last revealed element. A

@@ -127,6 +127,14 @@ final class MarkdownTextView: UITextView {
     /// How tall the header came out last time it was measured.
     private var headerHeight: CGFloat = 0
 
+    private var needsSelectionReveal = false
+    private var laidOutRowOverlap: CGFloat = 0
+
+    func revealsSelectionAfterLayout() {
+        needsSelectionReveal = true
+        setNeedsLayout()
+    }
+
     /// How much of the bottom of the page the row above the keyboard covers.
     ///
     /// Room the page keeps below its last line, and the mirror of the room it
@@ -301,6 +309,26 @@ final class MarkdownTextView: UITextView {
         super.layoutSubviews()
         placeHeader()
         placesTheBandUnderTheStatusBar()
+        let overlap = roomForTheRowOverThePage
+        if overlap != laidOutRowOverlap {
+            laidOutRowOverlap = overlap
+            needsSelectionReveal = true
+        }
+        revealSelection(above: overlap)
+    }
+
+    private func revealSelection(above overlap: CGFloat) {
+        guard needsSelectionReveal, !isTracking, !isDragging, !isDecelerating else { return }
+        needsSelectionReveal = false
+        guard isFirstResponder, let selection = selectedTextRange else { return }
+        layoutManager.ensureLayout(forCharacterRange: selectedRange)
+        let caret = caretRect(for: selection.end)
+        let bottom = bounds.maxY - max(adjustedContentInset.bottom, overlap) - baseInset.bottom
+        guard caret.maxY > bottom else { return }
+        setContentOffset(
+            CGPoint(x: contentOffset.x, y: contentOffset.y + caret.maxY - bottom),
+            animated: false
+        )
     }
 
     override func didMoveToWindow() {

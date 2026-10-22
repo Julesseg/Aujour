@@ -96,6 +96,7 @@ struct EntryPaper {
         storage.pictures = pictures
 
         let layout = MarkdownLayoutManager()
+        layout.keepsOriginalPictures = true
         // Held for as long as the drawing takes: a layout manager does not
         // keep its delegate alive, and without this one there is no live
         // preview — every hash and every star would be on the page.

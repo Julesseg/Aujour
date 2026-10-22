@@ -59,6 +59,10 @@ final class DrawnMarkdown: NSObject {
     /// restyle has to cover to take it away again.
     let text: NSRange
 
+    private var renderedPicture: UIImage?
+    private var renderedSize = CGSize.zero
+    private var renderedScale: CGFloat = 0
+
     init(_ kind: Kind, over text: NSRange) {
         self.kind = kind
         self.text = text
@@ -109,7 +113,7 @@ final class DrawnMarkdown: NSObject {
 
     /// Draws into the space the layout left, which is a whole line's height —
     /// so a box is centred in it and a picture fills it from the top.
-    func draw(in room: CGRect, in font: UIFont) {
+    func draw(in room: CGRect, in font: UIFont, keepingOriginalPictures: Bool = false) {
         let size = size(in: font, fitting: room.width)
         switch kind {
         case .taskBox(let isDone, let tint):
@@ -134,9 +138,31 @@ final class DrawnMarkdown: NSObject {
             let rounded = UIBezierPath(roundedRect: drawn, cornerRadius: 8)
             UIGraphicsGetCurrentContext()?.saveGState()
             rounded.addClip()
-            picture.draw(in: drawn)
+            let image = keepingOriginalPictures ? picture : pictureForDrawing(picture, at: size)
+            image.draw(in: drawn)
             UIGraphicsGetCurrentContext()?.restoreGState()
         }
+    }
+
+    private func pictureForDrawing(_ picture: UIImage, at size: CGSize) -> UIImage {
+        guard size.width > 0, size.height > 0, let context = UIGraphicsGetCurrentContext() else {
+            return picture
+        }
+        let transform = context.ctm
+        let scale = max(hypot(transform.a, transform.b), hypot(transform.c, transform.d))
+        guard scale > 0 else { return picture }
+        if let renderedPicture, renderedSize == size, renderedScale == scale {
+            return renderedPicture
+        }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        let rendered = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            picture.draw(in: CGRect(origin: .zero, size: size))
+        }
+        renderedPicture = rendered
+        renderedSize = size
+        renderedScale = scale
+        return rendered
     }
 
     /// The face a chip's lettering is set in, for a line of the Entry set in

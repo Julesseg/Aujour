@@ -14,6 +14,8 @@ import UIKit
 /// picture on a line that wrapped, in an entry scrolled half off the top, is
 /// somewhere no view-level arithmetic would find it.
 final class MarkdownLayoutManager: NSLayoutManager {
+    var keepsOriginalPictures = false
+
     override func drawGlyphs(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
         super.drawGlyphs(forGlyphRange: glyphsToShow, at: origin)
         guard let storage = textStorage else { return }
@@ -45,7 +47,10 @@ final class MarkdownLayoutManager: NSLayoutManager {
         room.origin.x += origin.x
         room.origin.y += origin.y
 
-        drawn.draw(in: room, in: storage.font(at: characters.location))
+        drawn.draw(
+            in: room, in: storage.font(at: characters.location),
+            keepingOriginalPictures: keepsOriginalPictures
+        )
     }
 
     // MARK: - Finding one again

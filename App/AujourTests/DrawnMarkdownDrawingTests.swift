@@ -265,6 +265,27 @@ struct DrawnMarkdownDrawingTests {
         #expect(withPicture.lineTop(atCharacter: 26) >= withPicture.lineHeight(atCharacter: 10))
     }
 
+    @Test("Redrawing a camera photo costs no more than its displayed pixels")
+    func redrawingAPhotoWhileTyping() async throws {
+        let market = try await aMarketToDrawFrom(large: true)
+        let photo = try #require(market.pictures.picture(for: "market.jpg"))
+        let room = CGRect(x: 0, y: 0, width: 373, height: 280)
+        let renderer = UIGraphicsImageRenderer(size: room.size)
+        let thumbnail = renderer.image { _ in photo.draw(in: room) }
+        var durations: [Double] = []
+        for image in [thumbnail, photo] {
+            let drawing = DrawnMarkdown(.picture(image), over: NSRange(location: 0, length: 1))
+            _ = renderer.image { _ in drawing.draw(in: room, in: styling.body) }
+            let start = CACurrentMediaTime()
+            _ = renderer.image { _ in
+                for _ in 0..<60 { drawing.draw(in: room, in: styling.body) }
+            }
+            durations.append(CACurrentMediaTime() - start)
+        }
+        print("Redrawing a photo 60 times: displayed pixels=\(durations[0])s camera pixels=\(durations[1])s")
+        #expect(durations[1] < max(0.03, durations[0] * 3))
+    }
+
     // MARK: - Turning what the folder holds into a picture
 
     // Which file a target names is `EntryAttachmentTests` in Core, over a
@@ -301,11 +322,14 @@ struct DrawnMarkdownDrawingTests {
     // MARK: - A folder with one photograph in it
 
     /// A picture, as bytes a folder could hold.
-    private func marketPicture() -> Data {
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 300))
+    private func marketPicture(large: Bool = false) -> Data {
+        let size = large ? CGSize(width: 4032, height: 3024) : CGSize(width: 400, height: 300)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
         let image = renderer.image { context in
             UIColor.systemTeal.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 400, height: 300))
+            context.fill(CGRect(origin: .zero, size: size))
         }
         return image.pngData()!
     }
@@ -328,10 +352,10 @@ struct DrawnMarkdownDrawingTests {
         return (entry, pictures)
     }
 
-    private func aMarketToDrawFrom() async throws -> (entry: EntryEditor, pictures: EmbeddedPictures)
+    private func aMarketToDrawFrom(large: Bool = false) async throws -> (entry: EntryEditor, pictures: EmbeddedPictures)
     {
         let store = InMemoryJournalStore()
-        try await store.write(marketPicture(), at: "2026/03/market.jpg")
+        try await store.write(marketPicture(large: large), at: "2026/03/market.jpg")
 
         let open = await day(over: store)
         _ = await found(in: open.pictures, "market.jpg")

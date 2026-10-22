@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import UserNotifications
 
 import AujourCore
 
@@ -14,6 +15,12 @@ import AujourCore
 @MainActor
 @Suite("The daily reminder over the open journal")
 struct DailyReminderWiringTests {
+    @Test("A notification tap has a handler when the app launches")
+    func notificationTapHasAHandler() throws {
+        let delegate = try #require(UNUserNotificationCenter.current().delegate)
+        #expect(delegate.responds(to: #selector(UNUserNotificationCenterDelegate.userNotificationCenter(_:didReceive:withCompletionHandler:))))
+    }
+
     @Test("opening the journal is what books the reminder")
     func openingBooksIt() async throws {
         try await withTemporaryFolder { folders in

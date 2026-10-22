@@ -131,8 +131,13 @@ final class MarkdownTextView: UITextView {
     private var laidOutRowOverlap: CGFloat = 0
 
     func revealsSelectionAfterLayout() {
+        guard !isTracking, !isDragging, !isDecelerating else { return }
         needsSelectionReveal = true
         setNeedsLayout()
+    }
+
+    func stopsRevealingSelection() {
+        needsSelectionReveal = false
     }
 
     /// How much of the bottom of the page the row above the keyboard covers.
@@ -310,9 +315,9 @@ final class MarkdownTextView: UITextView {
         placeHeader()
         placesTheBandUnderTheStatusBar()
         let overlap = roomForTheRowOverThePage
-        if overlap != laidOutRowOverlap {
+        if abs(overlap - laidOutRowOverlap) > 0.5 {
             laidOutRowOverlap = overlap
-            needsSelectionReveal = true
+            revealsSelectionAfterLayout()
         }
         revealSelection(above: overlap)
     }

@@ -152,10 +152,16 @@ struct ContentView: View {
     /// and the editor's typeface are applied above this view — so all this
     /// does is carry it as far as the page that offers the choices.
     private let appearance: DeviceAppearance
+    private let reminderOpening: ReminderOpening?
 
-    init(journal: Journal = Journal(), appearance: DeviceAppearance) {
+    init(
+        journal: Journal = Journal(),
+        appearance: DeviceAppearance,
+        reminderOpening: ReminderOpening? = nil
+    ) {
         _journal = State(wrappedValue: journal)
         self.appearance = appearance
+        self.reminderOpening = reminderOpening
     }
 
     /// Whether a welcome is owed, as something a cover can be presented on.
@@ -223,6 +229,17 @@ struct ContentView: View {
     private func pick(_ day: JournalDay) {
         guard let calendar = journal.calendar else { return }
         move(forwards: day > calendar.dayBeingWritten) { calendar.pick(day) }
+    }
+
+    private func openTheRemindedDayIfReady() {
+        guard scenePhase == .active, case .open = journal.state,
+            let opening = reminderOpening, let request = opening.request
+        else { return }
+        showingSettings = false
+        searching = false
+        sending = nil
+        pick(request.day)
+        opening.consume(request)
     }
 
     /// Deletes a day's Entry, after the calendar has asked and been answered.
@@ -864,7 +881,13 @@ struct ContentView: View {
         // a day held from the old one is an editor over a store nothing is
         // journaling into any more. It is also the page going and coming
         // back, which is what the cover is for.
-        .onChange(of: whatTheScreenShows) { _, showing in theJournalIs(showing) }
+        .onChange(of: whatTheScreenShows) { _, showing in
+            theJournalIs(showing)
+            openTheRemindedDayIfReady()
+        }
+        .onChange(of: reminderOpening?.request, initial: true) { _, _ in
+            openTheRemindedDayIfReady()
+        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .inactive, .background:
@@ -900,6 +923,7 @@ struct ContentView: View {
                 Task {
                     await journal.cameBackToTheFront()
                     await dayPickedOutOfTheGrid?.editor.reloadIfClean()
+                    openTheRemindedDayIfReady()
                 }
             @unknown default:
                 break

@@ -54,10 +54,16 @@ struct WritingAboveTheRowTests {
             #expect(caret.maxY <= rowTop - 4, "The active line is behind the formatting row: \(caret.maxY) > \(rowTop - 4)")
         }
 
-        editor.contentOffset.y -= 40
-        let readingOffset = editor.contentOffset
-        editor.setNeedsLayout()
-        editor.layoutIfNeeded()
-        #expect(editor.contentOffset == readingOffset)
+        for pendingReveal in [false, true] {
+            if pendingReveal { editor.revealsSelectionAfterLayout() }
+            coordinator.scrollViewWillBeginDragging(editor)
+            editor.contentOffset.y -= 240
+            let readingOffset = editor.contentOffset
+            coordinator.scrollViewDidEndDragging(editor, willDecelerate: false)
+            editor.setNeedsLayout()
+            editor.layoutIfNeeded()
+            try await Task.sleep(for: .milliseconds(100))
+            #expect(editor.contentOffset == readingOffset, "\(readingOffset) -> \(editor.contentOffset)")
+        }
     }
 }

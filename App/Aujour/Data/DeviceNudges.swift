@@ -52,7 +52,13 @@ struct DeviceNudges: Nudges {
         }
     }
 
-    private func request(for nudge: Nudge) -> UNNotificationRequest {
+    static func day(in identifier: String) -> JournalDay? {
+        let prefix = "\(namedFor)."
+        guard identifier.hasPrefix(prefix) else { return nil }
+        return JournalDay(String(identifier.dropFirst(prefix.count)))
+    }
+
+    func request(for nudge: Nudge) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
         content.title = nudge.heading
         content.body = nudge.words

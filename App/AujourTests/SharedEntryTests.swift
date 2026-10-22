@@ -117,6 +117,32 @@ struct SharedEntryTests {
         let page = try #require(PDFDocument(url: file.url)?.page(at: 0))
         #expect(!(try #require(page.string).contains(embed)), "the markdown was drawn, not the photo")
         #expect(isRedSomewhere(page), "the photograph is not on the page")
+        let original = try #require(pictures.picture(for: embed)?.cgImage)
+        #expect(imageWidths(in: page).contains(original.width), "Export reduced the original photo's resolution")
+    }
+
+    private func imageWidths(in page: PDFPage) -> [Int] {
+        guard let dictionary = page.pageRef?.dictionary else { return [] }
+        var resources: CGPDFDictionaryRef?
+        var objects: CGPDFDictionaryRef?
+        guard CGPDFDictionaryGetDictionary(dictionary, "Resources", &resources),
+            let resources, CGPDFDictionaryGetDictionary(resources, "XObject", &objects),
+            let objects
+        else { return [] }
+        var widths: [Int] = []
+        withUnsafeMutablePointer(to: &widths) { result in
+            CGPDFDictionaryApplyFunction(objects, { _, object, info in
+                var stream: CGPDFStreamRef?
+                guard let info, CGPDFObjectGetValue(object, .stream, &stream), let stream,
+                    let dictionary = CGPDFStreamGetDictionary(stream)
+                else { return }
+                var width: CGPDFInteger = 0
+                if CGPDFDictionaryGetInteger(dictionary, "Width", &width) {
+                    info.assumingMemoryBound(to: [Int].self).pointee.append(width)
+                }
+            }, result)
+        }
+        return widths
     }
 
     // MARK: - The scratch folder

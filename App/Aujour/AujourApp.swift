@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct AujourApp: App {
+    @UIApplicationDelegateAdaptor(AujourAppDelegate.self) private var appDelegate
+
     /// A UI test journals into a folder of its own; everyone else journals
     /// into theirs (`UITestingJournal`).
     @State private var journal: Journal
@@ -26,7 +28,7 @@ struct AujourApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(journal: journal, appearance: appearance)
+            ContentView(journal: journal, appearance: appearance, reminderOpening: appDelegate.reminderOpening)
                 // The three ways this device's choices reach the app, all of
                 // them here at the top: the whole window is drawn in the
                 // chosen appearance and tinted the chosen colour, and the

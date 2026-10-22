@@ -850,6 +850,10 @@ struct MarkdownEditor: UIViewRepresentable {
 
         /// A pull past the top and let go is how the control over a day with
         /// no block is reached (``MarkdownTextView``).
+        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            (scrollView as? MarkdownTextView)?.stopsRevealingSelection()
+        }
+
         func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate: Bool) {
             (scrollView as? MarkdownTextView)?.draggingEnded()
         }

@@ -173,6 +173,7 @@ public final class JournalCalendar {
     /// The days with an Entry file, as of the last scan — the disposable
     /// cache the indicators are drawn from (ADR 0001).
     @ObservationIgnored private var journaledDays: Set<JournalDay> = []
+    @ObservationIgnored private let onSave: @MainActor () async -> Void
 
     /// Whether the folder has ever answered a scan.
     ///
@@ -208,7 +209,8 @@ public final class JournalCalendar {
         dayData: DayData = DayData(),
         timeZone: TimeZone = .current,
         locale: Locale = .current,
-        now: @escaping @MainActor () -> Date = { Date() }
+        now: @escaping @MainActor () -> Date = { Date() },
+        onSave: @escaping @MainActor () async -> Void = {}
     ) {
         self.store = store
         self.settings = settings
@@ -217,6 +219,7 @@ public final class JournalCalendar {
         self.timeZone = timeZone
         self.locale = locale
         self.now = now
+        self.onSave = onSave
 
         let today = JournalDay.current(at: now(), in: timeZone, rolloverHour: settings.rolloverHour)
         self.visible = (today.year, today.month)
@@ -534,7 +537,8 @@ public final class JournalCalendar {
             timeZone: timeZone,
             locale: locale,
             day: day,
-            now: now
+            now: now,
+            onSave: onSave
         )
     }
 

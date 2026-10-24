@@ -13,6 +13,76 @@ import Testing
 @MainActor
 @Suite("The daily reminder")
 struct DailyReminderTests {
+    @Test("delivered reminders disappear only for days with saved entries", arguments: [false, true])
+    func writtenDaysAreDismissed(reminderEnabled: Bool) async throws {
+        let written = JournalDay(year: 2026, month: 3, day: 1)
+        let unwritten = written.adding(days: 1)
+        let device = ADeviceToNudge(delivered: [written, unwritten])
+        let settings = DeviceSettingsStore(storedOn: InMemoryLocalKeyValueStore())
+        settings.update {
+            $0.dailyReminder = reminderEnabled ? TimeOfDay(hour: 21, minute: 0) : nil
+        }
+        let reminder = DailyReminder(
+            settings: settings, nudges: device, timeZone: paris,
+            now: { instant(2026, 3, 14, 22, in: paris) }
+        )
+        let store = InMemoryJournalStore()
+        await reminder.reconsider(over: store, journal: .default)
+        #expect(await device.delivered == [written, unwritten])
+        let pending = await device.booked
+        let bookings = await device.bookings
+
+        try await store.writeText("Backfilled the first of March.", at: PathTemplate.default.render(written))
+        await reminder.reconsider(over: store, journal: .default)
+
+        #expect(await device.delivered == [unwritten])
+        #expect(await device.booked == pending)
+        #expect(await device.bookings == bookings)
+        #expect(await device.timesAsked == 0)
+    }
+
+    @Test("dismissal reads the current entry path and the notification's journal day")
+    func dismissalUsesTheEntryPathAndJournalDay() async throws {
+        let day = JournalDay(year: 2026, month: 3, day: 14)
+        let device = ADeviceToNudge(delivered: [day, day.adding(days: 1)])
+        let reminder = DailyReminder(
+            settings: DeviceSettingsStore(storedOn: InMemoryLocalKeyValueStore()),
+            nudges: device, timeZone: paris,
+            now: { instant(2026, 3, 15, 2, in: paris) }
+        )
+        var journal = JournalSettings.default
+        journal.pathTemplate = "[daily]/YYYY-MM-DD"
+        journal.rolloverHour = RolloverHour(hour: 4)!
+        let store = InMemoryJournalStore([
+            PathTemplate.default.render(day): "An orphan under the old path."
+        ])
+
+        await reminder.reconsider(over: store, journal: journal)
+        #expect(await device.delivered == [day, day.adding(days: 1)])
+
+        try await store.writeText("Written after midnight.", at: PathTemplate(journal.pathTemplate).render(day))
+        await reminder.reconsider(over: store, journal: journal)
+
+        #expect(await device.delivered == [day.adding(days: 1)])
+    }
+
+    @Test("an unavailable folder cannot prove that a delivered reminder is answered")
+    func unavailableJournalKeepsDeliveredReminders() async {
+        let day = JournalDay(year: 2026, month: 3, day: 1)
+        let device = ADeviceToNudge(delivered: [day])
+        let reminder = DailyReminder(
+            settings: DeviceSettingsStore(storedOn: InMemoryLocalKeyValueStore()),
+            nudges: device
+        )
+
+        await reminder.reconsider(over: nil, journal: .default)
+        var journal = JournalSettings.default
+        journal.pathTemplate = "unsupported"
+        await reminder.reconsider(over: InMemoryJournalStore(), journal: journal)
+
+        #expect(await device.delivered == [day])
+    }
+
     // MARK: - Whether there is a reminder at all
 
     @Test("a reminder nobody has set a time for books nothing")
@@ -236,9 +306,6 @@ struct DailyReminderTests {
 
         await reminder.reconsider(over: InMemoryJournalStore(), journal: .default)
 
-        // The whole of what the app ever asks the device for: this one list,
-        // handed over as a replacement. There is no other call to make, so
-        // what is pending is the daily reminder's nudges and nothing besides.
         #expect(await device.booked == reminder.booked)
         #expect(await device.booked.count == DailyReminder.daysBookedAhead)
     }
@@ -397,6 +464,12 @@ struct TimeOfDaySpellingTests {
 /// anywhere, and the app's own is a notification centre with no isolation of
 /// its own.
 private actor ADeviceToNudge: Nudges {
+    private(set) var delivered: Set<JournalDay>
+
+    func deliveredDays() async -> Set<JournalDay> { delivered }
+
+    func dismiss(_ days: Set<JournalDay>) async { delivered.subtract(days) }
+
     /// Exactly what is pending, which is the whole of what this seam is for.
     private(set) var booked: [Nudge] = []
 
@@ -408,7 +481,12 @@ private actor ADeviceToNudge: Nudges {
     private var permission: NudgeAccess
     private let answering: NudgeAccess
 
-    init(access: NudgeAccess = .undecided, answering: NudgeAccess = .allowed) {
+    init(
+        access: NudgeAccess = .undecided,
+        answering: NudgeAccess = .allowed,
+        delivered: Set<JournalDay> = []
+    ) {
+        self.delivered = delivered
         self.permission = access
         self.answering = answering
     }

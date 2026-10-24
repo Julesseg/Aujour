@@ -138,6 +138,7 @@ public final class EntryEditor {
     @ObservationIgnored private let timing: AutosaveTiming
     @ObservationIgnored private let now: @MainActor () -> Date
     @ObservationIgnored private let wait: @MainActor (Duration) async throws -> Void
+    @ObservationIgnored private let onSave: @MainActor () async -> Void
 
     /// Where this day's Entry belongs, once the Path Template has been read.
     @ObservationIgnored private var entryPath: String?
@@ -193,7 +194,8 @@ public final class EntryEditor {
         now: @escaping @MainActor () -> Date = { Date() },
         wait: @escaping @MainActor (Duration) async throws -> Void = {
             try await Task.sleep(for: $0)
-        }
+        },
+        onSave: @escaping @MainActor () async -> Void = {}
     ) {
         self.store = store
         self.settings = settings
@@ -205,6 +207,7 @@ public final class EntryEditor {
         self.timing = timing
         self.now = now
         self.wait = wait
+        self.onSave = onSave
         // Before anything has been read: the screen can say which day it is
         // opening while the folder is still answering.
         self.day =
@@ -577,6 +580,7 @@ public final class EntryEditor {
             try await store.writeText(saving, at: entryPath)
             savedContent = saving
             saveProblem = nil
+            await onSave()
         } catch {
             saveProblem = error
         }

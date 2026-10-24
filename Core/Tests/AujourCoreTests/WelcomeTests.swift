@@ -192,4 +192,8 @@ private actor ADeviceToBeAskedOnce: Nudges {
     }
 
     func book(_ nudges: [Nudge]) async {}
+
+    func deliveredDays() async -> Set<JournalDay> { [] }
+
+    func dismiss(_ days: Set<JournalDay>) async {}
 }

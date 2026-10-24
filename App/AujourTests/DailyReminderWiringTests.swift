@@ -42,19 +42,63 @@ struct DailyReminderWiringTests {
     func writingTodayDropsTodaysNudge() async throws {
         try await withTemporaryFolder { folders in
             let device = ADeviceToNudge()
+            device.delivered = [today]
             let journal = journal(in: folders, nudgedInto: device, remindingAt: lateTonight)
             await journal.open()
 
-            // What the app does on its way into the background: today's words
-            // go into the folder, and then the reminder is asked again —
-            // which is the moment today stops being a day worth a nudge.
+            #expect(device.delivered == [today])
+
             let editor = try #require(journal.today)
             editor.content = "Walked to the market.\n"
             await editor.save()
-            await journal.reconsiderTheDailyReminder()
 
             #expect(!journal.dailyReminder.booked.map(\.day).contains(today))
             #expect(!device.booked.map(\.day).contains(today))
+            #expect(device.delivered.isEmpty)
+        }
+    }
+
+    @Test("backfilled days dismiss their delivered reminders as soon as they save", arguments: [false, true])
+    func backfillingDismissesItsReminder(fromCalendar: Bool) async throws {
+        try await withTemporaryFolder { folders in
+            let day = today.adding(days: -3)
+            let unwritten = day.adding(days: 1)
+            let device = ADeviceToNudge()
+            device.delivered = [day, unwritten]
+            let journal = journal(in: folders, nudgedInto: device, remindingAt: nil)
+            await journal.open()
+            let editor = try #require(
+                fromCalendar ? journal.calendar?.editor(for: day) : journal.editor(for: day)
+            )
+            await editor.open()
+            await editor.save()
+            #expect(device.delivered == [day, unwritten])
+
+            editor.content = "A few words about Monday.\n"
+            await editor.save()
+
+            #expect(device.delivered == [unwritten])
+            #expect(device.booked.isEmpty)
+        }
+    }
+
+    @Test("a failed save leaves its delivered reminder in place")
+    func failedSaveKeepsTheReminder() async throws {
+        try await withTemporaryFolder { folders in
+            let device = ADeviceToNudge()
+            device.delivered = [today]
+            let journal = journal(in: folders, nudgedInto: device, remindingAt: nil)
+            await journal.open()
+            let editor = try #require(journal.today)
+            let entry = folders.appending(path: "iCloud/Documents")
+                .appending(path: PathTemplate.default.render(today))
+            try FileManager.default.createDirectory(at: entry, withIntermediateDirectories: true)
+
+            editor.content = "These words could not be saved.\n"
+            await editor.save()
+
+            #expect(editor.saveProblem != nil)
+            #expect(device.delivered == [today])
         }
     }
 
@@ -62,6 +106,7 @@ struct DailyReminderWiringTests {
     func aDayWrittenElsewhereDropsItsNudge() async throws {
         try await withTemporaryFolder { folders in
             let device = ADeviceToNudge()
+            device.delivered = [today]
             let journal = journal(in: folders, nudgedInto: device, remindingAt: lateTonight)
             await journal.open()
 
@@ -70,6 +115,7 @@ struct DailyReminderWiringTests {
             await journal.cameBackToTheFront()
 
             #expect(!device.booked.map(\.day).contains(today))
+            #expect(device.delivered.isEmpty)
         }
     }
 

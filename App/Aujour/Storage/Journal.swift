@@ -335,7 +335,8 @@ final class Journal {
                 store: opened.store,
                 settings: settings,
                 spawningFrom: template,
-                dayData: dayData
+                dayData: dayData,
+                onSave: { [weak self] in await self?.reconsiderTheDailyReminder() }
             )
             store = opened.store
             self.template = template
@@ -344,7 +345,8 @@ final class Journal {
                 store: opened.store,
                 settings: settings,
                 spawningFrom: template,
-                dayData: dayData
+                dayData: dayData,
+                onSave: { [weak self] in await self?.reconsiderTheDailyReminder() }
             )
             search = JournalSearch(
                 store: opened.store,
@@ -412,7 +414,8 @@ final class Journal {
             settings: settings,
             spawningFrom: template,
             dayData: dayData,
-            day: day
+            day: day,
+            onSave: { [weak self] in await self?.reconsiderTheDailyReminder() }
         )
     }
 

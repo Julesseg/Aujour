@@ -60,8 +60,7 @@ public enum NudgeAccess: Hashable, Sendable {
 /// the fourth seam between the domain and the device, after the Journal Store,
 /// Day Data and the photo library.
 ///
-/// One operation and no more, because a reminder is a standing arrangement
-/// rather than a stream of events: ``book(_:)`` says what should be pending
+/// ``book(_:)`` says what should be pending
 /// *and nothing else*, so there is no way to add a notification here without
 /// saying which ones go — which is what makes "no other notifications of any
 /// kind" a property of the seam rather than a rule somebody remembers.
@@ -82,6 +81,10 @@ public protocol Nudges: Sendable {
 
     /// Leaves exactly these pending, in place of whatever was pending before.
     func book(_ nudges: [Nudge]) async
+
+    func deliveredDays() async -> Set<JournalDay>
+
+    func dismiss(_ days: Set<JournalDay>) async
 }
 
 /// One gentle nudge a day, at a time the user chose — and none at all on a day
@@ -228,6 +231,7 @@ public final class DailyReminder {
     ///   - journal: the settings that say where an Entry belongs and when the
     ///     day turns.
     public func reconsider(over store: (any JournalStore)?, journal: JournalSettings) async {
+        await dismissWrittenDays(over: store, journal: journal)
         access = await nudging.access()
         let asked = time
         let due = await whatIsDue(over: store, journal: journal)
@@ -246,6 +250,23 @@ public final class DailyReminder {
         booked = due
         hasBooked = true
         await nudging.book(due)
+    }
+
+    private func dismissWrittenDays(
+        over store: (any JournalStore)?,
+        journal: JournalSettings
+    ) async {
+        guard let store, let entries = try? PathTemplate(journal.pathTemplate) else { return }
+        let delivered = await nudging.deliveredDays()
+        var written: Set<JournalDay> = []
+        for day in delivered {
+            if (try? await store.fileExists(at: entries.render(day))) == true {
+                written.insert(day)
+            }
+        }
+        if !written.isEmpty {
+            await nudging.dismiss(written)
+        }
     }
 
     private func whatIsDue(

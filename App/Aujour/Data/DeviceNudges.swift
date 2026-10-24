@@ -52,6 +52,21 @@ struct DeviceNudges: Nudges {
         }
     }
 
+    func deliveredDays() async -> Set<JournalDay> {
+        let delivered = await UNUserNotificationCenter.current().deliveredNotifications()
+        return Set(delivered.compactMap { Self.day(in: $0.request.identifier) })
+    }
+
+    func dismiss(_ days: Set<JournalDay>) async {
+        UNUserNotificationCenter.current().removeDeliveredNotifications(
+            withIdentifiers: days.map(Self.identifier(for:))
+        )
+    }
+
+    private static func identifier(for day: JournalDay) -> String {
+        "\(namedFor).\(day)"
+    }
+
     static func day(in identifier: String) -> JournalDay? {
         let prefix = "\(namedFor)."
         guard identifier.hasPrefix(prefix) else { return nil }
@@ -72,7 +87,7 @@ struct DeviceNudges: Nudges {
             from: nudge.at
         )
         return UNNotificationRequest(
-            identifier: "\(Self.namedFor).\(nudge.day)",
+            identifier: Self.identifier(for: nudge.day),
             content: content,
             trigger: UNCalendarNotificationTrigger(dateMatching: when, repeats: false)
         )
@@ -95,4 +110,8 @@ struct ADeviceThatIsNeverRung: Nudges {
     func ask() async -> NudgeAccess { .allowed }
 
     func book(_ nudges: [Nudge]) async {}
+
+    func deliveredDays() async -> Set<JournalDay> { [] }
+
+    func dismiss(_ days: Set<JournalDay>) async {}
 }

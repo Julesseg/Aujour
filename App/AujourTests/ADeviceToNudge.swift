@@ -11,6 +11,12 @@ import AujourCore
 /// Unchecked because a test drives it from the main actor and nowhere else,
 /// while the seam it stands in for is one the app reaches from anywhere.
 final class ADeviceToNudge: Nudges, @unchecked Sendable {
+    var delivered: Set<JournalDay> = []
+
+    func deliveredDays() async -> Set<JournalDay> { delivered }
+
+    func dismiss(_ days: Set<JournalDay>) async { delivered.subtract(days) }
+
     private(set) var booked: [Nudge] = []
     private(set) var bookings = 0
     private(set) var timesAsked = 0

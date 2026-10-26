@@ -3,10 +3,8 @@ import Foundation
 /// The settings that belong to this device alone: how the app looks, what
 /// the editor reads like, and when it nudges.
 ///
-/// Nothing here shapes what gets written into the Journal, so nothing here
-/// needs to agree with the user's other devices (ADR 0003) — a dark-themed
-/// iPhone and a light-themed iPad are not in conflict, and a reminder is a
-/// property of the device that buzzes.
+/// Calendar identifiers belong to the device's EventKit database, so source
+/// exclusions stay here even though they affect template output.
 public struct DeviceSettings: Equatable, Sendable {
     public var theme: Theme
     public var accent: Accent
@@ -23,19 +21,45 @@ public struct DeviceSettings: Equatable, Sendable {
     /// added a year later has not been. It shapes nothing in the Journal
     /// (ADR 0003).
     public var hasBeenWelcomed: Bool
+    public var excludedEventCalendars: Set<String>
+    public var excludedReminderLists: Set<String>
 
     public init(
         theme: Theme = .system,
         accent: Accent = .driftwood,
         editorFont: EditorFont = .default,
         dailyReminder: TimeOfDay? = nil,
-        hasBeenWelcomed: Bool = false
+        hasBeenWelcomed: Bool = false,
+        excludedEventCalendars: Set<String> = [],
+        excludedReminderLists: Set<String> = []
     ) {
         self.theme = theme
         self.accent = accent
         self.editorFont = editorFont
         self.dailyReminder = dailyReminder
         self.hasBeenWelcomed = hasBeenWelcomed
+        self.excludedEventCalendars = excludedEventCalendars
+        self.excludedReminderLists = excludedReminderLists
+    }
+
+    public func excludedLists(for placeholder: DataPlaceholder) -> Set<String> {
+        switch placeholder {
+        case .events: excludedEventCalendars
+        case .reminders: excludedReminderLists
+        }
+    }
+
+    public func includes(list: String, for placeholder: DataPlaceholder) -> Bool {
+        !excludedLists(for: placeholder).contains(list)
+    }
+
+    public mutating func setIncluded(_ included: Bool, list: String, for placeholder: DataPlaceholder) {
+        var excluded = excludedLists(for: placeholder)
+        if included { excluded.remove(list) } else { excluded.insert(list) }
+        switch placeholder {
+        case .events: excludedEventCalendars = excluded
+        case .reminders: excludedReminderLists = excluded
+        }
     }
 
     public static let `default` = DeviceSettings()
@@ -240,6 +264,8 @@ enum DeviceSettingsKey {
     static let editorFontSize = "aujour.device.editorFontSize"
     static let dailyReminder = "aujour.device.dailyReminder"
     static let hasBeenWelcomed = "aujour.device.hasBeenWelcomed"
+    static let excludedEventCalendars = "aujour.device.excludedEventCalendars"
+    static let excludedReminderLists = "aujour.device.excludedReminderLists"
 }
 
 extension DeviceSettings: SettingsGroup {
@@ -264,6 +290,15 @@ extension DeviceSettings: SettingsGroup {
         // that never gets introduced to the app at all.
         self.hasBeenWelcomed = storedValues(DeviceSettingsKey.hasBeenWelcomed)
             .flatMap(Bool.init) ?? fallback.hasBeenWelcomed
+        self.excludedEventCalendars = Self.decodeLists(storedValues(DeviceSettingsKey.excludedEventCalendars))
+        self.excludedReminderLists = Self.decodeLists(storedValues(DeviceSettingsKey.excludedReminderLists))
+    }
+
+    private static func decodeLists(_ stored: String?) -> Set<String> {
+        guard let data = stored?.data(using: .utf8),
+            let lists = try? JSONDecoder().decode([String].self, from: data)
+        else { return [] }
+        return Set(lists)
     }
 
     func changedValues(from previous: DeviceSettings) -> [(key: String, value: String?)] {
@@ -285,6 +320,12 @@ extension DeviceSettings: SettingsGroup {
         }
         if hasBeenWelcomed != previous.hasBeenWelcomed {
             changes.append((DeviceSettingsKey.hasBeenWelcomed, String(hasBeenWelcomed)))
+        }
+        for placeholder in DataPlaceholder.allCases where excludedLists(for: placeholder) != previous.excludedLists(for: placeholder) {
+            let key = placeholder == .events ? DeviceSettingsKey.excludedEventCalendars : DeviceSettingsKey.excludedReminderLists
+            if let data = try? JSONEncoder().encode(excludedLists(for: placeholder).sorted()) {
+                changes.append((key, String(data: data, encoding: .utf8)))
+            }
         }
         return changes
     }

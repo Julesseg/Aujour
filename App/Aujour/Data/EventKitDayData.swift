@@ -41,6 +41,25 @@ actor EventKitDayData {
         ])
     }
 
+    fileprivate func lists(for placeholder: DataPlaceholder) -> DayItemLists {
+        switch access(for: placeholder) {
+        case .undecided: return .needsAccess
+        case .refused: return .denied
+        case .allowed:
+            return .available(store.calendars(for: entityType(for: placeholder)).map {
+                DayItemList(id: $0.calendarIdentifier, title: $0.title, account: $0.source.title)
+            }.sorted {
+                if $0.account != $1.account {
+                    return $0.account.localizedStandardCompare($1.account) == .orderedAscending
+                }
+                if $0.title != $1.title {
+                    return $0.title.localizedStandardCompare($1.title) == .orderedAscending
+                }
+                return $0.id < $1.id
+            })
+        }
+    }
+
     /// The day's items, or none — see the type's discussion for why none is
     /// so often the answer and why that is not a failure.
     fileprivate func items(
@@ -120,7 +139,8 @@ actor EventKitDayData {
                     named: event.title,
                     at: began,
                     ending: ended,
-                    color: DayItemColor(drawnAs: event.calendar?.cgColor)
+                    color: DayItemColor(drawnAs: event.calendar?.cgColor),
+                    listIdentifier: event.calendar?.calendarIdentifier
                 )
             }
     }
@@ -194,6 +214,10 @@ private struct EventKitSource: DayItemSource {
     func prepare() async {
         await reading.prepare(for: placeholder)
     }
+
+    func lists() async -> DayItemLists {
+        await reading.lists(for: placeholder)
+    }
 }
 
 extension DayItemColor {
@@ -229,7 +253,8 @@ private func dayItems(from reminders: [EKReminder]) -> [(id: String, item: DayIt
                 isDone: reminder.isCompleted,
                 // The list's colour, which is what the Reminders app draws it
                 // in everywhere else.
-                color: DayItemColor(drawnAs: reminder.calendar?.cgColor)
+                color: DayItemColor(drawnAs: reminder.calendar?.cgColor),
+                listIdentifier: reminder.calendar?.calendarIdentifier
             )
         else { return nil }
         return (reminder.calendarItemIdentifier, item)

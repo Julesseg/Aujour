@@ -39,6 +39,7 @@ public struct DayItem: Hashable, Sendable {
     /// ever sets it, and a format whose lines say nothing about doneness
     /// writes those lines the same either way.
     public var isDone: Bool
+    public var listIdentifier: String?
 
     /// Where in the day it ended, or `nil` for something with no such hour
     /// in this day — an all-day event, a meeting that runs on past midnight,
@@ -64,11 +65,13 @@ public struct DayItem: Hashable, Sendable {
         time: Date? = nil,
         end: Date? = nil,
         isDone: Bool = false,
-        color: DayItemColor? = nil
+        color: DayItemColor? = nil,
+        listIdentifier: String? = nil
     ) {
         self.title = title
         self.time = time
         self.isDone = isDone
+        self.listIdentifier = listIdentifier
         self.end = end
         self.color = color
     }
@@ -83,11 +86,15 @@ public struct DayItem: Hashable, Sendable {
         at time: Date? = nil,
         ending end: Date? = nil,
         isDone: Bool = false,
-        color: DayItemColor? = nil
+        color: DayItemColor? = nil,
+        listIdentifier: String? = nil
     ) {
         let named = (title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !named.isEmpty else { return nil }
-        self.init(title: named, time: time, end: end, isDone: isDone, color: color)
+        self.init(
+            title: named, time: time, end: end, isDone: isDone,
+            color: color, listIdentifier: listIdentifier
+        )
     }
 }
 
@@ -164,6 +171,8 @@ public struct DayItemTimeline: Hashable, Sendable {
 /// appear because a calendar was unreachable. Everything that goes wrong down
 /// there arrives here as an empty day.
 public protocol DayItemSource: Sendable {
+    func lists() async -> DayItemLists
+
     /// Where the permission behind this source stands, without asking for it.
     ///
     /// Read and never asked: Suggestions draws a different thing for each
@@ -193,6 +202,8 @@ public protocol DayItemSource: Sendable {
 }
 
 extension DayItemSource {
+    public func lists() async -> DayItemLists { .available([]) }
+
     /// Most sources need nothing asked for.
     public func prepare() async {}
 }
@@ -444,9 +455,22 @@ public struct DataPlaceholderFormatting: Hashable, Sendable {
 /// as an unknown placeholder does.
 public struct DayData: Sendable {
     private let sources: [DataPlaceholder: any DayItemSource]
+    private var excludedLists: @Sendable (DataPlaceholder) async -> Set<String> = { _ in [] }
 
     public init(_ sources: [DataPlaceholder: any DayItemSource] = [:]) {
         self.sources = sources
+    }
+
+    public func excludingLists(
+        _ exclusions: @escaping @Sendable (DataPlaceholder) async -> Set<String>
+    ) -> DayData {
+        var copy = self
+        copy.excludedLists = exclusions
+        return copy
+    }
+
+    public func lists(for placeholder: DataPlaceholder) async -> DayItemLists {
+        await sources[placeholder]?.lists() ?? .available([])
     }
 
     /// Asks each of these placeholders' sources for whatever it needs before
@@ -494,7 +518,29 @@ public struct DayData: Sendable {
     func text(for placeholder: DataPlaceholder, at spawn: SpawnContext) async -> String {
         guard let source = sources[placeholder] else { return "" }
         let items = await source.items(during: spawn.day.span(in: spawn.timeZone))
+        let excluded = await excludedLists(placeholder)
+        let included = items.filter { item in
+            item.listIdentifier.map { !excluded.contains($0) } ?? true
+        }
         return spawn.dataFormatting[placeholder]
-            .render(items, timeZone: spawn.timeZone, locale: spawn.locale)
+            .render(included, timeZone: spawn.timeZone, locale: spawn.locale)
     }
+}
+
+public struct DayItemList: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let title: String
+    public let account: String
+
+    public init(id: String, title: String, account: String) {
+        self.id = id
+        self.title = title
+        self.account = account
+    }
+}
+
+public enum DayItemLists: Equatable, Sendable {
+    case needsAccess
+    case denied
+    case available([DayItemList])
 }

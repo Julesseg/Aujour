@@ -93,6 +93,37 @@ private func at(_ hour: Int, _ minute: Int = 0) -> Date {
     instant(2026, 3, 1, hour, minute, in: paris)
 }
 
+@MainActor
+@Suite("Template source selection")
+struct TemplateSourceSelectionTests {
+    @Test("exclusions apply to new spawns, including completed reminders, with independent lists")
+    func exclusionsFollowCurrentSettings() async {
+        let settings = DeviceSettingsStore(storedOn: InMemoryLocalKeyValueStore())
+        let source = ADayOfItems([
+            DayItem(title: "Personal", listIdentifier: "personal"),
+            DayItem(title: "Work", listIdentifier: "work"),
+            DayItem(title: "Finished", isDone: true, listIdentifier: "work"),
+        ])
+        let data = DayData([.events: source, .reminders: source]).excludingLists { placeholder in
+            await MainActor.run { settings.settings.excludedLists(for: placeholder) }
+        }
+        let template = ContentTemplate("{{events}}\n{{reminders}}")
+        let before = await template.render(at: spawn(), reading: data)
+        #expect(before.contains("Work"))
+        settings.update { $0.setIncluded(false, list: "work", for: .events) }
+        let eventsExcluded = await template.render(at: spawn(), reading: data)
+        #expect(eventsExcluded == "- Personal\n- [ ] Personal\n- [ ] Work\n- [x] Finished")
+        #expect(await data.items(for: .events, during: march1.span(in: paris)).count == 3)
+        settings.update {
+            $0.setIncluded(false, list: "work", for: .reminders)
+            $0.setIncluded(false, list: "personal", for: .reminders)
+        }
+        #expect(await template.render(at: spawn(), reading: data) == "- Personal\n")
+        settings.update { $0.setIncluded(true, list: "work", for: .events) }
+        #expect(await template.render(at: spawn(), reading: data) == "- Personal\n- Work\n- Finished\n")
+    }
+}
+
 @Suite("Data placeholders at spawn")
 struct DataPlaceholderSpawnTests {
     @Test("{{events}} renders the day's items as the format says")

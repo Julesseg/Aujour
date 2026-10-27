@@ -84,6 +84,7 @@ struct HowADataPlaceholderIsWrittenView: View {
                 .settingsRows()
             }
 
+            TemplateListsRow(journal: journal, placeholder: placeholder)
             aWholeDay
             whatEachLineStartsWith
             if placeholder.itemsCanBeDone {

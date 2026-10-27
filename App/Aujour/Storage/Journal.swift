@@ -260,7 +260,7 @@ final class Journal {
         settings: JournalSettingsStore? = nil,
         templateElsewhere: BookmarkedTemplateFile = .stored(),
         versions: any EntryVersions = ICloudVersions(),
-        dayData: DayData = EventKitDayData().dayData,
+        dayData: DayData? = nil,
         photoLibrary: any PhotoLibrary = PhotoKitLibrary(),
         places: any Places = CoreLocationPlaces(),
         deviceSettings: DeviceSettingsStore? = nil,
@@ -278,7 +278,9 @@ final class Journal {
         self.settingsStore = settings
         self.templateElsewhere = templateElsewhere
         self.versions = versions
-        self.dayData = dayData
+        self.dayData = (dayData ?? EventKitDayData().dayData).excludingLists { placeholder in
+            await MainActor.run { deviceSettings.settings.excludedLists(for: placeholder) }
+        }
         self.photoLibrary = photoLibrary
         self.places = places
         self.deviceSettings = deviceSettings
@@ -302,6 +304,14 @@ final class Journal {
             guard let self else { return }
             reopening = Task { await self.open() }
         }
+    }
+
+    func templateLists(for placeholder: DataPlaceholder) async -> DayItemLists {
+        await dayData.lists(for: placeholder)
+    }
+
+    func prepareTemplateLists(for placeholder: DataPlaceholder) async {
+        await dayData.prepare(for: [placeholder])
     }
 
     func open() async {

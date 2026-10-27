@@ -336,10 +336,12 @@ enum UITestingJournal {
     private static func dayData(from environment: [String: String]) -> DayData {
         DayData([
             .events: ADaySeededByATest(
-                environment[eventsKey], access: environment[eventsAccessKey]
+                environment[eventsKey], access: environment[eventsAccessKey],
+                lists: environment["AUJOUR_UITEST_EVENT_LISTS"]
             ),
             .reminders: ADaySeededByATest(
-                environment[remindersKey], access: environment[remindersAccessKey]
+                environment[remindersKey], access: environment[remindersAccessKey],
+                lists: environment["AUJOUR_UITEST_REMINDER_LISTS"]
             ),
         ])
     }
@@ -528,11 +530,13 @@ enum UITestingJournal {
 /// backfill alike.
 private final class ADaySeededByATest: DayItemSource, @unchecked Sendable {
     let lines: [Substring]
+    let seededLists: String?
     private let permission = NSLock()
     private var standing: DayDataAccess
     private let whenAsked: DayDataAccess
 
-    init(_ seeded: String?, access: String? = nil) {
+    init(_ seeded: String?, access: String? = nil, lists: String? = nil) {
+        self.seededLists = lists
         self.lines = (seeded ?? "").split(whereSeparator: \.isNewline)
         self.standing =
             switch access {
@@ -541,6 +545,19 @@ private final class ADaySeededByATest: DayItemSource, @unchecked Sendable {
             default: .allowed
             }
         self.whenAsked = access == "refuses" ? .refused : .allowed
+    }
+
+    func lists() async -> DayItemLists {
+        switch access {
+        case .undecided: return .needsAccess
+        case .refused: return .denied
+        case .allowed:
+            return .available((seededLists ?? "").split(whereSeparator: \.isNewline).compactMap {
+                let parts = $0.split(separator: "|", omittingEmptySubsequences: false)
+                guard parts.count == 3 else { return nil }
+                return DayItemList(id: String(parts[0]), title: String(parts[1]), account: String(parts[2]))
+            })
+        }
     }
 
     var access: DayDataAccess { permission.withLock { standing } }
@@ -553,6 +570,9 @@ private final class ADaySeededByATest: DayItemSource, @unchecked Sendable {
 
     func items(during day: DateInterval) async -> [DayItem] {
         lines.map { line in
+            let parts = line.split(separator: "|", maxSplits: 1)
+            let list = parts.count == 2 ? String(parts[0]) : nil
+            let line = parts.last ?? line
             let done = line.hasPrefix("[x] ")
             let item = done ? line.dropFirst(4) : line
             let clock = item.prefix(5)
@@ -562,7 +582,8 @@ private final class ADaySeededByATest: DayItemSource, @unchecked Sendable {
                 return DayItem(
                     title: String(item),
                     isDone: done,
-                    color: DayItemColor(red: 0.2, green: 0.45, blue: 0.85)
+                    color: DayItemColor(red: 0.2, green: 0.45, blue: 0.85),
+                    listIdentifier: list
                 )
             }
             let remainder = item.dropFirst(5)
@@ -581,7 +602,8 @@ private final class ADaySeededByATest: DayItemSource, @unchecked Sendable {
                 time: day.start.addingTimeInterval(TimeInterval(hour * 3600 + minute * 60)),
                 end: end,
                 isDone: done,
-                color: DayItemColor(red: 0.2, green: 0.45, blue: 0.85)
+                color: DayItemColor(red: 0.2, green: 0.45, blue: 0.85),
+                listIdentifier: list
             )
         }
     }

@@ -103,6 +103,8 @@ class AujourUITestCase: XCTestCase {
         eventsAccess: String? = nil,
         reminders: String? = nil,
         remindersAccess: String? = nil,
+        eventLists: String? = nil,
+        reminderLists: String? = nil,
         places: String? = nil,
         placesAccess: String? = nil,
         placesAt: String? = nil
@@ -173,6 +175,12 @@ class AujourUITestCase: XCTestCase {
         }
         if let remindersAccess {
             app.launchEnvironment["AUJOUR_UITEST_REMINDERS_ACCESS"] = remindersAccess
+        }
+        if let eventLists {
+            app.launchEnvironment["AUJOUR_UITEST_EVENT_LISTS"] = eventLists
+        }
+        if let reminderLists {
+            app.launchEnvironment["AUJOUR_UITEST_REMINDER_LISTS"] = reminderLists
         }
         if let places {
             app.launchEnvironment["AUJOUR_UITEST_PLACES"] = places

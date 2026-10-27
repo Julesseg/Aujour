@@ -16,6 +16,8 @@ struct DeviceSettingsTests {
         #expect(settings.dailyReminder == nil)
         // And a device nobody has welcomed is owed one.
         #expect(!settings.hasBeenWelcomed)
+        #expect(settings.excludedEventCalendars.isEmpty)
+        #expect(settings.excludedReminderLists.isEmpty)
     }
 
     @Test("device settings round-trip through local storage")
@@ -29,6 +31,8 @@ struct DeviceSettingsTests {
             $0.editorFont = EditorFont(family: .serif, size: .large)
             $0.dailyReminder = TimeOfDay(hour: 21, minute: 30)
             $0.hasBeenWelcomed = true
+            $0.setIncluded(false, list: "work", for: .events)
+            $0.setIncluded(false, list: "shopping", for: .reminders)
         }
 
         let afterRelaunch = DeviceSettingsStore(storedOn: local)
@@ -53,6 +57,8 @@ struct DeviceSettingsTests {
             $0.editorFont = EditorFont(family: .monospaced, size: .small)
             $0.dailyReminder = TimeOfDay(hour: 7, minute: 0)
             $0.hasBeenWelcomed = true
+            $0.setIncluded(false, list: "work", for: .events)
+            $0.setIncluded(false, list: "shopping", for: .reminders)
         }
 
         // Theme, fonts and notification time are device-scoped (ADR 0003):
@@ -71,6 +77,8 @@ struct DeviceSettingsTests {
         local.setString("enormous", forKey: DeviceSettingsKey.editorFontSize)
         local.setString("25:61", forKey: DeviceSettingsKey.dailyReminder)
         local.setString("perhaps", forKey: DeviceSettingsKey.hasBeenWelcomed)
+        local.setString("not json", forKey: DeviceSettingsKey.excludedEventCalendars)
+        local.setString("[\"shopping\"]", forKey: DeviceSettingsKey.excludedReminderLists)
 
         let settings = DeviceSettingsStore(storedOn: local).settings
 
@@ -79,6 +87,8 @@ struct DeviceSettingsTests {
         #expect(settings.editorFont == .default)
         #expect(settings.dailyReminder == nil)
         #expect(!settings.hasBeenWelcomed)
+        #expect(settings.excludedEventCalendars.isEmpty)
+        #expect(settings.excludedReminderLists == ["shopping"])
     }
 
     @Test("turning the daily reminder off clears it everywhere")
@@ -90,6 +100,23 @@ struct DeviceSettingsTests {
         store.update { $0.dailyReminder = nil }
 
         #expect(DeviceSettingsStore(storedOn: local).settings.dailyReminder == nil)
+    }
+
+    @Test("calendar and reminder exclusions persist independently on this device")
+    func sourceExclusionsRoundTrip() {
+        let local = InMemoryLocalKeyValueStore()
+        let store = DeviceSettingsStore(storedOn: local)
+        store.update {
+            $0.setIncluded(false, list: "work,\"\n", for: .events)
+            $0.setIncluded(false, list: "shopping", for: .reminders)
+        }
+        let restored = DeviceSettingsStore(storedOn: local)
+        #expect(restored.settings.excludedEventCalendars == ["work,\"\n"])
+        #expect(restored.settings.excludedReminderLists == ["shopping"])
+        #expect(restored.settings.includes(list: "shopping", for: .events))
+        restored.update { $0.setIncluded(true, list: "shopping", for: .reminders) }
+        #expect(DeviceSettingsStore(storedOn: local).settings.excludedReminderLists.isEmpty)
+        #expect(!restored.settings.includes(list: "work,\"\n", for: .events))
     }
 
     @Test("a local edit notifies observers")

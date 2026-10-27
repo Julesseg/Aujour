@@ -55,8 +55,6 @@ struct TemplateListsSection: View {
                     .accessibilityIdentifier("templateList-\(list.id)")
                 }
             }
-        } header: {
-            Text(placeholder == .events ? "Calendars" : "Reminder lists")
         } footer: {
             Text("Included in new entries. Existing entries stay as written.")
         }

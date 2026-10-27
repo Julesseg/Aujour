@@ -2,6 +2,61 @@ import XCTest
 
 @MainActor
 final class TemplateSourceSettingsTests: AujourUITestCase {
+    func testCompactFormattingRows() {
+        let app = launchApp(
+            contentTemplate: "{{events}}\n{{reminders}}",
+            events: "personal|Personal meeting\nwork|Team meeting",
+            reminders: "personal|Home task\nwork|Work task",
+            eventLists: "personal|Personal|iCloud\nwork|Work|Exchange",
+            reminderLists: "personal|Personal|iCloud\nwork|Work|Exchange"
+        )
+        openSettings(app)
+        for placeholder in ["events", "reminders"] {
+            openFormatting(placeholder, in: app)
+            XCTAssertTrue(app.staticTexts["wholeDayExample"].waitForExistence(timeout: 10))
+            XCTAssertTrue(waitFor { app.buttons["openTemplateLists"].label.contains("2 of 2") })
+            capture("\(placeholder)-formatting-two")
+            backToTheSettings(in: app)
+        }
+    }
+
+    func testLongListsHaveTheirOwnPage() {
+        let lists = (1...20).map { "list-\($0)|List \($0)|iCloud" }.joined(separator: "\n")
+        let app = launchApp(eventLists: lists, reminderLists: lists)
+        openSettings(app)
+        for placeholder in ["events", "reminders"] {
+            openFormatting(placeholder, in: app)
+            let row = app.buttons["openTemplateLists"]
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
+            XCTAssertTrue(waitFor { row.label.contains("20 of 20") })
+            XCTAssertFalse(app.switches["templateList-list-1"].exists)
+            XCTAssertTrue(app.textFields["linePrefixField"].isHittable)
+            capture("\(placeholder)-formatting-long")
+            replaceTheText(in: "linePrefixField", with: "* ", in: app)
+            scrollTo(row, in: app)
+            row.tap()
+            XCTAssertTrue(app.switches["templateList-list-1"].waitForExistence(timeout: 10))
+            XCTAssertFalse(app.buttons["changeHowItIsWritten"].exists)
+            let first = app.switches["templateList-list-1"]
+            flip(first)
+            XCTAssertTrue(waitFor { first.value as? String == "0" })
+            capture("\(placeholder)-lists-top")
+            let last = app.switches["templateList-list-20"]
+            scrollTo(last, in: app)
+            XCTAssertTrue(last.isHittable)
+            capture("\(placeholder)-lists-bottom")
+            backToFormatting(in: app)
+            XCTAssertTrue(waitFor { row.label.contains("19 of 20") })
+            XCTAssertEqual(app.textFields["linePrefixField"].value as? String, "* ")
+            capture("\(placeholder)-formatting-selected")
+            row.tap()
+            XCTAssertTrue(first.waitForExistence(timeout: 10))
+            XCTAssertEqual(first.value as? String, "0")
+            backToFormatting(in: app)
+            backToTheSettings(in: app)
+        }
+    }
+
     func testExcludedListsPersistAndAreLeftOutOfNewEntries() throws {
         let app = launchApp(
             contentTemplate: "{{events}}\n{{reminders}}",
@@ -23,7 +78,7 @@ final class TemplateSourceSettingsTests: AujourUITestCase {
             flip(work)
             XCTAssertEqual(work.value as? String, "0")
             capture("\(placeholder)-excluded")
-            backToTheSettings(in: app)
+            backFromListsToSettings(in: app)
         }
         relaunch(app)
         XCTAssertTrue(editor.waitForExistence(timeout: 30))
@@ -76,7 +131,7 @@ final class TemplateSourceSettingsTests: AujourUITestCase {
         app.buttons["allowTemplateListAccess"].tap()
         XCTAssertTrue(app.switches["templateList-personal"].waitForExistence(timeout: 10))
         capture("events-access-granted")
-        backToTheSettings(in: app)
+        backFromListsToSettings(in: app)
         open("reminders", in: app)
         XCTAssertTrue(app.buttons["templateListSystemSettings"].waitForExistence(timeout: 10))
         capture("reminders-access-denied")
@@ -87,20 +142,37 @@ final class TemplateSourceSettingsTests: AujourUITestCase {
         openSettings(app)
         capture("settings")
         for placeholder in ["events", "reminders"] {
-            let row = app.buttons["dataPlaceholder-\(placeholder)"]
-            scrollTo(row, in: app)
-            row.tap()
+            openFormatting(placeholder, in: app)
             XCTAssertTrue(app.staticTexts["wholeDayExample"].waitForExistence(timeout: 10))
-            XCTAssertTrue(app.staticTexts["noTemplateLists"].exists)
-            capture(placeholder)
-            backToTheSettings(in: app)
+            capture("\(placeholder)-formatting-empty")
+            app.buttons["openTemplateLists"].tap()
+            XCTAssertTrue(app.staticTexts["noTemplateLists"].waitForExistence(timeout: 10))
+            capture("\(placeholder)-lists-empty")
+            backFromListsToSettings(in: app)
         }
     }
 
-    private func open(_ placeholder: String, in app: XCUIApplication) {
+    private func openFormatting(_ placeholder: String, in app: XCUIApplication) {
         let row = app.buttons["dataPlaceholder-\(placeholder)"]
         scrollTo(row, in: app)
         row.tap()
+    }
+
+    private func open(_ placeholder: String, in app: XCUIApplication) {
+        openFormatting(placeholder, in: app)
+        let row = app.buttons["openTemplateLists"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+    }
+
+    private func backToFormatting(in app: XCUIApplication) {
+        app.buttons["BackButton"].tap()
+        XCTAssertTrue(app.buttons["openTemplateLists"].waitForExistence(timeout: 10))
+    }
+
+    private func backFromListsToSettings(in app: XCUIApplication) {
+        backToFormatting(in: app)
+        backToTheSettings(in: app)
     }
 
     private func capture(_ name: String) {

@@ -133,8 +133,9 @@ documented model wins, and what they omit is extrapolated from it.
   by **subject** now, in three sections: **Files** (Journal folder, Entry path,
   Photo path, Template), **Entries** (Events, Reminders, Day starts at,
   Wiki-style embeds) and an unnamed last one (Appearance, Daily reminder).
-  Events and Reminders each offer inclusion toggles for the device's calendars
-  or reminder lists above their formatting fields. All start included; an
+  Events and Reminders each offer a summary row above their formatting fields,
+  opening a separate page of inclusion toggles for the device's calendars or
+  reminder lists. All start included; an
   exclusion affects subsequent template spawns, never saved Entries. These
   choices stay on the device because EventKit identifiers are device-local.
   Nothing on it says which settings sync, deliberately — ADR 0003's boundary is

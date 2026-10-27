@@ -441,7 +441,7 @@ private struct SearchProblemNotice: View {
             identifier: "searchProblem"
         )
         .padding(Spacing.comfortable)
-        .background(Palette.cardColor, in: RoundedRectangle(cornerRadius: Rounding.card))
+        .surfaceBackground(.card, in: RoundedRectangle(cornerRadius: Rounding.card))
         .elevated(.floating)
     }
 }

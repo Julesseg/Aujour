@@ -36,6 +36,7 @@ struct AujourApp: App {
                 // pushed.
                 .preferredColorScheme(appearance.colorScheme)
                 .tint(appearance.accentColor)
+                .environment(\.accent, appearance.accent)
                 .environment(\.editorLook, appearance.editorLook)
         }
     }

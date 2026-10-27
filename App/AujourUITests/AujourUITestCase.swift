@@ -17,6 +17,13 @@ class AujourUITestCase: XCTestCase {
     /// how a relaunch is a relaunch and not a fresh install.
     var journalFolder = ""
 
+    func capture(_ app: XCUIApplication, named name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     /// What the Files app calls Aujour's own on-device folder *here*. The app
     /// names it after the device it is running on, so spelling "iPhone" into
     /// the expectation made the suite assert that the iPad build was wrong.

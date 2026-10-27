@@ -15,6 +15,7 @@ import AujourCore
 /// is asked separately, and is skippable (ADR 0002).
 struct EntryPathView: View {
     let journal: Journal
+    @Environment(\.dismiss) private var dismiss
 
     /// The one colour the app spends on itself, carried through to the sheet
     /// the change opens: nothing about a migration is drawn in a warning, and
@@ -102,6 +103,7 @@ struct EntryPathView: View {
             }
             .settingsRows()
         }
+        .disabled(planning)
         .settingsPage(titled: "Entry path")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
@@ -117,7 +119,9 @@ struct EntryPathView: View {
                 .accessibilityIdentifier("changeEntryPath")
             }
         }
-        .sheet(item: $proposed) { change in
+        .sheet(item: $proposed, onDismiss: {
+            if !isAChange { dismiss() }
+        }) { change in
             PathTemplateMigrationSheet(
                 journal: journal,
                 accent: accent,
@@ -175,6 +179,7 @@ struct EntryPathView: View {
                 let plan = try await journal.planChangingThePathTemplate(to: template)
                 guard !plan.isEmpty else {
                     await journal.changeThePathTemplate(to: template, movingEntriesBy: nil)
+                    if journal.pathTemplate == template.format { dismiss() }
                     return
                 }
                 proposed = ProposedChange(template: template, plan: plan)

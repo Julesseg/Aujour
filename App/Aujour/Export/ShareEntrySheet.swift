@@ -196,7 +196,7 @@ private struct ThePageItWouldLeaveAs: View {
     var body: some View {
         paper
             .frame(height: height)
-            .background(Palette.cardColor, in: RoundedRectangle(cornerRadius: Rounding.chip))
+            .surfaceBackground(.card, in: RoundedRectangle(cornerRadius: Rounding.chip))
             .clipShape(RoundedRectangle(cornerRadius: Rounding.chip))
             .elevated(.floating)
             // Drawn once, when a page is what is being looked at: the words

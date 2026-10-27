@@ -11,8 +11,10 @@ import AujourCore
 /// decides where the next one lands and nothing else.
 struct AttachmentPathView: View {
     let journal: Journal
+    @Environment(\.dismiss) private var dismiss
 
     @State private var typed: String
+    @State private var saving = false
 
     init(journal: Journal) {
         self.journal = journal
@@ -46,17 +48,23 @@ struct AttachmentPathView: View {
                 identifier: "attachmentPath"
             )
         }
+        .disabled(saving)
         .settingsPage(titled: "Photo path")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 // In the bar, as the entry path's is: one field, one tick.
                 Button {
                     guard case .success(let template) = typedTemplate else { return }
-                    Task { await journal.changeTheAttachmentPathTemplate(to: template) }
+                    saving = true
+                    Task {
+                        defer { saving = false }
+                        await journal.changeTheAttachmentPathTemplate(to: template)
+                        if journal.attachmentPathTemplate == template.format { dismiss() }
+                    }
                 } label: {
                     Label("Change", systemImage: "checkmark")
                 }
-                .disabled(!isAChange || rejection != nil)
+                .disabled(!isAChange || rejection != nil || saving)
                 .accessibilityIdentifier("changeAttachmentPath")
             }
         }

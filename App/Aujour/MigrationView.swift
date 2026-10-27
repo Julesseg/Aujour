@@ -61,7 +61,7 @@ struct PathTemplateMigrationSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(Spacing.apart)
             }
-            .background(Palette.sheetColor)
+            .background { SurfaceFill(.sheet) }
             .navigationTitle("Where your entries go")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
@@ -507,7 +507,7 @@ extension View {
     /// colour.
     fileprivate func onACard() -> some View {
         padding(Spacing.comfortable)
-            .background(Palette.cardColor, in: .rect(cornerRadius: Rounding.card))
+            .surfaceBackground(.card, in: RoundedRectangle(cornerRadius: Rounding.card))
             .overlay(
                 RoundedRectangle(cornerRadius: Rounding.card)
                     .stroke(Palette.ruleColor, lineWidth: 1)

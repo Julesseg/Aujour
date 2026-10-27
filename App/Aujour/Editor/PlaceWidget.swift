@@ -78,7 +78,7 @@ struct PlaceholderAnsweredWithAPlace: View {
         // a list on bare paper is a list that has stopped grouping — and it is
         // the identity's card, which is what a *thing on the page* is.
         .scrollContentBackground(.hidden)
-        .listRowBackground(Palette.cardColor)
+        .listRowBackground(SurfaceFill(.card))
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Add", action: answerIt)

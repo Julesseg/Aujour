@@ -40,14 +40,10 @@ extension View {
     /// which is no loss. What the design file draws behind a sheet is a dim
     /// and a slight blur, and that is what a sheet already comes up over.
     ///
-    /// Nothing here tints anything: the accent this device chose is already on
-    /// the whole app, and a sheet inherits the environment of the view that put
-    /// it up.
-    ///
     /// How *tall* a sheet is stays the caller's, because it is a fact about
     /// what is on it — a search box over a list is not a page of settings.
     func sheetChrome() -> some View {
-        presentationBackground(Palette.sheetColor)
+        presentationBackground { SurfaceFill(.sheet) }
             .presentationCornerRadius(Rounding.sheet)
             .presentationDragIndicator(.visible)
     }
@@ -83,7 +79,7 @@ extension View {
     ///
     /// The paper is stated rather than inherited, and that is the half that is
     /// easy to get wrong. The settings sheet has ``sheetChrome()`` behind it,
-    /// so the *root* of the stack shows through to cream whether or not
+    /// so the *root* of the stack shows the sheet's tint whether or not
     /// anything here says so — but a pushed page does not: the navigation
     /// container puts its own white behind it, and a `Form` that has hidden
     /// its background shows that instead. Left alone, every page one step in
@@ -110,7 +106,7 @@ extension View {
     /// identity's and not a screen's own idea.
     func settingsPage(titled title: String) -> some View {
         scrollContentBackground(.hidden)
-            .background(Palette.sheetColor)
+            .background { SurfaceFill(.sheet) }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
     }
@@ -128,7 +124,7 @@ extension View {
     /// a section that forgets it does not fail, it just comes out as somebody
     /// else's app in the middle of this one.
     func settingsRows() -> some View {
-        listRowBackground(Palette.cardColor)
+        listRowBackground(SurfaceFill(.card))
     }
 
     /// Marks this control as the place a sheet comes out of — the other half

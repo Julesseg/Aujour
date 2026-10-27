@@ -274,7 +274,7 @@ struct EntryView: View {
                     // through the same reading the body is typed into.
                     section: FrontmatterSection(
                         cut: cutBinding, pending: $pendingProperty, day: editor.day,
-                        asks: { question = $0 }, accent: look.accent.color
+                        asks: { question = $0 }, accent: look.accent
                     ),
                     sectionIsTucked: cut.frontmatter == nil && pendingProperty == nil,
                     caretSettled: { caret, afterAPaste in

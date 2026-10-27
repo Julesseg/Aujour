@@ -130,10 +130,7 @@ struct PlaceholderAnswerSheet: View {
         // ground and puts its rows on the identity's card, so that one sheet
         // is one sheet whichever question it came up to ask.
         //
-        // Nothing here tints anything. The way out is already the accent this
-        // device chose, because `AujourApp` tints the whole app with it and a
-        // sheet inherits the environment of the view that put it up.
-        .presentationBackground(Palette.sheetColor)
+        .presentationBackground { SurfaceFill(.sheet) }
         .accessibilityIdentifier("placeholderAnswer")
     }
 

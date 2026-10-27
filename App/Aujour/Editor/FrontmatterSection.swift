@@ -34,10 +34,9 @@ struct FrontmatterSection: View {
     /// widgets are.
     let asks: (PlaceholderQuestion) -> Void
 
-    /// The one colour a control here is drawn in: the device's own accent,
-    /// handed in because a view hosted inside a text view inherits nothing
+    /// Handed in because a view hosted inside a text view inherits nothing
     /// from the screen around it.
-    let accent: Color
+    let accent: Accent
 
     /// What decides this view's height, folded into one number: the block,
     /// which view of it is up, and whether a row is being named. The body
@@ -60,7 +59,8 @@ struct FrontmatterSection: View {
                 AddTheFirstProperty(pending: $pending)
             }
         }
-        .tint(accent)
+        .tint(accent.color)
+        .environment(\.accent, accent)
     }
 }
 
@@ -105,7 +105,7 @@ private struct PropertiesCard: View {
                     }
                 }
             }
-            .background(Palette.cardColor, in: RoundedRectangle(cornerRadius: Rounding.card))
+            .surfaceBackground(.card, in: RoundedRectangle(cornerRadius: Rounding.card))
 
             HStack(spacing: Spacing.tight) {
                 if !cut.isShowingSource, cut.offersSource || cut.frontmatter == nil {
@@ -593,6 +593,7 @@ private struct DayPill: View {
 /// a sheet is up while the Entry goes on living, and a value that stopped
 /// being a question while it was up is left alone.
 private struct PlaceholderChip: View {
+    @Environment(\.accent) private var accent
     let token: InteractivePlaceholder.Token
     let asks: (PlaceholderQuestion) -> Void
     let answered: (String) -> Void
@@ -608,8 +609,8 @@ private struct PlaceholderChip: View {
                 .lettering(.chipLabel)
                 .padding(.horizontal, Spacing.close)
                 .padding(.vertical, Spacing.tight)
-                .foregroundStyle(.tint)
-                .background(.tint.opacity(0.14), in: Capsule())
+                .foregroundStyle(accent.ink)
+                .background(accent.soft, in: Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -654,6 +655,7 @@ private struct NumberField: View {
 /// A list as chips, each with the way to take it off, and a field that adds
 /// one on return.
 private struct ListField: View {
+    @Environment(\.accent) private var accent
     let key: String
     let items: [String]
     let write: ([String]) -> Void
@@ -679,8 +681,8 @@ private struct ListField: View {
                 }
                 .padding(.horizontal, Spacing.close)
                 .padding(.vertical, Spacing.tight)
-                .foregroundStyle(.tint)
-                .background(.tint.opacity(0.14), in: Capsule())
+                .foregroundStyle(accent.ink)
+                .background(accent.soft, in: Capsule())
             }
             TextField("Add", text: $adding)
                 .lettering(.chipLabel)

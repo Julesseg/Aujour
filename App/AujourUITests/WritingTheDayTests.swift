@@ -667,7 +667,7 @@ final class WritingTheDayTests: AujourUITestCase {
         // Read back from the file rather than from what is still on screen:
         // the page is left and opened again, and what it shows the second time
         // came off the disk.
-        backToTheSettings(in: app)
+        XCTAssertTrue(app.buttons["openContentTemplate"].waitForExistence(timeout: 10))
         openTheTemplate(in: app)
         expect(app.textViews["contentTemplateText"], toHaveValue: "## Morning\n## Evening\n")
 

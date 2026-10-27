@@ -242,10 +242,14 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
         let summary = app.staticTexts["migrationSummary"]
         XCTAssertTrue(summary.waitForExistence(timeout: 30), "the migration never finished")
         XCTAssertEqual(summary.label, "1 entry moved.")
+        capture(app, named: "migration-before-done")
         app.buttons["dismissMigrationSummary"].tap()
 
         // The same words, read from where the new template says — moved, not
         // lost.
+        XCTAssertTrue(app.buttons["openEntryPath"].waitForExistence(timeout: 10))
+        capture(app, named: "migration-after-done")
+        openTheEntryPath(in: app)
         XCTAssertEqual(app.textFields["entryPathField"].value as? String, "[Journal]/YYYY-MM-DD")
         backToTheSettings(in: app)
         app.buttons["Done"].tap()
@@ -286,7 +290,7 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
 
         // The old file is still in the folder and is no longer an Entry, and
         // nothing anywhere surfaces what was left behind (ADR 0002).
-        backToTheSettings(in: app)
+        XCTAssertTrue(app.buttons["openEntryPath"].waitForExistence(timeout: 10))
         app.buttons["Done"].tap()
 
         // Today, under the new path, is a day nobody has written on.
@@ -340,7 +344,7 @@ final class TheFolderAndTheSettingsTests: AujourUITestCase {
 
         // One day, one Entry: the file that was already there. The version
         // Aujour brought is beside it and is not an Entry (ADR 0002).
-        backToTheSettings(in: app)
+        XCTAssertTrue(app.buttons["openEntryPath"].waitForExistence(timeout: 10))
         app.buttons["Done"].tap()
 
         let editor = app.textViews["entryEditor"]

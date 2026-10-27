@@ -25,6 +25,8 @@ import AujourCore
 struct HowADataPlaceholderIsWrittenView: View {
     let journal: Journal
     let placeholder: DataPlaceholder
+    @Environment(\.dismiss) private var dismiss
+    @State private var saving = false
 
     /// The four fields as they are being typed, which is not what is in force
     /// until the tick is pressed. The time format is held as the pattern the
@@ -93,6 +95,7 @@ struct HowADataPlaceholderIsWrittenView: View {
             howTimesAreWritten
             whatADayThatHeldNothingSays
         }
+        .disabled(saving)
         .settingsPage(titled: placeholder.onScreen)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
@@ -102,11 +105,17 @@ struct HowADataPlaceholderIsWrittenView: View {
                 // fields is a page that scrolls on a small phone, and a row
                 // at the bottom of it was a button under the fold.
                 Button {
-                    Task { await journal.changeHowItIsWritten(placeholder, to: typed) }
+                    let format = typed
+                    saving = true
+                    Task {
+                        defer { saving = false }
+                        await journal.changeHowItIsWritten(placeholder, to: format)
+                        if journal.howItIsWritten(placeholder) == format { dismiss() }
+                    }
                 } label: {
                     Label("Change", systemImage: "checkmark")
                 }
-                .disabled(!isAChange)
+                .disabled(!isAChange || saving)
                 .accessibilityIdentifier("changeHowItIsWritten")
             }
         }

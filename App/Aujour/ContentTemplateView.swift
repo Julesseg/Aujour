@@ -28,6 +28,8 @@ import AujourCore
 /// they keep the file in, and this page is deliberately no rival to it.
 struct ContentTemplateView: View {
     let journal: Journal
+    @Environment(\.dismiss) private var dismiss
+    @State private var saving = false
 
     /// Whether the Files picker is up.
     @State private var picking = false
@@ -100,6 +102,7 @@ struct ContentTemplateView: View {
                 theFileItself
             }
         }
+        .disabled(saving)
         .settingsPage(titled: "Template")
         .toolbar {
             if case .saying = file {
@@ -112,7 +115,7 @@ struct ContentTemplateView: View {
                     Button { save() } label: {
                         Label("Save", systemImage: "checkmark")
                     }
-                    .disabled(!isAChange)
+                    .disabled(!isAChange || saving)
                     .accessibilityIdentifier("saveContentTemplate")
                 }
             }
@@ -209,15 +212,17 @@ struct ContentTemplateView: View {
 
     /// Writes what is in the text area back to the file.
     ///
-    /// The words stay on screen either way. A save that failed leaves the text
-    /// area holding the only copy of what they typed, and the sentence
-    /// underneath saying so; one that landed makes what they typed the file's
-    /// own text, which is what the tick goes quiet against.
+    /// A failed save leaves the draft on screen, where it is the only copy.
     private func save() {
         let asItWillBe = edited
+        saving = true
         Task {
+            defer { saving = false }
             saveProblem = await journal.rewriteTheContentTemplate(asItWillBe)
-            if saveProblem == nil { file = .saying(asItWillBe) }
+            if saveProblem == nil {
+                file = .saying(asItWillBe)
+                dismiss()
+            }
         }
     }
 }

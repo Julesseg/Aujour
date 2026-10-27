@@ -2,6 +2,49 @@ import UIKit
 import XCTest
 
 final class AccentSurfaceTests: AujourUITestCase {
+    @MainActor
+    func testSettingsSubpageSafeAreasUseTheAccent() throws {
+        continueAfterFailure = true
+        let app = launchApp()
+        XCTAssertTrue(app.textViews["entryEditor"].waitForExistence(timeout: 30))
+
+        for mode in ["Light", "Dark"] {
+            var toolbars: [[String: [UInt8]]] = []
+            for accent in ["olive", "harbour"] {
+                var colors: [String: [UInt8]] = [:]
+                openHowItLooks(in: app)
+                app.segmentedControls["appearanceTheme"].buttons[mode].tap()
+                app.buttons["accent.\(accent)"].tap()
+                app.buttons["BackButton"].tap()
+                let reminders = app.buttons["dataPlaceholder-reminders"]
+                scrollTo(reminders, in: app)
+                reminders.tap()
+                XCTAssertTrue(app.textFields["linePrefixField"].waitForExistence(timeout: 10))
+
+                for position in ["top", "scrolled"] {
+                    if position == "scrolled" { theScroller(in: app).swipeUp() }
+                    let page = theScroller(in: app).frame
+                    colors[position] = try mostCommonColor(of: app.navigationBars.firstMatch)
+                    capture(app, named: "chrome-\(mode)-\(accent)-\(position)")
+                    if page.maxY >= app.frame.maxY - 1 {
+                        let paper = try color(in: app, at: CGPoint(x: page.minX + 4, y: page.midY))
+                        let bottom = try color(in: app, at: CGPoint(x: page.minX + 4, y: page.maxY - 4))
+                        XCTAssertEqual(bottom, paper, "The bottom edge differs from the sheet: \(mode), \(accent), \(position)")
+                    }
+                }
+                toolbars.append(colors)
+                app.buttons["BackButton"].tap()
+                app.buttons["Done"].tap()
+            }
+            for position in ["top", "scrolled"] {
+                XCTAssertNotEqual(
+                    toolbars[0][position], toolbars[1][position],
+                    "The \(position) toolbar ignored the selected accent in \(mode) mode"
+                )
+            }
+        }
+    }
+
     func testTheAccentTintsSettingsAndFrontmatterSurfaces() throws {
         continueAfterFailure = true
         XCUIDevice.shared.appearance = .light
@@ -56,6 +99,19 @@ final class AccentSurfaceTests: AujourUITestCase {
                 )
             }
         }
+    }
+
+    @MainActor
+    private func mostCommonColor(of element: XCUIElement) throws -> [UInt8] {
+        let image = try XCTUnwrap(element.screenshot().image.cgImage)
+        let rgba = try pixels(in: image)
+        var counts: [Int: Int] = [:]
+        for offset in stride(from: 0, to: rgba.count, by: 4) {
+            let rgb = Int(rgba[offset]) << 16 | Int(rgba[offset + 1]) << 8 | Int(rgba[offset + 2])
+            counts[rgb, default: 0] += 1
+        }
+        let rgb = try XCTUnwrap(counts.max { $0.value < $1.value }?.key)
+        return [UInt8(rgb >> 16), UInt8((rgb >> 8) & 255), UInt8(rgb & 255)]
     }
 
     private func color(in app: XCUIApplication, at point: CGPoint) throws -> [UInt8] {

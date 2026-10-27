@@ -106,7 +106,7 @@ extension View {
     /// identity's and not a screen's own idea.
     func settingsPage(titled title: String) -> some View {
         scrollContentBackground(.hidden)
-            .background { SurfaceFill(.sheet) }
+            .background { SurfaceFill(.sheet).ignoresSafeArea() }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
     }

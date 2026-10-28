@@ -19,7 +19,10 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
         photo.press(forDuration: 1.2)
         let add = app.buttons["Add to document"]
         XCTAssertTrue(add.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.images["photoSuggestionPreviewImage"].waitForExistence(timeout: 10))
+        let previewImage = app.otherElements["Preview"].descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", photo.label)).firstMatch
+        XCTAssertTrue(previewImage.waitForExistence(timeout: 10))
+        XCTAssertGreaterThan(previewImage.frame.width, photo.frame.width)
         capture(app, named: "photo-suggestion-preview")
         add.tap()
         XCTAssertTrue(app.buttons["cancelSuggestions"].waitForNonExistence(timeout: 10))

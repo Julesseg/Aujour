@@ -534,6 +534,7 @@ private struct APhotographOfTheDay: View {
     /// nothing until then, which is what a photograph still coming down from
     /// iCloud looks like.
     @State private var thumbnail: UIImage?
+    @State private var previewing = false
 
     var body: some View {
         Button {
@@ -558,6 +559,31 @@ private struct APhotographOfTheDay: View {
         // Its own tap, and not the row's: buttons left to a list's own style
         // all fire together when the row is tapped.
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("Add to document", systemImage: "plus") { add(photograph) }
+        } preview: {
+            PhotoSuggestionPreview(photograph: photograph, suggestions: suggestions)
+        }
+        .accessibilityAction(named: "Preview photo") { previewing = true }
+        .sheet(isPresented: $previewing) {
+            NavigationStack {
+                PhotoSuggestionPreview(photograph: photograph, suggestions: suggestions)
+                    .navigationTitle("Photo")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { previewing = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Add to document") {
+                                previewing = false
+                                add(photograph)
+                            }
+                        }
+                    }
+            }
+            .sheetChrome()
+        }
         .accessibilityIdentifier(identifier)
         // A square of pixels has nothing to say for itself, and the one thing
         // that tells two of them apart in a day is when each was taken.

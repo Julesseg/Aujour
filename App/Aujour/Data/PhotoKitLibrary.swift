@@ -98,24 +98,39 @@ struct PhotoKitLibrary: PhotoLibrary {
     func thumbnail(of photograph: DayPhotograph) async -> Data? {
         guard let asset = Self.asset(photograph) else { return nil }
 
+        return await Self.imageData(targetSize: Self.thumbnailSize, contentMode: .aspectFill) {
+            size, mode, options, result in
+            PHImageManager.default().requestImage(
+                for: asset, targetSize: size, contentMode: mode, options: options,
+                resultHandler: result
+            )
+        }
+    }
+
+    static func imageData(
+        targetSize: CGSize,
+        contentMode: PHImageContentMode,
+        requesting request: (
+            CGSize, PHImageContentMode, PHImageRequestOptions,
+            @escaping (UIImage?, [AnyHashable: Any]?) -> Void
+        ) -> Void
+    ) async -> Data? {
         let wanted = PHImageRequestOptions()
-        wanted.deliveryMode = .opportunistic
-        wanted.resizeMode = .fast
-        // A thumbnail of a photograph that is only in iCloud is worth waiting
-        // for — it is a hundredth of the photograph, and without it the sheet
-        // is a grid of grey squares.
+        wanted.deliveryMode = .highQualityFormat
+        wanted.resizeMode = .exact
         wanted.isNetworkAccessAllowed = true
 
-        // Encoded where PhotoKit hands it over, so that what travels back is
-        // bytes: the seam is Core's and Core may not know what a `UIImage` is.
-        // Cheap, which is what re-encoding a 120-point square is.
         return await Self.answered { finished in
-            PHImageManager.default().requestImage(
-                for: asset,
-                targetSize: Self.thumbnailSize,
-                contentMode: .aspectFill,
-                options: wanted
-            ) { image, _ in finished(image?.jpegData(compressionQuality: 0.8)) }
+            request(targetSize, contentMode, wanted) { image, info in
+                let cancelled = info?[PHImageCancelledKey] as? Bool == true
+                let failed = info?[PHImageErrorKey] != nil
+                if cancelled || failed {
+                    finished(nil)
+                    return
+                }
+                guard info?[PHImageResultIsDegradedKey] as? Bool != true else { return }
+                finished(image?.jpegData(compressionQuality: 0.95))
+            }
         }
     }
 
@@ -153,13 +168,6 @@ struct PhotoKitLibrary: PhotoLibrary {
         PHAsset.fetchAssets(withLocalIdentifiers: [photograph.id], options: nil).firstObject
     }
 
-    /// One answer from an image request, however many times PhotoKit calls
-    /// back.
-    ///
-    /// Opportunistic delivery answers twice — a blurred placeholder, then the
-    /// real thing — and a continuation resumed twice is a crash. So the first
-    /// answer is the answer, which for a thumbnail means the grid fills in
-    /// fast and for the photograph itself means the only callback there was.
     private static func answered<Value: Sendable>(
         _ request: (@escaping @Sendable (Value?) -> Void) -> Void
     ) async -> Value? {

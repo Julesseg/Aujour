@@ -25,7 +25,7 @@ final class TheDatePillTests: AujourUITestCase {
         capture(app, named: "after-week-from-page")
 
         let today = app.buttons["day-\(todaysEntryName())"]
-        XCTAssertTrue(today.isHittable)
+        XCTAssertTrue(today.waitForExistence(timeout: 5))
         drag(today, by: 160)
         expect(pill, toHaveValue: "Month")
         capture(app, named: "after-month-from-grid")
@@ -36,6 +36,21 @@ final class TheDatePillTests: AujourUITestCase {
         expect(pill, toHaveValue: "Closed")
         capture(app, named: "after-closed-from-grid")
         expect(editor, toHaveValue: "A quiet day in the journal.\n")
+
+        drag(editor, by: 160)
+        expect(pill, toHaveValue: "Week")
+        page.press(forDuration: 0, thenDragTo: page.withOffset(CGVector(dx: 0, dy: -160)))
+        expect(pill, toHaveValue: "Closed")
+        capture(app, named: "after-closed-from-page")
+
+        drag(editor, by: 160)
+        expect(pill, toHaveValue: "Week")
+        swipeTheWeekStrip(app, alongside: today, across: 160)
+        let aWeekAgo = app.buttons["day-\(entryName(for: try XCTUnwrap(daysBeforeToday(7))))"]
+        XCTAssertTrue(aWeekAgo.waitForExistence(timeout: 5))
+        aWeekAgo.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        expect(pill, toHaveValue: "Closed")
+        XCTAssertTrue(app.buttons["backToToday"].waitForExistence(timeout: 5))
     }
 
     func testReturningToTheTopDoesNotExpandTheCalendarUntilTheNextPull() throws {

@@ -108,6 +108,7 @@ struct MarkdownEditor: UIViewRepresentable {
     /// it and the search results that pushed it, none of which have anything
     /// to say about typefaces.
     @Environment(\.editorLook) private var look
+    @Environment(\.swipeDatePill) private var swipeDatePill
 
     /// The room around the text.
     private static let textInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
@@ -195,6 +196,7 @@ struct MarkdownEditor: UIViewRepresentable {
         context.coordinator.requests = requests
         context.coordinator.suggests = suggests
         context.coordinator.caretSettled = caretSettled
+        context.coordinator.swipeDatePill = swipeDatePill
         context.coordinator.answersTaps(in: textView)
         context.coordinator.formats(in: textView, overADay: requests != nil, accent: styling.box)
         storage.setSource(text)
@@ -218,6 +220,7 @@ struct MarkdownEditor: UIViewRepresentable {
         context.coordinator.requests = requests
         context.coordinator.suggests = suggests
         context.coordinator.caretSettled = caretSettled
+        context.coordinator.swipeDatePill = swipeDatePill
         textView.accessibilityLabel = label
         if let textView = textView as? MarkdownTextView {
             textView.roomForTheGlass = roomForTheGlass
@@ -307,6 +310,8 @@ struct MarkdownEditor: UIViewRepresentable {
         }
 
         var text: Binding<String>
+        var swipeDatePill: ((CGSize) -> Void)?
+        private var dragBeganAtTop = false
 
         /// Puts an unanswered placeholder's question in front of the user.
         /// Nothing at all until the editor is on screen, and rebuilt with the
@@ -851,11 +856,19 @@ struct MarkdownEditor: UIViewRepresentable {
         /// A pull past the top and let go is how the control over a day with
         /// no block is reached (``MarkdownTextView``).
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            dragBeganAtTop = scrollView.contentOffset.y <= -scrollView.adjustedContentInset.top + 0.5
             (scrollView as? MarkdownTextView)?.stopsRevealingSelection()
         }
 
         func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate: Bool) {
             (scrollView as? MarkdownTextView)?.draggingEnded()
+            if dragBeganAtTop {
+                let translation = scrollView.panGestureRecognizer.translation(in: scrollView)
+                if translation.y > 0 {
+                    swipeDatePill?(CGSize(width: translation.x, height: translation.y))
+                }
+            }
+            dragBeganAtTop = false
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {

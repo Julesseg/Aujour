@@ -143,6 +143,10 @@ final class TheFrontmatterTests: AujourUITestCase {
 
         // Pulled into view by scrolling up past the top of the text.
         drag(editor, by: 160)
+        let pill = app.buttons["datePill"]
+        expect(pill, toHaveValue: "Week")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)).tap()
+        expect(pill, toHaveValue: "Closed")
         XCTAssertTrue(control.isHittable, "the control never came into view")
         control.tap()
         tapTheOption(labelled: "Checkbox", in: app)

@@ -449,6 +449,29 @@ struct MarkdownAccessoryRowTests {
         #expect(pressed.suggestions == 1)
     }
 
+    @Test("Suggestions fills its glass pane and receives taps at every edge")
+    func suggestionsFillThePane() throws {
+        for width: CGFloat in [375, 1024] {
+            let row = aRow(openSuggestions: {}) { _ in }
+            row.frame = CGRect(
+                x: 0, y: 0, width: width, height: row.intrinsicContentSize.height
+            )
+            row.layoutIfNeeded()
+
+            let key = try control("openSuggestions", of: row)
+            let pane = try #require(glass(containing: key))
+            #expect(row.convert(key.bounds, from: key) == row.convert(pane.bounds, from: pane))
+            for point in [
+                CGPoint(x: pane.bounds.midX, y: 1),
+                CGPoint(x: pane.bounds.midX, y: pane.bounds.maxY - 1),
+                CGPoint(x: 1, y: pane.bounds.midY),
+                CGPoint(x: pane.bounds.maxX - 1, y: pane.bounds.midY),
+            ] {
+                #expect(row.hitTest(row.convert(point, from: pane), with: nil) === key)
+            }
+        }
+    }
+
     // MARK: - Reading the row
 
     /// What a press was heard as. A box rather than a variable, because the

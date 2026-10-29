@@ -459,25 +459,15 @@ final class MarkdownAccessoryRow: UIInputView {
         apart.translatesAutoresizingMaskIntoConstraints = false
         apart.pane.contentView.addSubview(key)
 
-        let square = key.widthAnchor.constraint(equalToConstant: Self.widestKey)
+        let square = key.widthAnchor.constraint(equalToConstant: Self.widestKey + Self.padding * 2)
         keyApart = square
 
         NSLayoutConstraint.activate([
             square,
-            // The same room around it the strip's keys have around theirs, so
-            // that two panes of one height come out of one arithmetic.
-            key.leadingAnchor.constraint(
-                equalTo: apart.pane.contentView.leadingAnchor, constant: Self.padding
-            ),
-            key.trailingAnchor.constraint(
-                equalTo: apart.pane.contentView.trailingAnchor, constant: -Self.padding
-            ),
-            key.topAnchor.constraint(
-                equalTo: apart.pane.contentView.topAnchor, constant: Self.padding
-            ),
-            key.bottomAnchor.constraint(
-                equalTo: apart.pane.contentView.bottomAnchor, constant: -Self.padding
-            ),
+            key.leadingAnchor.constraint(equalTo: apart.pane.contentView.leadingAnchor),
+            key.trailingAnchor.constraint(equalTo: apart.pane.contentView.trailingAnchor),
+            key.topAnchor.constraint(equalTo: apart.pane.contentView.topAnchor),
+            key.bottomAnchor.constraint(equalTo: apart.pane.contentView.bottomAnchor),
         ])
     }
 
@@ -487,7 +477,7 @@ final class MarkdownAccessoryRow: UIInputView {
         for key in narrowKeys { key.constant = Self.narrowestKey }
         for key in wideKeys { key.constant = Self.widestKey }
         for key in roomyKeys { key.constant = Self.widestKey }
-        keyApart?.constant = Self.widestKey
+        keyApart?.constant = Self.widestKey + Self.padding * 2
     }
 
     /// The strip, left to right: what a line is, then what a word is, then the
@@ -571,6 +561,7 @@ final class MarkdownAccessoryRow: UIInputView {
         let button = button("lightbulb", "Suggestions", "openSuggestions") {
             [weak self] in self?.openSuggestions?()
         }
+        button.configuration?.cornerStyle = .capsule
         button.isEnabled = openSuggestions != nil
         return button
     }

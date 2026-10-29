@@ -76,7 +76,7 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
             XCTAssertFalse(app.keyboards.firstMatch.exists, "Previewing a photo reopened the editor keyboard")
             XCTAssertGreaterThan(try coloredPixels(in: app, matching: color), thumbnailPixels * 2,
                                  "The enlarged preview did not show photo \(index)'s pixels")
-            dismissPreview(in: app, within: sheet)
+            try dismissPreview(in: app, within: sheet)
             XCTAssertTrue(add.waitForNonExistence(timeout: 10))
             XCTAssertTrue(app.buttons["cancelSuggestions"].exists, "Dismissing the preview closed Suggestions")
         }
@@ -134,17 +134,20 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
         capture(app, named: "previous-day-photo-preview")
     }
 
-    private func dismissPreview(in app: XCUIApplication, within sheet: CGRect) {
+    private func dismissPreview(in app: XCUIApplication, within sheet: CGRect) throws {
         let screen = app.frame
-        var point = CGPoint(x: sheet.maxX - 20, y: sheet.maxY - 20)
-        if sheet.width > 500 {
-            let rowY = app.buttons["photoSuggestion0"].frame.midY
-            let preview = app.otherElements["Preview"].frame.insetBy(dx: -16, dy: -16)
-            let action = app.buttons["Add to document"].frame.insetBy(dx: -16, dy: -16)
-            let right = CGPoint(x: sheet.maxX - 60, y: rowY)
-            point = preview.contains(right) || action.contains(right)
-                ? CGPoint(x: sheet.minX + 12, y: rowY) : right
-        }
+        let preview = app.otherElements["Preview"].frame
+        let action = app.buttons["Add to document"].frame
+        let menu = preview.union(action).insetBy(dx: -24, dy: -24)
+        let rowY = app.buttons["photoSuggestion0"].frame.midY
+        let candidates = [
+            CGPoint(x: sheet.minX + 8, y: rowY),
+            CGPoint(x: sheet.maxX - 8, y: rowY),
+            CGPoint(x: screen.minX + 24, y: screen.minY + 80),
+            CGPoint(x: screen.maxX - 24, y: screen.minY + 80)
+        ]
+        let point = try XCTUnwrap(candidates.first { screen.contains($0) && !menu.contains($0) },
+                                 "No backdrop point is clear of the photo and its action")
         app.coordinate(withNormalizedOffset: .zero)
             .withOffset(CGVector(dx: point.x - screen.minX, dy: point.y - screen.minY)).tap()
     }
@@ -203,7 +206,7 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
         return Array(rgba.prefix(3))
     }
 
-    func testDismissingAPreviewLeavesTheDocumentUnchanged() {
+    func testDismissingAPreviewLeavesTheDocumentUnchanged() throws {
         let app = launchApp(
             photoLibrary: todaysEntryName()
         )
@@ -220,7 +223,7 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
         photo.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 1.2)
         let add = app.buttons["Add to document"]
         XCTAssertTrue(add.waitForExistence(timeout: 10))
-        dismissPreview(in: app, within: sheet)
+        try dismissPreview(in: app, within: sheet)
         XCTAssertTrue(add.waitForNonExistence(timeout: 10))
         app.buttons["cancelSuggestions"].tap()
         expect(editor, toHaveValue: "Walked to the market.")

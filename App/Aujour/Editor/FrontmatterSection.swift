@@ -67,7 +67,7 @@ struct FrontmatterSection: View {
 // MARK: - The section
 
 /// The card over a day that has a block: its Properties or its source, and
-/// under it the two small controls — one that adds a Property, one that
+/// in its footer the two small controls — one that adds a Property, one that
 /// switches between the two views.
 private struct PropertiesCard: View {
     @Binding var cut: CutEntry
@@ -83,13 +83,13 @@ private struct PropertiesCard: View {
     @State private var dayBeingPicked: String?
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: Spacing.tight) {
+        VStack(spacing: 0) {
             VStack(spacing: 0) {
                 if cut.isShowingSource {
                     SourceField(cut: $cut)
                 } else {
                     ForEach(Array(cut.properties.enumerated()), id: \.element.key) { index, property in
-                        if index > 0 { Hairline().padding(.leading, Spacing.comfortable) }
+                        if index > 0 { Hairline().padding(.leading, EntrySurface.margin) }
                         PropertyRow(
                             property: property,
                             cut: $cut,
@@ -99,37 +99,45 @@ private struct PropertiesCard: View {
                     }
                     if let kind = pending {
                         if !cut.properties.isEmpty {
-                            Hairline().padding(.leading, Spacing.comfortable)
+                            Hairline().padding(.leading, EntrySurface.margin)
                         }
                         NewPropertyRow(kind: kind, cut: $cut, pending: $pending, day: day)
                     }
                 }
             }
-            .surfaceBackground(.card, in: RoundedRectangle(cornerRadius: Rounding.card))
 
-            HStack(spacing: Spacing.tight) {
-                if !cut.isShowingSource, cut.offersSource || cut.frontmatter == nil {
-                    AddPropertyChip(pending: $pending)
-                }
-                // Only for a block that is understood: one that is not has no
-                // Properties to come back to, and opens on its source with no
-                // other way offered.
-                if cut.offersSource {
-                    Button {
-                        if cut.isShowingSource { cut.showProperties() } else { cut.showSource() }
-                    } label: {
-                        Image(systemName: cut.isShowingSource ? "list.bullet" : "square.and.pencil")
-                            .lettering(.marker)
+            if cut.offersSource || cut.frontmatter == nil {
+                Hairline()
+                HStack(spacing: Spacing.close) {
+                    Text(cut.isShowingSource ? "Source" : "Properties")
+                        .lettering(.marker)
+                        .foregroundStyle(Palette.inkMutedColor)
+                    Spacer(minLength: 0)
+                    if !cut.isShowingSource {
+                        AddPropertyChip(pending: $pending)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                    .accessibilityLabel(cut.isShowingSource ? "Properties" : "Source")
-                    .accessibilityIdentifier("frontmatterSourceToggle")
-                    .accessibilityValue(cut.isShowingSource ? "Source" : "Properties")
+                    if cut.offersSource {
+                        Button {
+                            if cut.isShowingSource { cut.showProperties() } else { cut.showSource() }
+                        } label: {
+                            Image(systemName: cut.isShowingSource ? "list.bullet" : "square.and.pencil")
+                                .lettering(.marker)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .accessibilityLabel(cut.isShowingSource ? "Properties" : "Source")
+                        .accessibilityIdentifier("frontmatterSourceToggle")
+                        .accessibilityValue(cut.isShowingSource ? "Source" : "Properties")
+                    }
                 }
+                .padding(.horizontal, EntrySurface.margin)
+                .padding(.top, Spacing.close)
+                .padding(.bottom, Spacing.comfortable)
             }
         }
-        .padding(.horizontal, Spacing.comfortable)
+        .surfaceBackground(.card, in: RoundedRectangle(cornerRadius: EntrySurface.cornerRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: EntrySurface.cornerRadius, style: .continuous))
+        .padding(.horizontal, EntrySurface.margin)
         .padding(.top, Spacing.comfortable)
         // Nothing here is to be pressed while a calendar is up over it. A
         // popover dismisses on a touch outside itself and the touch is meant
@@ -167,9 +175,9 @@ private struct PropertyRow: View {
                 dayBeingPicked: $dayBeingPicked
             )
         }
-        .padding(.horizontal, Spacing.comfortable)
-        .padding(.vertical, Spacing.close)
-        .frame(minHeight: 44)
+        .padding(.horizontal, EntrySurface.margin)
+        .padding(.vertical, Spacing.comfortable)
+        .frame(minHeight: 48)
         .contentShape(Rectangle())
         .swipeToDelete(identifier: "deleteProperty-\(property.key)") { cut.delete(property.key) }
         .contextMenu {
@@ -772,8 +780,8 @@ private struct NewPropertyRow: View {
                 .foregroundStyle(Palette.inkFaintColor)
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.horizontal, Spacing.comfortable)
-        .padding(.vertical, Spacing.close)
+        .padding(.horizontal, EntrySurface.margin)
+        .padding(.vertical, Spacing.comfortable)
         .frame(minHeight: 44)
         .onAppear { isNaming = true }
         .accessibilityElement(children: .contain)

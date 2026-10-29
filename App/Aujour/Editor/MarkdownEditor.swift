@@ -574,6 +574,7 @@ struct MarkdownEditor: UIViewRepresentable {
                 },
                 finished: { [weak textView] in textView?.becomeFirstResponder() }
             )
+            textView.resignFirstResponder()
             suggests(request)
             return request
         }

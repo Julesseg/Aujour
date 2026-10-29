@@ -1,3 +1,4 @@
+import UniformTypeIdentifiers
 import Photos
 import Testing
 import UIKit
@@ -49,6 +50,39 @@ struct PhotoKitLibraryTests {
             result(nil, nil)
         }
         #expect(data != nil)
+    }
+
+    @Test("an unavailable PhotoKit thumbnail falls back to a sharp downsample of the photo")
+    func recoversMissingThumbnail() async throws {
+        let original = try #require(image(width: 900).jpegData(compressionQuality: 1))
+        let data = await PhotoKitLibrary.thumbnailData(
+            loadingThumbnail: { nil }, loadingContents: { original }
+        )
+        let decoded = try #require(data.flatMap(UIImage.init(data:)))
+        #expect(decoded.cgImage?.width == 450)
+        #expect(decoded.cgImage?.height == 450)
+    }
+
+    @Test("a successful thumbnail never fetches the full photo")
+    func thumbnailDoesNotDownloadOriginal() async throws {
+        let thumbnail = try #require(image(width: 450).jpegData(compressionQuality: 1))
+        let data = await PhotoKitLibrary.thumbnailData(
+            loadingThumbnail: { thumbnail },
+            loadingContents: {
+                Issue.record("Downloaded an original despite having a thumbnail")
+                return nil
+            }
+        )
+        #expect(data == thumbnail)
+    }
+
+    @Test("fallback thumbnails keep enough pixels to fill a square and honor orientation")
+    func rectangularFallback() throws {
+        let original = try #require(UITestingJournal.photograph(as: .jpeg, orientation: 6))
+        let data = try #require(PhotographImage.thumbnail(original, squarePixelSize: 15))
+        let decoded = try #require(UIImage(data: data)?.cgImage)
+        #expect(decoded.width == 15)
+        #expect(decoded.height == 20)
     }
 
     private func image(width: Int) -> UIImage {

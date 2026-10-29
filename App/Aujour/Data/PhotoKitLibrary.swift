@@ -98,13 +98,29 @@ struct PhotoKitLibrary: PhotoLibrary {
     func thumbnail(of photograph: DayPhotograph) async -> Data? {
         guard let asset = Self.asset(photograph) else { return nil }
 
-        return await Self.imageData(targetSize: Self.thumbnailSize, contentMode: .aspectFill) {
-            size, mode, options, result in
-            PHImageManager.default().requestImage(
-                for: asset, targetSize: size, contentMode: mode, options: options,
-                resultHandler: result
-            )
-        }
+        return await Self.thumbnailData(
+            loadingThumbnail: {
+                await Self.imageData(targetSize: Self.thumbnailSize, contentMode: .aspectFill) {
+                    size, mode, options, result in
+                    PHImageManager.default().requestImage(
+                        for: asset, targetSize: size, contentMode: mode, options: options,
+                        resultHandler: result
+                    )
+                }
+            },
+            loadingContents: { await contents(of: photograph) }
+        )
+    }
+
+    static func thumbnailData(
+        loadingThumbnail: () async -> Data?,
+        loadingContents: () async -> Data?
+    ) async -> Data? {
+        if let thumbnail = await loadingThumbnail() { return thumbnail }
+        guard !Task.isCancelled, let data = await loadingContents() else { return nil }
+        return await Task.detached {
+            PhotographImage.thumbnail(data, squarePixelSize: Int(Self.thumbnailSize.width))
+        }.value
     }
 
     static func imageData(

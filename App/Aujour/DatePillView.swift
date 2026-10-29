@@ -118,6 +118,7 @@ struct DatePillView: View {
                 panel
             }
         }
+        .padding(.bottom, Spacing.close * pill.openness)
         .frame(width: width)
         .clipShape(shape)
         // The system's own glass, rather than the identity's fill, ring and

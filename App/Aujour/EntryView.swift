@@ -73,6 +73,7 @@ struct EntryView: View {
     /// different things: the whole library in the system picker, and the
     /// Journal Day's own material in Aujour's sheet.
     @State private var suggestionsRequest: SuggestionsRequest?
+    @State private var finishSuggestions: (() -> Void)?
 
     /// The unanswered placeholder whose widget was tapped, while it is being
     /// answered — and `nil` the rest of the time, which is nearly always.
@@ -262,7 +263,10 @@ struct EntryView: View {
                     text: bodyText,
                     pictures: pictures,
                     requests: { photoRequest = $0 },
-                    suggests: { suggestionsRequest = $0 },
+                    suggests: { request in
+                        finishSuggestions = request.finished
+                        suggestionsRequest = request
+                    },
                     asks: { question = $0 },
                     // Drawn quieter until somebody has written this day. A day
                     // with no file is spawned from the Content Template
@@ -345,7 +349,10 @@ struct EntryView: View {
                 // The Journal Day's own material is on the Suggestions key's
                 // sheet. What is tapped goes where the caret was when the key
                 // was pressed, and cancelling asks the keyboard back.
-                .sheet(item: $suggestionsRequest) { request in
+                .sheet(item: $suggestionsRequest, onDismiss: {
+                    finishSuggestions?()
+                    finishSuggestions = nil
+                }) { request in
                     SuggestionsSheet(
                         for: editor.day,
                         photographsFrom: library,
@@ -377,7 +384,6 @@ struct EntryView: View {
                         formattingRemindersWith: journal?.howItIsWritten(.reminders)
                             ?? .default(for: .reminders)
                     )
-                    .onDisappear(perform: request.finished)
                 }
                 // Text that reached the Entry from elsewhere — the day being
                 // opened, or its file having moved on underneath it — is read

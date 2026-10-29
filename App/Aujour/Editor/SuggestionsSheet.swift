@@ -457,6 +457,7 @@ struct SuggestionsSheet: View {
                             identifier: "photoSuggestion\(nth)",
                             add: { photograph in Task { await add(photograph) } }
                         )
+                        .aspectRatio(1, contentMode: .fit)
                     }
                 }
                 .padding(.vertical, Spacing.tight)
@@ -534,37 +535,46 @@ private struct APhotographOfTheDay: View {
     /// nothing until then, which is what a photograph still coming down from
     /// iCloud looks like.
     @State private var thumbnail: UIImage?
+    @State private var loadingThumbnail = true
+    @State private var previewing = false
 
     var body: some View {
-        Button {
-            add(photograph)
-        } label: {
-            // Square whatever the column came out at, and the photograph
-            // filling it edge to edge.
-            Color.clear
-                .aspectRatio(1, contentMode: .fit)
-                .overlay {
-                    if let thumbnail {
-                        Image(uiImage: thumbnail)
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        Rectangle().fill(.quaternary)
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: Rounding.control, style: .continuous))
-                .contentShape(RoundedRectangle(cornerRadius: Rounding.control, style: .continuous))
+        PhotoSuggestionButton(
+            thumbnail: thumbnail,
+            isLoading: loadingThumbnail,
+            identifier: identifier,
+            photographID: photograph.id,
+            label: "Photo taken at \(photograph.takenAt.formatted(date: .omitted, time: .shortened))",
+            add: { add(photograph) },
+            showPreview: { previewing = true }
+        ) {
+            PhotoSuggestionPreview(photograph: photograph, suggestions: suggestions)
         }
-        // Its own tap, and not the row's: buttons left to a list's own style
-        // all fire together when the row is tapped.
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(identifier)
-        // A square of pixels has nothing to say for itself, and the one thing
-        // that tells two of them apart in a day is when each was taken.
-        .accessibilityLabel("Photo taken at \(photograph.takenAt.formatted(date: .omitted, time: .shortened))")
-        // Asked for by the square that shows it.
+        .sheet(isPresented: $previewing) {
+            NavigationStack {
+                PhotoSuggestionPreview(photograph: photograph, suggestions: suggestions)
+                    .navigationTitle("Photo")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { previewing = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Add to document") {
+                                previewing = false
+                                add(photograph)
+                            }
+                        }
+                    }
+            }
+            .sheetChrome()
+        }
         .task(id: photograph.id) {
-            thumbnail = await suggestions.thumbnail(of: photograph).flatMap(UIImage.init(data:))
+            loadingThumbnail = true
+            let image = await suggestions.thumbnail(of: photograph).flatMap(UIImage.init(data:))
+            guard !Task.isCancelled else { return }
+            thumbnail = image
+            loadingThumbnail = false
         }
     }
 }

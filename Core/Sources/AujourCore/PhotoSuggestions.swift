@@ -5,17 +5,16 @@ import Observation
 /// library sees it.
 ///
 /// A name the library answers to, the moment it was taken and — where the
-/// camera recorded one — where it was taken, and nothing else: what it looks
-/// like needs a screen, and what it weighs needs a download. Both are asked
-/// for by name, later and only for the ones somebody actually wants — a day
+/// camera recorded one — where it was taken, and its image proportions. What
+/// it looks like needs a screen, and what it weighs needs a download. Both are
+/// asked for by name, later and only for the ones somebody actually wants — a day
 /// can hold two hundred photographs, and a sheet that fetched every one of
 /// them to offer them would be a sheet that took a while to come up.
 ///
-/// The position is the exception to that, and it is cheap for the same reason
-/// the moment is: both are already in the library's own index beside the name,
-/// so a day's worth of them costs the same one query. What is done with them
-/// is ``PhotographedStop``'s and then ``PlaceSuggestions``'s — never this
-/// offer's, which is of pictures and has no interest in where they were
+/// Position and image proportions are already in the library's own index
+/// beside the moment, so a day's worth costs the same one query. What is done
+/// with positions is ``PhotographedStop``'s and then ``PlaceSuggestions``'s —
+/// never this offer's, which is of pictures and has no interest in where they were
 /// taken.
 public struct DayPhotograph: Hashable, Sendable, Identifiable {
     /// What the library calls it. Opaque here, and handed straight back when
@@ -33,11 +32,13 @@ public struct DayPhotograph: Hashable, Sendable, Identifiable {
     /// treat its absence as a failure: a day of photographs that carry no
     /// position is a `{{location}}` widget falling back to the live fix.
     public let position: Coordinate?
+    public let aspectRatio: Double?
 
-    public init(id: String, takenAt: Date, position: Coordinate? = nil) {
+    public init(id: String, takenAt: Date, position: Coordinate? = nil, aspectRatio: Double? = nil) {
         self.id = id
         self.takenAt = takenAt
         self.position = position
+        self.aspectRatio = aspectRatio.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
     }
 }
 

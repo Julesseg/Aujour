@@ -53,6 +53,31 @@ final class TheDatePillTests: AujourUITestCase {
         XCTAssertTrue(app.buttons["backToToday"].waitForExistence(timeout: 5))
     }
 
+    func testPullingTheCalendarKeepsTheDocumentInPlace() throws {
+        let app = launchApp(todaysEntry: "Fixed words on the page.\n")
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30))
+        let pill = app.buttons["datePill"]
+        let firstLine = CGRect(
+            x: 17, y: underTheGlass(of: editor, in: app) + 12,
+            width: 200, height: 28
+        )
+        let inkBefore = inkAcross(firstLine, of: app)
+        XCTAssertGreaterThan(inkBefore, 0.03)
+        capture(app, named: "fixed-document-before-pull")
+
+        drag(editor, by: 160)
+        expect(pill, toHaveValue: "Week")
+        capture(app, named: "fixed-document-week")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)).tap()
+        expect(pill, toHaveValue: "Closed")
+        capture(app, named: "fixed-document-after-pull")
+
+        XCTAssertFalse(app.buttons["addFirstProperty"].isHittable)
+        XCTAssertLessThan(abs(inkAcross(firstLine, of: app) - inkBefore), 0.015)
+        expect(editor, toHaveValue: "Fixed words on the page.\n")
+    }
+
     func testReturningToTheTopDoesNotExpandTheCalendarUntilTheNextPull() throws {
         let words = (1...80).map { "Line \($0) of a long journal entry." }.joined(separator: "\n")
         let app = launchApp(todaysEntry: words + "\n")

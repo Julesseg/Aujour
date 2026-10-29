@@ -117,6 +117,7 @@ final class MarkdownTextView: UITextView {
 
     /// Whether the tucked control has been pulled into view and left there.
     private var isRevealed = false
+    private var isRevealingControl = false
 
     /// The room around the text without the header: what the header's height
     /// is added to.
@@ -293,19 +294,25 @@ final class MarkdownTextView: UITextView {
     /// threshold read off the whole room would ask for a drag most of the way
     /// down the screen. What is asked for is the ask, and what opens is the
     /// room — the way a refresh control opens.
-    func draggingEnded() {
+    func draggingEnded(afterPulling distance: CGFloat? = nil) {
         guard isTucked, !isRevealed, headerHeight > 0,
-            contentOffset.y < -max(headerHeight * 0.6, 24)
+            (distance ?? -contentOffset.y) > max(headerHeight * 0.6, 24)
         else { return }
         isRevealed = true
         setNeedsLayout()
+        if distance != nil {
+            isRevealingControl = true
+            layoutIfNeeded()
+            contentOffset.y = -adjustedContentInset.top
+            isRevealingControl = false
+        }
     }
 
     /// The page moved. Scrolled back down past its first line, the room the
     /// revealed control had is closed again — from a position it is not in,
     /// so nothing on screen jumps.
     func scrolled() {
-        guard isTucked, isRevealed, contentOffset.y >= 0 else { return }
+        guard !isRevealingControl, isTucked, isRevealed, contentOffset.y >= 0 else { return }
         isRevealed = false
         setNeedsLayout()
     }

@@ -870,7 +870,7 @@ struct DatePillView: View {
 }
 
 extension EnvironmentValues {
-    @Entry var swipeDatePill: ((CGSize) -> Void)?
+    @Entry var swipeDatePill: ((CGSize) -> Bool)?
 }
 
 extension View {
@@ -909,8 +909,9 @@ extension View {
         @ViewBuilder beside: @escaping () -> Beside
     ) -> some View {
         environment(\.swipeDatePill, calendar == nil ? nil : { translation in
-            guard pill.wrappedValue.detent == .closed else { return }
+            guard pill.wrappedValue.detent == .closed else { return false }
             pill.wrappedValue.swiped(across: translation.width, down: translation.height)
+            return pill.wrappedValue.detent != .closed
         })
         .safeAreaInset(edge: .top, spacing: 0) {
             if calendar != nil {

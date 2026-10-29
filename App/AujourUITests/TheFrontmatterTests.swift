@@ -142,8 +142,10 @@ final class TheFrontmatterTests: AujourUITestCase {
         XCTAssertFalse(app.otherElements["frontmatterSection"].exists)
 
         // Pulled into view by scrolling up past the top of the text.
-        drag(editor, by: 160)
+        drag(editor, by: 60)
+        expect(app.buttons["datePill"], toHaveValue: "Closed")
         XCTAssertTrue(control.isHittable, "the control never came into view")
+        capture(app, named: "short-pull-property-control")
         control.tap()
         tapTheOption(labelled: "Checkbox", in: app)
 

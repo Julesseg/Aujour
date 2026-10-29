@@ -448,7 +448,7 @@ struct DatePillView: View {
         // the pill it was drawn across. Given the first claim on the finger,
         // this only takes it once the finger has travelled, which is exactly
         // the difference between choosing a day and walking past it.
-        .highPriorityGesture(walkSideways)
+        .highPriorityGesture(swipeThePanel)
         // The same journey for a reader who scrolls by gesture rather than by
         // finger, since the week strip has no control on it that does this.
         .accessibilityScrollAction { edge in
@@ -464,10 +464,17 @@ struct DatePillView: View {
 
     /// A finger drawn across the grid, carrying the page either side of this
     /// one into view and letting go on one of them.
-    private var walkSideways: some Gesture {
+    private var swipeThePanel: some Gesture {
         DragGesture(minimumDistance: Self.startsWalking)
             .onChanged { walked = followed($0) }
-            .onEnded { land(after: $0) }
+            .onEnded { finger in
+                if abs(finger.translation.height) > abs(finger.translation.width) {
+                    walked = 0
+                    pill.swiped(across: finger.translation.width, down: finger.translation.height)
+                } else {
+                    land(after: finger)
+                }
+            }
     }
 
     /// How far a finger has to travel before it is walking the pages rather
@@ -862,6 +869,10 @@ struct DatePillView: View {
     }
 }
 
+extension EnvironmentValues {
+    @Entry var swipeDatePill: ((CGSize) -> Bool)?
+}
+
 extension View {
     /// Puts the date pill over a day's Entry.
     ///
@@ -897,7 +908,12 @@ extension View {
         settling settleTheDayOnScreen: @escaping () async -> Void,
         @ViewBuilder beside: @escaping () -> Beside
     ) -> some View {
-        safeAreaInset(edge: .top, spacing: 0) {
+        environment(\.swipeDatePill, calendar == nil ? nil : { translation in
+            guard pill.wrappedValue.detent == .closed else { return false }
+            pill.wrappedValue.swiped(across: translation.width, down: translation.height)
+            return pill.wrappedValue.detent != .closed
+        })
+        .safeAreaInset(edge: .top, spacing: 0) {
             if calendar != nil {
                 RoomForTheShutPill()
             }
@@ -959,6 +975,15 @@ private struct DatePillOverThePage<Beside: View>: View {
                 Color.clear
                     .contentShape(.rect)
                     .onTapGesture { pill.close() }
+                    .gesture(
+                        DragGesture(minimumDistance: 12)
+                            .onEnded { finger in
+                                pill.swiped(
+                                    across: finger.translation.width,
+                                    down: finger.translation.height
+                                )
+                            }
+                    )
                     // Not a thing to be found and wondered about: the same way
                     // out is on the pill itself, as the escape a dismissible
                     // thing has.

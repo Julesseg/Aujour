@@ -3,6 +3,96 @@ import XCTest
 
 final class TheDatePillTests: AujourUITestCase {
 
+    func testSwipingThePageAndCalendarChangesOneLevelAtATime() throws {
+        let app = launchApp(todaysEntry: "A quiet day in the journal.\n")
+        let pill = app.buttons["datePill"]
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30))
+        expect(pill, toHaveValue: "Closed")
+        capture(app, named: "after-closed")
+
+        drag(editor, by: 160)
+        expect(pill, toHaveValue: "Week")
+        capture(app, named: "after-week-from-document")
+
+        let page = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65))
+        page.press(forDuration: 0, thenDragTo: page.withOffset(CGVector(dx: 0, dy: 160)))
+        expect(pill, toHaveValue: "Month")
+        capture(app, named: "after-month-from-page")
+
+        page.press(forDuration: 0, thenDragTo: page.withOffset(CGVector(dx: 0, dy: -160)))
+        expect(pill, toHaveValue: "Week")
+        capture(app, named: "after-week-from-page")
+
+        let today = app.buttons["day-\(todaysEntryName())"]
+        XCTAssertTrue(today.waitForExistence(timeout: 5))
+        drag(today, by: 160)
+        expect(pill, toHaveValue: "Month")
+        capture(app, named: "after-month-from-grid")
+
+        drag(today, by: -100)
+        expect(pill, toHaveValue: "Week")
+        drag(today, by: -100)
+        expect(pill, toHaveValue: "Closed")
+        capture(app, named: "after-closed-from-grid")
+        expect(editor, toHaveValue: "A quiet day in the journal.\n")
+
+        drag(editor, by: 160)
+        expect(pill, toHaveValue: "Week")
+        page.press(forDuration: 0, thenDragTo: page.withOffset(CGVector(dx: 0, dy: -160)))
+        expect(pill, toHaveValue: "Closed")
+        capture(app, named: "after-closed-from-page")
+
+        drag(editor, by: 160)
+        expect(pill, toHaveValue: "Week")
+        swipeTheWeekStrip(app, alongside: today, across: 160)
+        let aWeekAgo = app.buttons["day-\(entryName(for: try XCTUnwrap(daysBeforeToday(7))))"]
+        XCTAssertTrue(aWeekAgo.waitForExistence(timeout: 5))
+        aWeekAgo.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        expect(pill, toHaveValue: "Closed")
+        XCTAssertTrue(app.buttons["backToToday"].waitForExistence(timeout: 5))
+    }
+
+    func testPullingTheCalendarKeepsTheDocumentInPlace() throws {
+        let app = launchApp(todaysEntry: "Fixed words on the page.\n")
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30))
+        let pill = app.buttons["datePill"]
+        let firstLine = CGRect(
+            x: 17, y: underTheGlass(of: editor, in: app) + 12,
+            width: 200, height: 28
+        )
+        let inkBefore = inkAcross(firstLine, of: app)
+        XCTAssertGreaterThan(inkBefore, 0.03)
+        capture(app, named: "fixed-document-before-pull")
+
+        drag(editor, by: 160)
+        expect(pill, toHaveValue: "Week")
+        capture(app, named: "fixed-document-week")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)).tap()
+        expect(pill, toHaveValue: "Closed")
+        capture(app, named: "fixed-document-after-pull")
+
+        XCTAssertFalse(app.buttons["addFirstProperty"].isHittable)
+        XCTAssertLessThan(abs(inkAcross(firstLine, of: app) - inkBefore), 0.015)
+        expect(editor, toHaveValue: "Fixed words on the page.\n")
+    }
+
+    func testReturningToTheTopDoesNotExpandTheCalendarUntilTheNextPull() throws {
+        let words = (1...80).map { "Line \($0) of a long journal entry." }.joined(separator: "\n")
+        let app = launchApp(todaysEntry: words + "\n")
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30))
+        let pill = app.buttons["datePill"]
+
+        XCTAssertTrue(scrollContent(of: editor, in: app, by: -140))
+        XCTAssertTrue(scrollContent(of: editor, in: app, by: 400))
+        expect(pill, toHaveValue: "Closed")
+
+        XCTAssertTrue(scrollContent(of: editor, in: app, by: 160))
+        expect(pill, toHaveValue: "Week")
+    }
+
     // MARK: - The date pill
 
     // The header on iPhone, and the spine of the app: the day being written,

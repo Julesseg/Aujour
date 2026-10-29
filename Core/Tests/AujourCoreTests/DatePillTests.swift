@@ -12,6 +12,30 @@ import Testing
 /// about.
 @Suite("The date pill")
 struct DatePillTests {
+    @Test("a swipe moves one level at a time and stops at either end")
+    func swipingStepsOneLevel() {
+        var pill = DatePill()
+        for expected in [DatePill.Detent.week, .month, .month] {
+            pill.swiped(across: 0, down: DatePill.travel * 4)
+            #expect(pill.detent == expected)
+            #expect(!pill.isBeingDragged)
+        }
+        for expected in [DatePill.Detent.week, .closed, .closed] {
+            pill.swiped(across: 0, down: -DatePill.travel * 4)
+            #expect(pill.detent == expected)
+        }
+    }
+
+    @Test("short and predominantly horizontal swipes leave the pill alone",
+          arguments: [(0.0, 4.0), (0, 74), (150, 100), (-150, -100), (100, 100)])
+    func swipesThatDoNotChangeTheCalendar(across: Double, down: Double) {
+        var pill = DatePill()
+        pill.tapped()
+        pill.swiped(across: across, down: down)
+        #expect(pill.detent == .week)
+        #expect(pill.progress == 1)
+    }
+
     @Test("it starts closed, showing nothing but the day")
     func itStartsClosed() {
         let pill = DatePill()

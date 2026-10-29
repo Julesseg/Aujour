@@ -108,6 +108,7 @@ struct MarkdownEditor: UIViewRepresentable {
     /// it and the search results that pushed it, none of which have anything
     /// to say about typefaces.
     @Environment(\.editorLook) private var look
+    @Environment(\.swipeDatePill) private var swipeDatePill
 
     /// The room around the text.
     private static let textInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
@@ -195,6 +196,7 @@ struct MarkdownEditor: UIViewRepresentable {
         context.coordinator.requests = requests
         context.coordinator.suggests = suggests
         context.coordinator.caretSettled = caretSettled
+        context.coordinator.swipeDatePill = swipeDatePill
         context.coordinator.answersTaps(in: textView)
         context.coordinator.formats(in: textView, overADay: requests != nil, accent: styling.box)
         storage.setSource(text)
@@ -218,6 +220,7 @@ struct MarkdownEditor: UIViewRepresentable {
         context.coordinator.requests = requests
         context.coordinator.suggests = suggests
         context.coordinator.caretSettled = caretSettled
+        context.coordinator.swipeDatePill = swipeDatePill
         textView.accessibilityLabel = label
         if let textView = textView as? MarkdownTextView {
             textView.roomForTheGlass = roomForTheGlass
@@ -307,6 +310,10 @@ struct MarkdownEditor: UIViewRepresentable {
         }
 
         var text: Binding<String>
+        var swipeDatePill: ((CGSize) -> Bool)?
+        private var pullOrigin: CGPoint?
+        private var isCalendarPull: Bool?
+        private var finishedCalendarPull = false
 
         /// Puts an unanswered placeholder's question in front of the user.
         /// Nothing at all until the editor is on screen, and rebuilt with the
@@ -851,15 +858,73 @@ struct MarkdownEditor: UIViewRepresentable {
         /// A pull past the top and let go is how the control over a day with
         /// no block is reached (``MarkdownTextView``).
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            let isAtTop = scrollView.contentOffset.y <= -scrollView.adjustedContentInset.top + 0.5
+            pullOrigin = isAtTop && swipeDatePill != nil
+                ? CGPoint(x: scrollView.contentOffset.x, y: -scrollView.adjustedContentInset.top) : nil
+            isCalendarPull = nil
+            finishedCalendarPull = false
             (scrollView as? MarkdownTextView)?.stopsRevealingSelection()
+            _ = holdTheDocument(in: scrollView)
+        }
+
+        func scrollViewWillEndDragging(
+            _ scrollView: UIScrollView,
+            withVelocity velocity: CGPoint,
+            targetContentOffset: UnsafeMutablePointer<CGPoint>
+        ) {
+            if finishCalendarPull(in: scrollView) {
+                targetContentOffset.pointee = pullOrigin ?? CGPoint(
+                    x: scrollView.contentOffset.x, y: -scrollView.adjustedContentInset.top
+                )
+            }
         }
 
         func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate: Bool) {
-            (scrollView as? MarkdownTextView)?.draggingEnded()
+            if !finishedCalendarPull, !finishCalendarPull(in: scrollView) {
+                (scrollView as? MarkdownTextView)?.draggingEnded()
+            }
+            if !willDecelerate {
+                pullOrigin = nil
+                isCalendarPull = nil
+            }
+        }
+
+        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+            _ = holdTheDocument(in: scrollView)
+            pullOrigin = nil
+            isCalendarPull = nil
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            guard !holdTheDocument(in: scrollView) else { return }
             (scrollView as? MarkdownTextView)?.scrolled()
+        }
+
+        private func holdTheDocument(in scrollView: UIScrollView) -> Bool {
+            guard let pullOrigin else { return false }
+            if isCalendarPull == nil {
+                let translation = scrollView.panGestureRecognizer.translation(in: scrollView)
+                guard translation != .zero else { return false }
+                isCalendarPull = translation.y > abs(translation.x)
+            }
+            guard isCalendarPull == true else { return false }
+            if scrollView.contentOffset != pullOrigin {
+                scrollView.contentOffset = pullOrigin
+            }
+            return true
+        }
+
+        private func finishCalendarPull(in scrollView: UIScrollView) -> Bool {
+            guard !finishedCalendarPull, holdTheDocument(in: scrollView) else { return false }
+            finishedCalendarPull = true
+            let translation = scrollView.panGestureRecognizer.translation(in: scrollView)
+            let opened = swipeDatePill?(CGSize(width: translation.x, height: translation.y)) ?? false
+            if !opened {
+                pullOrigin = nil
+                isCalendarPull = nil
+                (scrollView as? MarkdownTextView)?.draggingEnded(afterPulling: translation.y)
+            }
+            return true
         }
     }
 }

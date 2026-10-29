@@ -128,6 +128,13 @@ public struct DatePill: Equatable, Sendable {
         progress = progress.rounded()
     }
 
+    public mutating func swiped(across: Double, down: Double) {
+        guard abs(down) > abs(across), abs(down) >= Self.travel / 2 else { return }
+        let step = down > 0 ? 1 : -1
+        progress = Double(min(max(detent.rawValue + step, 0), Detent.month.rawValue))
+        draggedFrom = nil
+    }
+
     /// Shuts it. What picking a day does — the day is chosen, so the grid it
     /// was chosen from has nothing left to say.
     public mutating func close() {

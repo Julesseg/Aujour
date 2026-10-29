@@ -59,8 +59,8 @@ final class TheDatePillTests: AujourUITestCase {
         XCTAssertTrue(editor.waitForExistence(timeout: 30))
         let pill = app.buttons["datePill"]
         let firstLine = CGRect(
-            x: 17, y: underTheGlass(of: editor, in: app) + 12,
-            width: 200, height: 28
+            origin: inTheDaysWords(of: editor, in: app, dx: 0, dy: 0).screenPoint,
+            size: CGSize(width: 200, height: 28)
         )
         let inkBefore = inkAcross(firstLine, of: app)
         XCTAssertGreaterThan(inkBefore, 0.03)

@@ -176,7 +176,7 @@ extension Accent {
     /// Built off `allCases` rather than written out, so an accent added to the
     /// set arrives with its washes instead of quietly having none.
     private static let softWashes = washes(light: 0.15, dark: 0.18)
-    private static let glassWashes = washes(light: 0.075, dark: 0.09)
+    private static let glassWashes = washes(light: 0.10, dark: 0.12)
     private static let softerWashes = washes(light: 0.35, dark: 0.35)
 
     private static func dynamic(light: Int, dark: Int) -> UIColor {

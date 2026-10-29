@@ -22,6 +22,12 @@ final class EntrySurfaceTests: AujourUITestCase {
                 let app = launchApp(layout: nil, todaysEntry: entry)
                 let editor = app.textViews["entryEditor"]
                 XCTAssertTrue(editor.waitForExistence(timeout: 30))
+                if state == "written" {
+                    openHowItLooks(in: app)
+                    app.segmentedControls["appearanceTheme"].buttons[mode.capitalized].tap()
+                    app.buttons["BackButton"].tap()
+                    app.buttons["Done"].tap()
+                }
                 if state == "source" {
                     XCTAssertTrue(app.textViews["frontmatterSource"].waitForExistence(timeout: 10))
                 } else if state != "no-frontmatter" {
@@ -29,12 +35,21 @@ final class EntrySurfaceTests: AujourUITestCase {
                     XCTAssertTrue(section.waitForExistence(timeout: 10))
                     let toggle = app.buttons["frontmatterSourceToggle"]
                     XCTAssertTrue(toggle.isHittable)
-                    let card = app.otherElements["frontmatterCard"]
-                    XCTAssertTrue(card.exists)
-                    XCTAssertGreaterThanOrEqual(toggle.frame.minY, card.frame.maxY)
+                    let lastProperty = app.otherElements["property-tags"]
+                    XCTAssertTrue(lastProperty.exists)
+                    XCTAssertGreaterThanOrEqual(toggle.frame.minY, lastProperty.frame.maxY)
                     let add = app.buttons["addProperty"]
                     XCTAssertTrue(add.isHittable)
-                    XCTAssertGreaterThanOrEqual(add.frame.minY, card.frame.maxY)
+                    XCTAssertGreaterThanOrEqual(add.frame.minY, lastProperty.frame.maxY)
+                    let underControls = try pixel(
+                        in: app,
+                        at: CGPoint(x: editor.frame.minX + 64, y: toggle.frame.midY)
+                    )
+                    let page = try pixel(
+                        in: app,
+                        at: CGPoint(x: editor.frame.minX + 2, y: toggle.frame.midY)
+                    )
+                    XCTAssertEqual(underControls, page)
                     let color = try pixel(
                         in: app,
                         at: CGPoint(x: editor.frame.minX + 20, y: section.frame.maxY + 80)

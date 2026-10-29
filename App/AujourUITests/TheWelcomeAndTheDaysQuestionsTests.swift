@@ -285,7 +285,7 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
         // text to find either (ADR 0001). In points into the day's words
         // rather than as a fraction of the editor, whose height is whatever
         // the keyboard has left of the screen.
-        inTheDaysWords(of: editor, in: app, dx: 24, dy: 23)
+        inTheDaysWords(of: editor, in: app, dx: 7, dy: 11)
             .tap()
 
         // {{mood}} is rated rather than typed: five marks, and the one pressed
@@ -318,7 +318,7 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
 
         // And it is a widget again, from the text alone — a second line down,
         // where the token that survived the round trip stands.
-        inTheDaysWords(of: reopened, in: app, dx: 24, dy: 45)
+        inTheDaysWords(of: reopened, in: app, dx: 7, dy: 33)
             .tap()
         XCTAssertTrue(
             app.textFields["placeholderAnswerField"].waitForExistence(timeout: 10),
@@ -358,7 +358,7 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
         // and everything below it moves up. Widgets are drawings rather than
         // views, aimed at by coordinate like every other one, so the way to
         // tap two of them is bottom up.
-        inTheDaysWords(of: editor, in: app, dx: 24, dy: 45)
+        inTheDaysWords(of: editor, in: app, dx: 7, dy: 33)
             .tap()
 
         // Changed rather than confirmed: the picker is the places around, and
@@ -376,7 +376,7 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
         // And the one above it is simply confirmed: the widget asked the
         // device where it was, and the nearest place it named is already in
         // the field.
-        inTheDaysWords(of: editor, in: app, dx: 24, dy: 23)
+        inTheDaysWords(of: editor, in: app, dx: 7, dy: 11)
             .tap()
 
         let answer = app.textFields["placeholderAnswerField"]
@@ -405,7 +405,7 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
         let editor = app.textViews["entryEditor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
 
-        inTheDaysWords(of: editor, in: app, dx: 24, dy: 23)
+        inTheDaysWords(of: editor, in: app, dx: 7, dy: 11)
             .tap()
 
         // Nothing found and nothing offered: the device has not been asked.
@@ -445,7 +445,7 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
         XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
         XCTAssertEqual(editor.value as? String, "{{location}}\n")
 
-        inTheDaysWords(of: editor, in: app, dx: 24, dy: 23)
+        inTheDaysWords(of: editor, in: app, dx: 7, dy: 11)
             .tap()
 
         let answer = app.textFields["placeholderAnswerField"]
@@ -474,7 +474,7 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
 
         // And it is answered by typing, exactly as it would have been if there
         // had never been a device to ask.
-        inTheDaysWords(of: editor, in: app, dx: 24, dy: 23)
+        inTheDaysWords(of: editor, in: app, dx: 7, dy: 11)
             .tap()
         let typed = app.textFields["placeholderAnswerField"]
         XCTAssertTrue(typed.waitForExistence(timeout: 10), "the widget never came back")
@@ -526,7 +526,7 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
         XCTAssertTrue(editor.waitForExistence(timeout: 30), "yesterday's entry never appeared")
         XCTAssertEqual(editor.value as? String, "{{location}}\n")
 
-        inTheDaysWords(of: editor, in: app, dx: 24, dy: 23)
+        inTheDaysWords(of: editor, in: app, dx: 7, dy: 11)
             .tap()
 
         // Yesterday's café, worked out from yesterday's photographs — and the
@@ -601,7 +601,7 @@ final class TheWelcomeAndTheDaysQuestionsTests: AujourUITestCase {
         let editor = app.textViews["entryEditor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 30), "yesterday's entry never appeared")
 
-        inTheDaysWords(of: editor, in: app, dx: 24, dy: 23)
+        inTheDaysWords(of: editor, in: app, dx: 7, dy: 11)
             .tap()
 
         XCTAssertTrue(

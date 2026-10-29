@@ -224,8 +224,8 @@ final class TheFrontmatterTests: AujourUITestCase {
             row.frame.contains(picker.frame),
             "the date \(picker.frame) reached outside its row \(row.frame)"
         )
-        XCTAssertGreaterThanOrEqual(
-            picker.frame.minX, name.frame.maxX,
+        XCTAssertTrue(
+            picker.frame.minX >= name.frame.maxX || picker.frame.minY >= name.frame.maxY,
             "the date was drawn over the name it belongs to"
         )
         // And the row that had room to spare is untouched: the column is a

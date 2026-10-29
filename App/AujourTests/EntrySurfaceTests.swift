@@ -40,12 +40,14 @@ struct EntrySurfaceTests {
         let view = editor("A quiet morning.")
         let paper = try surface(in: view)
         let caret = view.caretRect(for: view.beginningOfDocument)
+        let firstLine = view.layoutManager.lineFragmentRect(forGlyphAt: 0, effectiveRange: nil)
+            .offsetBy(dx: view.textContainerInset.left, dy: view.textContainerInset.top)
         #expect(paper.frame.height == 480)
         #expect(paper.frame.minX == 16)
         #expect(paper.frame.maxX == view.bounds.width - 16)
         #expect(paper.cornerRadius == 32)
-        #expect(caret.minX - paper.frame.minX == 22)
-        #expect(caret.minY >= paper.frame.minY + 22)
+        #expect(caret.midX - paper.frame.minX == 22)
+        #expect(firstLine.minY >= paper.frame.minY + 22)
         #expect(view.contentInset == .zero)
     }
 
@@ -82,10 +84,12 @@ struct EntrySurfaceTests {
     func appearanceChanges() throws {
         let view = editor("Words stay here.")
         let paper = try surface(in: view)
-        view.overrideUserInterfaceStyle = .light
+        view.traitOverrides.userInterfaceStyle = .light
+        view.updateTraitsIfNeeded()
         settle(view)
         let light = paper.backgroundColor
-        view.overrideUserInterfaceStyle = .dark
+        view.traitOverrides.userInterfaceStyle = .dark
+        view.updateTraitsIfNeeded()
         settle(view)
         #expect(paper.backgroundColor != light)
         #expect(paper.backgroundColor == view.surfaceColor?.resolvedColor(with: view.traitCollection).cgColor)

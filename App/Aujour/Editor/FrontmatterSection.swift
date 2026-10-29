@@ -107,8 +107,6 @@ private struct PropertiesCard: View {
             }
             .surfaceBackground(.card, in: RoundedRectangle(cornerRadius: EntrySurface.cornerRadius, style: .continuous))
             .clipShape(RoundedRectangle(cornerRadius: EntrySurface.cornerRadius, style: .continuous))
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("frontmatterCard")
 
             HStack(spacing: Spacing.tight) {
                 if !cut.isShowingSource, cut.offersSource || cut.frontmatter == nil {

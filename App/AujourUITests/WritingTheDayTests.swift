@@ -16,7 +16,7 @@ final class WritingTheDayTests: AujourUITestCase {
         XCTAssertTrue(invitation.waitForExistence(timeout: 30))
 
         // The first writing line rests under the pill's row or the wide
-        // layout's navigation bar, plus the text view's 12-point inset.
+        // layout's navigation bar, plus the surface gap and its writing inset.
         let pill = app.buttons["datePill"]
         let chromeBottom: CGFloat
         if pill.exists {
@@ -26,7 +26,7 @@ final class WritingTheDayTests: AujourUITestCase {
             XCTAssertTrue(bar.exists, "the wide page has no navigation bar")
             chromeBottom = bar.frame.maxY
         }
-        let firstLine = max(editor.frame.minY, chromeBottom) + 12
+        let firstLine = max(editor.frame.minY, chromeBottom) + 38
         XCTAssertEqual(
             invitation.frame.minY, firstLine, accuracy: 12,
             "the invitation at \(invitation.frame.minY) is away from the first writing line at \(firstLine)"
@@ -198,7 +198,7 @@ final class WritingTheDayTests: AujourUITestCase {
         // In points into the day's words rather than as a fraction of the
         // editor, whose height is whatever the keyboard has left of the
         // screen — and whose corner is up behind the pill's glass.
-        inTheDaysWords(of: editor, in: app, dx: 24, dy: 23)
+        inTheDaysWords(of: editor, in: app, dx: 7, dy: 11)
             .tap()
         expect(editor, toHaveValue: "- [x] Milk\n- [ ] Bread")
 

@@ -451,12 +451,15 @@ struct SuggestionsSheet: View {
                     spacing: Spacing.close
                 ) {
                     ForEach(Array(found.enumerated()), id: \.element.id) { nth, photograph in
-                        APhotographOfTheDay(
-                            photograph: photograph,
-                            suggestions: suggestions,
-                            identifier: "photoSuggestion\(nth)",
-                            add: { photograph in Task { await add(photograph) } }
-                        )
+                        PhotoSuggestionCell {
+                            APhotographOfTheDay(
+                                photograph: photograph,
+                                suggestions: suggestions,
+                                identifier: "photoSuggestion\(nth)",
+                                add: { photograph in Task { await add(photograph) } }
+                            )
+                        }
+                        .aspectRatio(1, contentMode: .fit)
                     }
                 }
                 .padding(.vertical, Spacing.tight)

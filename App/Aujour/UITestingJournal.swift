@@ -486,10 +486,10 @@ enum UITestingJournal {
     /// - Parameter orientation: the EXIF orientation to write, for a test about
     ///   what survives a conversion. Left out for a photograph with nothing to
     ///   say about itself.
-    static func photograph(as type: UTType, orientation: Int? = nil) -> Data? {
+    static func photograph(as type: UTType, orientation: Int? = nil, color: UIColor = .systemTeal) -> Data? {
         let size = CGSize(width: 40, height: 30)
         let drawn = UIGraphicsImageRenderer(size: size).image { context in
-            UIColor.systemTeal.setFill()
+            color.setFill()
             context.fill(CGRect(origin: .zero, size: size))
         }
 
@@ -669,11 +669,17 @@ private final class ALibrarySeededByATest: PhotoLibrary, @unchecked Sendable {
     }
 
     func thumbnail(of photograph: DayPhotograph) async -> Data? {
-        UITestingJournal.photograph(as: .jpeg)
+        image(of: photograph)
     }
 
     func contents(of photograph: DayPhotograph) async -> Data? {
-        UITestingJournal.photograph(as: .jpeg)
+        image(of: photograph)
+    }
+
+    private func image(of photograph: DayPhotograph) -> Data? {
+        let colors: [UIColor] = [.systemTeal, .systemOrange, .systemPurple]
+        let index = taken.firstIndex { $0.when == photograph.takenAt } ?? 0
+        return UITestingJournal.photograph(as: .jpeg, color: colors[index % colors.count])
     }
 
     /// `2026-03-14`, or `2026-03-14 09:30`, or `2026-03-14 09:30 @ 48.85,2.33`

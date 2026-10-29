@@ -134,6 +134,7 @@ extension Accent {
     /// keep in step. A hair stronger in dark, where a wash of this weight over
     /// near-black would otherwise not be there at all.
     var softColor: UIColor { Self.softWashes[self] ?? uiColor }
+    var glassColor: UIColor { Self.glassWashes[self] ?? uiColor }
 
     /// The same wash, at the weight the identity draws a quote bar and a
     /// selected edge in — strong enough to be a line rather than a tint.
@@ -143,6 +144,7 @@ extension Accent {
     var color: Color { Color(uiColor) }
     var ink: Color { Color(inkColor) }
     var soft: Color { Color(softColor) }
+    var glass: Color { Color(glassColor) }
     var softer: Color { Color(softerColor) }
 
     private static let driftwood = dynamic(light: 0x7B6A52, dark: 0xA79A80)
@@ -174,6 +176,7 @@ extension Accent {
     /// Built off `allCases` rather than written out, so an accent added to the
     /// set arrives with its washes instead of quietly having none.
     private static let softWashes = washes(light: 0.15, dark: 0.18)
+    private static let glassWashes = washes(light: 0.075, dark: 0.09)
     private static let softerWashes = washes(light: 0.35, dark: 0.35)
 
     private static func dynamic(light: Int, dark: Int) -> UIColor {

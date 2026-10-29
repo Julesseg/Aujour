@@ -126,7 +126,7 @@ struct DatePillView: View {
         // floats over a page of somebody's writing should be the real thing —
         // it refracts what scrolls under it, lights its own edge against it,
         // and answers Reduce Transparency without being asked.
-        .glassEffect(.regular.tint(accent.soft), in: shape)
+        .glassEffect(.regular.tint(accent.glass), in: shape)
         // Leading, because the row is shared: the menu has the trailing end of
         // it, and a pill centred in the whole row would sit under the menu on
         // one side and leave a gap on the other. An open pill fills the row
@@ -842,10 +842,12 @@ struct DatePillView: View {
     }
 
     private var shape: RoundedRectangle {
-        // The corner a pill has, kept as the panel grows: a capsule 44 points
-        // tall is a 22-point corner, and the identity's glass keeps it rather
-        // than squaring off into a card (`Metrics`).
-        RoundedRectangle(cornerRadius: pillHeight / 2, style: .continuous)
+        let closedRadius = pillHeight / 2
+        let expandedRadius = pillHeight * 36 / 44
+        return RoundedRectangle(
+            cornerRadius: closedRadius + (expandedRadius - closedRadius) * pill.openness,
+            style: .continuous
+        )
     }
 
     /// What it does when it is let go: the identity's own settle, or a plain
@@ -1107,7 +1109,7 @@ private struct RoomForTheShutPill: View {
             Image(systemName: "ellipsis")
                 .font(.system(size: 15, weight: .semibold))
                 .frame(width: 44, height: 44)
-                .glassEffect(.regular.tint(Accent.driftwood.soft), in: Circle())
+                .glassEffect(.regular.tint(Accent.driftwood.glass), in: Circle())
         }
     )
     .background(Palette.backgroundColor)

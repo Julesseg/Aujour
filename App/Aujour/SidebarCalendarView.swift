@@ -153,7 +153,7 @@ struct SidebarCalendarView: View {
         }
         .frame(width: paneWidth)
         .clipShape(shape)
-        .glassEffect(.regular.tint(accent.soft), in: shape)
+        .glassEffect(.regular.tint(accent.glass), in: shape)
     }
 
     /// The day being written, across the top — and the way back to today

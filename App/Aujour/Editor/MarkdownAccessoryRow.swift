@@ -282,7 +282,7 @@ final class MarkdownAccessoryRow: UIInputView {
 
             let glass = UIGlassEffect(style: .regular)
             glass.tintColor = accent.resolvedColor(with: traitCollection)
-                .withAlphaComponent(traitCollection.userInterfaceStyle == .dark ? 0.18 : 0.15)
+                .withAlphaComponent(traitCollection.userInterfaceStyle == .dark ? 0.09 : 0.075)
             pill.pane.effect = glass
             pill.pane.contentView.backgroundColor = .clear
 

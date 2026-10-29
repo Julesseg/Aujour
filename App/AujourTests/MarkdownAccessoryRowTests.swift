@@ -233,7 +233,7 @@ struct MarkdownAccessoryRowTests {
         #expect(panes.count == 2)
         for pane in panes {
             let effect = try #require(pane.effect as? UIGlassEffect)
-            #expect(effect.tintColor?.resolved(in: style) == accent.softColor.resolved(in: style))
+            #expect(effect.tintColor?.resolved(in: style) == accent.glassColor.resolved(in: style))
         }
     }
 
@@ -251,7 +251,7 @@ struct MarkdownAccessoryRowTests {
                 let glass = try #require(pane.effect as? UIGlassEffect)
                 #expect(
                     glass.tintColor?.resolved(in: row.traitCollection.userInterfaceStyle)
-                        == Accent.terracotta.softColor.resolved(in: row.traitCollection.userInterfaceStyle)
+                        == Accent.terracotta.glassColor.resolved(in: row.traitCollection.userInterfaceStyle)
                 )
                 #expect(pane.layer.borderWidth == 0)
                 #expect(shadows(under: pane).allSatisfy { $0.isHidden })

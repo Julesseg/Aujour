@@ -126,7 +126,7 @@ struct DatePillView: View {
         // floats over a page of somebody's writing should be the real thing —
         // it refracts what scrolls under it, lights its own edge against it,
         // and answers Reduce Transparency without being asked.
-        .glassEffect(.regular, in: shape)
+        .glassEffect(.regular.tint(accent.soft), in: shape)
         // Leading, because the row is shared: the menu has the trailing end of
         // it, and a pill centred in the whole row would sit under the menu on
         // one side and leave a gap on the other. An open pill fills the row
@@ -1107,7 +1107,7 @@ private struct RoomForTheShutPill: View {
             Image(systemName: "ellipsis")
                 .font(.system(size: 15, weight: .semibold))
                 .frame(width: 44, height: 44)
-                .glassEffect(.regular, in: Circle())
+                .glassEffect(.regular.tint(Accent.driftwood.soft), in: Circle())
         }
     )
     .background(Palette.backgroundColor)

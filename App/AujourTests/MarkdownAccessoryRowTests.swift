@@ -212,8 +212,31 @@ struct MarkdownAccessoryRowTests {
 
     // MARK: - The panes it is drawn on
 
-    // The same platform glass for both panes, tinted to the identity's paper
-    // rather than painted over with it.
+    @Test(
+        "both glass panes follow an accent change on the existing row",
+        arguments: Accent.allCases, [UIUserInterfaceStyle.light, .dark]
+    )
+    func glassFollowsTheAccent(accent: Accent, style: UIUserInterfaceStyle) throws {
+        guard !UIAccessibility.isReduceTransparencyEnabled else { return }
+        let row = aRow { _ in }
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.overrideUserInterfaceStyle = style
+        let controller = UIViewController()
+        window.rootViewController = controller
+        controller.view.addSubview(row)
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+
+        row.accent = accent.uiColor
+
+        let panes = glasses(of: row)
+        #expect(panes.count == 2)
+        for pane in panes {
+            let effect = try #require(pane.effect as? UIGlassEffect)
+            #expect(effect.tintColor?.resolved(in: style) == accent.softColor.resolved(in: style))
+        }
+    }
+
     @Test("both panes use the same glass recipe and sit inside the row")
     func theGlass() throws {
         let row = aRow { _ in }
@@ -226,7 +249,10 @@ struct MarkdownAccessoryRowTests {
         for pane in panes {
             if seeThrough {
                 let glass = try #require(pane.effect as? UIGlassEffect)
-                #expect(glass.tintColor == Palette.glass)
+                #expect(
+                    glass.tintColor?.resolved(in: row.traitCollection.userInterfaceStyle)
+                        == Accent.terracotta.softColor.resolved(in: row.traitCollection.userInterfaceStyle)
+                )
                 #expect(pane.layer.borderWidth == 0)
                 #expect(shadows(under: pane).allSatisfy { $0.isHidden })
             } else {

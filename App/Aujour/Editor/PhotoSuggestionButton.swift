@@ -65,8 +65,8 @@ struct PhotoSuggestionButton<Preview: View>: UIViewRepresentable {
         func contextMenuInteraction(
             _ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint
         ) -> UIContextMenuConfiguration? {
-            guard parent.isEnabled, let button = interaction.view as? PhotographButton else { return nil }
-            button.isShowingPreview = true
+            guard let button = interaction.view as? PhotographButton, button.isEnabled else { return nil }
+            button.previewedDuringTouch = true
             button.cancelTracking(with: nil)
             let photo = parent
             return UIContextMenuConfiguration(
@@ -81,26 +81,13 @@ struct PhotoSuggestionButton<Preview: View>: UIViewRepresentable {
                 }
             )
         }
-
-        func contextMenuInteraction(
-            _ interaction: UIContextMenuInteraction,
-            willEndFor configuration: UIContextMenuConfiguration,
-            animator: (any UIContextMenuInteractionAnimating)?
-        ) {
-            guard let button = interaction.view as? PhotographButton else { return }
-            if let animator {
-                animator.addCompletion { [weak button] in button?.isShowingPreview = false }
-            } else {
-                button.isShowingPreview = false
-            }
-        }
     }
 }
 
 final class PhotographButton: UIButton {
     let thumbnail = UIImageView()
     let loading = UIActivityIndicatorView(style: .medium)
-    var isShowingPreview = false
+    var previewedDuringTouch = false
     var add: (() -> Void)?
     var showPreview: (() -> Void)?
 
@@ -116,8 +103,9 @@ final class PhotographButton: UIButton {
         thumbnail.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         addSubview(thumbnail)
         addSubview(loading)
+        addAction(UIAction { [weak self] _ in self?.previewedDuringTouch = false }, for: .touchDown)
         addAction(UIAction { [weak self] _ in
-            guard let self, !isShowingPreview else { return }
+            guard let self, !previewedDuringTouch else { return }
             add?()
         }, for: .touchUpInside)
         accessibilityCustomActions = [
@@ -127,6 +115,12 @@ final class PhotographButton: UIButton {
                 return true
             }
         ]
+    }
+
+    override func accessibilityActivate() -> Bool {
+        guard isEnabled else { return false }
+        add?()
+        return true
     }
 
     override func layoutSubviews() {

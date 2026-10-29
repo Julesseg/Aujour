@@ -24,6 +24,8 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
             .matching(NSPredicate(format: "label == %@", photo.label)).firstMatch
         XCTAssertTrue(previewImage.waitForExistence(timeout: 10))
         XCTAssertGreaterThan(previewImage.frame.width, photo.frame.width)
+        let window = app.otherElements["Preview"].frame
+        XCTAssertEqual(window.width / window.height, 4.0 / 3, accuracy: 0.02)
         capture(app, named: "photo-suggestion-preview")
         add.tap()
         XCTAssertTrue(app.buttons["cancelSuggestions"].waitForNonExistence(timeout: 10))
@@ -46,6 +48,7 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
             expectLoadedThumbnail(app.buttons["photoSuggestion\(index)"])
         }
         capture(app, named: "individual-photo-grid")
+        let sheet = app.descendants(matching: .any).matching(identifier: "suggestionsSheet").firstMatch.frame
 
         for index in [1, 2, 0] {
             let photo = app.buttons["photoSuggestion\(index)"]
@@ -67,8 +70,9 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
             XCTAssertFalse(app.keyboards.firstMatch.exists, "Previewing a photo reopened the editor keyboard")
             XCTAssertGreaterThan(try coloredPixels(in: app, matching: color), thumbnailPixels * 2,
                                  "The enlarged preview did not show photo \(index)'s pixels")
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.04, dy: 0.1)).tap()
+            dismissPreview(in: app, within: sheet)
             XCTAssertTrue(add.waitForNonExistence(timeout: 10))
+            XCTAssertTrue(app.buttons["cancelSuggestions"].exists, "Dismissing the preview closed Suggestions")
         }
 
         let first = app.buttons["photoSuggestion0"].frame
@@ -122,6 +126,13 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
         XCTAssertTrue(preview.waitForExistence(timeout: 10))
         XCTAssertGreaterThan(try coloredPixels(in: app, matching: color), thumbnailPixels * 2)
         capture(app, named: "previous-day-photo-preview")
+    }
+
+    private func dismissPreview(in app: XCUIApplication, within sheet: CGRect) {
+        let screen = app.frame
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: sheet.maxX - screen.minX - 20,
+                                 dy: sheet.maxY - screen.minY - 20)).tap()
     }
 
     private func expectLoadedThumbnail(_ photo: XCUIElement) {
@@ -187,10 +198,11 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
         suggestions.tap()
         let photo = app.buttons["photoSuggestion0"]
         XCTAssertTrue(photo.waitForExistence(timeout: 10))
+        let sheet = app.descendants(matching: .any).matching(identifier: "suggestionsSheet").firstMatch.frame
         photo.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 1.2)
         let add = app.buttons["Add to document"]
         XCTAssertTrue(add.waitForExistence(timeout: 10))
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.04, dy: 0.1)).tap()
+        dismissPreview(in: app, within: sheet)
         XCTAssertTrue(add.waitForNonExistence(timeout: 10))
         app.buttons["cancelSuggestions"].tap()
         expect(editor, toHaveValue: "Walked to the market.")

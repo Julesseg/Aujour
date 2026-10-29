@@ -38,11 +38,10 @@ struct PhotoSuggestionButton<Preview: View>: UIViewRepresentable {
         button.showPreview = showPreview
     }
 
-    private func previewController() -> UIViewController {
+    private func previewController() -> UIHostingController<some View> {
         let controller = UIHostingController(rootView: preview()
             .environment(\.accent, accent)
             .environment(\.colorScheme, colorScheme))
-        controller.sizingOptions = .preferredContentSize
         controller.preferredContentSize = CGSize(width: 320, height: 420)
         controller.view.backgroundColor = .clear
         controller.safeAreaRegions = []
@@ -59,6 +58,7 @@ struct PhotoSuggestionButton<Preview: View>: UIViewRepresentable {
 
     final class Coordinator: NSObject, UIContextMenuInteractionDelegate {
         var parent: PhotoSuggestionButton
+        private var finishPresentingPreview: (() -> Void)?
 
         init(_ parent: PhotoSuggestionButton) { self.parent = parent }
 
@@ -71,7 +71,13 @@ struct PhotoSuggestionButton<Preview: View>: UIViewRepresentable {
             let photo = parent
             return UIContextMenuConfiguration(
                 identifier: photo.photographID as NSString,
-                previewProvider: { photo.previewController() },
+                previewProvider: { [weak self] in
+                    let controller = photo.previewController()
+                    self?.finishPresentingPreview = { [weak controller] in
+                        controller?.sizingOptions = .preferredContentSize
+                    }
+                    return controller
+                },
                 actionProvider: { _ in
                     UIMenu(children: [
                         UIAction(title: "Add to document", image: UIImage(systemName: "plus")) { _ in
@@ -80,6 +86,18 @@ struct PhotoSuggestionButton<Preview: View>: UIViewRepresentable {
                     ])
                 }
             )
+        }
+
+        func contextMenuInteraction(
+            _ interaction: UIContextMenuInteraction,
+            willDisplayMenuFor configuration: UIContextMenuConfiguration,
+            animator: (any UIContextMenuInteractionAnimating)?
+        ) {
+            if let animator {
+                animator.addCompletion { [weak self] in self?.finishPresentingPreview?() }
+            } else {
+                finishPresentingPreview?()
+            }
         }
     }
 }

@@ -231,6 +231,10 @@ enum UITestingJournal {
 
         let settings = settingsStore(for: folder)
         let deviceSettings = deviceSettingsStore(for: folder)
+        if let accent = environment["AUJOUR_PROTOTYPE_ACCENT"].flatMap(Accent.init(rawValue:)),
+           let theme = environment["AUJOUR_PROTOTYPE_THEME"].flatMap(Theme.init(rawValue:)) {
+            deviceSettings.update { $0.accent = accent; $0.theme = theme }
+        }
         // Marked welcomed unless this test is about the welcome. When it is,
         // nothing is written here at all: what the device remembers between
         // launches is the claim that test is making, and seeding it either way

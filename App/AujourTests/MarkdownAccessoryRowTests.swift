@@ -212,9 +212,28 @@ struct MarkdownAccessoryRowTests {
 
     // MARK: - The pane it is drawn on
 
-    // The platform's glass, tinted to the identity's paper rather than painted
-    // over with it — and shaped as a pill inset from both edges, because the
-    // chrome sits over the paper rather than across the bottom of it.
+    @Test(
+        "the glass follows an accent change on the existing row",
+        arguments: Accent.allCases, [UIUserInterfaceStyle.light, .dark]
+    )
+    func glassFollowsTheAccent(accent: Accent, style: UIUserInterfaceStyle) throws {
+        guard !UIAccessibility.isReduceTransparencyEnabled else { return }
+        let row = aRow { _ in }
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.overrideUserInterfaceStyle = style
+        let controller = UIViewController()
+        window.rootViewController = controller
+        controller.view.addSubview(row)
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+
+        row.accent = accent.uiColor
+
+        let pane = try #require(glass(of: row))
+        let effect = try #require(pane.effect as? UIGlassEffect)
+        #expect(effect.tintColor?.resolved(in: style) == accent.softColor.resolved(in: style))
+    }
+
     @Test("the row is a pill of the platform's glass, tinted and inset")
     func theGlass() throws {
         let row = aRow { _ in }
@@ -225,7 +244,10 @@ struct MarkdownAccessoryRowTests {
         let seeThrough = !UIAccessibility.isReduceTransparencyEnabled
         if seeThrough {
             let glass = try #require(pane.effect as? UIGlassEffect)
-            #expect(glass.tintColor == Palette.glass)
+            #expect(
+                glass.tintColor?.resolved(in: row.traitCollection.userInterfaceStyle)
+                    == Accent.terracotta.softColor.resolved(in: row.traitCollection.userInterfaceStyle)
+            )
             // Glass draws its own edge and its own lift; a second of either is
             // two rims that do not agree.
             #expect(pane.layer.borderWidth == 0)

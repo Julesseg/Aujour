@@ -344,3 +344,10 @@ extension EnvironmentValues {
 private struct EditorLookKey: EnvironmentKey {
     static let defaultValue = EditorLook.default
 }
+
+
+extension Accent {
+    var prototypeGlassTint: Color? {
+        ProcessInfo.processInfo.environment["AUJOUR_PROTOTYPE_TINT"] == "before" ? nil : soft
+    }
+}

@@ -40,13 +40,12 @@ import UIKit
 /// is as wide as the keyboard is, and across an iPad's keyboard that is the
 /// bar this row is not.
 ///
-/// It is the platform's own glass, tinted to `Palette.glass`, rather than the
+/// It is the platform's own glass, tinted to the current accent, rather than the
 /// blur-and-paint the design file spells out in CSS. The mock is a web page
 /// approximating a material the web does not have; on iOS 26 the material is
 /// real, and `.62` of cream laid *over* a blur is simply cream — the pane
-/// stops being a pane. Tinted, so it is still the identity's paper and not the
-/// system's white. Glass lights and shades itself, so there is no ring and no
-/// shadow here either; two rims that disagree look worse than one.
+/// stops being a pane. The tint carries the reader's chosen accent, and the
+/// glass draws its own edge and shadow.
 ///
 /// Reduce Transparency is the exception, and gets all of it back: no pane, so
 /// `Palette.glassSolid` — the opaque colour glass averages to — with the ring
@@ -89,6 +88,7 @@ final class MarkdownAccessoryRow: UIInputView {
         didSet {
             guard accent != oldValue else { return }
             for control in controls { control.setNeedsUpdateConfiguration() }
+            drawTheGlass()
         }
     }
 
@@ -241,11 +241,12 @@ final class MarkdownAccessoryRow: UIInputView {
             return
         }
 
-        // The platform's own glass, tinted to the identity's paper rather than
-        // painted over with it: a cream at `.62` laid on top of a blur is a
-        // cream, and the pane stops being a pane.
         let glass = UIGlassEffect(style: .regular)
-        glass.tintColor = Palette.glass
+        glass.tintColor = accent.resolvedColor(with: traitCollection)
+            .withAlphaComponent(traitCollection.userInterfaceStyle == .dark ? 0.18 : 0.15)
+        if ProcessInfo.processInfo.environment["AUJOUR_PROTOTYPE_TINT"] == "before" {
+            glass.tintColor = Palette.glass
+        }
         pill.pane.effect = glass
         pill.pane.contentView.backgroundColor = .clear
 

@@ -42,6 +42,7 @@ struct PhotoSuggestionButton<Preview: View>: UIViewRepresentable {
         let controller = UIHostingController(rootView: preview()
             .environment(\.accent, accent)
             .environment(\.colorScheme, colorScheme))
+        controller.sizingOptions = .preferredContentSize
         controller.preferredContentSize = CGSize(width: 320, height: 420)
         controller.view.backgroundColor = .clear
         controller.safeAreaRegions = []

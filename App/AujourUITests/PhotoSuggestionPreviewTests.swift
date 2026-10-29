@@ -56,11 +56,14 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
             photo.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 1.2)
             let add = app.buttons["Add to document"]
             XCTAssertTrue(add.waitForExistence(timeout: 10))
-            capture(app, named: "individual-photo-preview-\(index)")
             let preview = app.otherElements["Preview"].descendants(matching: .any)
                 .matching(NSPredicate(format: "label == %@", label)).firstMatch
             XCTAssertTrue(preview.waitForExistence(timeout: 10), "Holding photo \(index) previewed a different photo")
             XCTAssertGreaterThan(preview.frame.width, width)
+            let window = app.otherElements["Preview"].frame
+            XCTAssertEqual(window.width / window.height, index == 1 ? 0.5 : 4.0 / 3,
+                           accuracy: 0.02, "Preview window adds empty margins around the photo")
+            capture(app, named: "individual-photo-preview-\(index)")
             XCTAssertFalse(app.keyboards.firstMatch.exists, "Previewing a photo reopened the editor keyboard")
             XCTAssertGreaterThan(try coloredPixels(in: app, matching: color), thumbnailPixels * 2,
                                  "The enlarged preview did not show photo \(index)'s pixels")

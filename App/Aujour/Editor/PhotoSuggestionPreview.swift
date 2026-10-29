@@ -22,7 +22,7 @@ struct PhotoSuggestionPreview: View {
                 ProgressView("Loading photo…")
             }
         }
-        .frame(width: 320, height: 420)
+        .frame(width: previewSize.width, height: previewSize.height)
         .background { SurfaceFill(.sheet) }
         .task(id: photograph.id) {
             image = nil
@@ -35,5 +35,11 @@ struct PhotoSuggestionPreview: View {
             guard !Task.isCancelled else { return }
             unavailable = image == nil
         }
+    }
+
+    private var previewSize: CGSize {
+        guard let image else { return CGSize(width: 320, height: 420) }
+        let scale = min(320 / image.size.width, 420 / image.size.height)
+        return CGSize(width: image.size.width * scale, height: image.size.height * scale)
     }
 }

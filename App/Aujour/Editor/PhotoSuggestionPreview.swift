@@ -38,8 +38,8 @@ struct PhotoSuggestionPreview: View {
     }
 
     private var previewSize: CGSize {
-        guard let image else { return CGSize(width: 320, height: 420) }
-        let scale = min(320 / image.size.width, 420 / image.size.height)
-        return CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let ratio = CGFloat(photograph.aspectRatio ?? (320.0 / 420))
+        let width = min(320, 420 * ratio)
+        return CGSize(width: width, height: width / ratio)
     }
 }

@@ -660,12 +660,14 @@ private final class ALibrarySeededByATest: PhotoLibrary, @unchecked Sendable {
         guard access == .allowed else { return [] }
         return
             taken
-            .filter { $0.when >= span.start && $0.when < span.end }
-            .map {
+            .enumerated()
+            .filter { $0.element.when >= span.start && $0.element.when < span.end }
+            .map { index, photo in
                 DayPhotograph(
-                    id: "seeded-\($0.when.timeIntervalSince1970)",
-                    takenAt: $0.when,
-                    position: $0.at
+                    id: "seeded-\(photo.when.timeIntervalSince1970)",
+                    takenAt: photo.when,
+                    position: photo.at,
+                    aspectRatio: index == 1 ? 0.5 : index == 2 ? 0.75 : 4.0 / 3
                 )
             }
     }
@@ -682,7 +684,7 @@ private final class ALibrarySeededByATest: PhotoLibrary, @unchecked Sendable {
         let colors: [UIColor] = [.systemTeal, .systemOrange, .systemPurple]
         let index = taken.firstIndex { $0.when == photograph.takenAt } ?? 0
         return UITestingJournal.photograph(
-            as: .jpeg, color: colors[index % colors.count],
+            as: .jpeg, orientation: index == 2 ? 6 : 1, color: colors[index % colors.count],
             size: index == 1 ? CGSize(width: 30, height: 60) : CGSize(width: 40, height: 30)
         )
     }

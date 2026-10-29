@@ -88,7 +88,8 @@ struct PhotoKitLibrary: PhotoLibrary {
                             latitude: $0.coordinate.latitude,
                             longitude: $0.coordinate.longitude
                         )
-                    }
+                    },
+                    aspectRatio: Double(asset.pixelWidth) / Double(asset.pixelHeight)
                 )
             )
         }

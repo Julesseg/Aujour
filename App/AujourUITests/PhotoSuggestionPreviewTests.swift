@@ -50,8 +50,9 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
         capture(app, named: "individual-photo-grid")
         let sheet = app.descendants(matching: .any).matching(identifier: "suggestionsSheet").firstMatch.frame
 
-        for index in [1, 2, 0] {
+        for (opening, index) in [1, 2, 0, 1].enumerated() {
             let photo = app.buttons["photoSuggestion\(index)"]
+            let expectedRatio = [4.0 / 3, 0.5, 0.75][index]
             let label = photo.label
             let width = photo.frame.width
             let color = try centerPixel(of: photo)
@@ -59,14 +60,19 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
             photo.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 1.2)
             let add = app.buttons["Add to document"]
             XCTAssertTrue(add.waitForExistence(timeout: 10))
+            let initialWindow = app.otherElements["Preview"].frame
+            XCTAssertEqual(initialWindow.width / initialWindow.height, expectedRatio,
+                           accuracy: 0.02, "Preview started with the wrong window proportions")
             let preview = app.otherElements["Preview"].descendants(matching: .any)
                 .matching(NSPredicate(format: "label == %@", label)).firstMatch
             XCTAssertTrue(preview.waitForExistence(timeout: 10), "Holding photo \(index) previewed a different photo")
             XCTAssertGreaterThan(preview.frame.width, width)
             let window = app.otherElements["Preview"].frame
-            XCTAssertEqual(window.width / window.height, index == 1 ? 0.5 : 4.0 / 3,
+            XCTAssertEqual(window.width / window.height, expectedRatio,
                            accuracy: 0.02, "Preview window adds empty margins around the photo")
-            capture(app, named: "individual-photo-preview-\(index)")
+            XCTAssertEqual(window.width, initialWindow.width, accuracy: 1)
+            XCTAssertEqual(window.height, initialWindow.height, accuracy: 1)
+            capture(app, named: "individual-photo-preview-\(index)-opening-\(opening)")
             XCTAssertFalse(app.keyboards.firstMatch.exists, "Previewing a photo reopened the editor keyboard")
             XCTAssertGreaterThan(try coloredPixels(in: app, matching: color), thumbnailPixels * 2,
                                  "The enlarged preview did not show photo \(index)'s pixels")
@@ -130,9 +136,17 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
 
     private func dismissPreview(in app: XCUIApplication, within sheet: CGRect) {
         let screen = app.frame
+        var point = CGPoint(x: sheet.maxX - 20, y: sheet.maxY - 20)
+        if sheet.width > 500 {
+            let rowY = app.buttons["photoSuggestion0"].frame.midY
+            let preview = app.otherElements["Preview"].frame.insetBy(dx: -16, dy: -16)
+            let action = app.buttons["Add to document"].frame.insetBy(dx: -16, dy: -16)
+            let right = CGPoint(x: sheet.maxX - 60, y: rowY)
+            point = preview.contains(right) || action.contains(right)
+                ? CGPoint(x: sheet.minX + 12, y: rowY) : right
+        }
         app.coordinate(withNormalizedOffset: .zero)
-            .withOffset(CGVector(dx: sheet.maxX - screen.minX - 20,
-                                 dy: sheet.maxY - screen.minY - 20)).tap()
+            .withOffset(CGVector(dx: point.x - screen.minX, dy: point.y - screen.minY)).tap()
     }
 
     private func expectLoadedThumbnail(_ photo: XCUIElement) {
@@ -156,11 +170,15 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
             ))
             context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
         }
-        return stride(from: 0, to: rgba.count, by: 4).reduce(into: 0) { count, pixel in
-            if (0..<3).allSatisfy({ abs(Int(rgba[pixel + $0]) - Int(color[$0])) <= 7 }) {
+        var count = 0
+        for pixel in stride(from: 0, to: rgba.count, by: 4) {
+            if abs(Int(rgba[pixel]) - Int(color[0])) <= 7,
+               abs(Int(rgba[pixel + 1]) - Int(color[1])) <= 7,
+               abs(Int(rgba[pixel + 2]) - Int(color[2])) <= 7 {
                 count += 1
             }
         }
+        return count
     }
 
     private func centerPixel(of element: XCUIElement) throws -> [UInt8] {

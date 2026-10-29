@@ -29,7 +29,12 @@ final class EntrySurfaceTests: AujourUITestCase {
                     XCTAssertTrue(section.waitForExistence(timeout: 10))
                     let toggle = app.buttons["frontmatterSourceToggle"]
                     XCTAssertTrue(toggle.isHittable)
-                    XCTAssertLessThan(toggle.frame.maxY, section.frame.maxY)
+                    let card = app.otherElements["frontmatterCard"]
+                    XCTAssertTrue(card.exists)
+                    XCTAssertGreaterThanOrEqual(toggle.frame.minY, card.frame.maxY)
+                    let add = app.buttons["addProperty"]
+                    XCTAssertTrue(add.isHittable)
+                    XCTAssertGreaterThanOrEqual(add.frame.minY, card.frame.maxY)
                     let color = try pixel(
                         in: app,
                         at: CGPoint(x: editor.frame.minX + 20, y: section.frame.maxY + 80)

@@ -67,7 +67,7 @@ struct FrontmatterSection: View {
 // MARK: - The section
 
 /// The card over a day that has a block: its Properties or its source, and
-/// in its footer the two small controls — one that adds a Property, one that
+/// under it the two small controls — one that adds a Property, one that
 /// switches between the two views.
 private struct PropertiesCard: View {
     @Binding var cut: CutEntry
@@ -83,7 +83,7 @@ private struct PropertiesCard: View {
     @State private var dayBeingPicked: String?
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .trailing, spacing: Spacing.tight) {
             VStack(spacing: 0) {
                 if cut.isShowingSource {
                     SourceField(cut: $cut)
@@ -105,38 +105,30 @@ private struct PropertiesCard: View {
                     }
                 }
             }
+            .surfaceBackground(.card, in: RoundedRectangle(cornerRadius: EntrySurface.cornerRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: EntrySurface.cornerRadius, style: .continuous))
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("frontmatterCard")
 
-            if cut.offersSource || cut.frontmatter == nil {
-                Hairline()
-                HStack(spacing: Spacing.close) {
-                    Text(cut.isShowingSource ? "Source" : "Properties")
-                        .lettering(.marker)
-                        .foregroundStyle(Palette.inkMutedColor)
-                    Spacer(minLength: 0)
-                    if !cut.isShowingSource {
-                        AddPropertyChip(pending: $pending)
-                    }
-                    if cut.offersSource {
-                        Button {
-                            if cut.isShowingSource { cut.showProperties() } else { cut.showSource() }
-                        } label: {
-                            Image(systemName: cut.isShowingSource ? "list.bullet" : "square.and.pencil")
-                                .lettering(.marker)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                        .accessibilityLabel(cut.isShowingSource ? "Properties" : "Source")
-                        .accessibilityIdentifier("frontmatterSourceToggle")
-                        .accessibilityValue(cut.isShowingSource ? "Source" : "Properties")
-                    }
+            HStack(spacing: Spacing.tight) {
+                if !cut.isShowingSource, cut.offersSource || cut.frontmatter == nil {
+                    AddPropertyChip(pending: $pending)
                 }
-                .padding(.horizontal, EntrySurface.margin)
-                .padding(.top, Spacing.close)
-                .padding(.bottom, Spacing.comfortable)
+                if cut.offersSource {
+                    Button {
+                        if cut.isShowingSource { cut.showProperties() } else { cut.showSource() }
+                    } label: {
+                        Image(systemName: cut.isShowingSource ? "list.bullet" : "square.and.pencil")
+                            .lettering(.marker)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .accessibilityLabel(cut.isShowingSource ? "Properties" : "Source")
+                    .accessibilityIdentifier("frontmatterSourceToggle")
+                    .accessibilityValue(cut.isShowingSource ? "Source" : "Properties")
+                }
             }
         }
-        .surfaceBackground(.card, in: RoundedRectangle(cornerRadius: EntrySurface.cornerRadius, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: EntrySurface.cornerRadius, style: .continuous))
         .padding(.horizontal, EntrySurface.margin)
         .padding(.top, Spacing.comfortable)
         // Nothing here is to be pressed while a calendar is up over it. A

@@ -1,0 +1,32 @@
+[
+  {
+    "pr": 153,
+    "title": "feat(appearance): tint glass and round expanded calendars",
+    "sha": "391e40d",
+    "time": "2026-10-30T11:19:20.460Z"
+  },
+  {
+    "pr": 152,
+    "title": "feat(editor): give the day rounded writing surfaces",
+    "sha": "adaa6db",
+    "time": "2026-10-29T22:49:38.138Z"
+  },
+  {
+    "pr": 148,
+    "title": "fix(photos): sharpen thumbnails and fit individual previews",
+    "sha": "7fde78a",
+    "time": "2026-10-29T21:01:14.109Z"
+  },
+  {
+    "pr": 149,
+    "title": "feat(calendar): expand and collapse the date pill with page swipes",
+    "sha": "ef8983e",
+    "time": "2026-10-29T13:16:45.878Z"
+  },
+  {
+    "pr": 151,
+    "title": "fix(editor): make the suggestions glass pane one button",
+    "sha": "09d3eee",
+    "time": "2026-10-29T12:20:51.502Z"
+  }
+]

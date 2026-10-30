@@ -1283,15 +1283,7 @@ class AujourUITestCase: XCTestCase {
         return try brightness(of: try XCTUnwrap(element.screenshot().image.cgImage))
     }
 
-    /// How bright a day's words came out — the page from where its first line
-    /// goes, and not the whole of the text view.
-    ///
-    /// Not the same thing any more. The text view runs the height of the
-    /// screen, up behind the status bar and the pill's row, and what is drawn
-    /// up there — the clock, the pill, the glass — is the same on every day
-    /// and says nothing about the words. Averaged in with them, it dilutes
-    /// whatever difference the words were there to show.
-    func brightness(ofTheWordsIn editor: XCUIElement, of app: XCUIApplication) throws -> Double {
+    func inkContrast(ofTheWordsIn editor: XCUIElement, of app: XCUIApplication) throws -> Double {
         Thread.sleep(forTimeInterval: 1)
         let top = underTheGlass(of: editor, in: app)
         let words = CGRect(
@@ -1310,7 +1302,29 @@ class AujourUITestCase: XCTestCase {
                 )
             )
         )
-        return try brightness(of: patch)
+        var pixels = [UInt8](repeating: 0, count: patch.width * patch.height)
+        try pixels.withUnsafeMutableBufferPointer { buffer in
+            let context = try XCTUnwrap(
+                CGContext(
+                    data: buffer.baseAddress,
+                    width: patch.width,
+                    height: patch.height,
+                    bitsPerComponent: 8,
+                    bytesPerRow: patch.width,
+                    space: CGColorSpaceCreateDeviceGray(),
+                    bitmapInfo: CGImageAlphaInfo.none.rawValue
+                )
+            )
+            context.draw(patch, in: CGRect(x: 0, y: 0, width: patch.width, height: patch.height))
+        }
+
+        var histogram = [Int](repeating: 0, count: 256)
+        for pixel in pixels { histogram[Int(pixel)] += 1 }
+        let page = try XCTUnwrap(histogram.indices.max { histogram[$0] < histogram[$1] })
+        let ink = pixels.map { abs(Int($0) - page) }.filter { $0 > 32 }
+        XCTAssertFalse(ink.isEmpty, "the editor crop contained no visible words")
+        guard !ink.isEmpty else { return 0 }
+        return Double(ink.reduce(0, +)) / Double(ink.count) / 255
     }
 
     private func brightness(of drawn: CGImage) throws -> Double {

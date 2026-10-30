@@ -468,8 +468,6 @@ final class TheLayoutAndTheWalkTests: AujourUITestCase {
     /// screen, and a before that had it down would be a comparison of two
     /// different pictures.
     func testAnUnwrittenPastDayIsDrawnQuietlyUntilItIsTypedIn() throws {
-        // Enough prose that ink is a fair share of the pixels: a page holding
-        // one short line would put the whole difference inside the rounding.
         let template = """
             # {{title}}
 
@@ -517,7 +515,7 @@ final class TheLayoutAndTheWalkTests: AujourUITestCase {
 
         XCTAssertTrue(editor.waitForExistence(timeout: 10), "the day went away with the pill")
         editor.tap()
-        let quiet = try brightness(ofTheWordsIn: editor, of: app)
+        let quiet = try inkContrast(ofTheWordsIn: editor, of: app)
 
         // One character in and straight back out: the day says exactly what it
         // said, and it is no longer a day nobody has written.
@@ -531,12 +529,12 @@ final class TheLayoutAndTheWalkTests: AujourUITestCase {
         // the keystrokes land milliseconds apart and the quiet never comes.
         editor.typeText("x" + XCUIKeyboardKey.delete.rawValue)
         expect(editor, toHaveValue: spawned)
-        let written = try brightness(ofTheWordsIn: editor, of: app)
+        let written = try inkContrast(ofTheWordsIn: editor, of: app)
 
         XCTAssertGreaterThan(
-            abs(quiet - written), 0.01,
-            "the same words came out the same on a day nobody had written and a day "
-                + "somebody had — \(quiet) against \(written)"
+            written - quiet, 0.01,
+            "editing did not increase the words' contrast against the page — "
+                + "\(quiet) before editing, \(written) after"
         )
 
         // At the keystroke and not at the file, which is the whole of what

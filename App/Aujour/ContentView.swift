@@ -437,7 +437,7 @@ struct ContentView: View {
                     .labelStyle(.iconOnly)
                     .font(.system(size: 16, weight: .semibold))
                     .frame(width: pillHeight, height: pillHeight)
-                    .glassEffect(.regular, in: Circle())
+                    .glassEffect(.regular.tint(appearance.accent.glass), in: Circle())
             } else {
                 // And on a wide one it is a toolbar item like any other, in
                 // the bar's own glass rather than a second pane inside it.
@@ -1230,7 +1230,7 @@ struct ParkedFilesNotice: View {
         // transparency, none of which a colour can do. `Palette.glass` is the
         // account of it kept for the grounds the contrast floor is measured
         // against (ADR 0006).
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Rounding.card))
+        .glassEffect(.regular.tint(accent.glass), in: RoundedRectangle(cornerRadius: Rounding.card))
         .padding(.horizontal, Spacing.comfortable)
         .padding(.bottom, Spacing.close)
     }

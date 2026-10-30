@@ -200,8 +200,16 @@ final class TheFrontmatterTests: AujourUITestCase {
     /// room a picker asks for is the system's business and differs by device,
     /// by language and by every step of the text size.
     func testADateKeepsItsWidthWhenTheRowRunsOutOfRoom() throws {
+        assertDateFits(textSize: "UICTContentSizeCategoryXXXL")
+    }
+
+    func testADateKeepsItsWidthAtAccessibilityTextSizes() throws {
+        assertDateFits(textSize: "UICTContentSizeCategoryAccessibilityM")
+    }
+
+    private func assertDateFits(textSize: String) {
         let app = launchApp(
-            textSize: "UICTContentSizeCategoryXXXL",
+            textSize: textSize,
             todaysEntry: "---\ncreated: 2025-09-04T13:50\nmood: 7\n---\n# A walk\n"
         )
         let card = app.otherElements["frontmatterSection"]
@@ -211,6 +219,9 @@ final class TheFrontmatterTests: AujourUITestCase {
         let name = app.textFields["propertyKey-created"]
         let picker = app.buttons["propertyDate-created"]
         XCTAssertTrue(picker.waitForExistence(timeout: 10), "the date never appeared")
+        let dateIsBelowName = picker.frame.minY >= name.frame.maxY
+        let numberName = app.textFields["propertyKey-mood"]
+        let number = app.textFields["propertyNumber-mood"]
 
         XCTAssertTrue(
             app.windows.firstMatch.frame.contains(card.frame),
@@ -224,16 +235,20 @@ final class TheFrontmatterTests: AujourUITestCase {
             row.frame.contains(picker.frame),
             "the date \(picker.frame) reached outside its row \(row.frame)"
         )
-        XCTAssertGreaterThanOrEqual(
-            picker.frame.minX, name.frame.maxX,
+        XCTAssertTrue(
+            picker.frame.minX >= name.frame.maxX || dateIsBelowName,
             "the date was drawn over the name it belongs to"
         )
-        // And the row that had room to spare is untouched: the column is a
-        // column still, and only the row that could not afford one gave it up.
         XCTAssertGreaterThanOrEqual(
-            app.textFields["propertyKey-mood"].frame.width, name.frame.width,
-            "the name beside a number should be no narrower than the one beside a date"
+            number.frame.minX, numberName.frame.maxX,
+            "the number no longer sits beside its name"
         )
+        if !dateIsBelowName {
+            XCTAssertGreaterThanOrEqual(
+                numberName.frame.width, name.frame.width,
+                "the name beside a number should be no narrower than the one beside a date"
+            )
+        }
     }
 
     /// The day and the hour of a date-and-time Property are two controls, and

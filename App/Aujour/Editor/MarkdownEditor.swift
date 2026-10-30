@@ -117,6 +117,10 @@ struct MarkdownEditor: UIViewRepresentable {
     /// that.
     private static let lineFragmentPadding: CGFloat = 5
 
+    private static let entryTextInset = EntrySurface.textInset(
+        lineFragmentPadding: lineFragmentPadding
+    )
+
     /// Where an Entry's first character lands, measured from the top-left of
     /// the page — which is under the glass, so a view drawn over the editor
     /// adds ``roomForTheGlass`` to the vertical of it as the text does.
@@ -126,8 +130,8 @@ struct MarkdownEditor: UIViewRepresentable {
     /// numbers it is made of are this file's. Left to be copied, changing the
     /// inset here would quietly leave that prompt crooked.
     static let whereTheFirstCharacterGoes = CGPoint(
-        x: textInset.left + lineFragmentPadding,
-        y: textInset.top
+        x: entryTextInset.left + lineFragmentPadding,
+        y: entryTextInset.top
     )
 
     /// How this Entry draws: the device's own choice of typeface and accent,
@@ -163,7 +167,8 @@ struct MarkdownEditor: UIViewRepresentable {
         let textView = MarkdownTextView(frame: .zero, textContainer: container)
         textView.delegate = context.coordinator
         textView.backgroundColor = .clear
-        textView.baseInset = Self.textInset
+        textView.baseInset = section == nil ? Self.textInset : Self.entryTextInset
+        textView.surfaceColor = section == nil ? nil : AccentSurface.sheet.color(for: look.accent)
         textView.roomForTheGlass = roomForTheGlass
         // Set rather than left at the default, so that the number a view drawn
         // over the text lines itself up by is one this file decides.
@@ -224,6 +229,8 @@ struct MarkdownEditor: UIViewRepresentable {
         textView.accessibilityLabel = label
         if let textView = textView as? MarkdownTextView {
             textView.roomForTheGlass = roomForTheGlass
+            textView.baseInset = section == nil ? Self.textInset : Self.entryTextInset
+            textView.surfaceColor = section == nil ? nil : AccentSurface.sheet.color(for: look.accent)
             if let section { textView.shows(section, tucked: sectionIsTucked) }
         }
 

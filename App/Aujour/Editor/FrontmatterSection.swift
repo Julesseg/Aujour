@@ -89,7 +89,7 @@ private struct PropertiesCard: View {
                     SourceField(cut: $cut)
                 } else {
                     ForEach(Array(cut.properties.enumerated()), id: \.element.key) { index, property in
-                        if index > 0 { Hairline().padding(.leading, Spacing.comfortable) }
+                        if index > 0 { Hairline().padding(.leading, EntrySurface.margin) }
                         PropertyRow(
                             property: property,
                             cut: $cut,
@@ -99,21 +99,19 @@ private struct PropertiesCard: View {
                     }
                     if let kind = pending {
                         if !cut.properties.isEmpty {
-                            Hairline().padding(.leading, Spacing.comfortable)
+                            Hairline().padding(.leading, EntrySurface.margin)
                         }
                         NewPropertyRow(kind: kind, cut: $cut, pending: $pending, day: day)
                     }
                 }
             }
-            .surfaceBackground(.card, in: RoundedRectangle(cornerRadius: Rounding.card))
+            .surfaceBackground(.card, in: RoundedRectangle(cornerRadius: EntrySurface.cornerRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: EntrySurface.cornerRadius, style: .continuous))
 
             HStack(spacing: Spacing.tight) {
                 if !cut.isShowingSource, cut.offersSource || cut.frontmatter == nil {
                     AddPropertyChip(pending: $pending)
                 }
-                // Only for a block that is understood: one that is not has no
-                // Properties to come back to, and opens on its source with no
-                // other way offered.
                 if cut.offersSource {
                     Button {
                         if cut.isShowingSource { cut.showProperties() } else { cut.showSource() }
@@ -129,7 +127,7 @@ private struct PropertiesCard: View {
                 }
             }
         }
-        .padding(.horizontal, Spacing.comfortable)
+        .padding(.horizontal, EntrySurface.margin)
         .padding(.top, Spacing.comfortable)
         // Nothing here is to be pressed while a calendar is up over it. A
         // popover dismisses on a touch outside itself and the touch is meant
@@ -167,9 +165,9 @@ private struct PropertyRow: View {
                 dayBeingPicked: $dayBeingPicked
             )
         }
-        .padding(.horizontal, Spacing.comfortable)
-        .padding(.vertical, Spacing.close)
-        .frame(minHeight: 44)
+        .padding(.horizontal, EntrySurface.margin)
+        .padding(.vertical, Spacing.comfortable)
+        .frame(minHeight: 48)
         .contentShape(Rectangle())
         .swipeToDelete(identifier: "deleteProperty-\(property.key)") { cut.delete(property.key) }
         .contextMenu {
@@ -772,8 +770,8 @@ private struct NewPropertyRow: View {
                 .foregroundStyle(Palette.inkFaintColor)
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.horizontal, Spacing.comfortable)
-        .padding(.vertical, Spacing.close)
+        .padding(.horizontal, EntrySurface.margin)
+        .padding(.vertical, Spacing.comfortable)
         .frame(minHeight: 44)
         .onAppear { isNaming = true }
         .accessibilityElement(children: .contain)

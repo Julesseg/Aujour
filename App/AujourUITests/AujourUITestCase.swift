@@ -1121,7 +1121,7 @@ class AujourUITestCase: XCTestCase {
         dy: CGFloat
     ) -> XCUICoordinate {
         editor.coordinate(withNormalizedOffset: .zero)
-            .withOffset(CGVector(dx: dx, dy: underTheGlass(of: editor, in: app) + dy))
+            .withOffset(CGVector(dx: 38 + dx, dy: underTheGlass(of: editor, in: app) + 38 + dy))
     }
 
     /// How far down the text view its words begin: the band at its top that

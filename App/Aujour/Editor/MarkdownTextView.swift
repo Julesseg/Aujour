@@ -69,8 +69,22 @@ final class MarkdownTextView: UITextView {
     /// down that far would blur them before the glass had them.
     private let underTheStatusBar = UIView()
 
+    private let bodySurface = CALayer()
+
+    var surfaceColor: UIColor? {
+        didSet { setNeedsLayout() }
+    }
+
     override init(frame: CGRect, textContainer: NSTextContainer?) {
         super.init(frame: frame, textContainer: textContainer)
+        bodySurface.name = "entryBodySurface"
+        bodySurface.cornerRadius = EntrySurface.cornerRadius
+        bodySurface.cornerCurve = .continuous
+        layer.insertSublayer(bodySurface, at: 0)
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) {
+            (view: MarkdownTextView, _: UITraitCollection) in
+            view.setNeedsLayout()
+        }
         // Soft, so the words fade into the status bar. A hard edge would draw
         // a line under it, which is a bar the page does not have.
         topEdgeEffect.style = .soft
@@ -320,6 +334,7 @@ final class MarkdownTextView: UITextView {
     override func layoutSubviews() {
         super.layoutSubviews()
         placeHeader()
+        placeBodySurface()
         placesTheBandUnderTheStatusBar()
         let overlap = roomForTheRowOverThePage
         if abs(overlap - laidOutRowOverlap) > 0.5 {
@@ -327,6 +342,26 @@ final class MarkdownTextView: UITextView {
             revealsSelectionAfterLayout()
         }
         revealSelection(above: overlap)
+    }
+
+    private func placeBodySurface() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+
+        bodySurface.isHidden = surfaceColor == nil
+        guard let surfaceColor else { return }
+        let top = textContainerInset.top - EntrySurface.padding
+        let textHeight = max(0, contentSize.height - textContainerInset.top - textContainerInset.bottom)
+        // Keep the empty sheet within the viewport so it needs no artificial scroll padding.
+        let available = max(0, bounds.height - top - adjustedContentInset.bottom - EntrySurface.margin)
+        bodySurface.frame = CGRect(
+            x: EntrySurface.margin,
+            y: top,
+            width: max(0, bounds.width - EntrySurface.margin * 2),
+            height: max(textHeight + EntrySurface.padding * 2, min(EntrySurface.minimumHeight, available))
+        )
+        bodySurface.backgroundColor = surfaceColor.resolvedColor(with: traitCollection).cgColor
     }
 
     private func revealSelection(above overlap: CGFloat) {

@@ -1011,7 +1011,20 @@ class AujourUITestCase: XCTestCase {
     }
 
     func swipeTheDay(_ app: XCUIApplication, across distance: CGFloat) {
-        let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65))
+        let editor = app.textViews["entryEditor"]
+        let page = editor.exists ? editor.frame.intersection(app.frame) : app.frame
+        let pill = app.buttons["datePill"]
+        let top = pill.exists ? max(page.minY, pill.frame.maxY) : page.minY
+        var bottom = page.maxY
+        let accessory = app.otherElements["markdownAccessoryRow"]
+        if accessory.exists { bottom = min(bottom, accessory.frame.minY) }
+        let keyboard = app.keyboards.firstMatch
+        if keyboard.exists { bottom = min(bottom, keyboard.frame.minY) }
+        XCTAssertGreaterThan(bottom, top, "The page has no visible room for a day swipe")
+        let from = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(
+            dx: page.midX - app.frame.minX,
+            dy: (top + bottom) / 2 - app.frame.minY
+        ))
         from.press(
             // Moving from the first instant, because a scroll view delays
             // content touches: a finger that rests before it travels is handed

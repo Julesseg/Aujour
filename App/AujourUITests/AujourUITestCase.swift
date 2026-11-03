@@ -1010,25 +1010,21 @@ class AujourUITestCase: XCTestCase {
         Thread.sleep(forTimeInterval: 1)
     }
 
-    /// Draws a finger sideways across the shut date pill — rightwards for a
-    /// positive distance — deliberately, and holds still before letting go.
-    ///
-    /// Held at the end because the app reads where the finger was *going* as
-    /// well as where it got to, so that a flick turns the day. A synthesized
-    /// drag that stops dead at its destination is still travelling as far as
-    /// the gesture is concerned, and a test of the threshold asked with one
-    /// would be asking about the harness's velocity rather than about the
-    /// distance it was given.
-    ///
-    /// Begun at the pill's own middle, which is the middle of the screen: the
-    /// pill is a couple of inches of glass, and a finger that started at its
-    /// edge would spend half the swipe deciding whether it had begun on it.
     func swipeTheDay(_ app: XCUIApplication, across distance: CGFloat) {
+        let editor = app.textViews["entryEditor"]
+        let page = editor.exists ? editor.frame.intersection(app.frame) : app.frame
         let pill = app.buttons["datePill"]
-        XCTAssertTrue(pill.waitForExistence(timeout: 30), "the journal never opened")
-        XCTAssertEqual(pill.value as? String, "Closed", "the pill was not shut to be walked")
-
-        let from = pill.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let top = pill.exists ? max(page.minY, pill.frame.maxY) : page.minY
+        var bottom = page.maxY
+        let accessory = app.otherElements["markdownAccessoryRow"]
+        if accessory.exists { bottom = min(bottom, accessory.frame.minY) }
+        let keyboard = app.keyboards.firstMatch
+        if keyboard.exists { bottom = min(bottom, keyboard.frame.minY) }
+        XCTAssertGreaterThan(bottom, top, "The page has no visible room for a day swipe")
+        let from = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(
+            dx: page.midX - app.frame.minX,
+            dy: (top + bottom) / 2 - app.frame.minY
+        ))
         from.press(
             // Moving from the first instant, because a scroll view delays
             // content touches: a finger that rests before it travels is handed

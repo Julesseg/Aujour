@@ -31,15 +31,6 @@ struct DatePillView: View {
     /// either — it says which day was long-pressed and confirmed, and the
     /// screen behind it is what owns the folder.
     let deleteTheEntry: (JournalDay) -> Void
-
-    /// What walking the journal a day does, as a number of days: the day
-    /// before is -1 and the day after is 1.
-    ///
-    /// Not `pick`, and the difference is the point. Picking is refused for a
-    /// day that has not arrived, because a cell in the grid is the way *in* to
-    /// writing a day and a locked one has to refuse where it cannot be tapped
-    /// around. Walking is looking, so it reaches tomorrow and the screen
-    /// behind puts up a page saying the day has not started.
     let turn: (Int) -> Void
 
     /// What has to be written down before the folder is read.
@@ -57,12 +48,7 @@ struct DatePillView: View {
     /// else could reach would be a pill only the pill could shut.
     @Binding var pill: DatePill
 
-    /// The sideways gesture on a shut pill, which walks the journal a day.
-    ///
-    /// Held here and not above, unlike how far open the pill is: nothing
-    /// outside the glass is a way of walking a day, and this is back at nought
-    /// by the time anything could ask it a question.
-    @State private var swipe = DaySwipe()
+    @State private var headerDrag = DaySwipe()
 
     /// How wide the pill is when it is only the pill — measured rather than
     /// guessed, because it is a sentence in the reader's language at the
@@ -136,15 +122,7 @@ struct DatePillView: View {
         .background(alignment: .top) { roomProbe }
         .background(alignment: .top) { noticeProbe }
         .background(alignment: .topLeading) { ladderProbe }
-        // Leaning towards the day being asked for. The whole pane and not what
-        // is written in it: the pill is sized to the day it names, so a name
-        // slid inside it would be a name half under the glass's own edge,
-        // while the pane has room either side to lean into.
-        .offset(x: lean)
-        // While a finger is on it there is nothing to animate: the pill is
-        // wherever the finger left it. The spring is only for the settling.
         .animation(pill.isBeingDragged ? nil : settle, value: pill.progress)
-        .animation(swipe.isBeingDragged ? nil : settle, value: lean)
         // And nothing at all when the day changes, which is a page being
         // turned behind this and not a thing happening to the pill. The pill
         // is as wide as the day it names, and that width is a measurement
@@ -179,52 +157,20 @@ struct DatePillView: View {
     private var header: some View {
         headerContent
             .contentShape(.rect)
-            // One gesture for all three, which is why `minimumDistance` is
-            // zero: a tap, a pull and a walk through the days arrive as the
-            // same finger, and gestures competing over one finger is how a
-            // pill ends up ignoring one of them. Which is also why the axis is
-            // *declared* rather than read afresh each frame — a pull that
-            // wandered a few points across must not both open the calendar and
-            // change the day.
-            //
-            // Sideways is answered only while the pill is shut, and that is
-            // the whole of the arrangement with the panel below. Open, the
-            // pages are what a sideways finger moves and they carry a gesture
-            // of their own; a header that walked the days as well would be a
-            // second answer to the same finger, and one that merely leaned
-            // would be the whole pane sliding while the grid inside it slid
-            // the other way.
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { finger in
-                        swipe.dragged(
+                        headerDrag.dragged(
                             across: finger.translation.width,
                             down: finger.translation.height
                         )
-                        // Sideways opens nothing, whether or not it will go on
-                        // to move the journal: a shut pill leans towards the
-                        // day being asked for and an open one does not stir.
-                        guard swipe.axis != .sideways else { return }
+                        guard headerDrag.axis == .upAndDown else { return }
                         pill.dragged(by: finger.translation.height)
                     }
                     .onEnded { finger in
-                        guard swipe.axis != .sideways else {
-                            let landing = swipe.letGo(
-                                heading: finger.predictedEndTranslation.width
-                            )
-                            // Only a shut pill walks the days. Open, this is a
-                            // finger on the header rather than on the pages,
-                            // and the answer is nothing at all.
-                            guard pill.detent == .closed else { return }
-                            // And shut it stays: the few points before the
-                            // axis was known went into the pill, and a walk
-                            // that left it a fraction ajar would be a pill
-                            // nobody had asked to open.
-                            pill.close()
-                            if landing != .whereItStarted { turn(landing.days) }
-                            return
-                        }
-                        swipe.calledOff()
+                        let sideways = headerDrag.axis == .sideways
+                        headerDrag.calledOff()
+                        guard !sideways else { return }
                         pill.letGo(afterMoving: finger.translation.height)
                     }
             )
@@ -248,16 +194,6 @@ struct DatePillView: View {
                         closedWidth = $0
                     }
             }
-    }
-
-    /// How far the pill leans towards the day being asked for.
-    ///
-    /// Nothing at all while it is open, and that is not thrift: an open pill
-    /// is a pane the height of the screen with a grid in it that slides
-    /// sideways on its own, and a pane leaning one way while its contents go
-    /// the other is two answers to one finger.
-    private var lean: CGFloat {
-        pill.detent == .closed ? swipe.carried : 0
     }
 
     private var headerContent: some View {

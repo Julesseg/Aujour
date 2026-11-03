@@ -111,12 +111,10 @@ current Path Template and are kept nowhere else — a disposable cache in ADR
 the journal. The Calendar is also a way into a day: every day up to today
 can be opened (see Backfill), and days that have not arrived are shown and
 locked. The day either side of the one on screen is also reached by swiping
-sideways on the date pill, which is the same journey without the grid: a
-sideways finger steps whatever unit the pill is showing, so a shut pill steps
-a day. Being a walk rather than a choice, it reaches a day that has not
-arrived and finds it locked there too. That walk is the pill's, and so the
-page presentation's alone (see Layout): a window with the month permanently
-beside it has the grid to step through instead.
+sideways across the journal page, in either layout. Being a walk rather than
+a choice, it reaches a day that has not arrived and finds it locked there too.
+The date pill opens the calendar; swiping its grid pages through weeks or
+months without changing the day being written.
 
 The Calendar is also the one way a day is taken back *out* — see Deleting a
 Day.

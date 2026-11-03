@@ -112,6 +112,7 @@ struct ContentView: View {
     /// pill away and puts a sidebar in its place, and the pill has to come
     /// back shut when the window narrows again (``JournalLayout``).
     @State private var pill = DatePill()
+    @State private var daySwipe = DaySwipe()
 
     /// What shape this window is, which is the only thing that decides which
     /// of the two presentations the journal is read in.
@@ -264,7 +265,7 @@ struct ContentView: View {
     }
 
     /// Moves the journal a day, which is what a finger drawn sideways across
-    /// the shut date pill does.
+    /// the page does.
     ///
     /// Not `pick`'s refusal, deliberately: a cell in the grid is the way *in*
     /// to writing a day and a locked one has to refuse, while a swipe is the
@@ -683,6 +684,19 @@ struct ContentView: View {
                         // words, and the page they are set on is the page. A
                         // day turned here slides across all of it.
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(.rect)
+                        .offset(x: reduceMotion ? 0 : daySwipe.carried)
+                        .animation(
+                            daySwipe.isBeingDragged ? nil : theDaySlidesBy,
+                            value: daySwipe.carried
+                        )
+                        .gesture(
+                            JournalPageSwipe(
+                                swipe: $daySwipe,
+                                enabled: pill.detent == .closed,
+                                turn: turn
+                            )
+                        )
                         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: {
                             pageWidth = $0
                         }

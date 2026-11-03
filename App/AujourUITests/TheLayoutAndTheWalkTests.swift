@@ -287,20 +287,6 @@ final class TheLayoutAndTheWalkTests: AujourUITestCase {
 
     // MARK: - Walking the journal a day at a time
 
-    // The way through the journal that does not open the grid: a finger drawn
-    // sideways across the shut pill, which steps a day the same way a finger
-    // across the open one steps a week or a month. And the two days that are
-    // not an ordinary written day — one that has not arrived, and one already
-    // gone that nobody wrote.
-    //
-    // What is asked here is what only a running app can show: that a finger
-    // moves the journal at all, that it does not do it while it is pulling the
-    // pill open, and that the pages either end of the ordinary case are the
-    // ones that appear. Where a swipe settles, how much of the finger the pill
-    // takes and which day it lands on are `DaySwipeTests` in Core — they are
-    // arithmetic, and a synthesized drag is the wrong instrument for
-    // arithmetic.
-
     func testADayIsSwipedAsideToReachTheDayEitherSideOfIt() throws {
         let yesterday = try XCTUnwrap(dayBeforeToday())
         let app = launchApp(
@@ -311,9 +297,12 @@ final class TheLayoutAndTheWalkTests: AujourUITestCase {
         XCTAssertTrue(editor.waitForExistence(timeout: 30), "today's entry never appeared")
         expect(editor, toHaveValue: "At the desk all day.\n")
 
+        capture(app, named: "day-navigation-today")
+
         // Rightwards is backwards, as it is everywhere else in the app.
         swipeTheDay(app, across: 160)
         expect(editor, toHaveValue: "Walked to the market with Robin.\n")
+        capture(app, named: "day-navigation-yesterday")
         XCTAssertTrue(
             app.buttons["backToToday"].exists,
             "a swipe moved the day without the app knowing it had left today"
@@ -330,11 +319,48 @@ final class TheLayoutAndTheWalkTests: AujourUITestCase {
         )
     }
 
-    /// A swipe is a thing somebody has to mean. The threshold itself is Core's
-    /// (`DaySwipeTests`); what this asks is that the app honours it, that a
-    /// finger which changed its mind leaves the journal where it found it —
-    /// and that the pill it was drawn across is still shut, because a short
-    /// sideways drag must not come out as the tap that opens the calendar.
+    func testSwipingTheClosedPillLeavesTheDayAndCalendarAlone() throws {
+        let app = launchApp(todaysEntry: "At the desk all day.\n")
+        let pill = app.buttons["datePill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30))
+        let today = pill.label
+
+        swipe(pill, across: -160)
+
+        expect(pill, toHaveValue: "Closed")
+        expect(pill, toHaveLabel: today)
+        expect(app.textViews["entryEditor"], toHaveValue: "At the desk all day.\n")
+    }
+
+    func testSwipingAcrossTheWordsChangesTheDay() throws {
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let app = launchApp(
+            entries: "\(entryName(for: yesterday)) Yesterday's words.",
+            todaysEntry: "Today's words.\n"
+        )
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30))
+        let from = inTheDaysWords(of: editor, in: app, dx: 30, dy: 0)
+        from.press(forDuration: 0, thenDragTo: from.withOffset(CGVector(dx: 160, dy: 0)))
+        expect(editor, toHaveValue: "Yesterday's words.\n")
+    }
+
+    func testThePageBesideTheSidebarCanBeSwipedBetweenDays() throws {
+        let yesterday = try XCTUnwrap(dayBeforeToday())
+        let app = launchApp(
+            layout: .sidebar,
+            entries: "\(entryName(for: yesterday)) Yesterday beside the calendar.",
+            todaysEntry: "Today beside the calendar.\n"
+        )
+        let editor = app.textViews["entryEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["sidebarNextMonth"].waitForExistence(timeout: 10))
+        let from = editor.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+        from.press(forDuration: 0, thenDragTo: from.withOffset(CGVector(dx: 160, dy: 0)))
+        expect(editor, toHaveValue: "Yesterday beside the calendar.\n")
+        capture(app, named: "day-navigation-sidebar-yesterday")
+    }
+
     func testAShortSwipeLeavesTheDayWhereItWas() throws {
         let yesterday = try XCTUnwrap(dayBeforeToday())
         let app = launchApp(
@@ -354,10 +380,6 @@ final class TheLayoutAndTheWalkTests: AujourUITestCase {
         expect(app.buttons["datePill"], toHaveValue: "Closed")
     }
 
-    /// The axis lock, asked the only way a running app can ask it. Both
-    /// gestures live on the pill and share a finger now, so a pull down it —
-    /// which no finger draws exactly vertically — must open the calendar and
-    /// nothing else, however far off true it wanders.
     func testPullingThePillOpenDoesNotTakeTheDayWithIt() throws {
         let app = launchApp(todaysEntry: "At the desk all day.\n")
         let pill = app.buttons["datePill"]
@@ -428,6 +450,7 @@ final class TheLayoutAndTheWalkTests: AujourUITestCase {
             "a day that has not arrived did not say so — the screen is showing: "
                 + app.staticTexts.allElementsBoundByIndex.map { $0.label }.joined(separator: " / ")
         )
+        capture(app, named: "day-navigation-future")
         // Cannot be typed in, which is the whole of what "locked" means here:
         // an editor is the only thing that can write an Entry, and there is
         // not one.

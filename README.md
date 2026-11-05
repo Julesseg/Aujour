@@ -25,7 +25,7 @@ identity (`Aujour` / `com.julesseguin.aujour`) that one script swaps for yours.
   Shares the signing certificate with the PR-build pipeline (see below).
 - **Auto-dispatched agent sessions** (`.github/workflows/unblock-dispatch.yml`
   + `agent-implement.yml`) — `ready-for-agent` issues that nothing blocks each
-  get a background [Paseo](https://paseo.sh) agent session spawned on a
+  get an isolated T3 Code implementation thread started on a
   self-hosted Mac runner to implement them, re-scanned whenever a merged PR
   closes an issue or you kick the workflow off by hand. Dormant until you set
   up the runner (see below) — PR and issue events stay green meanwhile.
@@ -62,7 +62,7 @@ App/<Name>UITests/    XCUITest acceptance suite (runs in CI on every PR)
                       + release-appstore.yml (App Store / TestFlight on vX.X.X tags)
                       + unblock-dispatch.yml / agent-implement.yml (agent auto-dispatch)
 ci/                   assemble-build-history.mjs + pipeline docs (ci/README.md)
-docs/agents/          auto-dispatch setup (self-hosted runner + Paseo)
+docs/agents/          auto-dispatch setup (self-hosted runner + T3 Code)
 .agents/              Shared agent hooks
 .claude/ .codex/      Native Claude Code and Codex adapters
 .pi/                   Native Pi adapter
@@ -227,41 +227,20 @@ attached to the run as an artifact (7-day retention). A misformatted tag (not
 
 ## Enabling agent auto-dispatch (one-time)
 
-The auto-dispatch pipeline (`unblock-dispatch.yml` + `agent-implement.yml`)
-spawns a background [Paseo](https://paseo.sh) agent session per ready
-issue. Until you complete this setup, `unblock-dispatch.yml` runs on issue
-events but finds nothing to dispatch, and `agent-implement.yml` never runs —
-both stay green.
+Ready issues start isolated T3 Code worktree threads on the self-hosted Mac.
+Register this checkout in T3, save its provider/model, reasoning and permission
+settings, and set the repository Actions variable `T3_PROJECT_DIR` to its
+absolute path. The runner account needs a running T3 server, authenticated
+provider and GitHub access, and the shared skills under `~/.agents/skills`.
 
-1. **Create the `ready-for-agent` label** and write blockers as `- #N` bullets
-   under a `## Blocked by` heading in issue bodies — that's what the dispatcher
-   scans for. An issue with no blockers qualifies too, and starts on the next
-   issue close or a manual run of `unblock-dispatch.yml`.
-2. **Keep the `label-and-implement-with-pr` skill installed on the runner
-   Mac** under `~/.agents/skills`, with the `implement`, `ui-report`, and
-   `babysit-pr` skills it uses. The workflow asks the selected agent to invoke
-   that skill for the issue.
-3. **Register a self-hosted macOS runner** (repo → Settings → Actions →
-   Runners) on a Mac with the Paseo daemon running, `gh` authenticated, and the
-   selected Paseo provider available.
-4. **Set three required repository Actions variables** (*Settings → Secrets and
-   variables → Actions → Variables* — a variable, not a secret):
+The launcher retains the host limit of three active automated threads across
+participating repositories, plus the existing issue claims and duplicate
+protection. See [auto-dispatch setup](docs/agents/auto-dispatch.md).
 
-   | Variable | Value |
-   | --- | --- |
-   | `PASEO_PROJECT_DIR` | Absolute path of this repo's clone on the runner Mac; agent sessions spawn git worktrees off it |
-   | `PASEO_PROVIDER` | Paseo provider for unattended sessions |
-   | `PASEO_MODEL` | Model exposed by that provider |
-
-   The clone needs to be able to `git fetch origin` unattended as the runner's
-   user — the spawn step refreshes it so each session branches off the current
-   `origin/main` rather than the clone's own stale `main`.
-
-   `PASEO_THINKING`, `PASEO_MODE`, and `PASEO_BASE` are optional. No provider,
-   model, thinking, or permission-mode default is selected by the workflow.
-
-Full walkthrough, scope rules, the in-flight cap, and the optional variables:
-[`docs/agents/auto-dispatch.md`](docs/agents/auto-dispatch.md).
+T3 sessions use the [project adapter](docs/agents/t3-code.md); Paseo sessions
+retain their existing skills and orchestration. Import the on-demand actions
+from `t3.json` when configuring another T3 environment. Schedules move only
+when explicitly requested.
 
 ## CI details
 

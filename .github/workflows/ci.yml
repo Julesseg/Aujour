@@ -40,8 +40,8 @@ jobs:
   # touches nothing the app links or tests — docs, agent config, CI for other
   # workflows — cannot change what those legs verify, so this job answers once
   # whether the PR reaches the app at all and the legs skip when it does not.
-  # Branch protection counts a skipped required check as satisfied, so a
-  # docs-only PR still merges.
+  # Keep the matrix jobs present on non-app PRs so GitHub emits both required
+  # device check names. Only their macOS steps are conditional.
   #
   # `core-tests` stays unconditional: at ~90 seconds it costs less than the
   # bookkeeping to skip it, and every PR keeps one check that actually ran.
@@ -77,7 +77,6 @@ jobs:
 
   app-ui-tests:
     needs: changes
-    if: needs.changes.outputs.app == 'true'
     # Aujour ships universal (TARGETED_DEVICE_FAMILY = "1,2"), and the two
     # families do not lay out the same: an iPad is a regular-width size class
     # where an iPhone in portrait is compact. A suite that only ever ran on
@@ -91,7 +90,7 @@ jobs:
     # `device` is both the check's name and the prefix the simulator is
     # resolved by — every simulator in a family is named after it.
     name: App · XCUITest (${{ matrix.device }})
-    runs-on: macos-15
+    runs-on: ${{ needs.changes.outputs.app == 'false' && 'ubuntu-24.04' || 'macos-15' }}
     strategy:
       fail-fast: false
       matrix:
@@ -108,17 +107,25 @@ jobs:
           - device: iPad
             only: '-only-testing:AujourUITests'
     steps:
+      - name: No app changes
+        if: needs.changes.outputs.app == 'false'
+        run: echo 'No app changes; this device check needs no Xcode build or simulator.' >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/checkout@v4
+        if: needs.changes.outputs.app != 'false'
 
       - name: Select latest stable Xcode
+        if: needs.changes.outputs.app != 'false'
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
 
       - name: Toolchain versions
+        if: needs.changes.outputs.app != 'false'
         run: xcodebuild -version
 
       - name: Resolve and boot a ${{ matrix.device }} simulator
+        if: needs.changes.outputs.app != 'false'
         id: sim
         env:
           DEVICE_PREFIX: ${{ matrix.device }}
@@ -152,6 +159,7 @@ jobs:
           xcrun simctl bootstatus "$UDID" -b
 
       - name: Build & run UI tests
+        if: needs.changes.outputs.app != 'false'
         working-directory: App
         # Serial, deliberately. The suite is split into feature classes over
         # `AujourUITestCase` so xcodebuild *can* spread it across simulator
@@ -172,7 +180,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
       - name: Upload test results
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && needs.changes.outputs.app != 'false' }}
         uses: actions/upload-artifact@v4
         with:
           # Per family — upload-artifact@v4 rejects a name a sibling job in the

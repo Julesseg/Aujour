@@ -22,6 +22,20 @@ ready-for-agent, ready-for-human, wontfix). See `docs/agents/triage-labels.md`.
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See
 `docs/agents/domain.md`.
 
+### Session orchestration
+
+In T3 Code, read `docs/agents/t3-code.md` before delegating, handing off,
+running worker/verifier loops, watching PRs or operating simulators. Its
+T3 mechanics take precedence over Paseo commands in shared skills.
+Paseo-launched sessions retain their Paseo mechanics. Reuse the registered
+project and current thread's checkout for helpers.
+
+### Auto-dispatch of unblocked issues
+
+Ready issues start T3 Code worktree threads through the existing issue-close
+or manual dispatcher. Preserve issue claims, duplicate protection and the
+host-wide limit of three active automated threads. See `docs/agents/auto-dispatch.md`.
+
 ## Conventions
 
 ### Conventional Commits — commit subjects *and* PR titles

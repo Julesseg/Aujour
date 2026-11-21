@@ -38,10 +38,11 @@ final class PhotoSuggestionPreviewTests: AujourUITestCase {
         )
         let editor = app.textViews["entryEditor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 30))
-        editor.tap()
-        editor.typeText("Walked to the market.")
+        XCTAssertTrue(app.staticTexts["aBlankPage"].waitForExistence(timeout: 10))
+        inTheDaysWords(of: editor, in: app, dx: 7, dy: 11).tap()
         let suggestions = app.buttons["openSuggestions"]
-        XCTAssertTrue(suggestions.waitForExistence(timeout: 10))
+        XCTAssertTrue(suggestions.waitForExistence(timeout: 10), "The entry editor did not gain focus")
+        editor.typeText("Walked to the market.")
         suggestions.tap()
         XCTAssertTrue(app.buttons["photoSuggestion2"].waitForExistence(timeout: 10))
         for index in 0..<3 {

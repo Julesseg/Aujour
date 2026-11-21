@@ -145,7 +145,7 @@ struct DatePillPullTests {
 private func measuredEditor() -> (textView: MeasuredScrollView, coordinator: MarkdownEditor.Coordinator) {
     let textView = MeasuredScrollView(frame: CGRect(x: 0, y: 0, width: 350, height: 400))
     textView.contentSize = CGSize(width: 350, height: 1000)
-    return (textView, MarkdownEditor.Coordinator(text: .constant("Words.\n")))
+    return (textView, MarkdownEditor.Coordinator(writeText: { _ in }))
 }
 
 @MainActor

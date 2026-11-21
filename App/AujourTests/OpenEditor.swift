@@ -79,9 +79,7 @@ final class OpenEditor {
         self.glyphs = glyphs
 
         let entry = self.entry
-        coordinator = MarkdownEditor.Coordinator(
-            text: Binding(get: { entry.text ?? source }, set: { entry.text = $0 })
-        )
+        coordinator = MarkdownEditor.Coordinator(writeText: { entry.text = $0 })
         textView.delegate = coordinator
         coordinator.asks = { [weak self] question in self?.asked = question }
         if overADay {

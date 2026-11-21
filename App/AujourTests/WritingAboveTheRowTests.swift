@@ -20,7 +20,7 @@ struct WritingAboveTheRowTests {
 
         let day = LaidOutDay(String(repeating: "A day of words.\n", count: 40), width: 350)
         let editor = MarkdownTextView(frame: CGRect(x: 0, y: 0, width: 350, height: 400), textContainer: day.container)
-        let coordinator = MarkdownEditor.Coordinator(text: .constant(day.storage.string))
+        let coordinator = MarkdownEditor.Coordinator(writeText: { _ in })
         editor.delegate = coordinator
         editor.baseInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
         editor.contentInsetAdjustmentBehavior = .never

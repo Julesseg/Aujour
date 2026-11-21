@@ -1,0 +1,32 @@
+[
+  {
+    "pr": 156,
+    "title": "fix(editor): keep the caret after the first keystroke",
+    "sha": "6a186dc",
+    "time": "2026-11-21T22:15:41.289Z"
+  },
+  {
+    "pr": 155,
+    "title": "chore(agents): migrate orchestration to T3 Code",
+    "sha": "c891b23",
+    "time": "2026-11-05T13:36:42.470Z"
+  },
+  {
+    "pr": 154,
+    "title": "feat(journal): swipe between days across the page",
+    "sha": "13b9c9a",
+    "time": "2026-11-03T01:47:58.360Z"
+  },
+  {
+    "pr": 153,
+    "title": "feat(appearance): tint glass and round expanded calendars",
+    "sha": "391e40d",
+    "time": "2026-10-30T11:19:20.460Z"
+  },
+  {
+    "pr": 152,
+    "title": "feat(editor): give the day rounded writing surfaces",
+    "sha": "adaa6db",
+    "time": "2026-10-29T22:49:38.138Z"
+  }
+]

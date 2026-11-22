@@ -20,8 +20,8 @@ import UIKit
 /// the Entry read like a document while staying markdown under the hand
 /// writing it.
 struct MarkdownEditor: UIViewRepresentable {
-    /// The Entry's text — the file's own words, and nothing the editor added.
-    @Binding var text: String
+    let readText: () -> String
+    let writeText: (String) -> Void
 
     /// Where the pictures this Entry's embeds point at come from. Already
     /// aimed at the day on screen by whoever owns it, because which folder and
@@ -204,7 +204,7 @@ struct MarkdownEditor: UIViewRepresentable {
         context.coordinator.swipeDatePill = swipeDatePill
         context.coordinator.answersTaps(in: textView)
         context.coordinator.formats(in: textView, overADay: requests != nil, accent: styling.box)
-        storage.setSource(text)
+        storage.setSource(readText())
         context.coordinator.textSettled(in: textView)
         if let section { textView.shows(section, tucked: sectionIsTucked) }
         return textView
@@ -218,9 +218,9 @@ struct MarkdownEditor: UIViewRepresentable {
 
     func updateUIView(_ textView: UITextView, context: Context) {
         // The coordinator outlives this struct, which is rebuilt on every
-        // keystroke; the binding it writes back through has to be this one,
+        // keystroke; the callback it writes back through has to be this one,
         // and so does the way to the sheet.
-        context.coordinator.text = $text
+        context.coordinator.writeText = writeText
         context.coordinator.asks = asks
         context.coordinator.requests = requests
         context.coordinator.suggests = suggests
@@ -269,6 +269,8 @@ struct MarkdownEditor: UIViewRepresentable {
         // the day being opened, or the file having moved on underneath it.
         // What the user just typed is already here, and putting it back would
         // take the cursor with it.
+        // The render that scheduled this update can predate a keystroke.
+        let text = readText()
         guard textView.text != text else { return }
 
         let caret = textView.selectedRange
@@ -290,7 +292,7 @@ struct MarkdownEditor: UIViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
+        Coordinator(writeText: writeText)
     }
 
     /// Carries what was typed back to the Entry, and where the cursor is back
@@ -316,7 +318,7 @@ struct MarkdownEditor: UIViewRepresentable {
             }
         }
 
-        var text: Binding<String>
+        var writeText: (String) -> Void
         var swipeDatePill: ((CGSize) -> Bool)?
         private var pullOrigin: CGPoint?
         private var isCalendarPull: Bool?
@@ -374,8 +376,8 @@ struct MarkdownEditor: UIViewRepresentable {
         /// cancelled presentation drops its own without any cleanup message.
         private var insertionAnchors: [WeakInsertionAnchor] = []
 
-        init(text: Binding<String>) {
-            self.text = text
+        init(writeText: @escaping (String) -> Void) {
+            self.writeText = writeText
         }
 
         // MARK: - Tapping a box or a widget
@@ -645,7 +647,7 @@ struct MarkdownEditor: UIViewRepresentable {
             // The text view announces what it was told to change, not what
             // this told its storage — so the Entry is told here, and hears
             // about a tick exactly as it hears about a keystroke.
-            text.wrappedValue = textView.text
+            writeText(textView.text)
 
             // The way back: the characters that are there now, and the words
             // that were there before them. Its range is where the replacement
@@ -773,7 +775,7 @@ struct MarkdownEditor: UIViewRepresentable {
         }
 
         func textViewDidChange(_ textView: UITextView) {
-            text.wrappedValue = textView.text
+            writeText(textView.text)
             textSettled(in: textView)
             // After the text, deliberately: where the caret is only means
             // anything against the words it is in.
